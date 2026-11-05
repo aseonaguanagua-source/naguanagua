@@ -22,13 +22,22 @@ interface Props {
 
 type SubTipo = 'General de Ingresos' | 'Corte de Caja' | 'Ingresos por Banco' | 'Libro de Ventas' | 'Resumen Libro de Ventas';
 
-const fmtBs = (n: number) => n.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const fmtDate = (d: string) => { try { return new Date(d).toLocaleDateString('es-VE'); } catch { return d; } };
-const fmtDT = (d: string) => {
+const fmtBs = (n: number) => (Number(n) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtDate = (d: string) => {
+  if (!d) return '-';
   try {
     const dt = new Date(d);
+    if (isNaN(dt.getTime())) return String(d);
+    return dt.toLocaleDateString('es-VE');
+  } catch { return String(d || '-'); }
+};
+const fmtDT = (d: string) => {
+  if (!d) return '-';
+  try {
+    const dt = new Date(d);
+    if (isNaN(dt.getTime())) return String(d);
     return dt.toLocaleDateString('es-VE') + ' - ' + dt.toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  } catch { return d; }
+  } catch { return String(d || '-'); }
 };
 function parseDet(p: any): any {
   if (!p.detalles) return {};
@@ -237,18 +246,20 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
     const s = new Date(fechaInicio), e = new Date(fechaFin);
     const hasSearch = !!searchTerm.trim();
     return pagos.filter(p => {
-      // Excluir pagos anulados, reversados o condonados de todos los reportes
-      if (p.estado === 'Anulado' || p.estado === 'Reversado' || p.estado === 'Condonado' || p.estado === 'Rechazado') return false;
+      // Excluir pagos anulados, reversados, condonados, rechazados o aún pendientes de verificar
+      if (p.estado === 'Anulado' || p.estado === 'Reversado' || p.estado === 'Condonado' || p.estado === 'Rechazado' || p.estado === 'Por Verificar' || p.estado === 'Pendiente') return false;
       const det = parseDet(p);
       const fd = det.factura_digital || {};
       const fOv = det.fecha_emision_override || det.fecha_asignacion_override || (fd.fecha_emision ? String(fd.fecha_emision).slice(0, 10) : '');
       const d = (fOv && /^\d{4}-\d{2}-\d{2}$/.test(String(fOv))) ? new Date(`${String(fOv)}T12:00:00`) : new Date(p.created_at);
       const fTx = det.fecha_transaccion || det.fecha_banco || '';
-      const fTxDate = fTx ? new Date(fTx + 'T12:00:00') : null;
+      const fTxYmd = fTx ? String(fTx).slice(0, 10) : '';
+      const fTxDate = /^\d{4}-\d{2}-\d{2}$/.test(fTxYmd) ? new Date(fTxYmd + 'T12:00:00') : (fTx ? new Date(fTx) : null);
+      const validFTxDate = fTxDate && !isNaN(fTxDate.getTime()) ? fTxDate : null;
       
       // Filtrar según el criterio seleccionado: por Fecha de Registro en Caja o por Fecha Bancaria del Comprobante
       const fechaCoincide = criterioFecha === 'banco'
-        ? (fTxDate ? (fTxDate >= s && fTxDate <= e) : (d >= s && d <= e))
+        ? (validFTxDate ? (validFTxDate >= s && validFTxDate <= e) : (d >= s && d <= e))
         : (d >= s && d <= e);
 
       if (!fechaCoincide && !(buscarEnTodoHistorial && hasSearch)) return false;
@@ -1012,7 +1023,7 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
           <div style={{ ...S.secHdr, fontSize: 15, padding: '10px 0' }}>
             RESUMEN LIBRO DE VENTAS
             <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)' }}>
-              <button onClick={() => generarLibroVentas(pagos, contribuyentes, 'Mensual', fechaInicio, fechaFin)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#166534', padding: '2px 6px' }} title="Excel"><FileSpreadsheet size={15}/></button>
+              <button onClick={() => generarLibroVentas(getFilteredPagos(), contribuyentes, 'Mensual', fechaInicio, fechaFin)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#166534', padding: '2px 6px' }} title="Excel"><FileSpreadsheet size={15}/></button>
             </div>
           </div>
           <div style={{ padding: '6px 14px', fontSize: 12, borderBottom: '1px solid #eee' }}>

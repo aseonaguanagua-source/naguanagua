@@ -265,12 +265,34 @@ export function AsignarMultaModal({ row, inmuebles, tcmmv, onClose, onSuccess }:
       const nuevaMultaTotal = Math.round((multaActual + montoNum) * 100) / 100;
 
       // Limpiar marca de exoneración total o del mes específico para que la multa sea visible en Contribuyentes
-      let notaPrev = (freshInm.notas || '')
-        .replace(/Caso especial:\s*Exonerado de multas\n?/gi, '')
-        .replace(new RegExp(`\\[EXONERADO:${periodoFinal}\\]\\s*`, 'g'), '')
-        .trim();
+      const rawNotaTrim = String(freshInm.notas || '').trim();
       const registroMulta = `[${fechaHoy} ${hora}] ASIGNACIÓN DE MULTA: Período ${periodoTexto} (${periodoFinal}) - Monto Bs. ${montoNum.toFixed(2)} - Concepto: "${conceptoFinal}". Motivo: ${motivo.trim()} (Autorizado por: ${claveLimpia})`;
-      const nuevaNota = notaPrev ? `${notaPrev}\n---\n${registroMulta}` : registroMulta;
+      let nuevaNota = '';
+      if (rawNotaTrim.startsWith('{')) {
+        try {
+          const parsed = JSON.parse(rawNotaTrim);
+          delete parsed.exonerado_multas;
+          if (parsed.periodos_custom && parsed.periodos_custom[periodoFinal]) {
+            parsed.periodos_custom[periodoFinal].exonerar_multa = false;
+            parsed.periodos_custom[periodoFinal].lleva_multa = true;
+          }
+          const prevObs = String(parsed.observaciones || '').trim();
+          parsed.observaciones = prevObs ? `${prevObs}\n---\n${registroMulta}` : registroMulta;
+          nuevaNota = JSON.stringify(parsed);
+        } catch {
+          const notaPrev = rawNotaTrim
+            .replace(/Caso especial:\s*Exonerado de multas\n?/gi, '')
+            .replace(new RegExp(`\\[EXONERADO:${periodoFinal}\\]\\s*`, 'g'), '')
+            .trim();
+          nuevaNota = notaPrev ? `${notaPrev}\n---\n${registroMulta}` : registroMulta;
+        }
+      } else {
+        const notaPrev = rawNotaTrim
+          .replace(/Caso especial:\s*Exonerado de multas\n?/gi, '')
+          .replace(new RegExp(`\\[EXONERADO:${periodoFinal}\\]\\s*`, 'g'), '')
+          .trim();
+        nuevaNota = notaPrev ? `${notaPrev}\n---\n${registroMulta}` : registroMulta;
+      }
 
       // 2. Actualizar tabla inmuebles
       const { error: errUpdateInm } = await supabase
@@ -305,7 +327,6 @@ export function AsignarMultaModal({ row, inmuebles, tcmmv, onClose, onSuccess }:
           await supabase
             .from('condominio_unidades')
             .update({
-              multa_meses: Math.max(1, Number(unidadDirecta.multa_meses || 0) + 1),
               multa_exonerada_hasta: null
             })
             .eq('id', unidadDirecta.id);
@@ -316,7 +337,6 @@ export function AsignarMultaModal({ row, inmuebles, tcmmv, onClose, onSuccess }:
             await supabase
               .from('condominios')
               .update({
-                multa_meses: Math.max(1, Number(condoData.multa_meses || 0) + 1),
                 multa_exonerada_hasta: null
               })
               .eq('id', condoData.id);

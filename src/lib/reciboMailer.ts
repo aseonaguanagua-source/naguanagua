@@ -51,7 +51,7 @@ export async function cargarDatosRecibo(pagoId: string): Promise<DatosRecibo> {
       .in('inmueble', codigos);
     (inms || []).forEach((i: any) => inmMap.set(i.inmueble, i));
   }
-  const { data: cont } = await supabase.from('contribuyentes').select('nombre, email').eq('identidad', pago.identidad).maybeSingle();
+  const { data: cont } = await supabase.from('contribuyentes').select('nombre, email').eq('identidad', pago.identidad).limit(1).maybeSingle();
 
   const clasif = clasificarPago(recibos, inmMap, det);
   const lineas = codigos.map(codigo => {

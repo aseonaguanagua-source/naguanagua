@@ -207,7 +207,7 @@ export default function DondePagarPage() {
           }
           return false;
         };
-        const safeRecibos = rc.recibos.filter((r: any) => !isCondoRef(r.referencia));
+        const safeRecibos = rc.recibos.filter((r: any) => String(r.referencia || '').toUpperCase().startsWith('MULTA-') || !isCondoRef(r.referencia));
         setBloqueadoPorCondominio(rc.soloCondominio && safeRecibos.length === 0);
         setRawRecibos(safeRecibos);
 
@@ -223,15 +223,35 @@ export default function DondePagarPage() {
           .from('convenios_pago')
           .select('*, convenios_cuotas(*)')
           .or(orFilter)
-          .in('estado', ['Al Día', 'Activo']);
+          .in('estado', ['Al Día', 'Activo', 'En Revisión']);
 
         if (dbConvenios && dbConvenios.length > 0) {
-          const convItems: ConvenioItem[] = dbConvenios.map((c: any) => ({
-            id: `conv_${c.id}`,
-            dbId: c.id,
-            concepto: `Convenio de Pago ${c.numero || c.id} (${c.cuotas || 'Cuotas'})`,
-            monto: parseFloat((c.monto_total || '0').toString().replace(/[^\d.,]/g, '').replace(',', '.')) || 0
-          }));
+          const convItems: ConvenioItem[] = [];
+          dbConvenios.forEach((c: any) => {
+            const cuotasArr = Array.isArray(c.convenios_cuotas) ? [...c.convenios_cuotas] : [];
+            const pendientes = cuotasArr
+              .filter((q: any) => !['Pagado', 'Pagada', 'Aprobado'].includes(String(q.estado || '')))
+              .sort((a: any, b: any) => (Number(a.numero_cuota) || 0) - (Number(b.numero_cuota) || 0));
+            if (pendientes.length > 0) {
+              pendientes.forEach((q: any) => {
+                convItems.push({
+                  id: `conv_${c.id}_${q.id || q.numero_cuota}`,
+                  dbId: q.id || c.id,
+                  concepto: `Convenio ${c.numero || c.id} — Cuota ${q.numero_cuota || 1}/${c.cuotas || pendientes.length}`,
+                  monto: parseFloat(String(q.monto_cuota ?? q.monto ?? '0').replace(/[^\d.,]/g, '').replace(',', '.')) || 0,
+                });
+              });
+            } else {
+              const numCuotas = Math.max(1, parseInt(String(c.cuotas || '1').replace(/\D/g, '')) || 1);
+              const totalConv = parseFloat(String(c.monto_total || '0').replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
+              convItems.push({
+                id: `conv_${c.id}`,
+                dbId: c.id,
+                concepto: `Convenio de Pago ${c.numero || c.id} (Cuota 1/${numCuotas})`,
+                monto: Math.round((totalConv / numCuotas) * 100) / 100,
+              });
+            }
+          });
           setConveniosData(convItems);
         } else {
           setConveniosData([]);
@@ -968,7 +988,7 @@ export default function DondePagarPage() {
     }
   };
 
-  if (bloqueadoPorCondominio && rawRecibos.length === 0 && serviciosPend.length === 0) {
+  if (bloqueadoPorCondominio && rawRecibos.length === 0 && serviciosPend.length === 0 && conveniosData.length === 0) {
     const isCondoInm = (i: any) =>
       Boolean(
         i?.es_condominio ||

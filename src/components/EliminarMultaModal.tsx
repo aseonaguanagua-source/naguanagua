@@ -243,12 +243,13 @@ export function EliminarMultaModal({ row, inmuebles, tcmmv, recibos, onClose, on
         // Calcular multa remanente para este inmueble específico
         const inmMeses = Math.max(0, parseInt(String(inm.meses_deuda || '0'), 10));
         const esRes = isResidencialInm(inm);
-        const baseUnMes = calcularMensualidad(inm, tcmmv > 0 ? tcmmv : 1);
+        const tasaUcd = tcmmv > 0 ? tcmmv : 1;
+        const baseUnMes = calcularMensualidad(inm, tasaUcd);
         const multaPorcentaje = esRes ? 0.10 : 0.12;
         const baseMultaMes = parseFloat((baseUnMes * multaPorcentaje).toFixed(2));
-        const yaExoneradoTodo = isExoneradoTotalMultas(nuevaNota);
+        const yaExoneradoTodo = isExoneradoTotalMultas(nuevaNota) || exoneroTodos;
 
-        let nuevaMultaBsInm = 0;
+        let nuevosMeses = 0;
         if (!yaExoneradoTodo && inmMeses > 1) {
           for (let i = 1; i <= inmMeses; i++) {
             const targetDate = new Date(now.getFullYear(), now.getMonth() - inmMeses + i - 1, 1);
@@ -258,9 +259,17 @@ export function EliminarMultaModal({ row, inmuebles, tcmmv, recibos, onClose, on
             const monthsDiff = (now.getFullYear() - year) * 12 + (now.getMonth() - monthNum);
             const isOverdue = monthsDiff > 1;
             if (isOverdue && !selectedMonths.includes(key) && !isMesExoneradoMulta(nuevaNota, key)) {
-              nuevaMultaBsInm += baseMultaMes;
+              nuevosMeses++;
             }
           }
+        }
+
+        let nuevaMultaBsInm = 0;
+        if (nuevosMeses === 0 || inmMeses === 0) {
+          nuevaMultaBsInm = 0;
+        } else if (inmMeses > 0) {
+          const unitMultaBs = baseMultaMes > 0 ? baseMultaMes : parseFloat((100 * tasaUcd).toFixed(2));
+          nuevaMultaBsInm = parseFloat((nuevosMeses * unitMultaBs).toFixed(2));
         }
 
         const { error: errInm } = await supabase

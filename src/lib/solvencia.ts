@@ -37,8 +37,9 @@ export async function evaluarSolvencia(identidad: string, inmuebleSpec: string =
 }
 
 async function evaluarSolvenciaLocal(identidad: string, inmuebleSpec: string = 'general'): Promise<ResultadoSolvencia> {
-  const variantes = getIdentidadVariants((identidad || '').trim());
-  const especifico = inmuebleSpec && inmuebleSpec !== 'general' ? inmuebleSpec.trim() : '';
+  const safeId = (identidad || '').replace(/[,()]/g, ' ').trim();
+  const variantes = getIdentidadVariants(safeId);
+  const especifico = inmuebleSpec && inmuebleSpec !== 'general' ? inmuebleSpec.replace(/[,()]/g, ' ').trim() : '';
 
   const { data: inmsRif, error } = await supabase
     .from('inmuebles')
@@ -54,6 +55,7 @@ async function evaluarSolvenciaLocal(identidad: string, inmuebleSpec: string = '
         .from('inmuebles')
         .select('id, inmueble, estado, meses_deuda, deuda_mmv, deuda_congelada_bs, multa_bs, condominio_padre_id, padre_id')
         .eq('inmueble', especifico)
+        .limit(1)
         .maybeSingle();
       if (pDb) principal = pDb;
     }
@@ -98,27 +100,16 @@ async function evaluarSolvenciaLocal(identidad: string, inmuebleSpec: string = '
   }
 
   if (!especifico) {
-    const idSin = (identidad || '').replace(/-/g, '');
-    const idList = variantes.length ? variantes : [identidad];
+    const idSin = safeId.replace(/-/g, '');
+    const idList = variantes.length ? variantes : [safeId];
     const { data: facts } = await supabase
       .from('facturas')
       .select('id')
-      .or(`identidad.eq.${identidad},identidad.eq.${idSin}`)
+      .or(`identidad.eq.${safeId},identidad.eq.${idSin}`)
       .in('estado', ['Pendiente', 'Abonado', 'Por Verificar']);
 
     if (facts && facts.length > 0) {
-      if (conDeuda.length === 0) {
-        // Si no hay deuda en los inmuebles (0 meses), conciliar facturas viejas
-        try {
-          await supabase
-            .from('facturas')
-            .update({ estado: 'Pagado', metodo_pago: 'Conciliado por Solvencia', fecha_pago: new Date().toISOString() })
-            .or(`identidad.eq.${identidad},identidad.eq.${idSin}`)
-            .in('estado', ['Pendiente', 'Abonado', 'Por Verificar']);
-        } catch (_) {}
-      } else {
-        detalle.push(`${facts.length} factura(s) pendiente(s)`);
-      }
+      detalle.push(`${facts.length} factura(s) pendiente(s)`);
     }
   }
 

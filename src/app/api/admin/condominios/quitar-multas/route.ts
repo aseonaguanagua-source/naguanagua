@@ -4,12 +4,18 @@ import { mesActualCaracas } from '@/lib/condominios/motor';
 
 export const dynamic = 'force-dynamic';
 
+const SUPERUSUARIOS_ADMIN = new Set(['dzara', 'isamar', 'raquel', 'administrador']);
+
 async function adminActivo(usuario: string) {
   const u = String(usuario || '').trim().toLowerCase();
-  if (!u || u === 'administrador' || u === 'operador') return { usuario: 'administrador', nombre: 'Administrador', rol: 'Administrador' };
-  const { data: t } = await sb.from('trabajadores').select('usuario, nombre, rol, estado').ilike('usuario', u).maybeSingle();
-  if (!t) return { usuario: u, nombre: u, rol: 'Administrador' };
+  if (!u) return null;
+  const { data: t } = await sb.from('trabajadores').select('usuario, nombre, rol, estado').ilike('usuario', u).limit(1).maybeSingle();
+  if (!t) {
+    if (SUPERUSUARIOS_ADMIN.has(u)) return { usuario: u, nombre: u, rol: 'Administrador', estado: 'Activo' };
+    return null;
+  }
   if (t.estado && String(t.estado).trim().toLowerCase() !== 'activo') return null;
+  if (!(t.rol === 'Administrador' || SUPERUSUARIOS_ADMIN.has(u))) return null;
   return t;
 }
 
@@ -31,9 +37,9 @@ export async function POST(req: Request) {
     if (!t) return NextResponse.json({ error: 'Solo un administrador puede quitar multas.' }, { status: 403 });
     if (String(motivo || '').trim().length < 5) return NextResponse.json({ error: 'Escriba el motivo (mínimo 5 caracteres).' }, { status: 400 });
     const codUpper = String(codigo || '').trim().toUpperCase();
-    let { data: c } = await sb.from('condominios').select('id, codigo, nombre, multa_meses, multa_exonerada_hasta').eq('codigo', codUpper).maybeSingle();
+    let { data: c } = await sb.from('condominios').select('id, codigo, nombre, multa_meses, multa_exonerada_hasta').eq('codigo', codUpper).limit(1).maybeSingle();
     if (!c && codUpper) {
-      const { data: uByInm } = await sb.from('condominio_unidades').select('id, condominio_id').ilike('inmueble', codUpper).maybeSingle();
+      const { data: uByInm } = await sb.from('condominio_unidades').select('id, condominio_id').ilike('inmueble', codUpper).limit(1).maybeSingle();
       if (uByInm?.condominio_id) {
         const { data: cParent } = await sb.from('condominios').select('id, codigo, nombre, multa_meses, multa_exonerada_hasta').eq('id', uByInm.condominio_id).maybeSingle();
         if (cParent) {

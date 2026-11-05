@@ -19,6 +19,7 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
     const rawBucket = (formData.get('bucket') as string) || 'documentos';
+    const rawFolder = (formData.get('folder') as string | null) || 'uploads';
     const customPath = formData.get('path') as string | null;
 
     if (!file) {
@@ -48,11 +49,12 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(await file.arrayBuffer());
     const fileNameClean = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
 
-    // Sanitizar customPath contra Path Traversal (..)
+    // Sanitizar customPath y folder contra Path Traversal (..)
+    const safeFolder = rawFolder.replace(/\.\.+/g, '').replace(/^\/+|\/+$/g, '').replace(/[^a-zA-Z0-9/_-]/g, '_') || 'uploads';
     const safeCustomPath = customPath
       ? customPath.replace(/\.\.+/g, '').replace(/^\/+/, '').replace(/[^a-zA-Z0-9/_.-]/g, '_')
       : null;
-    const uploadPath = safeCustomPath || `uploads/${Date.now()}_${crypto.randomUUID().slice(0, 8)}_${fileNameClean}`;
+    const uploadPath = safeCustomPath || `${safeFolder}/${Date.now()}_${crypto.randomUUID().slice(0, 8)}_${fileNameClean}`;
 
     const contentType = ALLOWED_MIME_TYPES.has(mime) ? mime : (extMatch?.[1] === 'pdf' ? 'application/pdf' : 'image/jpeg');
 
@@ -72,19 +74,25 @@ export async function POST(req: NextRequest) {
       }
       console.warn('Supabase Storage error, usando fallback base64 Data URL:', error.message);
       const b64 = buffer.toString('base64');
+      const dataUrl = `data:${contentType};base64,${b64}`;
       return NextResponse.json({
         success: true,
         path: uploadPath,
-        publicUrl: `data:${contentType};base64,${b64}`,
+        publicUrl: dataUrl,
+        url: dataUrl,
+        fileUrl: dataUrl,
       });
     }
 
     const { data: pubData } = supabaseAdmin.storage.from(bucket).getPublicUrl(uploadPath);
+    const publicUrl = pubData?.publicUrl || '';
 
     return NextResponse.json({
       success: true,
       path: uploadPath,
-      publicUrl: pubData?.publicUrl || '',
+      publicUrl,
+      url: publicUrl,
+      fileUrl: publicUrl,
     });
   } catch (err: any) {
     console.error('Error en /api/upload:', err);

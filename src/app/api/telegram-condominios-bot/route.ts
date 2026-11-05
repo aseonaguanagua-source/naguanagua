@@ -82,7 +82,6 @@ async function enviarTelegram(chatId: number | string, text: string, replyMarkup
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const webhookUrl = `${url.origin}/api/telegram-condominios-bot`;
-  const setWebhookTelegram = `https://api.telegram.org/bot${TELEGRAM_CONDOMINIOS_BOT_TOKEN}/setWebhook?url=${encodeURIComponent(webhookUrl)}`;
 
   return NextResponse.json({
     status: 'online',
@@ -90,7 +89,6 @@ export async function GET(request: Request) {
     username: '@Aseonaguanaguac2bot',
     tokenConfigurado: Boolean(TELEGRAM_CONDOMINIOS_BOT_TOKEN),
     webhookEsperado: webhookUrl,
-    setWebhookUrl: setWebhookTelegram
   });
 }
 

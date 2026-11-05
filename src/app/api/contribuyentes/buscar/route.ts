@@ -18,7 +18,7 @@ import { formatPhoneNumber, isFictitiousEmail, getIdentidadVariants, getIdentida
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const q = searchParams.get('q')?.trim();
+    const q = searchParams.get('q')?.replace(/[,()]/g, ' ').trim();
 
     if (!q || q.length < 2) {
       return NextResponse.json({ error: 'Búsqueda muy corta (mínimo 2 caracteres)' }, { status: 400 });

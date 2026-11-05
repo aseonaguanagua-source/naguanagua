@@ -472,15 +472,8 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
         const codeParam = codes[0] || '';
         const res = await fetch(`/api/admin/convenios?identidad=${encodeURIComponent(ident)}&codigo=${encodeURIComponent(codeParam)}`, { cache: 'no-store' });
         const j = await res.json();
-        if (j.ok && Array.isArray(j.data) && j.data.length > 0) {
-          if (isMounted) setConveniosDb(j.data);
-          return;
-        }
-
-        const resAll = await fetch('/api/admin/convenios', { cache: 'no-store' });
-        const jAll = await resAll.json();
-        if (jAll.ok && Array.isArray(jAll.data)) {
-          if (isMounted) setConveniosDb(jAll.data);
+        if (isMounted) {
+          setConveniosDb(j.ok && Array.isArray(j.data) ? j.data : []);
         }
       } catch (err) {
         console.error('Error cargando convenios en modal:', err);

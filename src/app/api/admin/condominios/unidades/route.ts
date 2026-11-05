@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 async function adminActivo(usuario: string) {
   const u = String(usuario || '').trim().toLowerCase();
   if (!u) return null;
-  const { data: t } = await sb.from('trabajadores').select('usuario, nombre, rol, estado').ilike('usuario', u).maybeSingle();
+  const { data: t } = await sb.from('trabajadores').select('usuario, nombre, rol, estado').ilike('usuario', u).limit(1).maybeSingle();
   if (!t || !(t.rol === 'Administrador' || u === 'dzara')) return null;
   if (t.estado && String(t.estado).trim().toLowerCase() !== 'activo') return null;
   return t;
@@ -52,14 +52,14 @@ export async function POST(req: Request) {
     const t = await adminActivo(usuario);
     if (!t) return NextResponse.json({ error: 'Solo un administrador puede modificar condominios.' }, { status: 403 });
     if (String(motivo || '').trim().length < 5) return NextResponse.json({ error: 'Escriba el motivo del cambio.' }, { status: 400 });
-    const { data: c } = await sb.from('condominios').select('id, codigo, nombre, cant_declarada').eq('codigo', String(codigo || '').toUpperCase()).maybeSingle();
+    const { data: c } = await sb.from('condominios').select('id, codigo, nombre, cant_declarada').eq('codigo', String(codigo || '').toUpperCase()).limit(1).maybeSingle();
     if (!c) return NextResponse.json({ error: 'Condominio no encontrado' }, { status: 404 });
 
     const fila: Record<string, any> = { estado: 'Activa', multa_meses: 0, ...limpiar(unidad || {}), condominio_id: c.id, creada_en_modulo: true };
     if (!fila.inmueble && !fila.numero) return NextResponse.json({ error: 'Indique el código del inmueble o el número del local/apartamento.' }, { status: 400 });
     let yaEliminadaId: string | null = null;
     if (fila.inmueble) {
-      const { data: ya } = await sb.from('condominio_unidades').select('id, condominio_id, estado, condominios(codigo,nombre)').eq('inmueble', fila.inmueble).maybeSingle();
+      const { data: ya } = await sb.from('condominio_unidades').select('id, condominio_id, estado, condominios(codigo,nombre)').eq('inmueble', fila.inmueble).limit(1).maybeSingle();
       if (ya) {
         if (ya.estado === 'Eliminada') {
           yaEliminadaId = ya.id;
@@ -152,7 +152,7 @@ export async function PATCH(req: Request) {
 
     if (upd.padre_unidad_id === id) return NextResponse.json({ error: 'Una unidad no puede depender de sí misma.' }, { status: 400 });
     if (upd.inmueble && upd.inmueble !== antes.inmueble) {
-      const { data: ya } = await sb.from('condominio_unidades').select('id').eq('inmueble', upd.inmueble).maybeSingle();
+      const { data: ya } = await sb.from('condominio_unidades').select('id').eq('inmueble', upd.inmueble).limit(1).maybeSingle();
       if (ya) return NextResponse.json({ error: `El inmueble ${upd.inmueble} ya está registrado en otra unidad.` }, { status: 409 });
     }
     
@@ -174,7 +174,7 @@ export async function PATCH(req: Request) {
       if (_cor !== undefined) inmUpd.correo_electronico = _cor;
       if (_dir !== undefined) inmUpd.direccion = _dir;
       if ('desocupada_desde' in cambios || _actExt !== undefined) {
-        const { data: currInm } = await sb.from('inmuebles').select('notas').eq('inmueble', inmuebleAActualizar).maybeSingle();
+        const { data: currInm } = await sb.from('inmuebles').select('notas').eq('inmueble', inmuebleAActualizar).limit(1).maybeSingle();
         let existingNotes: any = {};
         try { if (currInm?.notas) existingNotes = typeof currInm.notas === 'string' ? JSON.parse(currInm.notas) : currInm.notas; } catch {}
         if (_actExt !== undefined) existingNotes.actividades_extra = _actExt;
@@ -228,7 +228,7 @@ export async function PATCH(req: Request) {
           upd.multa_exonerada_hasta = null;
         }
 
-        const { data: currInmMulta } = await sb.from('inmuebles').select('*').eq('inmueble', inmuebleAActualizar).maybeSingle();
+        const { data: currInmMulta } = await sb.from('inmuebles').select('*').eq('inmueble', inmuebleAActualizar).limit(1).maybeSingle();
         let notaStr = String(inmUpd.notas !== undefined ? (inmUpd.notas || '') : (currInmMulta?.notas || '')).trim();
         if (mMulta === 0) {
           inmUpd.multa_bs = 0;

@@ -39,7 +39,7 @@ export async function POST(request: Request) {
     if (!idNueva) return NextResponse.json({ error: 'Identidad nueva inválida. Formato: V-12345678, E-…, J-…, G-…' }, { status: 400 });
     if (idNueva === idActual) return NextResponse.json({ error: 'La identidad nueva es igual a la actual.' }, { status: 400 });
 
-    const { data: viejoRow, error: eV } = await supabase.from('contribuyentes').select('*').eq('identidad', idActual).maybeSingle();
+    const { data: viejoRow, error: eV } = await supabase.from('contribuyentes').select('*').eq('identidad', idActual).limit(1).maybeSingle();
     if (eV) throw eV;
     let viejo: any = viejoRow;
     if (!viejo) {
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
       viejo = { nombre: inm.contribuyente, telefono: inm.telefono, email: inm.correo_electronico, direccion: inm.direccion };
     }
 
-    const { data: existe } = await supabase.from('contribuyentes').select('identidad, nombre').eq('identidad', idNueva).maybeSingle();
+    const { data: existe } = await supabase.from('contribuyentes').select('identidad, nombre').eq('identidad', idNueva).limit(1).maybeSingle();
 
     // 1. Nuevo registro de contribuyente (solo si no existe)
     if (!existe) {

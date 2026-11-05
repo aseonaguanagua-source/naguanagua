@@ -15,13 +15,22 @@ interface Props {
   onPagoActualizado?: (row: any) => void;
 }
 
-const fmtBs = (n: number) => n.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const fmtDate = (d: string) => { try { return new Date(d).toLocaleDateString('es-VE'); } catch { return d; } };
-const fmtDT = (d: string) => {
+const fmtBs = (n: number) => (Number(n) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtDate = (d: string) => {
+  if (!d) return '-';
   try {
     const dt = new Date(d);
+    if (isNaN(dt.getTime())) return String(d);
+    return dt.toLocaleDateString('es-VE');
+  } catch { return String(d || '-'); }
+};
+const fmtDT = (d: string) => {
+  if (!d) return '-';
+  try {
+    const dt = new Date(d);
+    if (isNaN(dt.getTime())) return String(d);
     return dt.toLocaleDateString('es-VE') + ' - ' + dt.toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  } catch { return d; }
+  } catch { return String(d || '-'); }
 };
 function parseDet(p: any): any {
   if (!p.detalles) return {};
@@ -313,7 +322,7 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
   const totalDeposito = depositos.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
   const totalSaldo = saldosAFavor.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
   const totalRetenciones = retenciones.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
-  const totalCuadre = totalDebito + totalCredito + totalTransf + totalDeposito + totalSaldo;
+  const totalCuadre = totalDebito + totalCredito + totalTransf + totalDeposito;
   const cajeroLabel = cajero ? cajero : (!effectiveIsAdmin ? currentUser : 'Todos');
 
   const renderTablaTransf = (titulo: string, items: any[], subtotalMonto: number, themeColor: string, bgTheme: string, borderTheme: string) => {

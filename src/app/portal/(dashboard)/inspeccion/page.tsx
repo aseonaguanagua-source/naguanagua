@@ -30,7 +30,7 @@ export default function InspeccionPage() {
     if (!doc) return;
     setIsLoading(true);
     try {
-      const res = await fetch('/api/admin/servicios-especiales');
+      const res = await fetch(`/api/admin/servicios-especiales?identidad=${encodeURIComponent(doc)}`);
       const data = await res.json();
       if (Array.isArray(data)) {
         const docLimpio = doc.replace(/-/g,'').toUpperCase();

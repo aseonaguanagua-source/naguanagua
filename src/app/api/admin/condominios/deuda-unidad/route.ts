@@ -17,7 +17,7 @@ export async function GET(req: Request) {
     if (!inmueble) return NextResponse.json({ error: 'Falta el inmueble' }, { status: 400 });
 
     // ¿Es un condominio?
-    const { data: condoDirecto } = await sb.from('condominios').select('codigo').eq('codigo', inmueble).maybeSingle();
+    const { data: condoDirecto } = await sb.from('condominios').select('codigo').eq('codigo', inmueble).limit(1).maybeSingle();
     let codigoCondo = condoDirecto?.codigo as string | undefined;
     let unidadId: string | null = null;
     if (!codigoCondo) {

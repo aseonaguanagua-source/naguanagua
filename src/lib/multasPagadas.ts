@@ -278,6 +278,7 @@ export async function obtenerHistorialPagosMultasYPeriodos(params: {
       .from('condominio_unidades')
       .select('id, condominio_id, inmueble, identidad')
       .eq('inmueble', inmCode)
+      .limit(1)
       .maybeSingle();
     if (uRow) {
       unidadId = String(uRow.id);
@@ -289,8 +290,9 @@ export async function obtenerHistorialPagosMultasYPeriodos(params: {
   if (inmCode && !identidad) {
     const { data: inmRow } = await sb
       .from('inmuebles')
-      .select('identidad, cod_inmueble')
-      .eq('cod_inmueble', inmCode)
+      .select('identidad, inmueble')
+      .eq('inmueble', inmCode)
+      .limit(1)
       .maybeSingle();
     if (inmRow?.identidad) {
       identidad = String(inmRow.identidad).trim().toUpperCase();
@@ -311,6 +313,7 @@ export async function obtenerHistorialPagosMultasYPeriodos(params: {
       .from('condominios')
       .select('id, codigo')
       .eq('codigo', codigoCondominio)
+      .limit(1)
       .maybeSingle();
     if (cRow?.id) {
       condominioId = String(cRow.id);

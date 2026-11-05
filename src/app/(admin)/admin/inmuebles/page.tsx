@@ -11,9 +11,12 @@ export default function InmueblesPage() {
 
   // Map JSON to the columns shown in the UI "Inmueble Master (Condominio)"
   const columns = [
-    { key: 'Inmueble', header: 'Código' },
-    { key: 'Uso', header: 'Uso', render: (row: any) => row['Clasificacion'] || 'Residencial' },
-    { key: 'Tipo', header: 'Tipo' },
+    { key: 'inmueble', header: 'Código', render: (row: any) => row.inmueble || row['Inmueble'] || '-' },
+    { key: 'contribuyente', header: 'Contribuyente', render: (row: any) => row.contribuyente || row['Contribuyente'] || '-' },
+    { key: 'rif', header: 'RIF / Cédula', render: (row: any) => row.rif || row.identidad || row['RIF'] || '-' },
+    { key: 'catastro', header: 'Catastro', render: (row: any) => row.catastro || row['Catastro'] || '-' },
+    { key: 'uso', header: 'Uso', render: (row: any) => row.clasificacion || row['Clasificacion'] || 'Residencial' },
+    { key: 'tipo', header: 'Tipo', render: (row: any) => row.tipo || row['Tipo'] || '-' },
     { 
       key: 'Verificado', 
       header: 'Verificado',
@@ -28,22 +31,28 @@ export default function InmueblesPage() {
       key: 'Solvente', 
       header: 'Solvente',
       render: (row: any) => {
-        const saldo = parseFloat(row['Saldo']) || 0;
+        const saldo = Number(row.deuda ?? row.deuda_total_bs ?? row.deuda_mmv ?? row['Saldo'] ?? 0);
+        const mesesDeuda = Number(row.meses_deuda ?? 0);
+        const isSolvente =
+          row.estado_calculado === 'SOLVENTE' ||
+          String(row.estatus || '').toLowerCase() === 'solvente' ||
+          (saldo <= 0 && mesesDeuda <= 0);
+        const cantInm = row.cant_inmuebles ?? row['Cant Inmuebles'] ?? 1;
         return (
           <div className="text-center">
-            {saldo <= 0 ? (
+            {isSolvente ? (
               <span className="text-green-500 font-semibold text-xs">SI</span>
             ) : (
               <span className="text-red-500 font-semibold text-xs">NO</span>
             )}
-            <p className="text-[10px] text-slate-500 mt-1 leading-tight">{row['Cant Inmuebles']} Asociados</p>
+            <p className="text-[10px] text-slate-500 mt-1 leading-tight">{cantInm} Asociados</p>
           </div>
         );
       }
     },
     { key: 'Condicion', header: 'Condición', render: () => 'Pro' },
-    { key: 'Actividad', header: 'Actividad', render: (row: any) => row['Actividad Principal'] },
-    { key: 'Direccion', header: 'Dirección' },
+    { key: 'Actividad', header: 'Actividad', render: (row: any) => row.actividad_principal || row['Actividad Principal'] || '-' },
+    { key: 'Direccion', header: 'Dirección', render: (row: any) => row.direccion || row['Direccion'] || '-' },
     { 
       key: 'Alertas', 
       header: 'Alertas',
@@ -88,7 +97,7 @@ export default function InmueblesPage() {
       {/* Tabs placeholder from image */}
       <div className="flex bg-slate-100 p-2 rounded text-sm text-slate-700 font-medium mb-4 w-fit">
         <div className="px-4 py-1 bg-white shadow-sm rounded border border-slate-200 cursor-default">INMUEBLES</div>
-        <Link href="/admin/condominios-cob" className="px-4 py-1 text-slate-500 hover:text-slate-800 transition-colors">
+        <Link href="/admin/condominios" className="px-4 py-1 text-slate-500 hover:text-slate-800 transition-colors">
           CONDOMINIOS Y COMERCIOS
         </Link>
       </div>

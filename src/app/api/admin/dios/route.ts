@@ -132,7 +132,7 @@ export async function POST(req: Request) {
         const d = pendienteDesdeParaMeses(Number(validos.meses_deuda) || 0);
         await sb.from('condominios').update({ aseo_pendiente_desde: d }).eq('codigo', antes.inmueble);
         await sb.from('condominio_unidades').update({ aseo_pendiente_desde: d }).eq('inmueble', antes.inmueble);
-        const { data: cP } = await sb.from('condominios').select('id').eq('codigo', antes.inmueble).maybeSingle();
+        const { data: cP } = await sb.from('condominios').select('id').eq('codigo', antes.inmueble).limit(1).maybeSingle();
         if (cP) await sb.from('condominio_unidades').update({ aseo_pendiente_desde: d }).eq('condominio_id', cP.id);
       }
 

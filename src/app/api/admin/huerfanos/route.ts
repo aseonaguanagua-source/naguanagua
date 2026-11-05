@@ -25,7 +25,7 @@ function pendienteDesde(n: number): string | null {
 async function esUsuarioValido(usuario: string) {
   const u = String(usuario || '').trim().toLowerCase();
   if (!u) return null;
-  const { data } = await sb.from('trabajadores').select('usuario, nombre, rol').ilike('usuario', u).maybeSingle();
+  const { data } = await sb.from('trabajadores').select('usuario, nombre, rol').ilike('usuario', u).limit(1).maybeSingle();
   if (data) return data;
   return u === 'dzara' ? { usuario: 'dzara', nombre: 'Administrador', rol: 'Administrador' } : null;
 }
@@ -67,7 +67,7 @@ export async function GET(req: Request) {
     const sp = new URL(req.url).searchParams;
     const qCondo = sp.get('condominios');
     if (qCondo !== null) {
-      const t = qCondo.trim();
+      const t = qCondo.replace(/[,()]/g, ' ').trim();
       let q = sb.from('condominios').select('id, codigo, nombre, identidad, modalidad, cobro_tarifa_por_unidad, cant_declarada, aseo_pendiente_desde').order('nombre').limit(30);
       if (t) q = q.or(`codigo.ilike.%${t}%,nombre.ilike.%${t}%,identidad.ilike.%${t}%`);
       const { data, error } = await q;
@@ -79,7 +79,7 @@ export async function GET(req: Request) {
     }
     const estado = sp.get('estado') || 'Pendiente';
     const tipo = sp.get('tipo') || '';
-    const t = (sp.get('q') || '').trim();
+    const t = (sp.get('q') || '').replace(/[,()]/g, ' ').trim();
     const rows: any[] = []; let from = 0;
     while (true) {
       let q = sb.from('huerfanos').select('*').order('meses_deuda', { ascending: false }).order('inmueble').range(from, from + 999);
@@ -125,9 +125,9 @@ export async function POST(req: Request) {
 
     // ── Agregar como unidad de un condominio ──
     if (accion === 'asignar') {
-      const { data: c } = await sb.from('condominios').select('id, codigo, nombre, modalidad, cobro_tarifa_por_unidad, aseo_pendiente_desde').eq('codigo', body.condominio).maybeSingle();
+      const { data: c } = await sb.from('condominios').select('id, codigo, nombre, modalidad, cobro_tarifa_por_unidad, aseo_pendiente_desde').eq('codigo', body.condominio).limit(1).maybeSingle();
       if (!c) return NextResponse.json({ error: 'Seleccione un condominio válido.' }, { status: 400 });
-      const { data: ya } = await sb.from('condominio_unidades').select('id').eq('inmueble', h.inmueble).maybeSingle();
+      const { data: ya } = await sb.from('condominio_unidades').select('id').eq('inmueble', h.inmueble).limit(1).maybeSingle();
       if (ya) return NextResponse.json({ error: 'Ese código ya está registrado como unidad.' }, { status: 409 });
       const propia = c.modalidad === 'INDIVIDUAL' || c.cobro_tarifa_por_unidad;
       let tarifa: number | null = null;
@@ -163,7 +163,7 @@ export async function POST(req: Request) {
       const tipo = /RESID/i.test(d.tipo || '') ? 'RESIDENCIAL' : 'COMERCIAL';
       const meses = Math.max(0, parseInt(d.meses_deuda ?? h.meses_deuda) || 0);
 
-      const { data: existeInm } = await sb.from('inmuebles').select('id').eq('inmueble', h.inmueble).maybeSingle();
+      const { data: existeInm } = await sb.from('inmuebles').select('id').eq('inmueble', h.inmueble).limit(1).maybeSingle();
       if (existeInm) return NextResponse.json({ error: `El código ${h.inmueble} ya existe en inmuebles.` }, { status: 409 });
 
       const tarifas = await tarifasPorActividad();
@@ -171,7 +171,7 @@ export async function POST(req: Request) {
       if (!t || !t.mmv_mes) return NextResponse.json({ error: `La actividad "${actividad}" no tiene tarifa en el sistema. Seleccione una de la lista.` }, { status: 400 });
       const deudaMes = t.deuda_mes_mmv ?? (h.meses_deuda > 0 ? r6(Number(h.deuda_mmv) / h.meses_deuda) : 0);
 
-      const { data: contribPrev } = await sb.from('contribuyentes').select('identidad').eq('identidad', identidad).maybeSingle();
+      const { data: contribPrev } = await sb.from('contribuyentes').select('identidad').eq('identidad', identidad).limit(1).maybeSingle();
       if (!contribPrev) {
         const { error: ec } = await sb.from('contribuyentes').insert({
           identidad, nombre, telefono: d.telefono || h.telefono || null, email: d.correo || h.correo || null,

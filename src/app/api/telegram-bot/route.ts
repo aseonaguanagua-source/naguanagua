@@ -122,7 +122,6 @@ async function enviarTelegram(chatId: number | string, text: string, replyMarkup
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const webhookUrl = `${url.origin}/api/telegram-bot`;
-  const setWebhookTelegram = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN || '<TU_TOKEN>'}/setWebhook?url=${encodeURIComponent(webhookUrl)}`;
 
   return NextResponse.json({
     status: 'online',
@@ -130,9 +129,8 @@ export async function GET(request: Request) {
     tokenConfigurado: Boolean(TELEGRAM_BOT_TOKEN),
     webhookEsperado: webhookUrl,
     instruccionesParaActivar: TELEGRAM_BOT_TOKEN
-      ? `Para activar el webhook, abre en tu navegador: ${setWebhookTelegram}`
+      ? 'El token de Telegram está configurado. Configure el webhook mediante la API oficial de Telegram.'
       : 'Configura la variable TELEGRAM_BOT_TOKEN en las variables de entorno de Vercel.',
-    setWebhookUrl: setWebhookTelegram
   });
 }
 

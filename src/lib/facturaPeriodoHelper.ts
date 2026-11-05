@@ -360,3 +360,13 @@ function formatearListaMesesMulta(meses: string[]): string {
   }
   return `Multa por Mora - Aseo Urbano (${meses[0]} a ${meses[meses.length - 1]})`;
 }
+
+export function resolverPeriodoFactura(pago: any, det?: any, matchedRet?: any): string {
+  const d = det || pago?.detalles || {};
+  if (matchedRet?.periodo) return String(matchedRet.periodo);
+  if (d?.factura_digital?.periodo) return String(d.factura_digital.periodo);
+  if (d?.periodos_pagados) return formatearPeriodoParaConcepto(String(d.periodos_pagados));
+  const concepto = resolverConceptoPeriodoPago({ ...pago, detalles: d });
+  const limpio = concepto.replace(/^Servicio de Aseo Urbano(?: Comercial)?\s*-\s*/i, '').trim();
+  return limpio || concepto;
+}

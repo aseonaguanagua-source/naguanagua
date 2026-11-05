@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 async function adminActivo(usuario: string) {
   const u = String(usuario || '').trim().toLowerCase();
   if (!u) return null;
-  const { data: t } = await sb.from('trabajadores').select('usuario, nombre, rol, estado').ilike('usuario', u).maybeSingle();
+  const { data: t } = await sb.from('trabajadores').select('usuario, nombre, rol, estado').ilike('usuario', u).limit(1).maybeSingle();
   if (!t || !(t.rol === 'Administrador' || u === 'dzara')) return null;
   if (t.estado && String(t.estado).trim().toLowerCase() !== 'activo') return null;
   return t;
@@ -53,6 +53,7 @@ export async function POST(req: Request) {
       .from('condominios')
       .select('id, codigo, nombre, cant_declarada')
       .eq('codigo', codDestino)
+      .limit(1)
       .maybeSingle();
 
     if (errDestino || !condoDestino) {
@@ -66,6 +67,7 @@ export async function POST(req: Request) {
       .from('inmuebles')
       .select('*')
       .ilike('inmueble', inmobCode)
+      .limit(1)
       .maybeSingle();
 
     // 3. Buscar si existe en condominio_unidades
@@ -75,7 +77,7 @@ export async function POST(req: Request) {
     } else {
       queryUnidad = queryUnidad.eq('inmueble', inmobCode);
     }
-    const { data: unidadActual } = await queryUnidad.maybeSingle();
+    const { data: unidadActual } = await queryUnidad.limit(1).maybeSingle();
 
     const condoAnteriorCodigo = (unidadActual as any)?.condominios?.codigo || inmActual?.condominio_padre_id || null;
     const condoAnteriorNombre = (unidadActual as any)?.condominios?.nombre || null;

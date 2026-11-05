@@ -26,10 +26,13 @@ export async function POST(req: Request) {
     let cleanU = u;
     if (cleanU.includes('(')) cleanU = cleanU.split('(')[0].trim();
     if (cleanU.includes('-')) cleanU = cleanU.split('-').pop()!.trim();
+    const safeU = u.replace(/[,()]/g, ' ').trim();
+    const safeCleanU = cleanU.replace(/[,()]/g, ' ').trim();
 
     const { data: trab } = await supabase.from('trabajadores')
       .select('usuario, nombre, rol, estado')
-      .or(`usuario.ilike.${u},usuario.ilike.${cleanU}`)
+      .or(`usuario.ilike.${safeU || 'admin'},usuario.ilike.${safeCleanU || 'admin'}`)
+      .limit(1)
       .maybeSingle();
 
     const esAdmin = (u === 'dzara' || cleanU === 'dzara' || cleanU === 'isamar' || cleanU === 'raquel') || 
@@ -72,12 +75,41 @@ export async function POST(req: Request) {
     // Solo bloquean si son pagos ACTIVOS (no rechazados ni anulados) que tocan exactamente los MISMOS inmuebles.
     // Si un contribuyente tiene varios códigos/inmuebles (ej. URB002601 y URB000324), un pago sobre URB000324
     // no bloquea eliminar un pago erróneo sobre URB002601.
-    const { data: posteriores } = await supabase.from('pagos_reportados')
+    const rawIdentPago = String(pago.identidad || det.identidad || '').trim().toUpperCase();
+    const sinGPago = rawIdentPago.replace(/-/g, '');
+    const conGPago = /^[VEJPG]\d/.test(sinGPago) ? `${sinGPago[0]}-${sinGPago.slice(1)}` : rawIdentPago;
+    const identVarsPago = Array.from(new Set([rawIdentPago, sinGPago, conGPago, ...codigosInvolucrados].filter(Boolean)));
+
+    let qPosteriores = supabase.from('pagos_reportados')
       .select('id, created_at, identidad, monto, estado, referencia, tipo, detalles')
       .gt('created_at', pago.created_at)
-      .not('estado', 'in', '(Rechazado,Anulado,Reversado)')
+      .not('estado', 'in', '(Rechazado,Anulado,Reversado)');
+
+    if (codigosInvolucrados.size === 0 && identVarsPago.length > 0) {
+      qPosteriores = qPosteriores.in('identidad', identVarsPago);
+    }
+
+    const { data: posterioresGlobal } = await qPosteriores
       .order('created_at')
-      .limit(1000);
+      .limit(5000);
+
+    let posteriores = posterioresGlobal || [];
+    if (codigosInvolucrados.size > 0 && identVarsPago.length > 0) {
+      const { data: posterioresPorIdent } = await supabase.from('pagos_reportados')
+        .select('id, created_at, identidad, monto, estado, referencia, tipo, detalles')
+        .gt('created_at', pago.created_at)
+        .not('estado', 'in', '(Rechazado,Anulado,Reversado)')
+        .in('identidad', identVarsPago)
+        .order('created_at')
+        .limit(1000);
+      const seenIds = new Set(posteriores.map((p: any) => p.id));
+      for (const p of posterioresPorIdent || []) {
+        if (!seenIds.has(p.id)) {
+          seenIds.add(p.id);
+          posteriores.push(p);
+        }
+      }
+    }
 
     const choques = (posteriores || []).filter((p: any) => {
       if (p.id === pago.id) return false;
@@ -184,7 +216,7 @@ export async function POST(req: Request) {
     // 6. Respaldo completo en auditoría ANTES de tocar nada
     const { error: eAud } = await supabase.from('auditoria').insert({
       accion: 'Eliminación de pago (deuda restablecida)',
-      usuario: `${trab!.nombre || trab!.usuario} (${trab!.usuario})`,
+      usuario: trab ? `${trab.nombre || trab.usuario} (${trab.usuario})` : u,
       detalles: {
         identidad: pago.identidad, motivo: String(motivo).trim(), estimado,
         pago_respaldo: pago,
@@ -202,6 +234,131 @@ export async function POST(req: Request) {
     }
     if (facturasReabrir.length) {
       await supabase.from('facturas').update({ estado: 'Pendiente' }).in('id', facturasReabrir.map((f: any) => f.id));
+    }
+
+    // 7.0 Revertir estado de Condominio (condominio_unidades, condominios, condominio_multas y condominio_movimientos)
+    const esPagoCondominio = Boolean(
+      det?.condominio?.condominio_id ||
+      det?.condominio?.codigo ||
+      det?.modo === 'CONDOMINIO' ||
+      det?.modalidad_cobro ||
+      pago.modulo === 'condominios' ||
+      det?.modulo === 'condominios' ||
+      det?.es_condominio
+    );
+    if (esPagoCondominio) {
+      try {
+        // a) Revertir desde deuda_previa (unidades y condominio)
+        for (const p of previa) {
+          if (p?.unidad) {
+            const updU: any = {};
+            if (p.aseo_pendiente_desde !== undefined) updU.aseo_pendiente_desde = p.aseo_pendiente_desde;
+            if (p.multa_meses !== undefined) updU.multa_meses = p.multa_meses || 0;
+            if (p.multa_exonerada_hasta !== undefined) updU.multa_exonerada_hasta = p.multa_exonerada_hasta || null;
+            if (Object.keys(updU).length > 0) {
+              await supabase.from('condominio_unidades').update(updU).eq('id', p.unidad);
+            }
+          }
+          if (p?.condominio) {
+            const updC: any = {};
+            if (p.aseo_pendiente_desde !== undefined) updC.aseo_pendiente_desde = p.aseo_pendiente_desde;
+            if (p.multa_meses !== undefined) updC.multa_meses = p.multa_meses || 0;
+            if (Object.keys(updC).length > 0) {
+              await supabase.from('condominios').update(updC).eq('id', p.condominio);
+            }
+          }
+        }
+
+        // b) Buscar movimientos en condominio_movimientos asociados a este pago
+        const idsMovPago = [pago.id, det?.pago_principal_id, det?.pago_vinculado].filter(Boolean);
+        let movsCondo: any[] = [];
+        if (idsMovPago.length > 0) {
+          const { data: mByPago } = await supabase.from('condominio_movimientos').select('*').in('pago_id', idsMovPago);
+          if (mByPago && mByPago.length > 0) movsCondo.push(...mByPago);
+        }
+        if (pago.referencia) {
+          try {
+            const { data: mByRef } = await supabase.from('condominio_movimientos').select('*').eq('referencia', pago.referencia);
+            if (mByRef && mByRef.length > 0) {
+              const seen = new Set(movsCondo.map(m => m.id));
+              mByRef.forEach(m => { if (!seen.has(m.id)) movsCondo.push(m); });
+            }
+          } catch {}
+        }
+
+        // c) Revertir snapshot_unidades (desde condominio_movimientos o detalles.condominio.locales)
+        const snapshotsUnidades: any[] = [];
+        if (Array.isArray(det?.snapshot_unidades)) snapshotsUnidades.push(...det.snapshot_unidades);
+        if (Array.isArray(det?.condominio?.snapshot_unidades)) snapshotsUnidades.push(...det.condominio.snapshot_unidades);
+        if (Array.isArray(det?.condominio?.locales)) snapshotsUnidades.push(...det.condominio.locales);
+        for (const m of movsCondo) {
+          const mDet = typeof m.detalles === 'string' ? (() => { try { return JSON.parse(m.detalles); } catch { return {}; } })() : (m.detalles || {});
+          if (Array.isArray(m.snapshot_unidades)) snapshotsUnidades.push(...m.snapshot_unidades);
+          if (Array.isArray(mDet?.snapshot_unidades)) snapshotsUnidades.push(...mDet.snapshot_unidades);
+        }
+        for (const su of snapshotsUnidades) {
+          const uId = su?.id || su?.unidad_id || su?.unidad;
+          if (!uId) continue;
+          const updSu: any = {};
+          if (su.aseo_pendiente_desde !== undefined) updSu.aseo_pendiente_desde = su.aseo_pendiente_desde;
+          if (su.multa_meses !== undefined) updSu.multa_meses = su.multa_meses;
+          if (su.multa_exonerada_hasta !== undefined) updSu.multa_exonerada_hasta = su.multa_exonerada_hasta;
+          if (su.deuda_bs !== undefined) updSu.deuda_bs = su.deuda_bs;
+          if (su.meses_mora !== undefined) updSu.meses_mora = su.meses_mora;
+          if (Object.keys(updSu).length > 0) {
+            await supabase.from('condominio_unidades').update(updSu).eq('id', uId);
+          }
+        }
+
+        // d) Revertir snapshot_condominio en condominios (deuda_total_bs, abono_bs, multa_bs, meses_mora, aseo_pendiente_desde, multa_meses)
+        let snapCondo = det?.snapshot_condominio || det?.condominio?.snapshot_condominio || null;
+        if (!snapCondo) {
+          for (const m of movsCondo) {
+            const mDet = typeof m.detalles === 'string' ? (() => { try { return JSON.parse(m.detalles); } catch { return {}; } })() : (m.detalles || {});
+            if (m.snapshot_condominio || mDet?.snapshot_condominio) {
+              snapCondo = m.snapshot_condominio || mDet.snapshot_condominio;
+              break;
+            }
+          }
+        }
+        const targetCondoId = snapCondo?.id || det?.condominio?.condominio_id || movsCondo[0]?.condominio_id;
+        const targetCondoCod = snapCondo?.codigo || det?.condominio?.codigo || det?.codigo_condominio;
+        if (snapCondo && (targetCondoId || targetCondoCod)) {
+          const updSnapC: any = {};
+          for (const k of ['deuda_total_bs', 'abono_bs', 'multa_bs', 'meses_mora', 'aseo_pendiente_desde', 'multa_meses']) {
+            if (snapCondo[k] !== undefined) updSnapC[k] = snapCondo[k];
+          }
+          if (Object.keys(updSnapC).length > 0) {
+            if (targetCondoId) await supabase.from('condominios').update(updSnapC).eq('id', targetCondoId);
+            else if (targetCondoCod) await supabase.from('condominios').update(updSnapC).eq('codigo', targetCondoCod);
+          }
+        }
+
+        // e) Restaurar multas en condominio_multas (reabrir pagadas por este pago o reinsertar multas_eliminadas_snapshot)
+        if (idsMovPago.length > 0) {
+          await supabase.from('condominio_multas').update({ estado: 'Pendiente', pago_id: null }).in('pago_id', idsMovPago);
+        }
+        const multasElimSnap: any[] = [];
+        if (Array.isArray(det?.multas_eliminadas_snapshot)) multasElimSnap.push(...det.multas_eliminadas_snapshot);
+        if (Array.isArray(det?.condominio?.multas_eliminadas_snapshot)) multasElimSnap.push(...det.condominio.multas_eliminadas_snapshot);
+        for (const m of movsCondo) {
+          const mDet = typeof m.detalles === 'string' ? (() => { try { return JSON.parse(m.detalles); } catch { return {}; } })() : (m.detalles || {});
+          if (Array.isArray(mDet?.multas_eliminadas_snapshot)) multasElimSnap.push(...mDet.multas_eliminadas_snapshot);
+        }
+        if (multasElimSnap.length > 0) {
+          await supabase.from('condominio_multas').upsert(multasElimSnap, { onConflict: 'id' });
+        }
+
+        // f) Eliminar movimientos en condominio_movimientos correspondientes al pago eliminado
+        if (idsMovPago.length > 0) {
+          await supabase.from('condominio_movimientos').delete().in('pago_id', idsMovPago);
+        }
+        if (movsCondo.length > 0) {
+          await supabase.from('condominio_movimientos').delete().in('id', movsCondo.map(m => m.id).filter(Boolean));
+        }
+      } catch (eCondoRev) {
+        console.warn('Error revirtiendo estado de condominio en eliminar-pago:', eCondoRev);
+      }
     }
 
     // 7.1 Eliminar Notas de Crédito generadas por este pago en documentos

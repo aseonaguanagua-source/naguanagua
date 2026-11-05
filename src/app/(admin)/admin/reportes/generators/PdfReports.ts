@@ -41,6 +41,13 @@ const formatBs = (num: number) => {
   return 'Bs. ' + (num || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
+const safeDT = (raw: any) => {
+  if (!raw) return 'N/A';
+  const dt = new Date(raw);
+  if (isNaN(dt.getTime())) return String(raw);
+  return dt.toLocaleString('es-VE', { hour12: false, day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+};
+
 export const generarCorteCajaPDF = (
   pagosFiltrados: any[], 
   contribuyentes: any[] = [], 
@@ -84,8 +91,10 @@ export const generarCorteCajaPDF = (
   // ==============================
   // METADATA
   // ==============================
-  const startDate = fechaInicio ? new Date(fechaInicio + 'T00:00:00').toLocaleString('es-VE', {hour12: true, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}) : new Date().toLocaleString('es-VE');
-  const endDate = fechaFin ? new Date(fechaFin + 'T23:59:59').toLocaleString('es-VE', {hour12: true, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}) : new Date().toLocaleString('es-VE');
+  const dFromStr = fechaInicio ? String(fechaInicio).split('T')[0] : '';
+  const dToStr = fechaFin ? String(fechaFin).split('T')[0] : '';
+  const startDate = dFromStr ? new Date(dFromStr + 'T00:00:00').toLocaleString('es-VE', {hour12: true, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}) : new Date().toLocaleString('es-VE');
+  const endDate = dToStr ? new Date(dToStr + 'T23:59:59').toLocaleString('es-VE', {hour12: true, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}) : new Date().toLocaleString('es-VE');
   
   doc.setFontSize(9);
   doc.text(`Periodo: Desde ${startDate}`, 40, 85);
@@ -304,14 +313,14 @@ export const generarCorteCajaPDF = (
     debitos, 
     ["FECHA/HORA", "TIPO", "CONTRIBUYENTE", "RECIBO", "BANCO", "APROBACION", "LOTE", "MONTO"],
     (p, c) => [
-      new Date(p.created_at).toLocaleString('es-VE', {hour12: false, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}),
+      safeDT(p.created_at),
       String(p.tipo || 'DEB').substring(0,3).toUpperCase(),
       String(c.Contribuyente || c.contribuyente || p.contribuyente || p.identidad || 'N/A').substring(0,35),
       String(p.factura_ref || p.referencia || 'N/A'),
       String(p.banco_origen || p.banco || 'N/A'),
       String(p.referencia || 'N/A'),
       '0390',
-      parseFloat(p.monto || '0').toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      (parseFloat(p.monto || '0') || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     ],
     totalDebito,
     "Total Debito:"
@@ -323,14 +332,14 @@ export const generarCorteCajaPDF = (
     creditos, 
     ["FECHA/HORA", "TIPO", "CONTRIBUYENTE", "RECIBO", "BANCO", "APROBACION", "LOTE", "MONTO"],
     (p, c) => [
-      new Date(p.created_at).toLocaleString('es-VE', {hour12: false, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}),
+      safeDT(p.created_at),
       String(p.tipo || 'TMD').substring(0,3).toUpperCase(),
       String(c.Contribuyente || c.contribuyente || p.contribuyente || p.identidad || 'N/A').substring(0,35),
       String(p.factura_ref || p.referencia || 'N/A'),
       String(p.banco_origen || p.banco || 'N/A'),
       String(p.referencia || 'N/A'),
       '0390',
-      parseFloat(p.monto || '0').toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      (parseFloat(p.monto || '0') || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     ],
     totalCredito,
     "Total Credito:"
@@ -343,11 +352,11 @@ export const generarCorteCajaPDF = (
     const bancoOrigen = String(p.banco || det.banco_origen || det.banco_emisor || 'N/A').substring(0,22);
     const bClass = clasificarBancoDestino(p);
     const bancoDestino = bClass === 'Banesco' ? 'BANESCO' : bClass === 'Bancamiga' ? 'BANCAMIGA' : String(det.banco_destino || det.banco_receptor || 'N/A').substring(0,22);
-    const montoNum = parseFloat(det.monto_conciliado || p.monto || '0');
+    const montoNum = parseFloat(det.monto_conciliado || p.monto || '0') || 0;
     const tasaPagoEuro = det.tasa_euro || det.tasa_bcv_conciliacion || tasaEuro || 0;
     const montoEur = tasaPagoEuro > 0 ? (montoNum / tasaPagoEuro).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : 'N/A';
     return [
-      new Date(p.created_at).toLocaleString('es-VE', {hour12: false, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}),
+      safeDT(p.created_at),
       bancoOrigen,
       bancoDestino,
       String(p.referencia || 'N/A'),
@@ -416,12 +425,12 @@ export const generarCorteCajaPDF = (
     saldosAFavor, 
     ["FECHA/HORA", "TIPO", "CAJERO", "CONTRIBUYENTE", "APLICADO A NUMERO", "MONTO"],
     (p, c) => [
-      new Date(p.created_at).toLocaleString('es-VE', {hour12: false, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}),
+      safeDT(p.created_at),
       String(p.tipo || 'SAL').substring(0,3).toUpperCase(),
       cajeroNombre,
       String(c.Contribuyente || c.contribuyente || p.contribuyente || p.identidad || 'N/A'),
       String(p.factura_ref || p.referencia || 'N/A'),
-      parseFloat(p.monto || '0').toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      (parseFloat(p.monto || '0') || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     ],
     totalSaldo,
     "Total Saldo a Favor:"
@@ -485,8 +494,10 @@ export const generarIngresoBancarioPDF = (
   doc.setLineWidth(1.5);
   doc.line(40, 70, pageWidth - 40, 70);
 
-  const startDate = fechaInicio ? new Date(fechaInicio + 'T00:00:00').toLocaleString('es-VE', {hour12: true, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}) : new Date().toLocaleString('es-VE');
-  const endDate = fechaFin ? new Date(fechaFin + 'T23:59:59').toLocaleString('es-VE', {hour12: true, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}) : new Date().toLocaleString('es-VE');
+  const dFromStr = fechaInicio ? String(fechaInicio).split('T')[0] : '';
+  const dToStr = fechaFin ? String(fechaFin).split('T')[0] : '';
+  const startDate = dFromStr ? new Date(dFromStr + 'T00:00:00').toLocaleString('es-VE', {hour12: true, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}) : new Date().toLocaleString('es-VE');
+  const endDate = dToStr ? new Date(dToStr + 'T23:59:59').toLocaleString('es-VE', {hour12: true, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}) : new Date().toLocaleString('es-VE');
   
   doc.setFontSize(9);
   doc.text(`Periodo: Desde ${startDate}`, 40, 85);
@@ -617,14 +628,14 @@ export const generarIngresoBancarioPDF = (
     debitos, 
     ["FECHA/HORA", "TIPO", "CONTRIBUYENTE", "RECIBO", "BANCO", "APROBACION", "LOTE", "MONTO"],
     (p, c) => [
-      new Date(p.created_at).toLocaleString('es-VE', {hour12: false, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}) || 'N/A',
+      safeDT(p.created_at),
       String(p.tipo || 'DEB').substring(0,3).toUpperCase(),
-      (c.Contribuyente || p.identidad).substring(0,40),
+      String(c.Contribuyente || c.contribuyente || p.contribuyente || p.identidad || 'N/A').substring(0,40),
       p.factura_ref || p.referencia || 'N/A',
       p.banco_origen || 'BANESCO - 0134',
       p.referencia || 'N/A',
       '0390',
-      parseFloat(p.monto).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      (parseFloat(p.monto) || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     ],
     totalDebito,
     "Total Debito:"
@@ -635,14 +646,14 @@ export const generarIngresoBancarioPDF = (
     creditos, 
     ["FECHA/HORA", "TIPO", "CONTRIBUYENTE", "RECIBO", "BANCO", "APROBACION", "LOTE", "MONTO"],
     (p, c) => [
-      new Date(p.created_at).toLocaleString('es-VE', {hour12: false, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}) || 'N/A',
+      safeDT(p.created_at),
       String(p.tipo || 'TMD').substring(0,3).toUpperCase(),
-      (c.Contribuyente || p.identidad).substring(0,40),
+      String(c.Contribuyente || c.contribuyente || p.contribuyente || p.identidad || 'N/A').substring(0,40),
       p.factura_ref || p.referencia || 'N/A',
       p.banco_origen || 'BANESCO - 0134',
       p.referencia || 'N/A',
       '0390',
-      parseFloat(p.monto).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      (parseFloat(p.monto) || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     ],
     totalCredito,
     "Total Credito:"
@@ -653,13 +664,13 @@ export const generarIngresoBancarioPDF = (
     transferencias, 
     ["FECHA/HORA", "TIPO", "CONTRIBUYENTE", "RECIBO", "BANCO ORIGEN", "REFERENCIA", "MONTO"],
     (p, c) => [
-      new Date(p.created_at).toLocaleString('es-VE', {hour12: false, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}) || 'N/A',
+      safeDT(p.created_at),
       String(p.tipo || 'TRF').substring(0,3).toUpperCase(),
-      (c.Contribuyente || p.identidad).substring(0,40),
+      String(c.Contribuyente || c.contribuyente || p.contribuyente || p.identidad || 'N/A').substring(0,40),
       p.factura_ref || p.referencia || 'N/A',
-      (p.banco_origen || 'N/A').substring(0,20),
+      String(p.banco_origen || 'N/A').substring(0,20),
       p.referencia || 'N/A',
-      parseFloat(p.monto).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      (parseFloat(p.monto) || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     ],
     totalTransf,
     "Total Transferencias:"

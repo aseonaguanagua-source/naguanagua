@@ -5,6 +5,7 @@ import { Handshake, FileEdit, Plus, X, Search, Upload, Ban } from 'lucide-react'
 import { useAppContext } from '@/store/AppContext';
 import { supabase } from '@/lib/supabase';
 import { logAudit } from '@/lib/audit';
+import { calcularMensualidad, getFAR } from '@/lib/calculos';
 
 export default function ConveniosPagoPage() {
   const { convenios, inmuebles, recibos, tcmmv, refreshData, refreshUserData } = useAppContext();
@@ -347,7 +348,26 @@ export default function ConveniosPagoPage() {
           return acc + (meses * mmv);
         }, 0);
 
-        let montoACongelarNum = (totalMMV * tasaEfectiva) + (totalCondoMMV * tasaEfectiva) + totalCongelada + totalFacturasBs;
+        const totalOrdenanzaInmueblesBs = userInmuebles.reduce((acc, curr) => {
+          const congelada = parseFloat(curr.deuda_congelada_bs) || parseFloat(curr.DeudaCongelada) || 0;
+          if (congelada > 0) return acc + congelada;
+          const meses = Math.max(1, parseInt(curr.meses_deuda || '1') || 1);
+          const mensBs = calcularMensualidad(curr, tasaEfectiva);
+          const multaBs = parseFloat(curr.multa_bs || '0') || 0;
+          return acc + (mensBs * meses) + multaBs;
+        }, 0);
+
+        const totalCondoBs = userCondoUnidades.reduce((acc, curr) => {
+          const meses = parseInt(curr.multa_meses || '0') || 0;
+          const mmv = parseFloat(curr.tarifa_mmv || '0') || 0;
+          const act = String(curr.actividad || curr.clasificacion || '');
+          const esRes = act.toLowerCase().includes('residencial');
+          const far = esRes ? getFAR(act) : 0.128;
+          const base = meses * mmv * 57 * far * tasaEfectiva;
+          return acc + (esRes ? base : base * 1.16);
+        }, 0);
+
+        let montoACongelarNum = totalOrdenanzaInmueblesBs + totalCondoBs + totalFacturasBs;
 
         // Si la nota del inmueble contiene un monto previo de refinanciamiento (ej. Bs. 567.781,16)
         if (montoACongelarNum <= 0.01) {
@@ -488,10 +508,14 @@ export default function ConveniosPagoPage() {
         const mmv = parseFloat(inm.DeudaMMV || inm.deuda_mmv || '0') || ((parseInt(inm.meses_deuda || '0') || 0) * (parseFloat(inm.mmv_mes || '0') || 0));
         const currentFrozen = parseFloat(inm.deuda_congelada_bs || inm.DeudaCongelada || '0');
         if (mmv > 0 || currentFrozen > 0) {
-          const bsToFreeze = mmv > 0 ? (mmv * tasaAplicada) : 0;
+          const meses = Math.max(1, parseInt(inm.meses_deuda || '1') || 1);
+          const mensBs = calcularMensualidad(inm, tasaAplicada);
+          const multaBs = parseFloat(inm.multa_bs || '0') || 0;
+          const calcBs = (mensBs * meses) + multaBs;
+          const bsToFreeze = currentFrozen > 0 ? currentFrozen : (calcBs > 0 ? calcBs : mmv * tasaAplicada);
           inmueblesUpdates.push({
             id: inm.id,
-            deuda_congelada_bs: currentFrozen + bsToFreeze
+            deuda_congelada_bs: bsToFreeze
           });
         }
       }
@@ -837,7 +861,7 @@ export default function ConveniosPagoPage() {
                               {listaCuotas.reduce((acc, c) => acc + (parseInt(c.meses_cubiertos) || 0), 0)} meses
                             </td>
                             <td className={`px-3 py-2 text-right font-bold ${
-                              Math.abs(listaCuotas.reduce((a, b) => a + (parseFloat(b.monto) || 0), 0) - parseFloat(foundUser.montoACongelar)) > 1
+                              Math.abs(listaCuotas.reduce((a, b) => a + (parseFloat(b.monto) || 0), 0) - (parseFloat(foundUser.montoACongelar) || 0)) > 1
                               ? 'text-red-600' : 'text-emerald-700'
                             }`}>
                               {listaCuotas.reduce((a, b) => a + (parseFloat(b.monto) || 0), 0).toFixed(2)} Bs
@@ -918,7 +942,15 @@ export default function ConveniosPagoPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200">
-                      {(JSON.parse(viewCuotasModal.convenio.detalle_cuotas || '[]')).map((c: any, i: number) => (
+                      {(() => {
+                        try {
+                          const raw = viewCuotasModal.convenio.detalle_cuotas;
+                          const arr = Array.isArray(raw) ? raw : JSON.parse(raw || '[]');
+                          return Array.isArray(arr) ? arr : [];
+                        } catch {
+                          return [];
+                        }
+                      })().map((c: any, i: number) => (
                         <tr key={i} className="hover:bg-slate-50">
                           <td className="px-4 py-3 font-medium text-slate-600">{i + 1}</td>
                           <td className="px-4 py-3 text-slate-600">{c.fecha}</td>

@@ -29,7 +29,7 @@ async function condominiosSeparados() {
  * Unidad: su propia deuda y la de sus actividades.
  */
 async function deudaModulo(codigo: string): Promise<{ enModulo: boolean; deudaBs: number; detalle: string[] }> {
-  const { data: condo } = await sb.from('condominios').select('codigo').eq('codigo', codigo).neq('estado', 'Eliminado').maybeSingle();
+  const { data: condo } = await sb.from('condominios').select('codigo').eq('codigo', codigo).neq('estado', 'Eliminado').limit(1).maybeSingle();
   let codCondo = condo?.codigo as string | undefined;
   let unidadId: string | null = null;
   if (!codCondo) {
@@ -73,7 +73,7 @@ export async function POST(req: Request) {
     if (especifico) {
       let principal: any = (inmsRif || []).find((i: any) => String(i.inmueble).toUpperCase() === especifico);
       if (!principal) {
-        const { data: pDb } = await sb.from('inmuebles').select(COLS).eq('inmueble', especifico).maybeSingle();
+        const { data: pDb } = await sb.from('inmuebles').select(COLS).eq('inmueble', especifico).limit(1).maybeSingle();
         principal = pDb;
       }
       if (!principal) {
@@ -99,10 +99,12 @@ export async function POST(req: Request) {
       ]);
       const hijos = [...(h1.data || []), ...(h2.data || [])].filter((h, i, arr) => arr.findIndex(x => x.id === h.id) === i);
       const alcance = [principal, ...hijos];
+      const esContenedorCondominioNA = (i: any) =>
+        esNA(i) && alcance.some(c => c.inmueble !== i.inmueble && (c.padre_id === i.inmueble || c.condominio_padre_id === i.inmueble) && c.estado !== 'Eliminado');
       const conDeuda = sinContenedoresNA(alcance, alcance).filter(inmuebleTieneDeuda);
       
-      // Regla N/A y general: si el principal tiene deuda o sus actividades tienen deuda, NO es solvente
-      if (inmuebleTieneDeuda(principal) && !conDeuda.some((x: any) => x.inmueble === principal.inmueble)) {
+      // Regla N/A y general: si el principal tiene deuda (y no es contenedor N/A) o sus actividades tienen deuda, NO es solvente
+      if (!esContenedorCondominioNA(principal) && inmuebleTieneDeuda(principal) && !conDeuda.some((x: any) => x.inmueble === principal.inmueble)) {
         conDeuda.push(principal);
       }
 
@@ -177,14 +179,6 @@ export async function POST(req: Request) {
       const porVerificar = facts.filter((f: any) => f.estado === 'Por Verificar');
       if (porVerificar.length > 0) {
         detalle.push(`${porVerificar.length} pago(s) en espera de verificación bancaria`);
-      } else if (conDeuda.length === 0) {
-        // Solo si no hay pagos en revisión ni deuda en inmuebles, conciliar recibos viejos en Pendiente
-        try {
-          await sb.from('facturas')
-            .update({ estado: 'Pagado', metodo_pago: 'Conciliado por Solvencia', fecha_pago: new Date().toISOString() })
-            .in('identidad', idList)
-            .in('estado', ['Pendiente', 'Abonado']);
-        } catch (_) {}
       } else {
         detalle.push(`${facts.length} factura(s) pendiente(s)`);
       }

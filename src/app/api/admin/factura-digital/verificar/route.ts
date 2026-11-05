@@ -76,7 +76,7 @@ export async function POST(request: Request) {
     // 3. Buscar datos del pago en BD si vino pagoId
     let pagoData: any = null;
     if (pagoId) {
-      const { data } = await supabase.from('pagos_reportados').select('*').eq('id', pagoId).single();
+      const { data } = await supabase.from('pagos_reportados').select('*').eq('id', pagoId).maybeSingle();
       pagoData = data;
     }
 
@@ -206,6 +206,7 @@ export async function POST(request: Request) {
         .from('inmuebles')
         .select('inmueble, tipo, actividad_principal, direccion, correo_electronico, telefono, condominio_padre_id, contribuyente')
         .eq('inmueble', codInmEspecifico)
+        .limit(1)
         .maybeSingle();
       if (matchedInm) prop = matchedInm;
     }
@@ -233,6 +234,7 @@ export async function POST(request: Request) {
       .from('contribuyentes')
       .select('nombre, email, telefono, direccion')
       .in('identidad', idVariants)
+      .limit(1)
       .maybeSingle();
 
     const esCondo = Boolean(pagoData?.modulo === 'condominios' || detPagoObj?.modulo === 'condominios' || detPagoObj?.isCondominio || detPagoObj?.es_condominio);
@@ -359,7 +361,7 @@ export async function POST(request: Request) {
         tipo: tipoId,
         numero: numId,
         razonSocial: nombreContribFinal,
-        direccion: simPayload?.payload?.documentoElectronico?.Comprador?.Direccion || sanitizarDireccionFiscal(
+        direccion: simPayload?.payload?.documentoElectronico?.Encabezado?.Comprador?.Direccion || simPayload?.documentoElectronico?.Encabezado?.Comprador?.Direccion || sanitizarDireccionFiscal(
           prop?.direccion || detPagoObj?.recibo_caja?.[0]?.domicilioFiscal || contribuyenteDb?.direccion,
           {
             unidadNumero: detPagoObj?.modo === 'CONDOMINIO' ? null : (detPagoObj?.condominio?.lineas?.[0]?.numero || (prop as any)?.numero_local),

@@ -14,7 +14,7 @@ interface Props {
 }
 
 const fmtBs = (n: number) => n.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const fmtDate = (d: string) => { try { return new Date(d).toLocaleDateString('es-VE'); } catch { return d; } };
+const fmtDate = (d: string) => { if (!d) return '-'; try { const dt = new Date(d); return isNaN(dt.getTime()) ? String(d) : dt.toLocaleDateString('es-VE'); } catch { return String(d || '-'); } };
 
 function parseDet(p: any): any {
   if (!p.detalles) return {};

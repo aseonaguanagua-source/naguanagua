@@ -687,9 +687,9 @@ export default function KioskPage() {
     setPosStatusMsg(`¡PAGO APROBADO EN POS BANCAMIGA A75 PRO! (Ref: ${refFinal})`);
     setPosAlertState('approved');
 
-    await new Promise((resolve) => setTimeout(resolve, 4500));
+    await new Promise((resolve) => setTimeout(resolve, 1800));
     setPosAlertState('idle');
-    setStep('success');
+    await processPayment(refFinal, 'Punto de Venta', aprobFinal, loteFinal);
   };
 
   const confirmarRechazadoA75Pro = (motivo?: string) => {
@@ -716,18 +716,8 @@ export default function KioskPage() {
     setIsWaitingPos(true);
     setPosAlertState('waiting');
     setPosStatusMsg(
-      'Esperando lectura de tarjeta (NFC / Chip) en el Punto Bancamiga A75 Pro...'
+      'Pase la tarjeta en el Punto Bancamiga A75 Pro e ingrese la referencia del voucher aprobado.'
     );
-
-    await new Promise((resolve) => setTimeout(resolve, 8000));
-    setPosStatusMsg(
-      'Tarjeta detectada en A75 Pro · Verificando clave y autorización con Bancamiga...'
-    );
-
-    await new Promise((resolve) => setTimeout(resolve, 7000));
-    const refAuto = `00${String(Date.now()).slice(-6)}`;
-    const aprobAuto = String(Date.now()).slice(-6);
-    await confirmarAprobadoA75Pro(refAuto, aprobAuto, '001');
   };
 
   const processPayment = async (ref: string, method: PayMethod, aprobacionOverride?: string, loteOverride?: string) => {
@@ -872,7 +862,7 @@ export default function KioskPage() {
           : {}),
       };
 
-      await supabase.from('pagos_reportados').insert({
+      const { error: insertErr } = await supabase.from('pagos_reportados').insert({
         identidad: foundUser?.Identidad,
         monto: pagoTotalCalculado,
         banco: 'Bancamiga',
@@ -882,6 +872,9 @@ export default function KioskPage() {
         created_at: fechaUTC,
         detalles: detallesObj,
       });
+      if (insertErr) {
+        throw new Error(`No se pudo registrar el pago: ${insertErr.message}`);
+      }
 
       let dinero = totalSel;
       // Meses RECIB-HIST pagados por inmueble (se descuentan todos de una vez)
@@ -902,9 +895,11 @@ export default function KioskPage() {
           continue;
         }
         if (r.startsWith('MULTA-')) {
-          const inm = userInms.find((i: any) => `MULTA-${i.inmueble}` === r);
+          const mMulta = r.match(/^MULTA-(.+?)(?:-M\d+)?$/i);
+          const codeMulta = mMulta ? mMulta[1].toUpperCase() : r.slice(6).toUpperCase();
+          const inm = userInms.find((i: any) => String(i.inmueble || '').toUpperCase() === codeMulta);
           if (inm) {
-            await supabase.from('inmuebles').update({ multa_bs: 0, deuda_congelada_bs: 0 }).eq('id', inm.id);
+            await supabase.from('inmuebles').update({ multa_bs: 0, multa_meses: 0 }).eq('id', inm.id);
             if (inm.inmueble) {
               await supabase.from('condominio_unidades').update({ multa_meses: 0 }).ilike('inmueble', inm.inmueble);
             }
@@ -933,9 +928,11 @@ export default function KioskPage() {
         const nuevoMeses = Math.max(0, meses - pagados);
         const d = parseFloat(String(inm.deuda_mmv || 0));
         const m = parseFloat(String(inm.multa_bs || 0));
+        const cBs = parseFloat(String(inm.deuda_congelada_bs || 0));
         const nuevaDeuda = nuevoMeses === 0 ? 0 : parseFloat(((d * nuevoMeses) / meses).toFixed(6));
         const nuevaMulta = nuevoMeses === 0 ? 0 : parseFloat(((m * nuevoMeses) / meses).toFixed(2));
-        await supabase.from('inmuebles').update({ deuda_mmv: nuevaDeuda, deuda_congelada_bs: 0, multa_bs: nuevaMulta, meses_deuda: nuevoMeses }).eq('id', inm.id);
+        const nuevaCongelada = nuevoMeses === 0 ? 0 : parseFloat(((cBs * nuevoMeses) / meses).toFixed(2));
+        await supabase.from('inmuebles').update({ deuda_mmv: nuevaDeuda, deuda_congelada_bs: nuevaCongelada, multa_bs: nuevaMulta, meses_deuda: nuevoMeses }).eq('id', inm.id);
         if (inm.inmueble) {
           if (nuevoMeses === 0) {
             await supabase.from('condominio_unidades').update({ aseo_pendiente_desde: null, multa_meses: 0 }).ilike('inmueble', inm.inmueble);
@@ -2025,8 +2022,83 @@ export default function KioskPage() {
                       </div>
                     </div>
 
-                    <div className="text-xs font-semibold text-emerald-400 animate-pulse">
-                      {posStatusMsg || 'Esperando respuesta automática de aprobación del punto...'}
+                    <div className="text-xs font-semibold text-emerald-400">
+                      {posStatusMsg || 'Esperando confirmación de aprobación del punto...'}
+                    </div>
+
+                    <div className="space-y-2.5 text-left">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1">
+                          Referencia / Nro. Aprobación del Voucher POS:
+                        </label>
+                        <input
+                          type="text"
+                          value={posVoucherInput}
+                          onChange={(e) => setPosVoucherInput(e.target.value)}
+                          placeholder="Ej: 00123456"
+                          className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-mono font-bold text-white focus:border-emerald-400 outline-none"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+                            Código Aprobación:
+                          </label>
+                          <input
+                            type="text"
+                            value={posAprobacion}
+                            onChange={(e) => setPosAprobacion(e.target.value)}
+                            placeholder="Opcional"
+                            className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-white focus:border-emerald-400 outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+                            Lote POS:
+                          </label>
+                          <input
+                            type="text"
+                            value={posLote}
+                            onChange={(e) => setPosLote(e.target.value)}
+                            placeholder="001"
+                            className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-white focus:border-emerald-400 outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-2.5 pt-1">
+                      <button
+                        type="button"
+                        disabled={!posVoucherInput.trim()}
+                        onClick={() =>
+                          confirmarAprobadoA75Pro(
+                            posVoucherInput.trim(),
+                            posAprobacion.trim() || posVoucherInput.trim().slice(-6),
+                            posLote.trim() || '001'
+                          )
+                        }
+                        className="flex-1 py-3 px-4 rounded-2xl bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-700 disabled:text-slate-500 text-slate-950 font-black text-xs sm:text-sm cursor-pointer disabled:cursor-not-allowed"
+                      >
+                        Confirmar Aprobado POS
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => confirmarRechazadoA75Pro()}
+                        className="py-3 px-4 rounded-2xl bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/40 text-rose-300 font-bold text-xs sm:text-sm cursor-pointer"
+                      >
+                        Operación Declinada
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPosAlertState('idle');
+                          setIsWaitingPos(false);
+                        }}
+                        className="py-3 px-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs sm:text-sm cursor-pointer"
+                      >
+                        Cancelar
+                      </button>
                     </div>
                   </div>
                 )}

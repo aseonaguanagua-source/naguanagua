@@ -20,7 +20,8 @@ export async function checkSystemConfig(key: string, defaultValue: boolean): Pro
         .from('system_config')
         .select('value')
         .eq('key', key)
-        .single();
+        .limit(1)
+        .maybeSingle();
         
       if (!error && data) {
         return data.value === 'true';

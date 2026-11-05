@@ -159,6 +159,32 @@ export function construirRecibosContribuyente(params: {
       }
     });
   }
+
+  // Unidades de condominios grupales que tengan multa individual pendiente
+  const condoInmsWithMulta = condoInms.filter(inm => {
+    if (isCondominioPagoIndividual(inm)) return false;
+    return num(inm.multa_bs) > 0;
+  });
+  condoInmsWithMulta.forEach(inm => {
+    const multa = num(inm.multa_bs);
+    const refMulta = `MULTA-${inm.inmueble}`;
+    if (multa > 0 && !recibos.some(r => r.referencia === refMulta)) {
+      const f = new Date(hoy.getFullYear(), hoy.getMonth() - 2, 1, 12, 0, 0).toISOString();
+      recibos.push({
+        id: `multa-${inm.inmueble}`,
+        referencia: refMulta,
+        inmueble: inm.inmueble,
+        identidad: params.identidad,
+        contribuyente: params.contribuyente || inm.contribuyente || '',
+        emision: f,
+        vencimiento: f,
+        estado: 'Pendiente',
+        monto: multa.toFixed(2),
+        descripcion: `Multa Municipal (${inm.inmueble})`
+      });
+    }
+  });
+
   recibos.sort((a, b) => {
     const aC = String(a.referencia || '').startsWith('CM-'), bC = String(b.referencia || '').startsWith('CM-');
     if (!aC && bC) return -1; if (aC && !bC) return 1;

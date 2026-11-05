@@ -392,7 +392,23 @@ export default function SolvenciaPage() {
                     {downloading ? 'Descargando...' : 'Descargar PDF'}
                   </button>
                   <button 
-                    onClick={() => window.print()} 
+                    onClick={async () => {
+                      try {
+                        if (activeInm && isSolvente) {
+                          const vencDate = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).toISOString().slice(0, 10);
+                          await supabase.from('certificados').upsert([{
+                            codigo: numeroCertificado,
+                            identidad: portalDoc,
+                            contribuyente: activeInm.contribuyente || contribuyenteNombre || 'Contribuyente',
+                            inmueble: activeInm.inmueble,
+                            emision: hoy.toISOString().slice(0, 10),
+                            vencimiento: vencDate,
+                            estado: 'Vigente'
+                          }], { onConflict: 'codigo' });
+                        }
+                      } catch {}
+                      window.print();
+                    }} 
                     className="bg-slate-800 hover:bg-slate-900 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-2 shadow transition-colors"
                   >
                     <Printer className="w-3.5 h-3.5" /> Imprimir
@@ -637,7 +653,7 @@ export default function SolvenciaPage() {
                 <div className="space-y-1.5 flex flex-col items-center justify-center">
                   <div className="w-16 h-16 border-2 border-dashed border-emerald-600 rounded-xl flex items-center justify-center bg-white p-1 shadow-sm">
                     <img 
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://naguanagua.globalgreenrec.com/validar?cert=${numeroCertificado}`}
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://naguanagua.globalgreenrec.com/validar?codigo=${numeroCertificado}`}
                       alt="Código QR de Verificación"
                       className="w-full h-full object-contain"
                     />

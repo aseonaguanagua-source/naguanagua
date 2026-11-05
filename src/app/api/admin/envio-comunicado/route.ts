@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
 import { getResendClient, DEFAULT_RESEND_FROM } from '@/lib/emailClient';
 
+export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
+
 function buildHtml(nombre: string): string {
   const BASE = 'https://naguanagua.globalgreenrec.com';
   return `
@@ -231,19 +234,28 @@ export async function POST(request: Request) {
     if (testMode) {
       destinatarios = [{ nombre: 'Prueba IAMEC Naguanagua', correo: testEmail }];
     } else {
-      const { data: inms, error } = await supabase
-        .from('inmuebles')
-        .select('contribuyente, correo_electronico')
-        .not('correo_electronico', 'is', null)
-        .neq('correo_electronico', '');
-      if (error) throw error;
       const vistos = new Set<string>();
-      for (const inm of inms || []) {
-        const correo = (inm.correo_electronico || '').toLowerCase().trim();
-        if (correo && !vistos.has(correo)) {
-          vistos.add(correo);
-          destinatarios.push({ nombre: inm.contribuyente || 'Contribuyente', correo });
+      const STEP = 1000;
+      let from = 0;
+      while (true) {
+        const { data: inms, error } = await supabase
+          .from('inmuebles')
+          .select('id, contribuyente, correo_electronico')
+          .not('correo_electronico', 'is', null)
+          .neq('correo_electronico', '')
+          .order('id', { ascending: true })
+          .range(from, from + STEP - 1);
+        if (error) throw error;
+        if (!inms || inms.length === 0) break;
+        for (const inm of inms) {
+          const correo = (inm.correo_electronico || '').toLowerCase().trim();
+          if (correo && !vistos.has(correo)) {
+            vistos.add(correo);
+            destinatarios.push({ nombre: inm.contribuyente || 'Contribuyente', correo });
+          }
         }
+        if (inms.length < STEP) break;
+        from += STEP;
       }
     }
 

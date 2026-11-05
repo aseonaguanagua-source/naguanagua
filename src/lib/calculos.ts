@@ -247,7 +247,7 @@ export const getFO = (actividadFull: string, esResidencial: boolean) => {
   return resolverFOComercial(actividadFull);
 };
 
-export const getFAR = (actividadFull: string) => {
+export function getFAR(actividadFull?: string): number {
   const act = (actividadFull || "").toLowerCase().trim();
   
   // Factor de Ajuste Residencial (FAR) según Tabla "A" de la Ordenanza Municipal de Naguanagua
@@ -509,15 +509,23 @@ export const isSeptiembre2026 = (dateOrMonthKey?: string | Date | null): boolean
   if (!dateOrMonthKey) return false;
   if (dateOrMonthKey instanceof Date) {
     if (isNaN(dateOrMonthKey.getTime())) return false;
+    if (dateOrMonthKey.getUTCHours() === 0 && dateOrMonthKey.getUTCMinutes() === 0) {
+      return dateOrMonthKey.getUTCFullYear() === 2026 && dateOrMonthKey.getUTCMonth() === 8;
+    }
     return dateOrMonthKey.getFullYear() === 2026 && dateOrMonthKey.getMonth() === 8;
   }
   if (typeof dateOrMonthKey === 'string') {
     const s = dateOrMonthKey.trim();
-    if (/^2026-09/.test(s) || /^09-2026/.test(s)) return true;
+    const mStart = s.match(/^(\d{4})-(\d{2})/);
+    if (mStart) return Number(mStart[1]) === 2026 && Number(mStart[2]) - 1 === 8;
+    if (/^09-2026/.test(s)) return true;
     const match = s.match(/(\d{4})-(\d{2})/);
-    if (match) return match[1] === '2026' && match[2] === '09';
+    if (match) return Number(match[1]) === 2026 && Number(match[2]) - 1 === 8;
     const d = new Date(s);
     if (!isNaN(d.getTime())) {
+      if (d.getUTCHours() === 0 && d.getUTCMinutes() === 0) {
+        return d.getUTCFullYear() === 2026 && d.getUTCMonth() === 8;
+      }
       return d.getFullYear() === 2026 && d.getMonth() === 8;
     }
   }
@@ -539,21 +547,32 @@ export const isMesExoneradoMulta = (notasOrInm?: any, dateOrMonthKey?: string | 
 
   let key = '';
   if (dateOrMonthKey instanceof Date) {
-    const y = dateOrMonthKey.getFullYear();
-    const m = String(dateOrMonthKey.getMonth() + 1).padStart(2, '0');
+    if (isNaN(dateOrMonthKey.getTime())) return false;
+    const useUtc = dateOrMonthKey.getUTCHours() === 0 && dateOrMonthKey.getUTCMinutes() === 0;
+    const y = useUtc ? dateOrMonthKey.getUTCFullYear() : dateOrMonthKey.getFullYear();
+    const m = String((useUtc ? dateOrMonthKey.getUTCMonth() : dateOrMonthKey.getMonth()) + 1).padStart(2, '0');
     key = `${y}-${m}`;
   } else if (typeof dateOrMonthKey === 'string') {
-    const match = dateOrMonthKey.match(/(\d{4})-(\d{2})/);
-    if (match) {
-      key = `${match[1]}-${match[2]}`;
+    const s = dateOrMonthKey.trim();
+    const mStart = s.match(/^(\d{4})-(\d{2})/);
+    if (mStart) {
+      const y = Number(mStart[1]);
+      const m = String((Number(mStart[2]) - 1) + 1).padStart(2, '0');
+      key = `${y}-${m}`;
     } else {
-      const d = new Date(dateOrMonthKey);
-      if (!isNaN(d.getTime())) {
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, '0');
-        key = `${y}-${m}`;
+      const match = s.match(/(\d{4})-(\d{2})/);
+      if (match) {
+        key = `${match[1]}-${match[2]}`;
       } else {
-        key = dateOrMonthKey;
+        const d = new Date(s);
+        if (!isNaN(d.getTime())) {
+          const useUtc = d.getUTCHours() === 0 && d.getUTCMinutes() === 0;
+          const y = useUtc ? d.getUTCFullYear() : d.getFullYear();
+          const m = String((useUtc ? d.getUTCMonth() : d.getMonth()) + 1).padStart(2, '0');
+          key = `${y}-${m}`;
+        } else {
+          key = s;
+        }
       }
     }
   }
@@ -660,5 +679,8 @@ export const extractNivelZona = (str?: string | null): { nivel: string | null; z
 
   return { nivel, zona };
 };
+
+export { calcularDeudaInmueble } from './deudaMensual';
+
 
 

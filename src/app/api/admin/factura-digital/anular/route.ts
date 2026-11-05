@@ -8,22 +8,39 @@ import { pagoTieneRetencion, calcularRetencion, enviarDatosFacturaRetencion, por
 import { extraerCodigoInmueble } from '@/lib/documentoPago';
 import { descontarSaldoFavor } from '@/lib/saldoFavor';
 
-/** Siguiente N° de Nota de Crédito (correlativo propio Tipo 03, serie vacía). */
+export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
+
+// Mutex en memoria para serializar la asignación de correlativos de Nota de Crédito
+let ncCorrelativoMutex: Promise<number> = Promise.resolve(0);
+let ultimoNcAsignadoMemoria = 0;
+
+/** Siguiente N° de Nota de Crédito (correlativo propio Tipo 03, serie vacía) protegido con mutex y máximo numérico real. */
 async function siguienteNumeroNotaCredito(sb: any): Promise<number> {
-  const ultTfhka = await TheFactoryHKA.ultimoDocumento('', '03');
-  let ultDb = 0;
-  try {
-    const { data } = await sb
-      .from('pagos_reportados')
-      .select('detalles')
-      .not('detalles->factura_digital->nota_credito->tfhka_seq', 'is', null)
-      .order('detalles->factura_digital->nota_credito->tfhka_seq', { ascending: false })
-      .limit(1);
-    const d = data?.[0]?.detalles;
-    const nc = (typeof d === 'string' ? JSON.parse(d) : d)?.factura_digital?.nota_credito;
-    ultDb = parseInt(String(nc?.tfhka_seq ?? 0), 10) || 0;
-  } catch { /* sin registros */ }
-  return Math.max(ultTfhka ?? 0, ultDb) + 1;
+  const nextPromise = ncCorrelativoMutex.catch(() => 0).then(async () => {
+    const ultTfhka = await TheFactoryHKA.ultimoDocumento('', '03');
+    let ultDb = 0;
+    try {
+      const { data } = await sb
+        .from('pagos_reportados')
+        .select('detalles')
+        .not('detalles->factura_digital->nota_credito->tfhka_seq', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(200);
+      for (const row of data || []) {
+        const d = row?.detalles;
+        const nc = (typeof d === 'string' ? JSON.parse(d) : d)?.factura_digital?.nota_credito;
+        const seq = parseInt(String(nc?.tfhka_seq ?? nc?.numero_documento ?? 0), 10) || 0;
+        if (seq > ultDb) ultDb = seq;
+      }
+    } catch { /* sin registros */ }
+    const siguiente = Math.max(ultTfhka ?? 0, ultDb, ultimoNcAsignadoMemoria) + 1;
+    ultimoNcAsignadoMemoria = siguiente;
+    return siguiente;
+  });
+
+  ncCorrelativoMutex = nextPromise;
+  return nextPromise;
 }
 
 function numeroALetras(monto: number): string {
@@ -280,7 +297,7 @@ export async function POST(request: Request) {
     // Check if user is in the allowed list or is admin
     const allowedUsers = ['isamar', 'raquel', 'dzara', 'nell', 'admin', 'administrador', 'cajero', 'supervisor'];
     
-    const { data: trab } = await supabase.from('trabajadores').select('usuario, rol').ilike('usuario', cleanUser).maybeSingle();
+    const { data: trab } = await supabase.from('trabajadores').select('usuario, rol').ilike('usuario', cleanUser).limit(1).maybeSingle();
     const esAdmin = !!trab && (trab.rol === 'Administrador' || trab.rol === 'Personalizado');
     
     if (!esAdmin && !allowedUsers.includes(cleanUser) && cleanUser.length > 0) {
@@ -348,11 +365,13 @@ export async function POST(request: Request) {
       dm.pago_id = dm.pago_id || pagoId;
       dm.identidad = dm.identidad || pagoRow.identidad;
       dm.referencia = dm.referencia || pagoRow.referencia;
-      await revertirNotaCreditoYSaldoFavorGenerado(dm, pagoRow, nuevosDetalles);
       // IMPORTANTE: Al anular la factura fiscal (para reemitirla con corrección), NO se debe
-      // desconciliar el pago bancario ni restaurar la deuda en Caja si el pago ya estaba Aprobado.
-      // La restauración de deuda solo ocurre cuando se rechaza el pago en Conciliación Bancaria.
+      // desconciliar el pago bancario, ni restaurar la deuda en Caja, ni revertir la Nota de Crédito por excedente
+      // si el pago en pagos_reportados permanece 'Aprobado' para reemisión.
       const estadoPreservado = pagoRow.estado === 'Aprobado' ? 'Aprobado' : 'Anulado';
+      if (estadoPreservado !== 'Aprobado') {
+        await revertirNotaCreditoYSaldoFavorGenerado(dm, pagoRow, nuevosDetalles);
+      }
       await supabase.from('pagos_reportados').update({ estado: estadoPreservado, detalles: nuevosDetalles }).eq('id', pagoId);
 
       // Notificar por correo al contribuyente y copia a archivo fiscal
@@ -502,19 +521,30 @@ export async function POST(request: Request) {
         const codInm = ref.split('-').slice(2, -1).join('-');
         const inm = (inmsHist || []).find((i: any) => i.inmueble === codInm);
         
-        // Prioridad de montos:
+        // Prioridad de montos (en Bolívares, NUNCA usar inm?.deuda_mmv directamente como Bs):
         // 1. montos[ref] del payload de la caja (precalculado, más confiable)
-        // 2. deuda_mmv del inmueble (si no se ha limpiado aún)
-        // 3. montoTotal como fallback
+        // 2. recibo_caja o deuda_congelada_bs del inmueble
+        // 3. montoTotal / pagoRow.monto como fallback
         const montoCaja = montos && typeof montos === 'object' && montos[ref] ? parseFloat(String(montos[ref])) : 0;
+        let montoReciboCajaBs = 0;
+        if (detPago?.recibo_caja) {
+          try {
+            const rc = typeof detPago.recibo_caja === 'string' ? JSON.parse(detPago.recibo_caja) : detPago.recibo_caja;
+            if (Array.isArray(rc) && rc.length > 0) {
+              const totalRc = parseFloat(String(rc[0]?.total || rc[0]?.subTotal || '0')) || 0;
+              if (totalRc > 0) montoReciboCajaBs = parseFloat((totalRc / (histRecibos.length || 1)).toFixed(2));
+            }
+          } catch {}
+        }
         let montoBase = montoCaja > 0
           ? montoCaja
-          : parseFloat(String(inm?.deuda_mmv || inm?.deuda_congelada_bs || '0'));
+          : (montoReciboCajaBs > 0 ? montoReciboCajaBs : parseFloat(String(inm?.deuda_congelada_bs || '0')));
 
         // Fallback: si deuda ya fue limpiada y no hay monto de caja
-        if (montoBase <= 0 && montoTotalNum > 0) {
+        const fallbackTotalBs = montoTotalNum > 0 ? montoTotalNum : (parseFloat(String(pagoRow?.monto || '0')) || 0);
+        if (montoBase <= 0 && fallbackTotalBs > 0) {
           // Dividir montoTotal entre la cantidad de recibos HIST
-          montoBase = montoTotalNum / (histRecibos.length || 1);
+          montoBase = fallbackTotalBs / (histRecibos.length || 1);
         }
 
         // MULTA: calcular como % del base (NO usar multa_bs que es el total histórico acumulado)
@@ -608,7 +638,7 @@ export async function POST(request: Request) {
         CodigoImpuesto:          isRes ? "E" : "G",
         TasaIVA:                 isRes ? "0" : "16",
         ValorIVA:                valorIVA.toFixed(2),
-        ValorTotalItem:          String(parseFloat((montoItem + valorIVA).toFixed(2))),
+        ValorTotalItem:          (montoItem + valorIVA).toFixed(2),
         InfoAdicionalItem:       [],
         ListaItemOTI:            null,
       };
@@ -646,7 +676,7 @@ export async function POST(request: Request) {
         CodigoImpuesto:          isRes ? "E" : "G",
         TasaIVA:                 isRes ? "0" : "16",
         ValorIVA:                valorIVAHist.toFixed(2),
-        ValorTotalItem:          String(parseFloat((baseFinal + valorIVAHist).toFixed(2))),
+        ValorTotalItem:          (baseFinal + valorIVAHist).toFixed(2),
         InfoAdicionalItem:       [],
         ListaItemOTI:            null,
       });
@@ -1174,7 +1204,8 @@ export async function POST(request: Request) {
               const forma = casilla(hit ? hit[1] : tipoPago, 40);
               const ref = casilla(refPago, 25);
               const banco = casilla(bancoPago, Math.max(0, 100 - 2 - forma.length - ref.length));
-              const retCalculada = r2(totalIVA * 0.75);
+              const porcRet = Number(detPago?.porcentaje_retencion) === 100 ? 100 : 75;
+              const retCalculada = r2(totalIVA * (porcRet / 100));
               const montoRetNum = conRetencion
                 ? (retCalculada > 0 ? retCalculada : (parseFloat(String(detPago.monto_retencion_iva || detPago.retencion_iva || 0)) || 0))
                 : 0;
@@ -1192,7 +1223,7 @@ export async function POST(request: Request) {
                     TipoCambio:  '0.0000',
                   },
                   {
-                    Descripcion: ['Retención IVA 75%', '', ''].join('|'),
+                    Descripcion: [`Retención IVA ${porcRet}%`, '', ''].join('|'),
                     Fecha:       formatearFecha(fechaPago),
                     Forma:       '99', // Retención de IVA
                     Monto:       montoRetFinal.toFixed(2),
@@ -1262,14 +1293,15 @@ export async function POST(request: Request) {
           {
             Campo: 'Observaciones',
             Valor: (() => {
-              const retCalculada = r2(totalIVA * 0.75);
+              const porcRet = Number(detPago?.porcentaje_retencion) === 100 ? 100 : 75;
+              const retCalculada = r2(totalIVA * (porcRet / 100));
               const montoRetNum = conRetencion
                 ? (retCalculada > 0 ? retCalculada : (parseFloat(String(detPago.monto_retencion_iva || detPago.retencion_iva || 0)) || 0))
                 : 0;
               const f2 = (n: number) => n.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
               if (conRetencion && montoRetNum > 0) {
                 const montoNeto = r2(totalAPagar - montoRetNum);
-                return `Forma de Pago: ${tipoPago}${bancoPago ? ' ' + bancoPago : ''}${refPago ? ' Ref. ' + refPago : ''} por Bs. ${f2(montoNeto)} (Monto Cancelado sin Retención) | Retención 75% IVA: Bs. ${f2(montoRetNum)}`.slice(0, 255);
+                return `Forma de Pago: ${tipoPago}${bancoPago ? ' ' + bancoPago : ''}${refPago ? ' Ref. ' + refPago : ''} por Bs. ${f2(montoNeto)} (Monto Cancelado sin Retención) | Retención ${porcRet}% IVA: Bs. ${f2(montoRetNum)}`.slice(0, 255);
               }
               return `Forma de Pago: ${tipoPago}${bancoPago ? ' ' + bancoPago : ''}${refPago ? ' Ref. ' + refPago : ''} por Bs. ${f2(totalAPagar)} (Cancelado) | Pago ${String(pagoId).slice(0, 8).toUpperCase()}`.slice(0, 255);
             })()
@@ -1282,9 +1314,9 @@ export async function POST(request: Request) {
       }
     };
 
-    const isTfhkaEnabled = process.env.TFHKA_ENABLED === 'true';
+    const isTfhkaEnabled = TheFactoryHKA.isEnabled();
 
-    const { data: pagoData } = await supabase.from('pagos_reportados').select('detalles').eq('id', pagoId).single();
+    const { data: pagoData } = await supabase.from('pagos_reportados').select('detalles').eq('id', pagoId).maybeSingle();
     let nuevosDetalles: any = pagoData?.detalles || {};
     if (typeof nuevosDetalles === 'string') {
       try { nuevosDetalles = JSON.parse(nuevosDetalles); } catch(e) { nuevosDetalles = {}; }
@@ -1300,7 +1332,8 @@ export async function POST(request: Request) {
       if (Math.abs(totalAPagar - totalManualNum) > tol)
         erroresFiscales.push(`Total factura (${totalAPagar.toFixed(2)}) no coincide con el monto editado (${totalManualNum.toFixed(2)}).`);
     } else {
-      const retCalculada = r2(totalIVA * 0.75);
+      const porcRet = Number(detPago?.porcentaje_retencion) === 100 ? 100 : 75;
+      const retCalculada = r2(totalIVA * (porcRet / 100));
       const montoRet = conRetencion ? (retCalculada || parseFloat(String(detPago?.monto_retencion_iva || detPago?.retencion_iva || 0))) : 0;
       const efectivoTotal = (() => {
         if (Array.isArray(detPago?.pagos_agregados) && detPago.pagos_agregados.length > 0) {
@@ -1454,11 +1487,13 @@ export async function POST(request: Request) {
     detPago.pago_id = detPago.pago_id || pagoId;
     detPago.identidad = detPago.identidad || pagoRow.identidad;
     detPago.referencia = detPago.referencia || pagoRow.referencia;
-    await revertirNotaCreditoYSaldoFavorGenerado(detPago, pagoRow, nuevosDetalles);
     // IMPORTANTE: Al emitir Nota de Crédito / anular factura fiscal en Facturación Electrónica,
     // el pago bancario conciliado se mantiene en estado 'Aprobado' (con factura_digital.anulada = true)
-    // para no alterar la solvencia del contribuyente y permitir reemitir la factura corregida de inmediato.
+    // para no alterar la solvencia del contribuyente, preservar su Nota de Crédito por excedente y permitir reemitir la factura corregida.
     const estadoPreservadoFinal = pagoRow.estado === 'Aprobado' ? 'Aprobado' : 'Anulado';
+    if (estadoPreservadoFinal !== 'Aprobado') {
+      await revertirNotaCreditoYSaldoFavorGenerado(detPago, pagoRow, nuevosDetalles);
+    }
     await supabase.from('pagos_reportados').update({ estado: estadoPreservadoFinal, detalles: nuevosDetalles }).eq('id', pagoId);
 
     // Enviar notificación de anulación por correo al contribuyente y copia al archivo fiscal

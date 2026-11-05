@@ -63,12 +63,13 @@ export async function GET(request: Request) {
 
     if (!inmsDB || inmsDB.length === 0) {
       // Fallback: Buscar en servicios_especiales (usuarios no registrados o trámites directos)
-      const isSrv = /^SRV-/i.test(q) || q.toUpperCase().includes('SRV-');
+      const safeQ = q.replace(/[,()]/g, ' ').trim();
+      const isSrv = /^SRV-/i.test(safeQ) || safeQ.toUpperCase().includes('SRV-');
       let qSrv = supabaseAdmin.from('servicios_especiales').select('*').eq('estado', 'Pendiente');
       if (isSrv) {
-        qSrv = qSrv.ilike('referencia', `%${q.trim()}%`);
+        qSrv = qSrv.ilike('referencia', `%${safeQ}%`);
       } else {
-        qSrv = qSrv.or(['referencia.ilike.%' + q.trim() + '%', ...variants.map(v => 'identidad.eq.' + v)].join(','));
+        qSrv = qSrv.or(['referencia.ilike.%' + safeQ + '%', ...variants.map(v => 'identidad.eq.' + v)].join(','));
       }
       const { data: srvData } = await qSrv.order('created_at', { ascending: false });
 

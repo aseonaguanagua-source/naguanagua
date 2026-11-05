@@ -8,6 +8,9 @@ import { pagoTieneRetencion, calcularRetencion, enviarDatosFacturaRetencion, por
 import { extraerCodigoInmueble } from '@/lib/documentoPago';
 import { resolverConceptoPeriodoPago } from '@/lib/facturaPeriodoHelper';
 
+export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
+
 // Mutex en memoria para serializar la asignación de correlativos dentro del mismo proceso
 let correlativoMutex: Promise<number> = Promise.resolve(0);
 let ultimoAsignadoMemoria = 0;
@@ -369,10 +372,11 @@ export async function POST(request: Request) {
               }
               multaDeRc = exentoRc;
 
-              if (subTotalRc > 0 && subTotalRc !== totalRc) {
-                montoBase = parseFloat(((subTotalRc - exentoRc) / histRecibos.length).toFixed(2));
-              } else if (totalRc > 0) {
-                montoBase = parseFloat((((totalRc - exentoRc) / 1.16) / histRecibos.length).toFixed(2));
+              if (totalRc > 0) {
+                montoBase = parseFloat(((totalRc - exentoRc) / histRecibos.length).toFixed(2));
+              } else if (subTotalRc > 0) {
+                const subConIva = esResidencial ? (subTotalRc - exentoRc) : (subTotalRc - exentoRc) * 1.16;
+                montoBase = parseFloat((subConIva / histRecibos.length).toFixed(2));
               }
             }
           } catch (_) {}
@@ -1173,8 +1177,9 @@ export async function POST(request: Request) {
       lineasCondo
     );
     const condoModalidad = String(condoDet?.modalidad || detPago?.condominio?.modalidad || '').toUpperCase();
-    const esModoCondominio = detPago?.modo === 'CONDOMINIO' || dm?.modo === 'CONDOMINIO';
-    const esModoContribuyente = detPago?.modo === 'CONTRIBUYENTE' || dm?.modo === 'CONTRIBUYENTE';
+    const condoModoCaja = String(detPago?.condominio_modo || detPago?.modalidad_cobro || '').toLowerCase();
+    const esModoCondominio = detPago?.modo === 'CONDOMINIO' || dm?.modo === 'CONDOMINIO' || ['total', 'abono', 'completo', 'abono_locales'].includes(condoModoCaja);
+    const esModoContribuyente = detPago?.modo === 'CONTRIBUYENTE' || dm?.modo === 'CONTRIBUYENTE' || ['local', 'individual', 'multas_separadas'].includes(condoModoCaja);
     const esPagoPorLocal = Boolean(
       esCondominioPago && !esModoCondominio && (
         esModoContribuyente ||
@@ -1225,6 +1230,7 @@ export async function POST(request: Request) {
         .from('inmuebles')
         .select('inmueble, tipo, actividad_principal, direccion, correo_electronico, contribuyente, clasificacion, estado, mmv_mes, agente_retencion, identidad')
         .eq('inmueble', codInmEspecifico)
+        .limit(1)
         .maybeSingle();
       if (dbInm) matchedPropEspecifico = dbInm;
     }
@@ -1239,6 +1245,7 @@ export async function POST(request: Request) {
           .from('servicios_especiales')
           .select('direccion_evento, descripcion')
           .eq('referencia', String(srvRef).trim())
+          .limit(1)
           .maybeSingle();
         srvDet = srvData;
       }
@@ -1614,7 +1621,8 @@ export async function POST(request: Request) {
               const ref = casilla(refPago, 25);
               const banco = casilla(bancoPago, Math.max(0, 100 - 2 - forma.length - ref.length));
 
-              const retCalculada = r2(totalIVA * 0.75);
+              const porcRet = Number((detPago as any)?.porcentaje_retencion) === 100 ? 100 : 75;
+              const retCalculada = r2(totalIVA * (porcRet / 100));
               const montoRetNum = conRetencion
                 ? (retCalculada > 0 ? retCalculada : (parseFloat(String(detPago.monto_retencion_iva || detPago.retencion_iva || 0)) || 0))
                 : 0;
@@ -1675,7 +1683,7 @@ export async function POST(request: Request) {
                 }
                 if (montoRetFinal > 0) {
                   fps.push({
-                    Descripcion: ['Retención IVA 75%', '', ''].join('|'),
+                    Descripcion: [`Retención IVA ${porcRet}%`, '', ''].join('|'),
                     Fecha:       formatearFecha(fechaPago),
                     Forma:       '99',
                     Monto:       montoRetFinal.toFixed(2),
@@ -1756,7 +1764,8 @@ export async function POST(request: Request) {
           {
             Campo: 'Observaciones',
             Valor: (() => {
-              const retCalculada = r2(totalIVA * 0.75);
+              const porcRet = Number((detPago as any)?.porcentaje_retencion) === 100 ? 100 : 75;
+              const retCalculada = r2(totalIVA * (porcRet / 100));
               const montoRetNum = conRetencion
                 ? (retCalculada > 0 ? retCalculada : (parseFloat(String(detPago.monto_retencion_iva || detPago.retencion_iva || 0)) || 0))
                 : 0;
@@ -1793,7 +1802,7 @@ export async function POST(request: Request) {
                 partes.push(`Nota de Crédito (Saldo a Favor Generado): Bs. ${f2(saldoFavorGen)}`);
               }
               if (montoRetFinal > 0) {
-                partes.push(`Retención 75% IVA: Bs. ${f2(montoRetFinal)}`);
+                partes.push(`Retención ${porcRet}% IVA: Bs. ${f2(montoRetFinal)}`);
               }
               partes.push(`Total Factura: Bs. ${f2(totalAPagar)}`);
               partes.push(`Pago ${String(pagoId).slice(0, 8).toUpperCase()}`);
@@ -1810,7 +1819,7 @@ export async function POST(request: Request) {
 
     const isTfhkaEnabled = TheFactoryHKA.isEnabled();
 
-    const { data: pagoData } = await supabase.from('pagos_reportados').select('detalles').eq('id', pagoId).single();
+    const { data: pagoData } = await supabase.from('pagos_reportados').select('detalles').eq('id', pagoId).maybeSingle();
     let nuevosDetalles: any = pagoData?.detalles || {};
     if (typeof nuevosDetalles === 'string') {
       try { nuevosDetalles = JSON.parse(nuevosDetalles); } catch(e) { nuevosDetalles = {}; }
@@ -1826,7 +1835,8 @@ export async function POST(request: Request) {
       if (Math.abs(totalAPagar - totalManualNum) > tol)
         erroresFiscales.push(`Total factura (${totalAPagar.toFixed(2)}) no coincide con el monto editado (${totalManualNum.toFixed(2)}).`);
     } else {
-      const retCalculada = r2(totalIVA * 0.75);
+      const porcRet = Number((detPago as any)?.porcentaje_retencion) === 100 ? 100 : 75;
+      const retCalculada = r2(totalIVA * (porcRet / 100));
       const montoRet = conRetencion ? (retCalculada || parseFloat(String(detPago?.monto_retencion_iva || detPago?.retencion_iva || 0))) : 0;
       const efectivoTotal = (() => {
         if (Array.isArray(detPago?.pagos_agregados) && detPago.pagos_agregados.length > 0) {
@@ -2009,10 +2019,13 @@ export async function POST(request: Request) {
 
     // ── Agente de retención: estado del flujo (la factura queda retenida hasta aprobar la planilla) ──
     if (conRetencion && nuevosDetalles.factura_digital?.emitida) {
+      const porcRet = Number((pagoRow?.detalles as any)?.porcentaje_retencion || (detPago as any)?.porcentaje_retencion) === 100 ? 100 : 75;
+      nuevosDetalles.porcentaje_retencion = porcRet;
       nuevosDetalles.factura_digital.retencion = {
         ...(nuevosDetalles.factura_digital.retencion || {}),
         estado: nuevosDetalles.factura_digital.retencion?.estado || 'esperando_planilla',
-        ...calcularRetencion(totalGravado, totalIVA, totalExento),
+        porcentaje_retencion: porcRet,
+        ...calcularRetencion(totalGravado, totalIVA, totalExento, porcRet),
       };
     }
 

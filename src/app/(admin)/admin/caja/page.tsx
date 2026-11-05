@@ -704,6 +704,7 @@ export default function CajaPage() {
 
   const handleSearch = async () => {
     setIsSearching(true);
+    try {
     setFoundUser(null);
     setIsCondominio(false);
     setCondominioHijos([]);
@@ -735,9 +736,9 @@ export default function CajaPage() {
     let user: any = null;
     const isCodeFormat = /^(AURI|URB|[A-Z]{3,})\d+/i.test(rawSearch) || /^[A-Z]+\d+$/i.test(rawSearch);
 
-    // 0. PRIORIDAD: Búsqueda directa por Código de Servicio Especial (SRV-..., número de planilla ej: 1933 o 26-1933)
+    // 0. PRIORIDAD: Búsqueda directa por Código de Servicio Especial (SRV-..., SERV-...)
     const digitsOnly = rawSearch.replace(/\D/g, '');
-    const isLikelySrv = /^S(RV|ERV)[-_]/i.test(rawSearch) || rawSearch.includes('SRV') || rawSearch.includes('SERV') || (rawSearch.includes('-') && digitsOnly.length >= 3) || (/^\d{3,5}$/.test(rawSearch));
+    const isLikelySrv = rawSearch.startsWith('SRV-') || rawSearch.startsWith('SERV-') || /^SRV\d/i.test(rawSearch);
     if (isLikelySrv) {
       const srvDirect = await fetchServiciosEspecialesAdmin(rawSearch);
       if (srvDirect && srvDirect.length > 0) {
@@ -1106,6 +1107,41 @@ export default function CajaPage() {
         if (i.es_condominio === true) return false;
         return true;
       });
+
+      // Identificar contenedores N/A propios para no tratarlos como condominios externos
+      const naParentCodesFresh = rawActiveInms
+        .filter((i: any) =>
+          (i.actividad_principal || '').trim().toUpperCase() === 'N/A' &&
+          (parseInt(i.cant_inmuebles || '0') > 0 || rawActiveInms.some((c: any) => c.inmueble !== i.inmueble && (c.condominio_padre_id === i.inmueble || c.padre_id === i.inmueble)))
+        )
+        .map((i: any) => i.inmueble);
+
+      // Consultar modalidad de condominios padres (si existen) para permitir pago individual cuando modalidad === 'INDIVIDUAL' o permite_pago_por_unidad === true
+      const condoParentCodesToCheck = Array.from(new Set(
+        rawActiveInms
+          .map((i: any) => String(i.condominio_padre_id || '').trim().toUpperCase())
+          .filter((c: string) => c.length > 0 && !naParentCodesFresh.includes(c))
+      ));
+      const dynamicIndividualCondos = new Set<string>();
+      if (condoParentCodesToCheck.length > 0) {
+        try {
+          const { data: condosCfg } = await supabase
+            .from('condominios')
+            .select('codigo, modalidad, permite_pago_por_unidad')
+            .in('codigo', condoParentCodesToCheck);
+          (condosCfg || []).forEach((c: any) => {
+            if (c.modalidad === 'INDIVIDUAL' || c.permite_pago_por_unidad === true) {
+              dynamicIndividualCondos.add(String(c.codigo || '').trim().toUpperCase());
+            }
+          });
+        } catch (eCondoCfg) {
+          console.warn('Error consultando modalidad de condominios:', eCondoCfg);
+        }
+      }
+      const isPagoIndInm = (inm: any) =>
+        isCondominioPagoIndividual(inm) ||
+        dynamicIndividualCondos.has(String(inm?.condominio_padre_id || '').trim().toUpperCase());
+
       const hasStandaloneInm = rawActiveInms.some((i: any) => !i.condominio_padre_id);
       const activeInmFresh = rawActiveInms.filter((i: any) => {
         if (!isCodeFormat && hasStandaloneInm && i.condominio_padre_id && !isPagoIndInm(i)) {
@@ -1263,40 +1299,6 @@ export default function CajaPage() {
       } else {
         setPaymentMethod(prev => prev === 'Saldo a Favor' ? 'Debito' : prev);
       }
-      
-      // Identificar contenedores N/A propios para no tratarlos como condominios externos
-      const naParentCodesFresh = activeInmFresh
-        .filter((i: any) =>
-          (i.actividad_principal || '').trim().toUpperCase() === 'N/A' &&
-          (parseInt(i.cant_inmuebles || '0') > 0 || activeInmFresh.some((c: any) => c.inmueble !== i.inmueble && (c.condominio_padre_id === i.inmueble || c.padre_id === i.inmueble)))
-        )
-        .map((i: any) => i.inmueble);
-
-      // Consultar modalidad de condominios padres (si existen) para permitir pago individual cuando modalidad === 'INDIVIDUAL' o permite_pago_por_unidad === true
-      const condoParentCodesToCheck = Array.from(new Set(
-        activeInmFresh
-          .map((i: any) => String(i.condominio_padre_id || '').trim().toUpperCase())
-          .filter((c: string) => c.length > 0 && !naParentCodesFresh.includes(c))
-      ));
-      const dynamicIndividualCondos = new Set<string>();
-      if (condoParentCodesToCheck.length > 0) {
-        try {
-          const { data: condosCfg } = await supabase
-            .from('condominios')
-            .select('codigo, modalidad, permite_pago_por_unidad')
-            .in('codigo', condoParentCodesToCheck);
-          (condosCfg || []).forEach((c: any) => {
-            if (c.modalidad === 'INDIVIDUAL' || c.permite_pago_por_unidad === true) {
-              dynamicIndividualCondos.add(String(c.codigo || '').trim().toUpperCase());
-            }
-          });
-        } catch (eCondoCfg) {
-          console.warn('Error consultando modalidad de condominios:', eCondoCfg);
-        }
-      }
-      const isPagoIndInm = (inm: any) =>
-        isCondominioPagoIndividual(inm) ||
-        dynamicIndividualCondos.has(String(inm?.condominio_padre_id || '').trim().toUpperCase());
 
       // Calcular deuda total fresca (excluyendo contenedores N/A para evitar duplicar montos con sus actividades hijas)
       const billableActiveInms = activeInmFresh.filter(
@@ -1928,8 +1930,12 @@ export default function CajaPage() {
     } else {
       alert("Contribuyente no encontrado. Puede intentar buscar por Código de Usuario.");
     }
-    
-    setIsSearching(false);
+    } catch (err) {
+      console.error('Error en handleSearch:', err);
+      setIsSearching(false);
+    } finally {
+      setIsSearching(false);
+    }
   };
 
   // Recalculate Total — O(n) con Maps, antes era O(n²) con .find() anidados (fix C-4)
@@ -2252,7 +2258,7 @@ export default function CajaPage() {
     const hoyVE = new Date(Date.now() - 4 * 3600 * 1000).toISOString().slice(0, 10);
     for (const [cod, acuerdo] of Object.entries(MONTOS_ACORDADOS)) {
       if (acuerdo.fecha !== hoyVE || retencionIVA !== 75) continue;
-      const pendCod = recibos.filter((r: any) => (r.referencia || '').includes(cod) && isItemPending(r)).map((r: any) => r.referencia);
+      const pendCod = recibos.filter((r: any) => (r.referencia || '').includes(cod) && !isItemPending(r.referencia || r.id)).map((r: any) => r.referencia);
       const soloEste = selectedRecibos.length > 0 && selectedRecibos.every(ref => ref.includes(cod));
       const todos = pendCod.length > 0 && pendCod.every((ref: string) => selectedRecibos.includes(ref));
       if (!soloEste || !todos || selectedCuotas.length || selectedServicios.length || selectedTalaPoda.length) continue;
@@ -3180,7 +3186,8 @@ export default function CajaPage() {
         if (!inmPagoSeleccionado && freshInmuebles && freshInmuebles.length > 0) {
           inmPagoSeleccionado = freshInmuebles[0];
         }
-        const contribuyenteFinalPago = (inmPagoSeleccionado?.contribuyente && !isCondominio && !esPlaceholderNombre(inmPagoSeleccionado.contribuyente))
+        const esCondoLocalIndividual = isCondominio && condominioModo === 'Local';
+        const contribuyenteFinalPago = (inmPagoSeleccionado?.contribuyente && (!isCondominio || esCondoLocalIndividual) && !esPlaceholderNombre(inmPagoSeleccionado.contribuyente))
           ? inmPagoSeleccionado.contribuyente
           : foundUser.Contribuyente;
         const codInmuebleFinal = inmPagoSeleccionado?.inmueble || inmPagoSeleccionado?.cod_cont || undefined;
@@ -3191,6 +3198,10 @@ export default function CajaPage() {
           contribuyente_nombre: contribuyenteFinalPago,
           codigo_inmueble: codInmuebleFinal,
           cod_inmueble: codInmuebleFinal,
+          ...(isCondominio ? {
+            modo: condominioModo === 'Local' ? 'CONTRIBUYENTE' : 'CONDOMINIO',
+            modalidad_cobro: condominioModo === 'Local' ? 'individual' : (condominioModo === 'Abono' ? 'abono_locales' : 'completo'),
+          } : {}),
           recibos: digitalRecibos,
           montos: digitalMontos,
           cuotas: selectedCuotas,
@@ -3270,19 +3281,7 @@ export default function CajaPage() {
           detalles: JSON.stringify(fullDetalles)
         });
         if (insertErr && (insertErr.code === '23505' || String(insertErr.message).includes('referencia_key') || String(insertErr.message).includes('duplicate'))) {
-          const refUnica = `${refEfectiva}-${Date.now().toString().slice(-4)}`;
-          const r2 = await supabase.from('pagos_reportados').insert({
-            id: pagoId,
-            identidad: foundUser.Identidad,
-            monto: montoReal,
-            banco: paymentMethod === 'TMD' ? 'PUNTO TMD (MASTER)' : paymentMethod === 'TVD' ? 'PUNTO TVD (VISA)' : paymentMethod === 'Credito' ? 'PUNTO CRÉDITO' : paymentMethod === 'Saldo a Favor' ? 'NOTA DE CRÉDITO / SALDO A FAVOR' : paymentMethod,
-            referencia: refUnica,
-            tipo: paymentMethod,
-            estado: 'Aprobado',
-            created_at: fechaUTC,
-            detalles: JSON.stringify(fullDetalles)
-          });
-          insertErr = r2.error;
+          throw new Error(`La referencia de pago "${refEfectiva}" ya se encuentra registrada en el sistema (Referencia duplicada).`);
         }
         if (insertErr) {
           console.error('Error insertando pago:', insertErr);
@@ -3439,7 +3438,7 @@ export default function CajaPage() {
         const multaRefs = selectedRecibos.filter(r => r.startsWith('MULTA-'));
         if (multaRefs.length > 0 && !esAbonoDebito) {
           for (const mRef of multaRefs) {
-            const inmCode = mRef.replace('MULTA-', '');
+            const inmCode = String(mRef || '').replace(/^MULTA-/i, '').replace(/-M\d+$/i, '');
             await supabase.from('inmuebles').update({ multa_bs: 0, deuda_congelada_bs: 0 }).eq('inmueble', inmCode);
           }
         }
@@ -3928,19 +3927,7 @@ export default function CajaPage() {
         });
 
         if (pErr && (pErr.code === '23505' || String(pErr.message).includes('referencia_key') || String(pErr.message).includes('duplicate'))) {
-          const refUnica = `${referencia}-${Date.now().toString().slice(-4)}`;
-          const r2 = await supabase.from('pagos_reportados').insert({
-            id: pagoIdT,
-            identidad: foundUser.Identidad,
-            monto: montoReal,
-            banco: banco,
-            referencia: refUnica,
-            tipo: paymentMethod,
-            estado: 'Por Verificar',
-            created_at: fechaUTC,
-            detalles: JSON.stringify(detallesTransferenciaObj)
-          });
-          pErr = r2.error;
+          throw new Error(`La referencia de pago "${referencia}" ya se encuentra registrada en el sistema (Referencia duplicada).`);
         }
         
         if (pErr) throw pErr;
@@ -3967,6 +3954,7 @@ export default function CajaPage() {
         // REGLA: La retención solo se genera/aplica cuando se cubra el pago total del mes (no para abonos parciales)
         if (realMontoRetencionIVA > 0 && !esAbono) {
           const pagoRetId = crypto.randomUUID();
+          const tieneTransferencia = ['Transferencia', 'Deposito'].includes(paymentMethod);
           await supabase.from('pagos_reportados').insert({
             id: pagoRetId,
             identidad: foundUser.Identidad,
@@ -3974,7 +3962,7 @@ export default function CajaPage() {
             banco: 'N/A',
             referencia: comprobanteRetencion || 'RET-' + Date.now().toString().slice(-6),
             tipo: 'Retencion de IVA',
-            estado: 'Aprobado', // Siempre Aprobado porque es un descuento matemático directo
+            estado: tieneTransferencia ? 'Por Verificar' : 'Aprobado',
             created_at: fechaUTC,
             detalles: JSON.stringify({
               cajero: cajero_id,
@@ -4520,11 +4508,23 @@ export default function CajaPage() {
 
       {activeTab === 'NotasCredito' ? (
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-          <div className="flex justify-between items-center mb-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
             <h2 className="text-lg font-semibold text-slate-800">Control de Saldos a Favor (Notas de Crédito)</h2>
-            <button onClick={generarExcelNotasCredito} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2">
-              <FileText className="w-4 h-4" /> Exportar a Excel
-            </button>
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+              <div className="relative flex-1 sm:w-72">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={filtroNotas}
+                  onChange={e => setFiltroNotas(e.target.value)}
+                  placeholder="Filtrar por RIF, contribuyente, inmueble o ref..."
+                  className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+              <button onClick={generarExcelNotasCredito} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 shrink-0">
+                <FileText className="w-4 h-4" /> Exportar a Excel
+              </button>
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
@@ -4544,7 +4544,22 @@ export default function CajaPage() {
                   <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-500"><div className="flex items-center justify-center gap-2"><div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>Cargando notas de crédito...</div></td></tr>
                 ) : notasCredito.length === 0 ? (
                   <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-500">No hay notas de crédito registradas en el sistema.</td></tr>
-                ) : notasCredito.map(n => {
+                ) : notasCredito.filter(n => {
+                  if (!filtroNotas.trim()) return true;
+                  const q = filtroNotas.trim().toLowerCase();
+                  let details: any = {};
+                  try {
+                    details = typeof n.detalles === 'string' ? JSON.parse(n.detalles) : (n.detalles || {});
+                  } catch(e){}
+                  return (
+                    String(n.id || '').toLowerCase().includes(q) ||
+                    String(n.identidad || '').toLowerCase().includes(q) ||
+                    String(n.contribuyente || '').toLowerCase().includes(q) ||
+                    String(details.origen_referencia || '').toLowerCase().includes(q) ||
+                    String(details.codigo_inmueble || details.cod_inmueble || '').toLowerCase().includes(q) ||
+                    String(details.codigo_condominio || '').toLowerCase().includes(q)
+                  );
+                }).map(n => {
                   let details: any = {};
                   try {
                     details = typeof n.detalles === 'string' ? JSON.parse(n.detalles) : (n.detalles || {});

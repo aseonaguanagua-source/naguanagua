@@ -109,7 +109,15 @@ export async function POST(req: Request) {
       // Convenios de pago activos formalizados
       let conveniosList: any[] = [];
       try {
-        const { data: convs } = await sb.from('convenios_pago').select('*, convenios_cuotas(*)').eq('estado', 'Al Día');
+        const condoIdVars = cobro.condo?.identidad ? getIdentidadVariantsExact(cobro.condo.identidad) : [];
+        const convIdentVars = Array.from(new Set([...idVars, ...condoIdVars, ...(condoCod ? [condoCod] : [])].filter(Boolean)));
+        let qConvs = sb.from('convenios_pago').select('*, convenios_cuotas(*)').eq('estado', 'Al Día');
+        if (convIdentVars.length > 0) {
+          qConvs = qConvs.in('identidad', convIdentVars);
+        } else {
+          qConvs = qConvs.limit(200);
+        }
+        const { data: convs } = await qConvs;
         conveniosList = convs || [];
       } catch (err) {
         console.warn('Error fetching convenios in condominios/cobrar:', err);
@@ -119,7 +127,7 @@ export async function POST(req: Request) {
     }
 
     const u = String(b.usuario || '').trim().toLowerCase();
-    const { data: trab } = await sb.from('trabajadores').select('usuario, nombre, rol, estado, permisos').ilike('usuario', u).maybeSingle();
+    const { data: trab } = await sb.from('trabajadores').select('usuario, nombre, rol, estado, permisos').ilike('usuario', u).limit(1).maybeSingle();
     const admin = trab && (trab.rol === 'Administrador' || u === 'dzara');
     const permisos = (trab?.permisos || {}) as Record<string, boolean>;
     if (!trab || (!admin && !(permisos.ver_caja || permisos.gestionar_pagos))) return NextResponse.json({ error: 'No tiene permiso para cobrar.' }, { status: 403 });

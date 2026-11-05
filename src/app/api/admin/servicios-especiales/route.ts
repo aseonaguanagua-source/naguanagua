@@ -3,6 +3,9 @@ import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
 
 import { getIdentidadVariantsExact } from '@/lib/formatters';
 
+export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
+
 // Variantes EXACTAS de la cédula/RIF (no mezcla V/J/E/G con el mismo número)
 function getIdentidadVariants(rawId: string): string[] {
   const clean = rawId.trim().toUpperCase();
@@ -24,12 +27,13 @@ export async function GET(request: Request) {
       .select('*');
 
     if (search) {
-      const raw = search.trim().toUpperCase();
+      const raw = search.replace(/[,()]/g, ' ').trim().toUpperCase();
       const digits = raw.replace(/\D/g, '');
-      const orFilters = [
-        `referencia.ilike.%${raw}%`,
-        `identidad.ilike.%${raw}%`
-      ];
+      const orFilters: string[] = [];
+      if (raw) {
+        orFilters.push(`referencia.ilike.%${raw}%`);
+        orFilters.push(`identidad.ilike.%${raw}%`);
+      }
       if (digits.length >= 3) {
         orFilters.push(`referencia.ilike.%${digits}%`);
         orFilters.push(`identidad.ilike.%${digits}%`);
@@ -37,19 +41,20 @@ export async function GET(request: Request) {
       if (raw.length >= 3 && !/^\d+$/.test(raw)) {
         orFilters.push(`contribuyente.ilike.%${raw}%`);
       }
-      query = query.or(orFilters.join(','));
+      if (orFilters.length > 0) query = query.or(orFilters.join(','));
     } else if (referencia) {
-      const rawRef = referencia.trim().toUpperCase();
+      const rawRef = referencia.replace(/[,()]/g, ' ').trim().toUpperCase();
       const digits = rawRef.replace(/\D/g, '');
-      const orFilters = [`referencia.ilike.%${rawRef}%`];
+      const orFilters: string[] = [];
+      if (rawRef) orFilters.push(`referencia.ilike.%${rawRef}%`);
       if (digits.length >= 3) orFilters.push(`referencia.ilike.%${digits}%`);
-      query = query.or(orFilters.join(','));
+      if (orFilters.length > 0) query = query.or(orFilters.join(','));
     } else if (identidad) {
       const variants = getIdentidadVariants(identidad);
       const digits = identidad.replace(/\D/g, '');
       const orFilters = variants.map(v => `identidad.eq.${v}`);
       if (digits.length >= 6) orFilters.push(`identidad.ilike.%${digits}%`);
-      query = query.or(orFilters.join(','));
+      if (orFilters.length > 0) query = query.or(orFilters.join(','));
     }
 
     if (estado) {
@@ -183,7 +188,7 @@ export async function PATCH(request: Request) {
       if (contacto !== undefined || notas !== undefined) {
         let curNotas = notas;
         if (curNotas === undefined) {
-          const { data: cur } = await supabase.from('servicios_especiales').select('notas').eq('id', id).single();
+          const { data: cur } = await supabase.from('servicios_especiales').select('notas').eq('id', id).maybeSingle();
           curNotas = cur?.notas || '';
         }
         if (contacto !== undefined) {
@@ -202,7 +207,7 @@ export async function PATCH(request: Request) {
         .update(upd)
         .eq('id', id)
         .select()
-        .single();
+        .maybeSingle();
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
       const enrichedRow = data ? {
         ...data,

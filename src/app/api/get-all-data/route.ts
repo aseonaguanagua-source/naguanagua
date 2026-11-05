@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 // Columnas necesarias para el frontend
 const INMUEBLE_COLS = 'id,identidad,inmueble,contribuyente,tipo,clasificacion,direccion,actividad_principal,mmv_mes,cant_inmuebles,deuda_mmv,deuda_congelada_bs,saldo_favor_bs,multa_bs,meses_deuda,agente_retencion,estado,correo_electronico,telefono,es_condominio,condominio_padre_id,padre_id,created_at';
@@ -35,6 +36,7 @@ async function fetchAllParallel(table: string, cols: string): Promise<any[]> {
             const { data, error } = await supabaseAdmin
               .from(table)
               .select(cols)
+              .order('id', { ascending: true })
               .range(from, from + STEP - 1);
             if (!error) return data || [];
             if (attempt < 2) await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));

@@ -10,6 +10,9 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
 import { getTasaBCV } from '@/services/bcv';
 
+export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
+
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 const TELEGRAM_CHAT_ID   = process.env.TELEGRAM_CHAT_ID   || '';
 
@@ -52,6 +55,14 @@ export async function POST(request: Request) {
   return generarReporte(request);
 }
 
+const TIPOS_DEBITO_POS = new Set([
+  'debito', 'débito', 'punto de venta', 'punto', 'tmd', 'tvd', 'credito', 'crédito'
+]);
+const TIPOS_TRANSFERENCIA = new Set([
+  'transferencia', 'transferencia (web)', 'transferencia web', 'transferencia_web',
+  'deposito', 'depósito', 'pago móvil', 'pago movil', 'pago_movil'
+]);
+
 async function generarReporte(request?: Request) {
   try {
     // Fecha/hora Venezuela (UTC-4)
@@ -77,12 +88,14 @@ async function generarReporte(request?: Request) {
       .lt('created_at', finDia);
 
     const pagos = pagosHoy || [];
+    const esDebitoPos = (p: any) => TIPOS_DEBITO_POS.has(String(p.tipo || '').trim().toLowerCase());
+    const esTransfer = (p: any) => TIPOS_TRANSFERENCIA.has(String(p.tipo || '').trim().toLowerCase());
     const totalDia          = pagos.reduce((a, p) => a + parseMonto(p.monto), 0);
-    const totalDebito       = pagos.filter(p => p.tipo === 'Debito').reduce((a, p) => a + parseMonto(p.monto), 0);
-    const totalTransfer     = pagos.filter(p => p.tipo === 'Transferencia').reduce((a, p) => a + parseMonto(p.monto), 0);
+    const totalDebito       = pagos.filter(esDebitoPos).reduce((a, p) => a + parseMonto(p.monto), 0);
+    const totalTransfer     = pagos.filter(esTransfer).reduce((a, p) => a + parseMonto(p.monto), 0);
     const totalSaldoFavor   = pagos.filter(p => p.tipo === 'Saldo a Favor').reduce((a, p) => a + parseMonto(p.monto), 0);
-    const cantDebito        = pagos.filter(p => p.tipo === 'Debito').length;
-    const cantTransfer      = pagos.filter(p => p.tipo === 'Transferencia').length;
+    const cantDebito        = pagos.filter(esDebitoPos).length;
+    const cantTransfer      = pagos.filter(esTransfer).length;
     const usuariosPagaron   = new Set(pagos.map(p => p.identidad)).size;
 
     // ── 2. Conciliaciones pendientes (Por Verificar) ────────────

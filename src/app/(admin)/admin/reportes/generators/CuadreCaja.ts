@@ -8,6 +8,20 @@ const formatBs = (num: number) => {
   return 'Bs. ' + (num || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
+const safeDT = (raw: any) => {
+  if (!raw) return 'N/A';
+  const dt = new Date(raw);
+  if (isNaN(dt.getTime())) return String(raw);
+  return dt.toLocaleString('es-VE', { hour12: false, day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+};
+
+const safeD = (raw: any) => {
+  if (!raw) return 'N/A';
+  const dt = new Date(raw);
+  if (isNaN(dt.getTime())) return String(raw);
+  return dt.toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+};
+
 export const generarCuadreCajaPDF = (
   pagosFiltrados: any[], 
   fechaInicio: string,
@@ -43,8 +57,10 @@ export const generarCuadreCajaPDF = (
   doc.setLineWidth(1.5);
   doc.line(40, 70, pageWidth - 40, 70);
 
-  const startDate = fechaInicio ? new Date(fechaInicio + 'T00:00:00').toLocaleString('es-VE', {hour12: true, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}) : new Date().toLocaleString('es-VE');
-  const endDate = fechaFin ? new Date(fechaFin + 'T23:59:59').toLocaleString('es-VE', {hour12: true, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}) : new Date().toLocaleString('es-VE');
+  const dFromStr = fechaInicio ? String(fechaInicio).split('T')[0] : '';
+  const dToStr = fechaFin ? String(fechaFin).split('T')[0] : '';
+  const startDate = dFromStr ? new Date(dFromStr + 'T00:00:00').toLocaleString('es-VE', {hour12: true, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}) : new Date().toLocaleString('es-VE');
+  const endDate = dToStr ? new Date(dToStr + 'T23:59:59').toLocaleString('es-VE', {hour12: true, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}) : new Date().toLocaleString('es-VE');
   
   doc.setFontSize(9);
   doc.text(`Periodo: Desde ${startDate}`, 40, 85);
@@ -270,7 +286,7 @@ export const generarCuadreCajaPDF = (
     debitos, 
     ["FECHA/HORA", "TIPO", "CONTRIBUYENTE", "RECIBO", "BANCO", "APROBACION", "LOTE", "MONTO"],
     (p, c) => [
-      new Date(p.created_at).toLocaleString('es-VE', {hour12: false, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}),
+      safeDT(p.created_at),
       String(p.tipo || 'REC').substring(0,3).toUpperCase(),
       String(getNombreContribuyente(p, c)).substring(0,35),
       p.factura_ref || p.referencia || 'N/A', 
@@ -288,7 +304,7 @@ export const generarCuadreCajaPDF = (
     creditos, 
     ["FECHA/HORA", "TIPO", "CONTRIBUYENTE", "RECIBO", "BANCO", "APROBACION", "LOTE", "MONTO"],
     (p, c) => [
-      new Date(p.created_at).toLocaleString('es-VE', {hour12: false, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}),
+      safeDT(p.created_at),
       String(p.tipo || 'TMD').substring(0,3).toUpperCase(),
       String(getNombreContribuyente(p, c)).substring(0,35),
       p.factura_ref || p.referencia || 'N/A', 
@@ -307,8 +323,8 @@ export const generarCuadreCajaPDF = (
     const bDestRaw = det.banco_destino || det.banco_receptor || p.banco_destino || 'N/A';
     const bDestLabel = bClass === 'Banesco' ? 'BANESCO' : bClass === 'Bancamiga' ? 'BANCAMIGA' : String(bDestRaw).substring(0, 15);
     return [
-      new Date(p.created_at).toLocaleString('es-VE', {hour12: false, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}),
-      new Date(p.fecha_pago || p.created_at).toLocaleDateString('es-VE', {day:'2-digit', month:'2-digit', year:'numeric'}),
+      safeDT(p.created_at),
+      safeD(p.fecha_pago || p.created_at),
       String(p.tipo || 'TRF').substring(0,3).toUpperCase(),
       ((p.identidad?.startsWith('V-') || p.identidad?.startsWith('V') || p.identidad?.startsWith('E-') || (c?.tipo && String(c.tipo).toLowerCase().includes('residencial'))) ? "RECIBO" : "NO FACTURADO"),
       p.referencia_bancaria || p.referencia || 'N/A',
@@ -383,8 +399,8 @@ export const generarCuadreCajaPDF = (
     depositos, 
     ["FECHA/HORA", "FECHA BCO", "TIPO", "CONTRIBUYENTE", "BANCO ORIGEN", "REFERENCIA", "BANCO DESTINO", "MONTO"],
     (p, c) => [
-      new Date(p.created_at).toLocaleString('es-VE', {hour12: false, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}),
-      new Date(p.fecha_pago || p.created_at).toLocaleDateString('es-VE', {day:'2-digit', month:'2-digit', year:'numeric'}),
+      safeDT(p.created_at),
+      safeD(p.fecha_pago || p.created_at),
       'DEP',
       String(getNombreContribuyente(p, c)).substring(0,35),
       String(p.banco_origen || 'N/A').substring(0,15),
@@ -401,7 +417,7 @@ export const generarCuadreCajaPDF = (
     saldosAFavor, 
     ["FECHA/HORA", "TIPO", "CAJERO", "CONTRIBUYENTE", "APLICADO A NUMERO", "MONTO"],
     (p, c) => [
-      new Date(p.created_at).toLocaleString('es-VE', {hour12: false, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}),
+      safeDT(p.created_at),
       String(p.tipo || 'SAL').substring(0,3).toUpperCase(),
       cajeroNombre,
       String(getNombreContribuyente(p, c)).substring(0,35),
@@ -418,7 +434,7 @@ export const generarCuadreCajaPDF = (
       retenciones, 
       ["FECHA/HORA", "TIPO", "CAJERO", "CONTRIBUYENTE", "COMPROBANTE", "MONTO"],
       (p, c) => [
-        new Date(p.created_at).toLocaleString('es-VE', {hour12: false, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}),
+        safeDT(p.created_at),
         String(p.tipo || 'RET').substring(0,3).toUpperCase(),
         cajeroNombre,
         String(getNombreContribuyente(p, c)).substring(0,35),

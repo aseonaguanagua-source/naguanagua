@@ -3,6 +3,7 @@ import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
 import { clasificarPago, extraerCodigoInmueble, parseDetalles, rangoDiaCaracas } from '@/lib/documentoPago';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 // Normalizador de identidades (sin guiones ni símbolos)
 const normId = (s: any) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -10,7 +11,7 @@ const normId = (s: any) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const query = (searchParams.get('q') || '').trim().toLowerCase();
+    const query = (searchParams.get('q') || '').replace(/[,()]/g, ' ').trim().toLowerCase();
     const filter = searchParams.get('filter') || 'todos'; // 'todos' | 'pendientes' | 'emitidas'
     const documentoFiltro = searchParams.get('documento') || ''; // '' | 'factura' | 'recibo'
     const moduloFiltro = searchParams.get('modulo') || 'Todos'; // Todos | Contribuyentes | Condominios | Condominios residenciales | Condominios comerciales
@@ -95,7 +96,9 @@ export async function GET(request: Request) {
 
         // También buscar otros pagos cruzados sobre los mismos inmuebles específicos
         if (specificCodes.length > 0) {
-          for (const sCod of specificCodes) {
+          for (const rawSCod of specificCodes) {
+            const sCod = String(rawSCod || '').replace(/[,()]/g, '').trim();
+            if (!sCod) continue;
             try {
               const { data: pLineas } = await supabase
                 .from('pagos_reportados')
@@ -131,10 +134,16 @@ export async function GET(request: Request) {
         `detalles->>codigo_inmueble.ilike.%${query}%`,
         `detalles->>cod_inmueble.ilike.%${query}%`
       ];
-      Array.from(queryInmIdents).forEach(id => orParts.push(`identidad.eq.${id}`));
+      Array.from(queryInmIdents).forEach(id => {
+        const safeId = String(id || '').replace(/[,()]/g, '').trim();
+        if (safeId) orParts.push(`identidad.eq.${safeId}`);
+      });
       Array.from(queryRelatedInmuebleCodes).filter(c => !c.startsWith('URB014903') && c.length >= 6).slice(0, 15).forEach(c => {
-        orParts.push(`detalles->>codigo_inmueble.eq.${c}`);
-        orParts.push(`detalles->>cod_inmueble.eq.${c}`);
+        const safeC = String(c || '').replace(/[,()]/g, '').trim();
+        if (safeC) {
+          orParts.push(`detalles->>codigo_inmueble.eq.${safeC}`);
+          orParts.push(`detalles->>cod_inmueble.eq.${safeC}`);
+        }
       });
       pagosQuery = pagosQuery.or(orParts.join(',')).limit(500);
     } else if (filter === 'anuladas') {
@@ -528,35 +537,75 @@ export async function GET(request: Request) {
       }
     });
     const inmMap = new Map<string, any>();
+    const cuMap = new Map<string, any>();
     const listaCodigos = [...codigos];
     for (let i = 0; i < listaCodigos.length; i += 300) {
-      const { data: inms } = await supabase
-        .from('inmuebles')
-        .select('inmueble, tipo, clasificacion, actividad_principal, direccion, correo_electronico, contribuyente, identidad, agente_retencion, multa_bs, notas')
-        .in('inmueble', listaCodigos.slice(i, i + 300));
+      const slice = listaCodigos.slice(i, i + 300);
+      const [{ data: inms }, { data: cus }] = await Promise.all([
+        supabase
+          .from('inmuebles')
+          .select('inmueble, tipo, clasificacion, actividad_principal, direccion, correo_electronico, contribuyente, identidad, agente_retencion, multa_bs, notas')
+          .in('inmueble', slice),
+        supabase
+          .from('condominio_unidades')
+          .select('inmueble, propietario, identidad, correo')
+          .in('inmueble', slice),
+      ]);
       (inms || []).forEach((inm: any) => inmMap.set(inm.inmueble, inm));
+      (cus || []).forEach((cu: any) => {
+        if (cu.inmueble) cuMap.set(String(cu.inmueble).trim().toUpperCase(), cu);
+      });
     }
 
     const fallbackEmail = process.env.TFHKA_FALLBACK_EMAIL?.trim() || 'facturacion.comercial@globalgreenca.com';
 
-    // Condominios (para reconocer pagos viejos de condominios por su RIF y correo actualizado)
+    // Condominios (para reconocer pagos de condominios por su RIF o código y correo actualizado)
     const { data: condosRows } = await supabase.from('condominios').select('codigo,identidad,nombre,tipo,agente_retencion,correo,multa_meses,multa_exonerada_hasta').limit(5000);
     const condoPorRif = new Map<string, any>();
-    (condosRows || []).forEach((c: any) => { if (c.identidad) condoPorRif.set(normId(c.identidad), c); });
-    const infoCondo = (pago: any, det: any) => {
-      const porRif = condoPorRif.get(normId(pago.identidad));
-      const esModulo = pago.modulo === 'condominios' || det.modulo === 'condominios';
-      if (!esModulo && det.isCondominio !== true && det.es_condominio !== true && !porRif) return null;
+    const condoPorCodigo = new Map<string, any>();
+    (condosRows || []).forEach((c: any) => {
+      if (c.identidad) condoPorRif.set(normId(c.identidad), c);
+      if (c.codigo) condoPorCodigo.set(String(c.codigo).trim().toUpperCase(), c);
+    });
+    const detectarEsPagoPorLocal = (pago: any, det: any, condoRow: any) => {
       const c = det.condominio || {};
-      const tipo = c.tipo || porRif?.tipo || null;
+      const condoMod = String(c.modalidad || '').toUpperCase();
+      const modCobro = String(det.modalidad_cobro || '').toLowerCase();
+      const tieneSoloMultas = Boolean(det.soloMultas || det.solo_multas || c.solo_multas);
+      const rifDistintoDeCondo = Boolean(
+        condoRow?.identidad &&
+        pago.identidad &&
+        normId(pago.identidad) !== normId(condoRow.identidad)
+      );
+      return Boolean(
+        det.modo === 'CONTRIBUYENTE' ||
+        ['individual', 'multas_separadas'].includes(modCobro) ||
+        tieneSoloMultas ||
+        (!det.modo && !modCobro && condoMod === 'INDIVIDUAL') ||
+        (!det.modo && !modCobro && rifDistintoDeCondo)
+      );
+    };
+    const infoCondo = (pago: any, det: any) => {
+      const c = det.condominio || {};
+      const codCondoRaw = String(c.codigo || (det.cod_inmueble && String(det.cod_inmueble).startsWith('CONDO-') ? det.cod_inmueble : '') || '').trim().toUpperCase();
+      const porCod = codCondoRaw ? condoPorCodigo.get(codCondoRaw) : null;
+      const porRif = condoPorRif.get(normId(pago.identidad)) || (c.identidad ? condoPorRif.get(normId(c.identidad)) : null);
+      const condoRow = porCod || porRif;
+      const esModulo = pago.modulo === 'condominios' || det.modulo === 'condominios';
+      if (!esModulo && det.isCondominio !== true && det.es_condominio !== true && !condoRow) return null;
+      const tipo = c.tipo || condoRow?.tipo || null;
+      const esLocal = detectarEsPagoPorLocal(pago, det, condoRow);
       return {
-        codigo: c.codigo || porRif?.codigo || null, nombre: c.nombre || porRif?.nombre || det.contribuyente || 'Condominio', tipo,
+        codigo: c.codigo || condoRow?.codigo || null,
+        nombre: condoRow?.nombre || c.nombre || det.contribuyente || 'Condominio',
+        identidad: condoRow?.identidad || c.identidad || null,
+        tipo,
         residencial: tipo ? String(tipo).toUpperCase() === 'RESIDENCIAL' : null,
-        agente_retencion: Boolean(c.agente_retencion ?? porRif?.agente_retencion),
-        correo: porRif?.correo || c.correo || null,
-        multa_meses: porRif?.multa_meses ?? null,
-        multa_exonerada_hasta: porRif?.multa_exonerada_hasta ?? null,
-        facturaA: det.modo === 'CONTRIBUYENTE' ? 'CONTRIBUYENTE' : 'CONDOMINIO',
+        agente_retencion: Boolean(c.agente_retencion ?? condoRow?.agente_retencion),
+        correo: condoRow?.correo || c.correo || null,
+        multa_meses: condoRow?.multa_meses ?? null,
+        multa_exonerada_hasta: condoRow?.multa_exonerada_hasta ?? null,
+        facturaA: esLocal ? 'CONTRIBUYENTE' : 'CONDOMINIO',
         grupo: det.grupo_pago ? { id: det.grupo_pago.id, parte: det.grupo_pago.parte, partes: det.grupo_pago.partes, montoTotal: Number(det.grupo_pago.monto_total) || 0 } : null,
       };
     };
@@ -565,8 +614,11 @@ export async function GET(request: Request) {
     const items = (pagos || []).map(pago => {
       const det = detallesPorPago.get(pago.id) || {};
       const condo = infoCondo(pago, det);
-      const esCondo = pago.modulo === 'condominios' || det.modulo === 'condominios' || det.isCondominio || det.es_condominio;
-      const esModoCondominio = det.modo === 'CONDOMINIO' || (!det.modo && esCondo);
+      const esCondo = Boolean(pago.modulo === 'condominios' || det.modulo === 'condominios' || det.isCondominio || det.es_condominio || condo);
+      const codCondoRaw = String(det.condominio?.codigo || condo?.codigo || '').trim().toUpperCase();
+      const condoRow = (codCondoRaw ? condoPorCodigo.get(codCondoRaw) : null) || condoPorRif.get(normId(pago.identidad)) || (det.condominio?.identidad ? condoPorRif.get(normId(det.condominio.identidad)) : null);
+      const esPagoPorLocal = esCondo && detectarEsPagoPorLocal(pago, det, condoRow);
+      const esModoCondominio = Boolean(esCondo && !esPagoPorLocal);
 
       const cont = contsMap.get(pago.identidad) || contsMap.get(normId(pago.identidad));
       const fd = det.factura_digital || null;
@@ -624,18 +676,37 @@ export async function GET(request: Request) {
       const correoFinal = esCorreoComodin ? fallbackEmail : rawEmail;
       const reciboEnviado = !!(rd && rd.enviado);
 
-      // Rescatar nombre real del contribuyente evitando mostrar el RIF como nombre
-      const condoMod = String(det.condominio?.modalidad || '').toUpperCase();
-      const esModoContribuyente = det.modo === 'CONTRIBUYENTE';
-      const esPagoPorLocal = Boolean(
-        esCondo && !esModoCondominio && (
-          esModoContribuyente ||
-          condoMod === 'INDIVIDUAL'
-        )
-      );
-
-      const codLocalInm = esPagoPorLocal ? (det.condominio?.lineas?.[0]?.inmueble || (det.cod_inmueble && !String(det.cod_inmueble).startsWith('CONDO-') ? det.cod_inmueble : null)) : null;
+      // Rescatar nombre y RIF real según modalidad (Grupal/Condominio vs Individual/Local)
+      const fueEditadoFiscal = Array.isArray(det.historial_edicion_fiscal) && det.historial_edicion_fiscal.length > 0;
+      const codLocalInm = esPagoPorLocal
+        ? String(
+            det.condominio?.lineas?.[0]?.inmueble ||
+            (det.cod_inmueble && !String(det.cod_inmueble).startsWith('CONDO-') ? det.cod_inmueble : '') ||
+            (det.codigo_inmueble && !String(det.codigo_inmueble).startsWith('CONDO-') ? det.codigo_inmueble : '') ||
+            clasif.inmuebles[0] ||
+            ''
+          ).trim().toUpperCase()
+        : null;
       const localProp = codLocalInm ? inmMap.get(codLocalInm) : null;
+      const cuProp = codLocalInm ? cuMap.get(codLocalInm) : null;
+      const linea0 = det.condominio?.lineas?.[0] || null;
+
+      let identidadResuelta = pago.identidad;
+      if (fueEditadoFiscal && pago.identidad) {
+        identidadResuelta = pago.identidad;
+      } else if (esPagoPorLocal) {
+        const rifCondoNorm = normId(condoRow?.identidad || condo?.identidad || '');
+        if (!identidadResuelta || (rifCondoNorm && normId(identidadResuelta) === rifCondoNorm)) {
+          const candRif =
+            (linea0?.identidad && normId(linea0.identidad) !== rifCondoNorm ? linea0.identidad : null) ||
+            (cuProp?.identidad && normId(cuProp.identidad) !== rifCondoNorm ? cuProp.identidad : null) ||
+            (localProp?.identidad && normId(localProp.identidad) !== rifCondoNorm ? localProp.identidad : null) ||
+            identidadResuelta;
+          if (candRif) identidadResuelta = String(candRif).trim();
+        }
+      } else if (esModoCondominio) {
+        identidadResuelta = condoRow?.identidad || condo?.identidad || det.condominio?.identidad || pago.identidad;
+      }
 
       let nombreInm = '';
       if (localProp?.contribuyente && !esPlaceholderNombre(localProp.contribuyente)) {
@@ -662,10 +733,17 @@ export async function GET(request: Request) {
       }
 
       const rcRazon = det.recibo_caja?.[0]?.razonSocial && !esPlaceholderNombre(det.recibo_caja[0].razonSocial) ? String(det.recibo_caja[0].razonSocial).trim() : null;
+      const nombreUnidad =
+        (linea0?.propietario && !esPlaceholderNombre(linea0.propietario) && !String(linea0.propietario).toUpperCase().includes('CONDOMINIO') ? String(linea0.propietario).trim() : '') ||
+        (cuProp?.propietario && !esPlaceholderNombre(cuProp.propietario) && !String(cuProp.propietario).toUpperCase().includes('CONDOMINIO') ? String(cuProp.propietario).trim() : '');
 
       let nombreResuelto = '';
-      if (esPagoPorLocal) {
-        if (nombreInm && !esPlaceholderNombre(nombreInm) && !nombreInm.toUpperCase().includes('CONDOMINIO')) {
+      if (fueEditadoFiscal && !esPlaceholderNombre(det.contribuyente)) {
+        nombreResuelto = String(det.contribuyente).trim();
+      } else if (esPagoPorLocal) {
+        if (nombreUnidad) {
+          nombreResuelto = nombreUnidad;
+        } else if (nombreInm && !esPlaceholderNombre(nombreInm) && !nombreInm.toUpperCase().includes('CONDOMINIO')) {
           nombreResuelto = nombreInm;
         } else if (rcRazon && !rcRazon.toUpperCase().includes('CONDOMINIO')) {
           nombreResuelto = rcRazon;
@@ -674,7 +752,7 @@ export async function GET(request: Request) {
         } else if (!esPlaceholderNombre(det.contribuyente) && !String(det.contribuyente).toUpperCase().includes('CONDOMINIO')) {
           nombreResuelto = det.contribuyente;
         } else {
-          nombreResuelto = rcRazon || cont?.nombre || 'Contribuyente ' + pago.identidad;
+          nombreResuelto = rcRazon || cont?.nombre || 'Contribuyente ' + identidadResuelta;
         }
       } else if (esModoCondominio) {
         if (condo?.nombre && !esPlaceholderNombre(condo.nombre)) {
@@ -688,7 +766,7 @@ export async function GET(request: Request) {
         } else if (nombreInm && !esPlaceholderNombre(nombreInm)) {
           nombreResuelto = nombreInm;
         } else {
-          nombreResuelto = det.contribuyente || cont?.nombre || 'Contribuyente ' + pago.identidad;
+          nombreResuelto = det.contribuyente || cont?.nombre || 'Contribuyente ' + identidadResuelta;
         }
       } else {
         if (nombreInm && !esPlaceholderNombre(nombreInm)) {
@@ -702,7 +780,7 @@ export async function GET(request: Request) {
         } else if (condo?.nombre && !esPlaceholderNombre(condo.nombre)) {
           nombreResuelto = condo.nombre;
         } else {
-          nombreResuelto = det.contribuyente || cont?.nombre || 'Contribuyente ' + pago.identidad;
+          nombreResuelto = det.contribuyente || cont?.nombre || 'Contribuyente ' + identidadResuelta;
         }
       }
 
@@ -737,13 +815,14 @@ export async function GET(request: Request) {
         delete det.saldo_favor_generado;
       }
 
+      const porcRet = Number(det.porcentaje_retencion) === 100 ? 100 : 75;
       if (tieneRetencion) {
         det.conRetencion = true;
         det.es_retencion = true;
         det.agente_retencion = true;
         det.monto_retencion_iva = montoRetNum;
         det.retencion_iva = montoRetNum;
-        det.porcentaje_retencion = 75;
+        det.porcentaje_retencion = porcRet;
       }
 
       // Detección de Nota de Crédito (Saldo a Favor) aplicada en el pago
@@ -840,7 +919,7 @@ export async function GET(request: Request) {
       montoFacturaReal = Math.round(montoFacturaReal * 100) / 100;
 
       if (tieneRetencion && montoRetNum === 0 && montoFacturaReal > 0) {
-        montoRetNum = Math.round((montoFacturaReal - (montoFacturaReal / 1.16)) * 0.75 * 100) / 100;
+        montoRetNum = Math.round((montoFacturaReal - (montoFacturaReal / 1.16)) * (porcRet / 100) * 100) / 100;
         det.monto_retencion_iva = montoRetNum;
         det.retencion_iva = montoRetNum;
       }
@@ -885,7 +964,7 @@ export async function GET(request: Request) {
       return {
         id: pago.id,
         pagoId: pago.id,
-          identidad: pago.identidad,
+          identidad: identidadResuelta,
           contribuyente: nombreResuelto,
           correo: correoFinal,
           rawCorreo: rawEmail,

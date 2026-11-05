@@ -203,21 +203,6 @@ function ModalComprobante({ pago, onClose }: { pago: Pago; onClose: () => void }
         } catch { /* ignorar */ }
       }
 
-      // Fallback opcional a storage si aún no se halló nada
-      if (urls.length === 0) {
-        try {
-          const { data: files } = await supabase.storage
-            .from('documentos').list('comprobantes', { limit: 10 });
-          if (files && files.length > 0) {
-            for (const f of files) {
-              const { data: sd } = await supabase.storage.from('documentos')
-                .createSignedUrl('comprobantes/' + f.name, 3600);
-              if (sd?.signedUrl) urls.push({ name: f.name, url: sd.signedUrl, tipo: 'Pago' });
-            }
-          }
-        } catch { /* sin storage */ }
-      }
-
       setArchivos(urls);
       setLoading(false);
     })();
@@ -231,7 +216,7 @@ function ModalComprobante({ pago, onClose }: { pago: Pago; onClose: () => void }
     <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 shrink-0">
-          <h2 className="text-lg font-bold text-slate-800 uppercase tracking-wide">Detalles de la Conciliaci�n</h2>
+          <h2 className="text-lg font-bold text-slate-800 uppercase tracking-wide">Detalles de la Conciliación</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
         </div>
         <div className="overflow-y-auto flex-1 p-6">
@@ -285,7 +270,7 @@ function ModalComprobante({ pago, onClose }: { pago: Pago; onClose: () => void }
                       </a>
                       <a href={arch.url} target="_blank" rel="noopener noreferrer"
                         className="flex items-center gap-1 text-slate-500 hover:text-slate-700 text-xs font-semibold">
-                        <Eye size={14} /> Nueva pesta�a
+                        <Eye size={14} /> Nueva pestaña
                       </a>
                     </div>
                   </div>
@@ -434,24 +419,24 @@ function ModalEstadoCuenta({ pago, onClose }: { pago: Pago; onClose: () => void 
                     <span className="text-slate-700">{cleanClasificacionActividad(inmueble?.actividad_principal || inmueble?.clasificacion || '') || 'Servicio de Aseo Urbano'}</span>
                   </div>
                   <div className="border-b border-r border-slate-100 px-3 py-2">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase block">Tel�fono</span>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase block">Teléfono</span>
                     <span className="text-slate-700">{inmueble?.telefono || '---'}</span>
                   </div>
                   <div className="border-b border-slate-100 px-3 py-2">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase block">Correo Electr�nico</span>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase block">Correo Electrónico</span>
                     <span className="text-slate-700 text-xs">{inmueble?.correo_electronico || inmueble?.correo || '---'}</span>
                   </div>
                   <div className="border-b border-slate-100 px-3 py-2 col-span-2">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase block">Direcci�n del Inmueble</span>
-                    <span className="text-slate-700">{inmueble?.direccion || 'Naguanagua Municipio Naguanagua, Falc�n'}</span>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase block">Dirección del Inmueble</span>
+                    <span className="text-slate-700">{inmueble?.direccion || 'Naguanagua, Municipio Naguanagua, Edo. Carabobo'}</span>
                   </div>
                   <div className="border-r border-slate-100 px-3 py-2">
                     <span className="text-[10px] font-bold text-slate-500 uppercase block">Estado</span>
                     <span className={`font-bold ${inmueble?.estado === 'Activo' ? 'text-green-700' : 'text-red-600'}`}>{inmueble?.estado || 'Activo'}</span>
                   </div>
                   <div className="px-3 py-2">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase block">�rea (Mt�)</span>
-                    <span className="text-slate-700">{inmueble?.area_m2 ? inmueble.area_m2 + ' Mt�' : '---'}</span>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase block">Área (Mt²)</span>
+                    <span className="text-slate-700">{inmueble?.area_m2 ? inmueble.area_m2 + ' Mt²' : '---'}</span>
                   </div>
                 </div>
                 {/* Resumen financiero total del contribuyente */}
@@ -713,10 +698,14 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         const idPagoLimpio = (pago.identidad || '').replace(/-/g, '').trim().toUpperCase();
         const idCondoLimpio = (det.condominio?.identidad || '').replace(/-/g, '').trim().toUpperCase();
 
-        const esPagoUnidadIndividual = det.modo === 'CONTRIBUYENTE' ||
+        const esModoCondoExplicito = det.modo === 'CONDOMINIO' || ['completo', 'abono_locales', 'total', 'abono'].includes(String(det.modalidad_cobro || det.condominio_modo || '').toLowerCase());
+        const esPagoUnidadIndividual = !esModoCondoExplicito && (
+          det.modo === 'CONTRIBUYENTE' ||
+          String(det.condominio_modo || '').toLowerCase() === 'local' ||
           String(det.condominio?.modalidad || '').toUpperCase() === 'INDIVIDUAL' ||
-          (det.modo !== 'CONDOMINIO' && !tieneMultiplesLineas && !!unidadCod && unidadCod !== condoCod) || 
-          (!!idCondoLimpio && !!idPagoLimpio && idPagoLimpio !== idCondoLimpio);
+          (!tieneMultiplesLineas && !!unidadCod && unidadCod !== condoCod) || 
+          (!!idCondoLimpio && !!idPagoLimpio && idPagoLimpio !== idCondoLimpio)
+        );
 
         if (esCondo && condoCod && !esPagoUnidadIndividual) {
           let { data: condoRecord } = await supabase
@@ -1286,7 +1275,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         }
       }
 
-      if (estatus === 'Aprobado' && recibos.length > 0) {
+      if ((estatus === 'Aprobado' || estatus === 'Con Diferencia') && recibos.length > 0) {
         const { data: facs } = await supabase.from('facturas').select('*').in('referencia', recibos);
         if (facs && facs.length > 0) {
           // Calcular deuda total de los recibos seleccionados
@@ -1635,12 +1624,15 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
           }
           curDet.recibos = recibos;
           // Pagos de la Caja de Condominios o con saldo a favor: NO alterar montos originales de la factura
-          const esCondo = curDet.modulo === 'condominios' || det.modulo === 'condominios';
-          const esPagoUnidadFac = 
+          const esCondo = curDet.modulo === 'condominios' || det.modulo === 'condominios' || curDet.es_condominio || det.es_condominio;
+          const esModoCondoFac = curDet.modo === 'CONDOMINIO' || det.modo === 'CONDOMINIO' || ['completo', 'abono_locales', 'total', 'abono'].includes(String(curDet.modalidad_cobro || det.modalidad_cobro || curDet.condominio_modo || det.condominio_modo || '').toLowerCase());
+          const esPagoUnidadFac = !esModoCondoFac && (
             curDet.modo === 'CONTRIBUYENTE' || 
             det.modo === 'CONTRIBUYENTE' ||
+            String(curDet.condominio_modo || det.condominio_modo || '').toLowerCase() === 'local' ||
             String(curDet.condominio?.modalidad || det.condominio?.modalidad || '').toUpperCase() === 'INDIVIDUAL' ||
-            (curDet.condominio?.lineas?.length === 1 && curDet.condominio?.lineas?.[0]?.inmueble && curDet.condominio?.lineas?.[0]?.inmueble !== (curDet.condominio?.codigo || det.condominio?.codigo));
+            (curDet.condominio?.lineas?.length === 1 && curDet.condominio?.lineas?.[0]?.inmueble && curDet.condominio?.lineas?.[0]?.inmueble !== (curDet.condominio?.codigo || det.condominio?.codigo))
+          );
 
           const retDocConcil = parseFloat(String(curDet.monto_retencion_iva || curDet.retencion_iva || det.monto_retencion_iva || det.retencion_iva || montoRetencionDoc || 0)) || 0;
           const sfUsadoConcil = parseFloat(String(curDet.saldo_usado || curDet.saldo_favor_usado || curDet.descuento_saldo_favor || saldoFavorUsado || 0)) || 0;
@@ -1683,35 +1675,8 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
 
       }
       // Con Diferencia: agregar monto de diferencia como saldo a favor
-      if (estatus === 'Con Diferencia' && montoConciliadoNum > 0) {
-        // Buscar inmueble del contribuyente para actualizar saldo_favor_bs
-        const { data: inmList } = await supabase
-          .from('inmuebles')
-          .select('id, saldo_favor_bs')
-          .eq('identidad', pago.identidad);
-        if (inmList && inmList.length > 0) {
-          const inm = inmList[0];
-          const saldoActual = parseFloat(inm.saldo_favor_bs || '0') || 0;
-          const nuevoSaldo = saldoActual + montoConciliadoNum;
-          await supabase.from('inmuebles').update({ saldo_favor_bs: nuevoSaldo }).eq('id', inm.id);
-          // Registrar en documentos como Nota de Credito
-          await supabase.from('documentos').insert([{
-            identidad: pago.identidad,
-            contribuyente: pago.contribuyente || contribInfo?.Contribuyente || contribInfo?.nombre || '',
-            tipo: 'Nota de Credito',
-            estado: 'Vigente',
-            detalles: JSON.stringify({
-              monto: montoConciliadoNum.toFixed(2),
-              origen_referencia: `Conciliaci�n con diferencia. Referencia: ${pago.referencia || pago.id}`,
-              fecha_emision: new Date().toISOString(),
-              analista: updatedDet.analista,
-            })
-          }]);
-        }
-        // Marcar recibos como Pagado tambi�n (el pago se concilia aunque con diferencia)
-        if (recibos.length > 0) {
-          await supabase.from('facturas').update({ estado: 'Pagado' }).in('referencia', recibos);
-        }
+      if (estatus === 'Con Diferencia' && recibos.length > 0) {
+        await supabase.from('facturas').update({ estado: 'Pagado' }).in('referencia', recibos);
       }
 
       alert('Conciliacion guardada exitosamente.');
@@ -1740,10 +1705,14 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
   const tieneMultiplesLineasModal = lineasCondoModal.length > 1;
   const esModoCondoModal = (det.modo === 'CONDOMINIO') || (!det.modo && (det.isCondominio === true || det.es_condominio === true) && !unidadCodModal);
 
-  const esPagoUnidadIndividualModal = det.modo === 'CONTRIBUYENTE' ||
+  const esModoCondoExplicitoModal = det.modo === 'CONDOMINIO' || ['completo', 'abono_locales', 'total', 'abono'].includes(String(det.modalidad_cobro || det.condominio_modo || '').toLowerCase());
+  const esPagoUnidadIndividualModal = !esModoCondoExplicitoModal && (
+    det.modo === 'CONTRIBUYENTE' ||
+    String(det.condominio_modo || '').toLowerCase() === 'local' ||
     String(det.condominio?.modalidad || '').toUpperCase() === 'INDIVIDUAL' ||
-    (det.modo !== 'CONDOMINIO' && !tieneMultiplesLineasModal && !!unidadCodModal && unidadCodModal !== condoCodModal) ||
-    (!!idCondoLimpioModal && !!idPagoLimpioModal && idPagoLimpioModal !== idCondoLimpioModal);
+    (!tieneMultiplesLineasModal && !!unidadCodModal && unidadCodModal !== condoCodModal) ||
+    (!!idCondoLimpioModal && !!idPagoLimpioModal && idPagoLimpioModal !== idCondoLimpioModal)
+  );
 
   const esCondoGlobal = esCondoModal && !esPagoUnidadIndividualModal;
 
@@ -1870,11 +1839,11 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
               </div>
             )}
 
-            {/* INFO CONTRIBUYENTE � Solo lectura - TODOS los datos */}
+            {/* INFO CONTRIBUYENTE — Solo lectura - TODOS los datos */}
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <div className="flex items-center justify-between mb-3">
                 <p className="text-xs font-bold text-blue-700 uppercase tracking-wide flex items-center gap-2">
-                  <Building2 size={14}/> Informaci�n del Contribuyente
+                  <Building2 size={14}/> Información del Contribuyente
                   {loadingContrib && <span className="text-[10px] text-blue-400 font-normal animate-pulse">(cargando...)</span>}
                 </p>
                 <div className="flex gap-2 text-[10px]">
@@ -1884,15 +1853,15 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className={lc}>RIF / C�dula</label>
+                  <label className={lc}>RIF / Cédula</label>
                   <input value={identidad} readOnly className={icRO}/>
                 </div>
                 <div>
-                  <label className={lc}>Nombre / Raz�n Social</label>
+                  <label className={lc}>Nombre / Razón Social</label>
                   <input value={nombreContrib} readOnly className={icRO}/>
                 </div>
                 <div>
-                  <label className={lc}>C�digo Inmueble</label>
+                  <label className={lc}>Código Inmueble</label>
                   <input value={codInmueble} readOnly className={icRO}/>
                 </div>
                 <div className="col-span-2">
@@ -1904,15 +1873,15 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
                   <input value={estadoCont} readOnly className={`${icRO} ${estadoCont === 'Activo' ? 'text-green-700' : 'text-red-700'} font-bold`}/>
                 </div>
                 <div className="col-span-2">
-                  <label className={lc}>Direcci�n</label>
+                  <label className={lc}>Dirección</label>
                   <input value={direccion} readOnly className={icRO}/>
                 </div>
                 <div>
-                  <label className={lc}>Tel�fono</label>
+                  <label className={lc}>Teléfono</label>
                   <input value={telefono} readOnly className={icRO}/>
                 </div>
                 <div className="col-span-2">
-                  <label className={lc}>Correo Electr�nico</label>
+                  <label className={lc}>Correo Electrónico</label>
                   <input value={correo} readOnly className={icRO}/>
                 </div>
               </div>
@@ -1959,7 +1928,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
                   {BANCOS_DESTINO.filter(b=>b!=='Todos').map(b=><option key={b} value={b}>{b}</option>)}
                 </select>
               </div>
-              <div><label className={lc}>Fecha Transacci�n</label>
+              <div><label className={lc}>Fecha Transacción</label>
                 <input type="date" value={fechaTransaccion} onChange={e=>setFechaTransaccion(e.target.value)} className={ic}/>
               </div>
               <div><label className={lc}>Fecha en Banco</label>
@@ -2025,7 +1994,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
               );
             })()}
 
-            {/* CONCILIACI�N */}
+            {/* CONCILIACIÓN */}
             <div className="grid grid-cols-4 gap-4">
               <div>
                 <label className={lc}>Monto Reportado</label>
@@ -2051,7 +2020,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
                 {tasaOriginal > 0 && <p className="text-[10px] text-slate-400 mt-0.5">Original: Bs. {tasaOriginal.toFixed(2)}</p>}
               </div>
               <div>
-                <label className={lc}>Estatus de Conciliaci�n</label>
+                <label className={lc}>Estatus de Conciliación</label>
                 <select
                   value={estatus}
                   onChange={e => handleEstatusChange(e.target.value)}
@@ -2061,7 +2030,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
                 </select>
                 {estatus === 'Con Diferencia' && (
                   <p className="text-[10px] text-amber-600 mt-1 font-medium">
-                    ⚠️ El monto ingresado se agregar� como saldo a favor del contribuyente.
+                    ⚠️ El monto ingresado se agregará como saldo a favor del contribuyente.
                   </p>
                 )}
               </div>
@@ -2098,7 +2067,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
                 </div>
               </div>
               <div>
-                <label className={lc}>Tel�fono Responsable</label>
+                <label className={lc}>Teléfono Responsable</label>
                 <input value={telefonoResponsable} onChange={e=>setTelefonoResponsable(e.target.value)} className={ic}/>
               </div>
             </div>
@@ -2304,7 +2273,19 @@ export default function ConciliacionPage() {
         if (!tieneTermino && !soloVerificacion && filtros.desde) q = q.gte('created_at', filtros.desde + 'T04:00:00.000Z');
         if (!tieneTermino && !soloVerificacion && filtros.hasta) { const d = new Date(filtros.hasta + 'T04:00:00Z'); d.setDate(d.getDate()+1); q = q.lte('created_at', d.toISOString()); }
         if (!tieneTermino && filtros.estatus !== 'Todos') q = q.eq('estado', filtros.estatus);
-        if (filtros.formaPago !== 'Todos') q = q.eq('tipo', filtros.formaPago);
+        if (filtros.formaPago !== 'Todos') {
+          if (filtros.formaPago === 'Punto de Venta') {
+            q = q.in('tipo', ['Debito', 'Débito', 'Credito', 'Crédito', 'Punto de Venta', 'Punto', 'TMD', 'TVD']);
+          } else if (filtros.formaPago === 'TMD (Master)') {
+            q = q.in('tipo', ['TMD', 'TMD (Master)']);
+          } else if (filtros.formaPago === 'TVD (Visa)') {
+            q = q.in('tipo', ['TVD', 'TVD (Visa)']);
+          } else if (filtros.formaPago === 'Transferencia') {
+            q = q.in('tipo', ['Transferencia', 'Transferencia (Web)']);
+          } else {
+            q = q.eq('tipo', filtros.formaPago);
+          }
+        }
         if (tieneTermino) {
           const term = filtros.referencia.trim();
           const rifsMatching = Array.from(condos.values())
@@ -2483,11 +2464,14 @@ export default function ConciliacionPage() {
             const lineasCondo = Array.isArray(det.condominio?.lineas) ? det.condominio.lineas : [];
             const tieneMultiplesLineas = lineasCondo.length > 1;
 
-            const esPagoUnidadIndividual = 
+            const esModoCondoExplicito = det.modo === 'CONDOMINIO' || ['completo', 'abono_locales', 'total', 'abono'].includes(String(det.modalidad_cobro || det.condominio_modo || '').toLowerCase());
+            const esPagoUnidadIndividual = !esModoCondoExplicito && (
               det.modo === 'CONTRIBUYENTE' ||
+              String(det.condominio_modo || '').toLowerCase() === 'local' ||
               String(det.condominio?.modalidad || '').toUpperCase() === 'INDIVIDUAL' ||
-              (det.modo !== 'CONDOMINIO' && !tieneMultiplesLineas && !!unidadCod && unidadCod !== condoCod) ||
-              (!!idCondoLimpio && !!idPagoLimpio && idPagoLimpio !== idCondoLimpio);
+              (!tieneMultiplesLineas && !!unidadCod && unidadCod !== condoCod) ||
+              (!!idCondoLimpio && !!idPagoLimpio && idPagoLimpio !== idCondoLimpio)
+            );
 
             const idKey = (pago.identidad || '').replace(/-/g, '').toUpperCase();
             const nombreNormal = pago.contribuyente || det.contribuyente || det.recibo_caja?.[0]?.razonSocial || nombresPorId.get(idKey) || '---';
@@ -2528,11 +2512,14 @@ export default function ConciliacionPage() {
             const lineasCondo = Array.isArray(det.condominio?.lineas) ? det.condominio.lineas : [];
             const tieneMultiplesLineas = lineasCondo.length > 1;
 
-            const esPagoUnidadIndividual = 
+            const esModoCondoExplicito = det.modo === 'CONDOMINIO' || ['completo', 'abono_locales', 'total', 'abono'].includes(String(det.modalidad_cobro || det.condominio_modo || '').toLowerCase());
+            const esPagoUnidadIndividual = !esModoCondoExplicito && (
               det.modo === 'CONTRIBUYENTE' ||
+              String(det.condominio_modo || '').toLowerCase() === 'local' ||
               String(det.condominio?.modalidad || '').toUpperCase() === 'INDIVIDUAL' ||
-              (det.modo !== 'CONDOMINIO' && !tieneMultiplesLineas && !!unidadCod && unidadCod !== condoCod) ||
-              (!!idCondoLimpio && !!idPagoLimpio && idPagoLimpio !== idCondoLimpio);
+              (!tieneMultiplesLineas && !!unidadCod && unidadCod !== condoCod) ||
+              (!!idCondoLimpio && !!idPagoLimpio && idPagoLimpio !== idCondoLimpio)
+            );
 
             if (esCondo && !esPagoUnidadIndividual && condoCod) {
               const lineasCod = condo?.lineas?.length ? condo.lineas.slice(0, 3).map(l => l.inmueble || l.numero).filter(Boolean).join(', ') + (condo.lineas.length > 3 ? ` +${condo.lineas.length - 3}` : '') : null;

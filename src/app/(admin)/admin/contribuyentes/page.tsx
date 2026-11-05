@@ -799,7 +799,7 @@ function ContribuyentesPageContent() {
         if (inmCode) {
           await supabase
             .from('inmuebles')
-            .update({ multa_bs: 0, multa_meses: 0, deuda_congelada_bs: 0 })
+            .update({ multa_bs: 0, multa_meses: 0 })
             .eq('inmueble', inmCode);
         }
       } else if (isUuid) {
@@ -2072,11 +2072,14 @@ function ContribuyentesPageContent() {
   };
 
   const exportarExcelContribuyentes = () => {
-    const dataToExport = contribuyentes.map((c: any) => {
+    const sourceList = filteredContribuyentes.length > 0 ? filteredContribuyentes : contribuyentes;
+    const dataToExport = sourceList.map((c: any) => {
       const deudas = (recibos || [])
-        .filter((f: any) => f.contribuyente === c.Contribuyente || f.contribuyente === c.Identidad)
+        .filter((f: any) => f.contribuyente === c.Contribuyente || f.contribuyente === c.Identidad || f.identidad === c.Identidad)
         .filter((f: any) => f.estado === 'Pendiente' || f.estado === 'Abonado');
-      const totalBs = deudas.reduce((acc: number, f: any) => acc + parseFloat(f.monto || '0'), 0);
+      const totalRecibosBs = deudas.reduce((acc: number, f: any) => acc + (parseFloat(f.monto || '0') || 0), 0);
+      const totalBs = deudas.length > 0 ? totalRecibosBs : (parseFloat(c.DeudaBs || '0') || 0);
+      const mesesPendientes = deudas.length > 0 ? deudas.length : (parseInt(c.MesesDeuda || '0', 10) || 0);
       
       return {
         "CÓDIGO": c.CodCont || 'N/A',
@@ -2088,7 +2091,7 @@ function ContribuyentesPageContent() {
         "CORREO": c.Correo || 'N/A',
         "DIRECCIÓN": c.Direccion || 'N/A',
         "DEUDA TOTAL (Bs)": totalBs.toFixed(2),
-        "MESES PENDIENTES": deudas.length
+        "MESES PENDIENTES": mesesPendientes
       };
     });
 
@@ -3024,15 +3027,15 @@ function ContribuyentesPageContent() {
                 <label className="block text-[10px] font-semibold text-slate-600 mb-1">Copia de Cédula / RIF <span className="text-red-500">*</span></label>
                 <label className="block border-2 border-dashed border-slate-300 rounded p-4 text-center cursor-pointer hover:bg-blue-50 hover:border-blue-400 transition-colors">
                   {uploadDocs.cedula.uploading ? (
-                    <span className="text-xs text-blue-500 animate-pulse">â ³ Subiendo...</span>
+                    <span className="text-xs text-blue-500 animate-pulse">⏳ Subiendo...</span>
                   ) : uploadDocs.cedula.url ? (
                     <div className="space-y-1">
-                      <span className="text-[10px] text-green-600 font-bold block">âœ… {uploadDocs.cedula.name}</span>
+                      <span className="text-[10px] text-green-600 font-bold block">✅ {uploadDocs.cedula.name}</span>
                       <a href={uploadDocs.cedula.url} target="_blank" rel="noreferrer" className="text-[10px] text-blue-500 underline" onClick={e => e.stopPropagation()}>Ver documento</a>
                       <span className="block text-[10px] text-slate-400">Click para cambiar</span>
                     </div>
                   ) : (
-                    <span className="text-xs text-slate-500">ðŸ“Ž Click para subir archivo<br/><span className="text-[10px] text-slate-400">PDF o imagen, máx. 10 MB</span></span>
+                    <span className="text-xs text-slate-500">📎 Click para subir archivo<br/><span className="text-[10px] text-slate-400">PDF o imagen, máx. 10 MB</span></span>
                   )}
                   <input type="file" className="hidden" accept=".pdf,image/*" onChange={e => handleUploadDoc(e, 'cedula')} disabled={uploadDocs.cedula.uploading}/>
                 </label>
@@ -3042,15 +3045,15 @@ function ContribuyentesPageContent() {
                 <label className="block text-[10px] font-semibold text-slate-600 mb-1">Ficha Catastral Digitalizada</label>
                 <label className="block border-2 border-dashed border-slate-300 rounded p-4 text-center cursor-pointer hover:bg-blue-50 hover:border-blue-400 transition-colors">
                   {uploadDocs.ficha.uploading ? (
-                    <span className="text-xs text-blue-500 animate-pulse">â ³ Subiendo...</span>
+                    <span className="text-xs text-blue-500 animate-pulse">⏳ Subiendo...</span>
                   ) : uploadDocs.ficha.url ? (
                     <div className="space-y-1">
-                      <span className="text-[10px] text-green-600 font-bold block">âœ… {uploadDocs.ficha.name}</span>
+                      <span className="text-[10px] text-green-600 font-bold block">✅ {uploadDocs.ficha.name}</span>
                       <a href={uploadDocs.ficha.url} target="_blank" rel="noreferrer" className="text-[10px] text-blue-500 underline" onClick={e => e.stopPropagation()}>Ver documento</a>
                       <span className="block text-[10px] text-slate-400">Click para cambiar</span>
                     </div>
                   ) : (
-                    <span className="text-xs text-slate-500">ðŸ“Ž Click para subir archivo<br/><span className="text-[10px] text-slate-400">PDF o imagen, máx. 10 MB</span></span>
+                    <span className="text-xs text-slate-500">📎 Click para subir archivo<br/><span className="text-[10px] text-slate-400">PDF o imagen, máx. 10 MB</span></span>
                   )}
                   <input type="file" className="hidden" accept=".pdf,image/*" onChange={e => handleUploadDoc(e, 'ficha')} disabled={uploadDocs.ficha.uploading}/>
                 </label>
@@ -3060,15 +3063,15 @@ function ContribuyentesPageContent() {
                 <label className="block text-[10px] font-semibold text-slate-600 mb-1">Registro Mercantil / Otros</label>
                 <label className="block border-2 border-dashed border-slate-300 rounded p-4 text-center cursor-pointer hover:bg-blue-50 hover:border-blue-400 transition-colors">
                   {uploadDocs.registro.uploading ? (
-                    <span className="text-xs text-blue-500 animate-pulse">â ³ Subiendo...</span>
+                    <span className="text-xs text-blue-500 animate-pulse">⏳ Subiendo...</span>
                   ) : uploadDocs.registro.url ? (
                     <div className="space-y-1">
-                      <span className="text-[10px] text-green-600 font-bold block">âœ… {uploadDocs.registro.name}</span>
+                      <span className="text-[10px] text-green-600 font-bold block">✅ {uploadDocs.registro.name}</span>
                       <a href={uploadDocs.registro.url} target="_blank" rel="noreferrer" className="text-[10px] text-blue-500 underline" onClick={e => e.stopPropagation()}>Ver documento</a>
                       <span className="block text-[10px] text-slate-400">Click para cambiar</span>
                     </div>
                   ) : (
-                    <span className="text-xs text-slate-500">ðŸ“Ž Click para subir archivo<br/><span className="text-[10px] text-slate-400">PDF o imagen, máx. 10 MB</span></span>
+                    <span className="text-xs text-slate-500">📎 Click para subir archivo<br/><span className="text-[10px] text-slate-400">PDF o imagen, máx. 10 MB</span></span>
                   )}
                   <input type="file" className="hidden" accept=".pdf,image/*" onChange={e => handleUploadDoc(e, 'registro')} disabled={uploadDocs.registro.uploading}/>
                 </label>
@@ -3730,6 +3733,7 @@ function ContribuyentesPageContent() {
                           onClick={() => {
                             setSelectedDebtRow(formData || viewData);
                             setDebtModalOpen(true);
+                            setIsDebtModalOpen(true);
                           }}
                           className="bg-orange-100 text-orange-700 hover:bg-orange-200 px-3 py-1.5 rounded text-xs font-bold transition-colors flex items-center gap-1 shadow-sm"
                         >

@@ -10,7 +10,7 @@ async function fetchAllRows(table: string, selectCols: string, filterFn?: (q: an
   const all: any[] = [];
   let from = 0;
   for (let page = 0; page < 120; page++) {
-    let q = sb.from(table).select(selectCols).range(from, from + STEP - 1);
+    let q = sb.from(table).select(selectCols).order('id', { ascending: true }).range(from, from + STEP - 1);
     if (filterFn) q = filterFn(q);
     const { data, error } = await q;
     if (error || !data || data.length === 0) break;
@@ -86,14 +86,12 @@ export async function GET(request: Request) {
     }
 
     if (modo === 'report_datasets') {
-      const [rawInmuebles, rawContribs, saldosFavor, empleadosGestion, trabajadoresList] = await Promise.all([
+      const [rawInmuebles, rawContribs, trabajadoresList] = await Promise.all([
         fetchAllRows(
           'inmuebles',
           'id,identidad,inmueble,contribuyente,tipo,clasificacion,direccion,actividad_principal,mmv_mes,cant_inmuebles,deuda_mmv,deuda_congelada_bs,saldo_favor_bs,multa_bs,meses_deuda,agente_retencion,estado,correo_electronico,telefono,es_condominio'
         ),
         fetchAllRows('contribuyentes', '*'),
-        fetchAllRows('saldos_favor', '*'),
-        sb.from('gestion_empleados').select('*').then((r) => r.data || []),
         sb.from('trabajadores').select('*').then((r) => r.data || []),
       ]);
       const contribMap = new Map<string, any>();
@@ -104,36 +102,30 @@ export async function GET(request: Request) {
         ...inm,
         contribuyentes: contribMap.get(inm.identidad) || null,
       }));
-      // Si saldos_favor no tiene registros sueltos, también incluir inmuebles con saldo_favor_bs > 0
-      const saldosCombinados = [...(saldosFavor || [])];
-      if (saldosCombinados.length === 0) {
-        mergedInmuebles.forEach((inm: any) => {
-          const sf = Number(inm.saldo_favor_bs) || 0;
-          if (sf > 0) {
-            saldosCombinados.push({
-              id: inm.id,
-              created_at: new Date().toISOString(),
-              identidad: inm.identidad,
-              nombre: inm.contribuyente || inm.contribuyentes?.nombre || inm.identidad,
-              concepto_original: `Saldo a favor en inmueble ${inm.inmueble || ''}`.trim(),
-              estado: 'Disponible',
-              monto_restante: sf,
-            });
-          }
-        });
-      }
-      const empleadosCombinados =
-        Array.isArray(empleadosGestion) && empleadosGestion.length > 0
-          ? empleadosGestion
-          : (trabajadoresList || []).map((t: any) => ({
-              cedula: t.cedula || t.usuario || '—',
-              nombre: t.nombre || t.usuario || 'Funcionario IAMEC',
-              cargo: t.rol || 'Operador',
-              departamento: 'IAMEC Naguanagua',
-              estatus: t.estado || 'Activo',
-              fecha_ingreso: t.created_at,
-              telefono: t.email || '—',
-            }));
+      const saldosCombinados: any[] = [];
+      mergedInmuebles.forEach((inm: any) => {
+        const sf = Number(inm.saldo_favor_bs) || 0;
+        if (sf > 0) {
+          saldosCombinados.push({
+            id: inm.id,
+            created_at: new Date().toISOString(),
+            identidad: inm.identidad,
+            nombre: inm.contribuyente || inm.contribuyentes?.nombre || inm.identidad,
+            concepto_original: `Saldo a favor en inmueble ${inm.inmueble || ''}`.trim(),
+            estado: 'Disponible',
+            monto_restante: sf,
+          });
+        }
+      });
+      const empleadosCombinados = (trabajadoresList || []).map((t: any) => ({
+        cedula: t.cedula || t.usuario || '—',
+        nombre: t.nombre || t.usuario || 'Funcionario IAMEC',
+        cargo: t.rol || 'Operador',
+        departamento: 'IAMEC Naguanagua',
+        estatus: t.estado || 'Activo',
+        fecha_ingreso: t.created_at,
+        telefono: t.email || '—',
+      }));
       return NextResponse.json({
         success: true,
         contribuyentes: mergedInmuebles,
@@ -191,22 +183,36 @@ export async function GET(request: Request) {
         .then((r) => r.data || []),
       sb
         .from('servicios_especiales')
-        .select('id,referencia,tipo_servicio,monto,estado,created_at')
+        .select('id,referencia,tipo,monto,estado,created_at')
         .then((r) => r.data || []),
       sb
         .from('convenios_pago')
-        .select('id,identidad,contribuyente,monto_total,monto_pagado,cuotas_totales,cuotas_pagadas,estado,created_at')
-        .then((r) => r.data || []),
+        .select('id, rif, contribuyente_nombre, deuda_total_bs, monto_inicial_bs, monto_cuota_bs, total_cuotas, estado, created_at')
+        .then(async (r) => {
+          if (r.error) {
+            const fb = await sb.from('convenios_pago').select('*');
+            return fb.data || [];
+          }
+          return r.data || [];
+        }),
       sb
-        .from('saldos_favor')
-        .select('id,identidad,inmueble,monto,estado,created_at')
+        .from('documentos')
+        .select('id,identidad,contribuyente,tipo,estado,created_at')
+        .eq('tipo', 'Nota de Credito')
+        .eq('estado', 'Vigente')
         .then((r) => r.data || []),
       sb
         .from('auditoria')
-        .select('id,accion,usuario,categoria,criticidad,created_at,detalles')
+        .select('id, created_at, usuario_email, usuario_rol, modulo, accion, descripcion')
         .order('created_at', { ascending: false })
         .limit(40)
-        .then((r) => r.data || []),
+        .then(async (r) => {
+          if (r.error) {
+            const fb = await sb.from('auditoria').select('*').order('created_at', { ascending: false }).limit(40);
+            return fb.data || [];
+          }
+          return r.data || [];
+        }),
     ]);
 
     const tcmmv = Number(bcvRes?.tcmmv || bcvRes?.euro || 0) || 1;
@@ -444,8 +450,26 @@ export async function GET(request: Request) {
 
     const serviciosPagados = serviciosAll.filter((s: any) => s.estado === 'Pagado' || s.estado === 'Aprobado').length;
     const serviciosPendientes = serviciosAll.length - serviciosPagados;
+    const serviciosPorTipo: Record<string, number> = {};
+    serviciosAll.forEach((s: any) => {
+      const t = s.tipo || s.tipo_servicio || 'Otro';
+      serviciosPorTipo[t] = (serviciosPorTipo[t] || 0) + 1;
+    });
 
-    const conveniosActivos = conveniosAll.filter((c: any) => c.estado === 'Activo' || c.estado === 'Vigente').length;
+    const conveniosActivos = conveniosAll.filter((c: any) => c.estado === 'Activo' || c.estado === 'Vigente' || c.estado === 'Al Día').length;
+    const conveniosDeudaTotalBs = Math.round(conveniosAll.reduce((sum: number, c: any) => sum + (parseFloat(String(c.deuda_total_bs ?? c.monto_total ?? 0)) || 0), 0) * 100) / 100;
+    const conveniosMontoInicialBs = Math.round(conveniosAll.reduce((sum: number, c: any) => sum + (parseFloat(String(c.monto_inicial_bs ?? c.inicial ?? 0)) || 0), 0) * 100) / 100;
+    const conveniosResumen = conveniosAll.map((c: any) => ({
+      id: c.id,
+      rif: c.rif || c.identidad || '',
+      contribuyente_nombre: c.contribuyente_nombre || c.contribuyente || '',
+      deuda_total_bs: parseFloat(String(c.deuda_total_bs ?? c.monto_total ?? 0)) || 0,
+      monto_inicial_bs: parseFloat(String(c.monto_inicial_bs ?? c.inicial ?? 0)) || 0,
+      monto_cuota_bs: parseFloat(String(c.monto_cuota_bs ?? 0)) || 0,
+      total_cuotas: parseInt(String(c.total_cuotas ?? c.cuotas ?? 0), 10) || 0,
+      estado: c.estado || 'Activo',
+      created_at: c.created_at,
+    }));
 
     return NextResponse.json({
       success: true,
@@ -512,8 +536,12 @@ export async function GET(request: Request) {
         totalServiciosEspeciales: serviciosAll.length,
         serviciosPagados,
         serviciosPendientes,
+        serviciosPorTipo,
         totalConvenios: conveniosAll.length,
         conveniosActivos,
+        conveniosDeudaTotalBs,
+        conveniosMontoInicialBs,
+        conveniosResumen,
         totalSaldosFavor: saldosFavorAll.length,
         auditoriaReciente,
       },

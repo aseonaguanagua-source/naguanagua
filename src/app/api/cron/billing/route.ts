@@ -93,7 +93,7 @@ export async function GET(request: Request) {
     if (!testMode) {
       const { error: cfgErr } = await supabase.from('sistema_config').upsert({
         id: CONFIG_KEY,
-        valor: 'APLICADO'
+        valor: 'EN_PROCESO'
       });
       if (cfgErr) throw cfgErr;
     }
@@ -105,7 +105,7 @@ export async function GET(request: Request) {
     while (true) {
       let q = supabase
         .from('inmuebles')
-        .select('id, inmueble, mmv_mes, meses_deuda, multa_bs, actividad_principal, tipo, clasificacion, estado, es_condominio, condominio_padre_id, notas')
+        .select('id, inmueble, mmv_mes, meses_deuda, deuda_mmv, multa_bs, actividad_principal, tipo, clasificacion, estado, es_condominio, condominio_padre_id, notas')
         .gt('mmv_mes', 0)
         .eq('estado', 'Activo')
         .order('id', { ascending: true })
@@ -148,11 +148,16 @@ export async function GET(request: Request) {
     // - Si meses_deuda === 0 (ya pagó Septiembre), pasa a meses_deuda = 1 (Octubre 2026, 0 multas).
     // - Si meses_deuda >= 1 (aún debe Septiembre), pasa a meses_deuda + 1 (se suma Octubre sin multa, y ÚNICAMENTE Septiembre pasa a tener multa; los meses anteriores conservan exactamente las multas que ya tenían).
     const gruposPorMeses = new Map<number, string[]>();
-    const inmueblesConCustomNotas: { id: string; nuevoMeses: number; nuevasNotas: string }[] = [];
+    const inmueblesConDeudaMmv: { id: string; nuevoMeses: number; nuevaDeudaMmv: number }[] = [];
+    const inmueblesConCustomNotas: { id: string; nuevoMeses: number; nuevaDeudaMmv?: number; nuevasNotas: string }[] = [];
 
     for (const inm of inmueblesFacturables) {
       const mesesActual = Math.max(0, parseInt(String(inm.meses_deuda || 0), 10) || 0);
+      const deudaMmvActual = parseFloat(String(inm.deuda_mmv || 0)) || 0;
       const nuevoMeses = mesesActual + 1;
+      const nuevaDeudaMmv = (mesesActual > 0 && deudaMmvActual > 0)
+        ? +(deudaMmvActual * nuevoMeses / mesesActual).toFixed(6)
+        : undefined;
 
       let actualizoCustom = false;
       if (inm.notas && String(inm.notas).includes('periodos_custom')) {
@@ -173,9 +178,13 @@ export async function GET(request: Request) {
               };
             }
             const totalKeys = Object.keys(parsed.periodos_custom).length;
+            const targetMeses = Math.max(nuevoMeses, totalKeys);
             inmueblesConCustomNotas.push({
               id: inm.id,
-              nuevoMeses: Math.max(nuevoMeses, totalKeys),
+              nuevoMeses: targetMeses,
+              nuevaDeudaMmv: (mesesActual > 0 && deudaMmvActual > 0)
+                ? +(deudaMmvActual * targetMeses / mesesActual).toFixed(6)
+                : undefined,
               nuevasNotas: JSON.stringify(parsed)
             });
             actualizoCustom = true;
@@ -184,9 +193,13 @@ export async function GET(request: Request) {
       }
 
       if (!actualizoCustom) {
-        const arr = gruposPorMeses.get(mesesActual) || [];
-        arr.push(inm.id);
-        gruposPorMeses.set(mesesActual, arr);
+        if (nuevaDeudaMmv !== undefined) {
+          inmueblesConDeudaMmv.push({ id: inm.id, nuevoMeses, nuevaDeudaMmv });
+        } else {
+          const arr = gruposPorMeses.get(mesesActual) || [];
+          arr.push(inm.id);
+          gruposPorMeses.set(mesesActual, arr);
+        }
       }
     }
 
@@ -210,10 +223,24 @@ export async function GET(request: Request) {
       await Promise.all(tareasBatch.slice(i, i + 10).map(fn => fn()));
     }
 
+    for (let i = 0; i < inmueblesConDeudaMmv.length; i += 50) {
+      await Promise.all(inmueblesConDeudaMmv.slice(i, i + 50).map(async (item) => {
+        const { error } = await supabase
+          .from('inmuebles')
+          .update({ meses_deuda: item.nuevoMeses, deuda_mmv: item.nuevaDeudaMmv })
+          .eq('id', item.id);
+        if (error) throw error;
+      }));
+    }
+
     for (const item of inmueblesConCustomNotas) {
       await supabase
         .from('inmuebles')
-        .update({ meses_deuda: item.nuevoMeses, notas: item.nuevasNotas })
+        .update({
+          meses_deuda: item.nuevoMeses,
+          ...(item.nuevaDeudaMmv !== undefined ? { deuda_mmv: item.nuevaDeudaMmv } : {}),
+          notas: item.nuevasNotas
+        })
         .eq('id', item.id);
     }
 
@@ -381,6 +408,12 @@ export async function GET(request: Request) {
     });
   } catch (error: any) {
     console.error('Error en Corte Mensual Octubre 2026:', error);
+    try {
+      await supabase.from('sistema_config').upsert([
+        { id: CONFIG_KEY, valor: 'ERROR' },
+        { id: 'ultima_facturacion_mensual', valor: 'ERROR' },
+      ], { onConflict: 'id' });
+    } catch {}
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }

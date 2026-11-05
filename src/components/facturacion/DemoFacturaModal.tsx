@@ -285,7 +285,12 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
   const numeroDoc = pago?.numeroDocumento || det.numero_documento || '00000XXX';
   const numeroCtrl = pago?.numeroControl || det.numero_control || '00-00000XXX';
 
-  const esCondoGlobal = (det.modo === 'CONDOMINIO' || (!det.modo && (det.isCondominio || det.es_condominio) && !det.condominio_hijos_pagados?.length));
+  const condoModoDemo = String(det.condominio_modo || det.modalidad_cobro || '').toLowerCase();
+  const esCondoGlobal = (
+    det.modo === 'CONDOMINIO' ||
+    ['total', 'abono', 'completo', 'abono_locales'].includes(condoModoDemo) ||
+    (!det.modo && !condoModoDemo && (det.isCondominio || det.es_condominio) && !det.condominio_hijos_pagados?.length)
+  );
 
   const rawCod = esCondoGlobal
     ? (det.condominio?.codigo || (det.codigo_inmueble && !String(det.codigo_inmueble).startsWith('CONDO-') ? det.codigo_inmueble : '') || (det.cod_inmueble && !String(det.cod_inmueble).startsWith('CONDO-') ? det.cod_inmueble : '') || (det.recibos && det.recibos[0]) || '')

@@ -41,7 +41,7 @@ export async function POST(request: Request) {
     if (pagoId) {
       const { data: pData } = await supabase
         .from('pagos_reportados')
-        .select('id, identidad, monto, detalles')
+        .select('id, identidad, monto, estado, tipo, detalles')
         .eq('id', pagoId)
         .maybeSingle();
       pago = pData;
@@ -50,7 +50,7 @@ export async function POST(request: Request) {
     if (!pago && retencionId) {
       const { data: pDirect } = await supabase
         .from('pagos_reportados')
-        .select('id, identidad, monto, detalles')
+        .select('id, identidad, monto, estado, tipo, detalles')
         .eq('id', retencionId)
         .maybeSingle();
       pago = pDirect || (await pagoDeRetencion(retencionId));
@@ -265,7 +265,15 @@ export async function POST(request: Request) {
         };
         det.factura_digital = fd;
         det.retencion_aprobada = false;
-        await supabase.from('pagos_reportados').update({ detalles: det }).eq('id', pago.id);
+        // Si el pago principal ya estaba Aprobado/Conciliado (o tenía fecha_conciliado),
+        // NUNCA cambiar el pago principal a 'Rechazado' ni devolver sus facturas a 'Pendiente';
+        // marcar únicamente la retención como 'rechazada' en detalles.factura_digital.retencion y en retenciones_iva.
+        const pagoYaAprobado = pago.estado === 'Aprobado' || pago.estado === 'Conciliado' || Boolean(det.fecha_conciliado);
+        const updatePagoObj: any = { detalles: det };
+        if (pagoYaAprobado && pago.estado) {
+          updatePagoObj.estado = pago.estado;
+        }
+        await supabase.from('pagos_reportados').update(updatePagoObj).eq('id', pago.id);
       }
       let avisado = false;
       if (correo) {

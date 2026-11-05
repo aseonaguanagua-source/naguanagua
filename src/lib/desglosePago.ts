@@ -97,12 +97,18 @@ export function desglosarPago(pago: any, inmMap: Map<string, any>): DesglosePago
       .sort((a, b) => a.n - b.n);
     if (hist.length > 0 && inmActual && tasa > 0) {
       // Meses que debía al pagar: snapshot; si no hay (pagos viejos), deuda actual + meses pagados (o abonados)
+      const yaDesconto = pago.estado === 'Aprobado' || pago.estado === 'Conciliado' || Boolean(det?.fecha_conciliado);
       let total = parseInt(String(prev?.meses_deuda ?? '')) || 0;
-      if (!total) total = Math.max(hist[hist.length - 1].n, (parseInt(String(inmActual.meses_deuda || 0)) || 0) + (esAbono ? 0 : hist.length));
+      if (!total) {
+        const deudaActual = parseInt(String(inmActual.meses_deuda || 0)) || 0;
+        total = yaDesconto
+          ? Math.max(hist[hist.length - 1].n, deudaActual + (esAbono ? 0 : hist.length))
+          : Math.max(hist[hist.length - 1].n, deudaActual);
+      }
       const sel = esAbono ? [] : hist.filter(x => x.n <= total);
-      const meses = sel.map(x => ({
+      const meses = sel.map((x, idx) => ({
         emision: new Date(hoy.getFullYear(), hoy.getMonth() - total + x.n - 1, 1, 12, 0, 0),
-        esUltimo: x.n >= total,
+        esUltimo: !(idx < sel.length - 1) || x.n >= total,
       }));
       if (meses.length > 0) {
         const d = calcularDeudaInmueble(inm, tasa, meses, hoy);

@@ -30,7 +30,7 @@ export async function POST(req: Request) {
     const u = String(usuario || 'Administrador').trim().toLowerCase();
     let cleanUser = u.includes('(') ? u.split('(')[1].replace(')', '').trim() : u;
     cleanUser = cleanUser.replace(/^[a-z]-/i, '').trim();
-    const { data: trab } = await sb.from('trabajadores').select('usuario, rol').ilike('usuario', cleanUser).maybeSingle();
+    const { data: trab } = await sb.from('trabajadores').select('usuario, rol').ilike('usuario', cleanUser).limit(1).maybeSingle();
     const esAdmin = !!trab && (trab.rol === 'Administrador' || trab.rol === 'Personalizado');
     const allowed = ['isamar', 'raquel', 'dzara', 'nell', 'admin', 'administrador', 'cajero', 'supervisor'];
     if (!esAdmin && !allowed.includes(cleanUser) && cleanUser.length > 0) {
@@ -81,15 +81,21 @@ export async function POST(req: Request) {
         };
       }
       if (flagRetencion) {
-        const base = parseFloat((nuevoMonto / 1.04).toFixed(2));
+        const pctRaw = Number(det.factura_digital?.retencion?.porcentaje_retencion || det.porcentaje_retencion || det.retencion_porcentaje || 75);
+        const pctRet = pctRaw > 0 && pctRaw <= 100 ? pctRaw : 75;
+        const factorRet = pctRet / 100;
+        const montoExento = Math.max(0, parseFloat(String(det.factura_digital?.retencion?.exento ?? det.factura_digital?.monto_exento ?? det.monto_exento ?? (sinMulta === true ? 0 : (det.multa_bs ?? 0)))) || 0);
+        const montoGravableNeto = Math.max(0, nuevoMonto - montoExento);
+        const divisor = 1 + 0.16 * (1 - factorRet);
+        const base = parseFloat((montoGravableNeto / divisor).toFixed(2));
         const iva = parseFloat((base * 0.16).toFixed(2));
-        const retencion = parseFloat((iva * 0.75).toFixed(2));
-        const totalFactura = parseFloat((base + iva).toFixed(2));
+        const retencion = parseFloat((iva * factorRet).toFixed(2));
+        const totalFactura = parseFloat((base + iva + montoExento).toFixed(2));
         return {
           monto_factura: totalFactura,
           monto_retencion_iva: retencion,
           retencion_iva: retencion,
-          porcentaje_retencion: 75,
+          porcentaje_retencion: pctRet,
           conRetencion: true
         };
       }

@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
 
+export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
+
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
@@ -23,8 +26,9 @@ export async function GET(req: Request) {
       if (codClean.length >= 2) {
         filters.push(`numero.ilike.%${codClean}%`);
       }
-      if (codigo && codigo.length >= 3) {
-        filters.push(`numero.ilike.%${codigo}%`);
+      const safeCodigo = (codigo || '').replace(/[,()]/g, ' ').trim();
+      if (safeCodigo && safeCodigo.length >= 3) {
+        filters.push(`numero.ilike.%${safeCodigo}%`);
       }
       if (filters.length > 0) {
         query = query.or(filters.join(','));
@@ -66,14 +70,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: 'Faltan campos obligatorios' }, { status: 400 });
     }
 
-    const finalConvId = convId || crypto.randomUUID();
-    const finalNro = nroConvenio || `CONV-${Date.now().toString().slice(-6)}`;
+    const finalConvId = String(convId || crypto.randomUUID()).replace(/[,()]/g, '').trim();
+    const finalNro = String(nroConvenio || `CONV-${Date.now().toString().slice(-6)}`).replace(/[,()]/g, '').trim();
 
     // Verificar si ya existe por id o número
     const { data: existing } = await supabase
       .from('convenios_pago')
       .select('id, numero')
       .or(`id.eq.${finalConvId},numero.eq.${finalNro}`)
+      .limit(1)
       .maybeSingle();
 
     let targetConvId = finalConvId;
@@ -168,13 +173,26 @@ export async function POST(request: Request) {
         .in('referencia', facturasReferencias);
     }
 
-    // 5. Registrar auditoría
+    // 5. Guardar metadata de inmuebles y facturas afectados en observaciones (si la columna existe) y registrar auditoría
+    const metadataConvenio = {
+      inmuebles_ids: deudaPreviaInmuebles.map(d => d.id).filter(Boolean),
+      deuda_previa_inmuebles: deudaPreviaInmuebles,
+      facturas_refinanciadas: Array.isArray(facturasReferencias) ? facturasReferencias : []
+    };
+    try {
+      await supabase
+        .from('convenios_pago')
+        .update({ observaciones: JSON.stringify(metadataConvenio) })
+        .eq('id', targetConvId);
+    } catch (_) {}
+
     try {
       await supabase.from('auditoria').insert({
         accion: 'Convenio de Pago Creado',
         modulo: 'CONVENIO',
         usuario: 'ADMIN',
         detalles: {
+          id_convenio: targetConvId,
           nro_convenio: finalNro,
           identidad,
           contribuyente,
@@ -189,7 +207,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       ok: true,
-      id: finalConvId,
+      id: targetConvId,
       numero: finalNro,
       message: 'Convenio creado y deuda congelada exitosamente.'
     });
@@ -212,7 +230,7 @@ export async function DELETE(request: Request) {
     let query = supabase.from('convenios_pago').select('*');
     if (id) query = query.eq('id', id);
     else if (numero) query = query.eq('numero', numero);
-    const { data: conv, error: cErr } = await query.maybeSingle();
+    const { data: conv } = await query.limit(1).maybeSingle();
 
     if (!conv) {
       return NextResponse.json({ ok: false, error: 'Convenio no encontrado' }, { status: 404 });
@@ -228,20 +246,64 @@ export async function DELETE(request: Request) {
       .eq('convenio_id', conv.id)
       .eq('estado', 'Pendiente');
 
-    // 3. Descongelar y restaurar deuda original en inmuebles y facturas asociadas
-    if (conv.identidad) {
-      const { data: inms } = await supabase
+    // 3. Descongelar y restaurar deuda original en los inmuebles y facturas específicos afectados
+    let meta: any = null;
+    if (conv.observaciones) {
+      try {
+        meta = typeof conv.observaciones === 'string' ? JSON.parse(conv.observaciones) : conv.observaciones;
+      } catch {}
+    }
+    if (!meta && conv.numero) {
+      try {
+        const { data: aud } = await supabase
+          .from('auditoria')
+          .select('detalles')
+          .eq('accion', 'Convenio de Pago Creado')
+          .eq('detalles->>nro_convenio', conv.numero)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (aud?.detalles) {
+          meta = typeof aud.detalles === 'string' ? JSON.parse(aud.detalles) : aud.detalles;
+        }
+      } catch {}
+    }
+
+    const prevInmsList: any[] = Array.isArray(meta?.deuda_previa_inmuebles) ? meta.deuda_previa_inmuebles : [];
+    const inmIdsEspecificos: string[] = Array.isArray(meta?.inmuebles_ids)
+      ? meta.inmuebles_ids
+      : prevInmsList.map((p: any) => p?.id).filter(Boolean);
+    const facturasRefsEspecificas: string[] = Array.isArray(meta?.facturas_refinanciadas) ? meta.facturas_refinanciadas : [];
+    const prevByInmId = new Map(prevInmsList.filter(p => p?.id).map((p: any) => [p.id, p]));
+
+    if (inmIdsEspecificos.length > 0 || conv.identidad) {
+      let qInms = supabase
         .from('inmuebles')
-        .select('id, inmueble, notas, deuda_congelada_bs, meses_deuda, deuda_mmv, mmv_mes')
-        .eq('identidad', conv.identidad);
+        .select('id, inmueble, notas, deuda_congelada_bs, meses_deuda, deuda_mmv, mmv_mes');
+      if (inmIdsEspecificos.length > 0) {
+        qInms = qInms.in('id', inmIdsEspecificos);
+      } else {
+        qInms = qInms.eq('identidad', conv.identidad);
+      }
+      const { data: inms } = await qInms;
 
       if (inms && inms.length > 0) {
         for (const inm of inms) {
+          // Si se consultó por identidad sin IDs específicos y el inmueble tenía varios, filtrar solo los que mencionen este convenio (si alguno lo menciona)
+          if (inmIdsEspecificos.length === 0 && inms.length > 1 && conv.numero) {
+            const algunoTieneTag = inms.some((x: any) => String(x.notas || '').includes(conv.numero));
+            if (algunoTieneTag && !String(inm.notas || '').includes(conv.numero)) continue;
+          }
+          const snap = prevByInmId.get(inm.id);
           const mPrev = String(inm.notas || '').match(/\[PRE_CONV:(\d+):([\d.]+)\]/);
-          const restoredMeses = mPrev ? parseInt(mPrev[1], 10) : Math.max(1, parseInt(String(inm.meses_deuda || 1)));
-          const restoredMmv = mPrev
-            ? parseFloat(mPrev[2])
-            : (parseFloat(String(inm.deuda_mmv || 0)) || parseFloat(((parseFloat(String(inm.mmv_mes || 0)) || 0) * restoredMeses).toFixed(6)));
+          const restoredMeses = snap?.meses_deuda !== undefined
+            ? parseInt(String(snap.meses_deuda), 10)
+            : (mPrev ? parseInt(mPrev[1], 10) : Math.max(1, parseInt(String(inm.meses_deuda || 1))));
+          const restoredMmv = snap?.deuda_mmv !== undefined
+            ? parseFloat(String(snap.deuda_mmv))
+            : (mPrev
+              ? parseFloat(mPrev[2])
+              : (parseFloat(String(inm.deuda_mmv || 0)) || parseFloat(((parseFloat(String(inm.mmv_mes || 0)) || 0) * restoredMeses).toFixed(6))));
           const notasActuales = (inm.notas || '')
             .replace(/\[PRE_CONV:[^\]]*\]/gi, '')
             .replace(/Convenio de Pago[^\n;.]*/gi, '')
@@ -252,18 +314,27 @@ export async function DELETE(request: Request) {
               deuda_congelada_bs: 0,
               meses_deuda: restoredMeses,
               deuda_mmv: restoredMmv,
+              ...(snap?.multa_bs !== undefined ? { multa_bs: parseFloat(String(snap.multa_bs)) || 0 } : {}),
               notas: notasActuales ? `${notasActuales} (Convenio ${conv.numero} Anulado)` : `Convenio ${conv.numero} Anulado`
             })
             .eq('id', inm.id);
         }
       }
 
-      // Restaurar facturas refinanciadas de este contribuyente a Pendiente
-      await supabase
-        .from('facturas')
-        .update({ estado: 'Pendiente' })
-        .eq('identidad', conv.identidad)
-        .eq('estado', 'Refinanciado');
+      // Restaurar facturas refinanciadas específicas (o del contribuyente si no estaban registradas) a Pendiente
+      if (facturasRefsEspecificas.length > 0) {
+        await supabase
+          .from('facturas')
+          .update({ estado: 'Pendiente' })
+          .in('referencia', facturasRefsEspecificas)
+          .eq('estado', 'Refinanciado');
+      } else if (conv.identidad) {
+        await supabase
+          .from('facturas')
+          .update({ estado: 'Pendiente' })
+          .eq('identidad', conv.identidad)
+          .eq('estado', 'Refinanciado');
+      }
     }
 
     // 4. Auditoria

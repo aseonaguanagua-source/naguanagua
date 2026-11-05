@@ -66,7 +66,7 @@ export const pagoTieneRetencion = (det: any): boolean => {
 export async function correoContribuyente(identidad: string, det?: any): Promise<string | null> {
   const fallback = TheFactoryHKA.getFallbackEmail().toLowerCase();
   const backup = TheFactoryHKA.getBackupEmail().toLowerCase();
-  const { data: cont } = await supabase.from('contribuyentes').select('email').eq('identidad', identidad).maybeSingle();
+  const { data: cont } = await supabase.from('contribuyentes').select('email').eq('identidad', identidad).limit(1).maybeSingle();
   let cand = String(cont?.email || det?.correo || '').trim().toLowerCase();
   if (!cand) {
     const { data: inm } = await supabase.from('inmuebles').select('correo_electronico').eq('identidad', identidad).not('correo_electronico', 'is', null).limit(1).maybeSingle();
@@ -148,10 +148,11 @@ export const portalRetencionesUrl = (origin?: string) => {
 };
 
 /** Totales de la retención a partir de los totales de la factura emitida. */
-export function calcularRetencion(baseGravada: number, totalIva: number, totalExento: number = 0): Omit<RetencionPago, 'estado'> {
+export function calcularRetencion(baseGravada: number, totalIva: number, totalExento: number = 0, porcentaje: number = 75): Omit<RetencionPago, 'estado'> {
   const base = r2(baseGravada), iva = r2(totalIva), exento = r2(totalExento);
   const subtotal = r2(base + exento);
-  const retenido = r2(iva * PORC_RETENCION);
+  const factor = Number(porcentaje) === 100 ? 1.0 : PORC_RETENCION;
+  const retenido = r2(iva * factor);
   const total = r2(subtotal + iva);
   return { base, iva, retenido, total, pagado: r2(total - retenido), exento, subtotal };
 }
@@ -237,7 +238,7 @@ export async function pagoDeRetencion(retencionId: string): Promise<any | null> 
 
   // Buscar por número de control de factura si está presente
   if (retRow.factura_control) {
-    const ctrlClean = retRow.factura_control.trim();
+    const ctrlClean = String(retRow.factura_control).replace(/[,()]/g, '').trim();
     const idLimpio = (retRow.identidad || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
     const { data: byCtrl } = await supabase
       .from('pagos_reportados')
@@ -254,12 +255,13 @@ export async function pagoDeRetencion(retencionId: string): Promise<any | null> 
 
   // Fallback 2: Buscar pagos emitidos con retención para esta identidad (con y sin guion)
   if (retRow.identidad) {
-    const idLimpio = retRow.identidad.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    const safeRetId = String(retRow.identidad).replace(/[,()]/g, '').trim();
+    const idLimpio = safeRetId.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
     const idConGuion = idLimpio.length > 1 ? `${idLimpio[0]}-${idLimpio.slice(1)}` : idLimpio;
     const { data: byIdent } = await supabase
       .from('pagos_reportados')
       .select('id, identidad, monto, detalles')
-      .or(`identidad.eq.${retRow.identidad},identidad.eq.${idLimpio},identidad.eq.${idConGuion}`)
+      .or(`identidad.eq.${safeRetId},identidad.eq.${idLimpio},identidad.eq.${idConGuion}`)
       .order('created_at', { ascending: false })
       .limit(25);
 

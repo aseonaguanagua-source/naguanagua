@@ -3,6 +3,9 @@ import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
 import { getResendClient } from '@/lib/emailClient';
 import { logAuditServer } from '@/lib/audit';
 
+export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
+
 const resend = getResendClient();
 
 export async function POST(request: Request) {
@@ -37,8 +40,8 @@ export async function POST(request: Request) {
       '/api/admin/facturacion-masiva'
     );
 
-    // Si todo salió bien, enviamos los correos en segundo plano
-    enviarCorreos(result || []);
+    // Si todo salió bien, enviamos los correos esperando su ejecución antes de retornar en Serverless
+    await enviarCorreos(result || []);
 
     return NextResponse.json({ success: true, count: recibos.length });
 

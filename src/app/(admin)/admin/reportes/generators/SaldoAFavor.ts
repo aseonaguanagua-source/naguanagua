@@ -38,16 +38,17 @@ export const generarSaldosFavorExcel = async (saldos: any[], mes: string) => {
 
   let totalMonto = 0;
   saldos.forEach((s, index) => {
-    const monto = parseFloat(s.monto_restante || '0');
+    const monto = parseFloat(s.monto_restante || s.saldo_favor_bs || s.monto || '0') || 0;
     totalMonto += monto;
+    const fechaRaw = s.created_at || s.updated_at || new Date().toISOString();
     
     const row = sheet.addRow({
       num: index + 1,
-      fecha: new Date(s.created_at).toLocaleString('es-VE'),
-      identidad: s.identidad,
-      nombre: s.nombre || 'N/A',
-      concepto: s.concepto_original || 'N/A',
-      estado: s.estado || 'N/A',
+      fecha: new Date(fechaRaw).toLocaleString('es-VE'),
+      identidad: s.identidad || 'N/A',
+      nombre: s.nombre || s.contribuyente || 'N/A',
+      concepto: s.concepto_original || (s.inmueble ? `Saldo a favor en inmueble ${s.inmueble}` : 'Saldo a favor'),
+      estado: s.estado || 'Disponible',
       monto: monto
     });
     row.getCell('monto').numFmt = '#,##0.00';

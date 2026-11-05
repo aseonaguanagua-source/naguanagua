@@ -397,6 +397,7 @@ export async function generarPdfEstadoCuentaUnidad(
           .from('inmuebles')
           .select('direccion')
           .eq('inmueble', r.inmueble)
+          .limit(1)
           .maybeSingle();
         if (inm?.direccion && inm.direccion.trim().length > 3) {
           dirFinal = inm.direccion.trim();
@@ -407,6 +408,7 @@ export async function generarPdfEstadoCuentaUnidad(
           .from('contribuyentes')
           .select('direccion')
           .eq('identidad', r.identidad)
+          .limit(1)
           .maybeSingle();
         if (cont?.direccion && cont.direccion.trim().length > 3) {
           dirFinal = cont.direccion.trim();

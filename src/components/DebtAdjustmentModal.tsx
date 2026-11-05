@@ -139,11 +139,10 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
         setRangeEndKey(preselected[preselected.length - 1]);
       }
     } else if (allMonths.length > 0) {
-      // Por defecto seleccionar el último año (últimos 12 meses)
-      const last12 = allMonths.slice(-12).map(m => m.key);
-      setSelectedMonths(last12);
-      setRangeStartKey(last12[0]);
-      setRangeEndKey(last12[last12.length - 1]);
+      // Contribuyente solvente (0 meses): no preseleccionar meses por defecto
+      setSelectedMonths([]);
+      setRangeStartKey(allMonths[allMonths.length - 1].key);
+      setRangeEndKey(allMonths[allMonths.length - 1].key);
     }
   }, [activeInm, row, allMonths]);
 

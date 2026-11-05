@@ -48,16 +48,16 @@ export const exportMontoRecaudadoExcel = async (
   titleRow.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
   titleRow.height = 25;
 
-  const yearRow = worksheet.addRow(['A�O ' + new Date().getFullYear()]);
+  const yearRow = worksheet.addRow(['AÑO ' + new Date().getFullYear()]);
   worksheet.mergeCells('A' + yearRow.number + ':I' + yearRow.number);
   yearRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF00B0F0' } };
   yearRow.getCell(1).font = { bold: true, size: 12 };
   yearRow.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
 
   const headerRow = worksheet.addRow([
-    'MES', 'FECHA PAGO', 'EURO (UCD)', 'RECAUDADO POR PUNTO Bs.', 'CONCILIADO POR PUNTO EN �',
-    'CONCILIADO POR TRANSFERENCIA Y/O DEPOSITOS (Bs)', 'CONCILIADO POR TRANSFERENCIA Y/O DEPOSITOS (�)',
-    'RECAUDADO EN EL ESTADO DE CUENTA (Bs)', 'RECAUDADO EN EL ESTADO DE CUENTA (�)'
+    'MES', 'FECHA PAGO', 'EURO (UCD)', 'RECAUDADO POR PUNTO Bs.', 'CONCILIADO POR PUNTO EN €',
+    'CONCILIADO POR TRANSFERENCIA Y/O DEPOSITOS (Bs)', 'CONCILIADO POR TRANSFERENCIA Y/O DEPOSITOS (€)',
+    'RECAUDADO EN EL ESTADO DE CUENTA (Bs)', 'RECAUDADO EN EL ESTADO DE CUENTA (€)'
   ]);
   
   headerRow.eachCell((cell) => {
@@ -78,14 +78,20 @@ export const exportMontoRecaudadoExcel = async (
   let totalCuentaBs = 0;
   let totalCuentaEur = 0;
 
+  const METODOS_PUNTO = ['debito', 'débito', 'credito', 'crédito', 'tmd', 'tvd', 'punto', 'punto de venta'];
+
   pagos.forEach((p: any) => {
     let detalles: any = {};
-    try { detalles = JSON.parse(p.detalles); } catch (e) {}
-    const tcmmvRate = detalles.tcmmv || 1;
+    try {
+      detalles = typeof p.detalles === 'string' ? JSON.parse(p.detalles) : (p.detalles || {});
+    } catch (e) {}
+    const tcmmvRate = Number(detalles.tasa_bcv || detalles.tasaBcv || detalles.tcmmv) || 1;
     const montoBs = parseFloat(p.monto) || 0;
     const montoEuro = montoBs / tcmmvRate;
 
-    const isPunto = p.metodo === 'Punto';
+    const tipoNorm = String(p.tipo || '').trim().toLowerCase();
+    const metodoNorm = String(p.metodo || '').trim().toLowerCase();
+    const isPunto = METODOS_PUNTO.includes(tipoNorm) || METODOS_PUNTO.includes(metodoNorm);
     const pBs = isPunto ? montoBs : 0;
     const pEur = isPunto ? montoEuro : 0;
     const tBs = !isPunto ? montoBs : 0;
@@ -155,9 +161,9 @@ export const exportMontoRecaudadoExcel = async (
 
   const summaryData = [
     { label: 'TOTAL CONCILIADO EN BOLIVARES (Bs.)', val: totalPuntoBs + totalTransfBs, color: 'FFE2EFDA' },
-    { label: 'TOTAL CONCILIADO EN EURO (�)', val: totalPuntoEur + totalTransfEur, color: 'FFD9E1F2' },
+    { label: 'TOTAL CONCILIADO EN EURO (€)', val: totalPuntoEur + totalTransfEur, color: 'FFD9E1F2' },
     { label: 'TOTAL RECAUDADO EN CUENTA EN BOLIVARES (Bs.)', val: totalCuentaBs, color: 'FFFFF2CC' },
-    { label: 'TOTAL RECAUDADO EN CUENTA EN EURO (�)', val: totalCuentaEur, color: 'FFE4DFEC' }
+    { label: 'TOTAL RECAUDADO EN CUENTA EN EURO (€)', val: totalCuentaEur, color: 'FFE4DFEC' }
   ];
 
   summaryData.forEach((s) => {
@@ -177,7 +183,7 @@ export const exportMontoRecaudadoExcel = async (
   });
 
   worksheet.addRow([]);
-  const noteRow = worksheet.addRow(['NOTA IMPORTANTE: Las conciliaciones bancarias correspondientes a transferencias electr�nicas se efect�an conforme a la recepci�n de los estados de cuenta emitidos; en consecuencia, los saldos registrados est�n sujetos a variaciones diarias.']);
+  const noteRow = worksheet.addRow(['NOTA IMPORTANTE: Las conciliaciones bancarias correspondientes a transferencias electrónicas se efectúan conforme a la recepción de los estados de cuenta emitidos; en consecuencia, los saldos registrados están sujetos a variaciones diarias.']);
   worksheet.mergeCells('A' + noteRow.number + ':I' + noteRow.number);
   noteRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9D9D9' } };
   noteRow.getCell(1).font = { bold: true, size: 9 };

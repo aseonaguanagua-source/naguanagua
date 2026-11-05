@@ -10,7 +10,7 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 function ValidarContent() {
   const searchParams = useSearchParams();
-  const initialCodigo = searchParams.get('codigo') || '';
+  const initialCodigo = searchParams.get('codigo') || searchParams.get('cert') || '';
   
   const [codigo, setCodigo] = useState(initialCodigo);
   const [isLoading, setIsLoading] = useState(!!initialCodigo);

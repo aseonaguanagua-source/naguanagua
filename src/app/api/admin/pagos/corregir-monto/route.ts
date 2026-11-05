@@ -16,7 +16,7 @@ export async function POST(req: Request) {
   try {
     const { pagoId, montoNuevo, fechaNueva, motivo, usuario } = await req.json();
     const u = String(usuario || '').trim().toLowerCase();
-    const { data: trab } = await sb.from('trabajadores').select('usuario, nombre, rol').ilike('usuario', u).maybeSingle();
+    const { data: trab } = await sb.from('trabajadores').select('usuario, nombre, rol').ilike('usuario', u).limit(1).maybeSingle();
     if (!trab || !(trab.rol === 'Administrador' || u === 'dzara')) return NextResponse.json({ error: 'Solo un administrador puede corregir pagos en los reportes.' }, { status: 403 });
     if (String(motivo || '').trim().length < 5) return NextResponse.json({ error: 'Escriba el motivo de la corrección.' }, { status: 400 });
 

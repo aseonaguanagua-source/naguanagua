@@ -101,17 +101,23 @@ export async function GET(req: Request) {
       .neq('estado', 'Eliminado');
 
     if (q) {
-      const rawDigits = q.replace(/\D/g, '');
-      const orFilters = [
-        `inmueble.ilike.%${q}%`,
-        `contribuyente.ilike.%${q}%`,
-        `identidad.ilike.%${q}%`,
-        `condominio_padre_id.ilike.%${q}%`
-      ];
+      const safeQ = q.replace(/[,()]/g, ' ').trim();
+      const rawDigits = safeQ.replace(/\D/g, '');
+      const orFilters: string[] = [];
+      if (safeQ) {
+        orFilters.push(
+          `inmueble.ilike.%${safeQ}%`,
+          `contribuyente.ilike.%${safeQ}%`,
+          `identidad.ilike.%${safeQ}%`,
+          `condominio_padre_id.ilike.%${safeQ}%`
+        );
+      }
       if (rawDigits.length >= 3) {
         orFilters.push(`identidad.ilike.%${rawDigits}%`);
       }
-      query = query.or(orFilters.join(','));
+      if (orFilters.length > 0) {
+        query = query.or(orFilters.join(','));
+      }
     } else {
       query = query.or('identidad.ilike.%0000%,identidad.ilike.000%,identidad.ilike.%URB%,identidad.ilike.%AURI%');
     }
@@ -197,7 +203,7 @@ export async function POST(req: Request) {
     } else {
       qInm = qInm.ilike('inmueble', inmobCode);
     }
-    const { data: inmActual, error: errInm } = await qInm.maybeSingle();
+    const { data: inmActual, error: errInm } = await qInm.limit(1).maybeSingle();
     if (errInm || !inmActual) {
       return NextResponse.json({ ok: false, error: `Inmueble ${inmobCode} no encontrado` }, { status: 404 });
     }
@@ -279,9 +285,9 @@ export async function POST(req: Request) {
     let rifMigrado = false;
     if (newIdNormalizada && newIdNormalizada !== oldIdentidad) {
       // 3a. Asegurar registro en contribuyentes
-      const { data: existeContrib } = await sb.from('contribuyentes').select('identidad, nombre').eq('identidad', newIdNormalizada).maybeSingle();
+      const { data: existeContrib } = await sb.from('contribuyentes').select('identidad, nombre').eq('identidad', newIdNormalizada).limit(1).maybeSingle();
       if (!existeContrib) {
-        const { data: viejoContrib } = await sb.from('contribuyentes').select('*').eq('identidad', oldIdentidad).maybeSingle();
+        const { data: viejoContrib } = await sb.from('contribuyentes').select('*').eq('identidad', oldIdentidad).limit(1).maybeSingle();
         const baseData = viejoContrib || {
           nombre: contribuyente || inmActual.contribuyente || 'Contribuyente Actualizado',
           telefono: telefono || inmActual.telefono || null,
@@ -396,11 +402,11 @@ export async function POST(req: Request) {
 
       if (codCondo) {
         let condoRef: any = null;
-        const { data: cRow } = await sb.from('condominios').select('id, codigo, nombre, cant_declarada').eq('codigo', codCondo).maybeSingle();
+        const { data: cRow } = await sb.from('condominios').select('id, codigo, nombre, cant_declarada').eq('codigo', codCondo).limit(1).maybeSingle();
         if (cRow) {
           condoRef = cRow;
         } else {
-          const { data: iCondoRow } = await sb.from('inmuebles').select('id, inmueble, contribuyente').eq('inmueble', codCondo).eq('es_condominio', true).maybeSingle();
+          const { data: iCondoRow } = await sb.from('inmuebles').select('id, inmueble, contribuyente').eq('inmueble', codCondo).eq('es_condominio', true).limit(1).maybeSingle();
           if (iCondoRow) {
             condoRef = { id: iCondoRow.id, codigo: iCondoRow.inmueble, nombre: iCondoRow.contribuyente };
           }
@@ -415,7 +421,7 @@ export async function POST(req: Request) {
         updatesInm.es_condominio = false;
 
         if (cRow?.id) {
-          const { data: unidadExistente } = await sb.from('condominio_unidades').select('id').eq('inmueble', finalInmobCode).maybeSingle();
+          const { data: unidadExistente } = await sb.from('condominio_unidades').select('id').eq('inmueble', finalInmobCode).limit(1).maybeSingle();
           if (unidadExistente) {
             await sb.from('condominio_unidades').update({
               condominio_id: cRow.id,

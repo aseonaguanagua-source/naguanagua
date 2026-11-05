@@ -1,4 +1,4 @@
-import { calcularMensualidad, isResidencialInm, isTerrenoInm, isMesExoneradoMulta, isCondominioPagoIndividual } from './calculos';
+import { calcularMensualidad, isResidencialInm, isTerrenoInm, isMesExoneradoMulta, isCondominioPagoIndividual, getFAR } from './calculos';
 
 /**
  * CÁLCULO ÚNICO DE DEUDA MENSUAL (referencia: Caja).
@@ -103,7 +103,7 @@ export function calcularDeudaInmueble(inm: any, tasa: number, meses: MesDeuda[],
     const custom = jNotas?.periodos_custom?.[perStr];
     if (custom) {
       const mmv = custom.tarifa_mmv !== null && custom.tarifa_mmv !== undefined ? Number(custom.tarifa_mmv) : (jNotas.tarifa_activa_mmv || 3.77);
-      bMes = mmv * 57 * tasa * (esRes ? 1 : 0.128);
+      bMes = mmv * 57 * tasa * (esRes ? getFAR(custom.actividad || inm?.actividad_principal || inm?.actividad) : 0.128);
       if (custom.lleva_multa === false) {
         tieneMoraMesActual = false;
       }

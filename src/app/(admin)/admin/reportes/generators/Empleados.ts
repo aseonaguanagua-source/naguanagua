@@ -40,17 +40,18 @@ export const generarEmpleadosExcel = async (empleados: any[]) => {
   });
 
   empleados.forEach((e, index) => {
+    const fechaRaw = e.fecha_ingreso || e.created_at;
     const row = sheet.addRow({
       num: index + 1,
-      cedula: e.cedula,
-      nombre: e.nombre || 'N/A',
-      cargo: e.cargo || 'N/A',
-      departamento: e.departamento || 'N/A',
-      estatus: e.estatus || 'Activo',
-      fecha: e.fecha_ingreso ? new Date(e.fecha_ingreso).toLocaleDateString('es-VE') : 'N/A',
-      tlf: e.telefono || 'N/A',
+      cedula: e.cedula || e.usuario || 'N/A',
+      nombre: e.nombre || e.usuario || 'N/A',
+      cargo: e.cargo || e.rol || 'Operador',
+      departamento: e.departamento || 'IAMEC Naguanagua',
+      estatus: e.estatus || e.estado || 'Activo',
+      fecha: fechaRaw ? new Date(fechaRaw).toLocaleDateString('es-VE') : 'N/A',
+      tlf: e.telefono || e.email || 'N/A',
       sueldo: e.sueldo_base || 0,
-      obs: e.observaciones || ''
+      obs: e.observaciones || (e.letra ? `Caja ${e.letra}` : '')
     });
     row.getCell('sueldo').numFmt = '#,##0.00';
     row.eachCell(cell => {

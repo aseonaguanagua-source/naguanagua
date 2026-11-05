@@ -32,7 +32,7 @@ export async function getSaldoFavorTotal(identidad: string, codigoInmueble?: str
   inmueblePrincipalId: string | null;
 }> {
   const client = dbClient || supabase;
-  const id = String(identidad || '').trim().toUpperCase();
+  const id = String(identidad || '').replace(/[,()]/g, '').trim().toUpperCase();
   const sinGuion = id.replace(/-/g, '');
   const conGuion = /^[VEJPG]\d/.test(sinGuion) ? `${sinGuion[0]}-${sinGuion.slice(1)}` : id;
   const variantes = [...new Set([id, sinGuion, conGuion].filter(Boolean))];
@@ -90,7 +90,7 @@ async function resolveCondo(identidad?: string, codigoCondominio?: string, clien
   const sb = client || supabase;
   if (codigoCondominio) {
     const codUpper = String(codigoCondominio).trim().toUpperCase();
-    const { data } = await sb.from('condominios').select('id, codigo, abono_bs').eq('codigo', codUpper).neq('estado', 'Eliminado').maybeSingle();
+    const { data } = await sb.from('condominios').select('id, codigo, abono_bs').eq('codigo', codUpper).neq('estado', 'Eliminado').limit(1).maybeSingle();
     if (data) return { id: data.id, codigo: data.codigo, abono_bs: parseFloat(data.abono_bs || '0') || 0 };
     // Si se pasó un código específico de inmueble (URB/AURI) y NO está en `condominios`, es un local hijo individual: NO acreditar al condominio matriz
     if (/^(URB|AURI|[A-Z]{2,})\d+/i.test(codUpper)) return null;
@@ -98,7 +98,7 @@ async function resolveCondo(identidad?: string, codigoCondominio?: string, clien
   if (!identidad) return null;
   const idTrim = String(identidad).trim().toUpperCase();
   if (/^(URB|AURI|[A-Z]{3,})\d+/i.test(idTrim)) {
-    const { data } = await sb.from('condominios').select('id, codigo, abono_bs').eq('codigo', idTrim).neq('estado', 'Eliminado').maybeSingle();
+    const { data } = await sb.from('condominios').select('id, codigo, abono_bs').eq('codigo', idTrim).neq('estado', 'Eliminado').limit(1).maybeSingle();
     return data ? { id: data.id, codigo: data.codigo, abono_bs: parseFloat(data.abono_bs || '0') || 0 } : null;
   }
   const sinGuion = idTrim.replace(/[^A-Z0-9]/g, '');
@@ -141,7 +141,7 @@ export async function acreditarSaldoFavor(
     .from('inmuebles')
     .select('saldo_favor_bs')
     .eq('id', inmueblePrincipalId)
-    .single();
+    .maybeSingle();
 
   const currentSaldo = parseFloat(inm?.saldo_favor_bs || '0') || 0;
   const nuevoSaldo = Math.round((currentSaldo + montoNum) * 100) / 100;
@@ -181,7 +181,7 @@ export async function descontarSaldoFavor(
   // 2. Descontar también de inmuebles para mantener la sincronía exacta
   let pendiente = montoNum;
 
-  const id = String(identidad || '').trim().toUpperCase();
+  const id = String(identidad || '').replace(/[,()]/g, '').trim().toUpperCase();
   const sinGuion = id.replace(/-/g, '');
   const conGuion = /^[VEJPG]\d/.test(sinGuion) ? `${sinGuion[0]}-${sinGuion.slice(1)}` : id;
   const variantes = [...new Set([id, sinGuion, conGuion].filter(Boolean))];
@@ -221,7 +221,9 @@ export async function descontarSaldoFavor(
 
   // El saldo puede estar repartido en varios inmuebles: se descuenta de cada uno hasta cubrir el monto
   let total = 0;
+  const processedIds = new Set<any>();
   for (const inm of inms) {
+    processedIds.add(inm.id);
     const s = parseFloat(inm.saldo_favor_bs || '0') || 0;
     total += s;
     if (pendiente <= 0.009 || s <= 0.009) continue;
@@ -229,6 +231,29 @@ export async function descontarSaldoFavor(
     const { error } = await client.from('inmuebles').update({ saldo_favor_bs: Math.round((s - usa) * 100) / 100 }).eq('id', inm.id);
     if (error) return { ok: false, error: error.message };
     pendiente = Math.round((pendiente - usa) * 100) / 100;
+  }
+
+  // Si se buscó por codigoCondominio pero aún queda remanente por descontar, buscar en los demás inmuebles de la misma identidad
+  if (pendiente > 0.009 && codTargetUpper && variantes.length > 0) {
+    let qOtros = client.from('inmuebles').select('id, saldo_favor_bs, inmueble');
+    if (/^(URB|AURI|[A-Z]{3,})\d+/i.test(id)) {
+      qOtros = qOtros.or(`inmueble.eq.${id},identidad.in.(${variantes.join(',')})`);
+    } else {
+      qOtros = qOtros.in('identidad', variantes);
+    }
+    const { data: otrosInms, error: errOtros } = await qOtros.order('id', { ascending: true });
+    if (errOtros) return { ok: false, error: errOtros.message };
+    for (const inm of otrosInms || []) {
+      if (processedIds.has(inm.id)) continue;
+      processedIds.add(inm.id);
+      const s = parseFloat(inm.saldo_favor_bs || '0') || 0;
+      total += s;
+      if (pendiente <= 0.009 || s <= 0.009) continue;
+      const usa = Math.min(s, pendiente);
+      const { error } = await client.from('inmuebles').update({ saldo_favor_bs: Math.round((s - usa) * 100) / 100 }).eq('id', inm.id);
+      if (error) return { ok: false, error: error.message };
+      pendiente = Math.round((pendiente - usa) * 100) / 100;
+    }
   }
 
   // 3. Consumir / actualizar Notas de Crédito vigentes en tabla documentos para que no se vuelvan a sumar

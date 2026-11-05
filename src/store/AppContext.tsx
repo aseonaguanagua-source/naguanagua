@@ -713,12 +713,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
         .or(`identidad.eq.${identidad},identidad.eq.${idClean}`);
 
       if (freshInms) {
+        const rateNow = tcmmvRef.current || tcmmv || 1;
+        const normalizedFreshInms = freshInms.map((row: any) => ({
+          ...row,
+          'Inmueble': row.inmueble || row.cod_cont,
+          'Contribuyente': row.contribuyente || row.nombre || '',
+          'Identidad': row.identidad || '',
+          'Direccion': row.direccion || '',
+          'Clasificacion': row.clasificacion || 'Residencial',
+          'Actividad': row.actividad_principal || row.actividad || 'No aplica',
+          'Actividad Principal': row.actividad_principal || row.actividad || 'No aplica',
+          'Metros': row.metros || row.area_m2 || 0,
+          'Tipo': row.tipo || 'Urbano',
+          'Saldo': (parseFloat(row.deuda_congelada_bs || 0) + (parseFloat(row.deuda_mmv || 0) * 57 * rateNow)).toFixed(2),
+          'DeudaMMV': parseFloat(row.deuda_mmv || 0),
+          'DeudaCongelada': parseFloat(row.deuda_congelada_bs || 0),
+          'Cant Inmuebles': parseInt(row.cant_inmuebles || '1') || 1,
+          condominio_padre_id: row.condominio_padre_id || null,
+          padre_id: row.padre_id || null,
+        }));
+
         setInmuebles(prev => {
           const next = [
             ...prev.filter(i =>
               (i.identidad || '').replace(/-/g, '').toUpperCase() !== idClean
             ),
-            ...freshInms
+            ...normalizedFreshInms
           ];
           try {
             getFromIndexedDB<any>('naguanagua_full_cache').then(cached => {
@@ -767,25 +787,90 @@ export function AppProvider({ children }: { children: ReactNode }) {
         .limit(1)
         .maybeSingle();
 
-      if (freshContrib) {
-        setContribuyentes(prev => prev.map(c => {
-          const cId = (c.Identidad || '').replace(/-/g, '').toUpperCase();
-          if (cId === idClean) {
-            return {
-              ...c,
-              Correo: freshContrib.email || freshContrib.correo_electronico || c.Correo,
-              Telefono: freshContrib.telefono || c.Telefono,
-              Contribuyente: freshContrib.nombre || c.Contribuyente,
-              Direccion: freshContrib.direccion || c.Direccion,
-              esAgenteRetencion: freshInms ? (
-                freshInms.some((i: any) => !i.condominio_padre_id)
-                  ? freshInms.some((i: any) => !i.condominio_padre_id && i.agente_retencion === true)
-                  : freshInms.some((i: any) => i.agente_retencion === true)
-              ) : false
-            };
+      if (freshContrib || (freshInms && freshInms.length > 0)) {
+        const rateNow = tcmmvRef.current || tcmmv || 1;
+        const calcSingleInmDebt = (row: any) => {
+          const esElim = ['eliminado', 'inactivo', 'desactivado'].includes(String(row.estado || '').trim().toLowerCase());
+          const esTerreno = isTerrenoInm(row);
+          const isCondoChild = Boolean(row.condominio_padre_id);
+          const isCommercialChild = isCondoChild && (row.tipo || '').toUpperCase().includes('COMERCIAL');
+          const isParentCondo = Boolean(row.es_condominio || row.clasificacion === 'Condominio');
+          const deudaMMV = (isCommercialChild || esElim || esTerreno) ? 0 : parseFloat(row.deuda_mmv || 0);
+          const multaBs = (isParentCondo || esElim || esTerreno) ? 0 : parseFloat(row.multa_bs || 0);
+          const congelada = (esElim || esTerreno) ? 0 : parseFloat(row.deuda_congelada_bs || 0);
+          const saldoFavor = parseFloat(String(row.saldo_favor_bs || 0)) || 0;
+          const meses = (esElim || esTerreno) ? 0 : (parseInt(String(row.meses_deuda || 0), 10) || 0);
+          let deudaBs = 0;
+          if (!esElim && !esTerreno) {
+            if (isCommercialChild) {
+              deudaBs = multaBs + congelada;
+            } else {
+              const esRes = isResidencialInm(row);
+              const bMes = calcularMensualidad(row, rateNow);
+              const totalMeses = Math.max(0, meses > 0 ? meses : (deudaMMV > 0 ? 1 : 0));
+              const mesesConMora = Math.max(0, totalMeses - 1);
+              const tasaMora = esRes ? 0.10 : 0.12;
+              const base4 = Math.round((bMes * totalMeses) * 10000) / 10000;
+              const iva4 = esRes ? 0 : Math.round((base4 * 0.16) * 10000) / 10000;
+              const multa4 = Math.round((bMes * tasaMora * mesesConMora) * 10000) / 10000;
+              const ret4 = (!esRes && row.agente_retencion === true) ? Math.round((iva4 * 0.75) * 10000) / 10000 : 0;
+              deudaBs = Math.round(Math.max(0, base4 + iva4 + multa4 + congelada + multaBs - ret4 - saldoFavor) * 100) / 100;
+            }
           }
-          return c;
-        }));
+          return { deudaMMV, multaBs, congelada, saldoFavor, meses, deudaBs };
+        };
+
+        setContribuyentes(prev => {
+          const sameIdRows = prev.filter(c => (c.Identidad || '').replace(/-/g, '').toUpperCase() === idClean);
+          return prev.map(c => {
+            const cId = (c.Identidad || '').replace(/-/g, '').toUpperCase();
+            if (cId === idClean) {
+              const cCodes = String(c.CodCont || c.cod_cont || '').trim().split(/\s+/).filter(Boolean);
+              const inmsForRow = (freshInms && freshInms.length > 0)
+                ? (sameIdRows.length > 1 && cCodes.length > 0
+                    ? freshInms.filter((i: any) => cCodes.includes(i.inmueble) || (i.padre_id && cCodes.includes(i.padre_id)))
+                    : freshInms)
+                : [];
+              const targetInms = inmsForRow.length > 0 ? inmsForRow : (freshInms || []);
+              let sumDeudaBs = c.DeudaBs ?? 0;
+              let maxMeses = c.MesesDeuda ?? 0;
+              let sumMMV = c.DeudaMMV ?? 0;
+              let sumMulta = c.MultaBs ?? 0;
+              let sumCongelada = c.DeudaCongelada ?? 0;
+              let sumSaldoFavor = c.SaldoFavor ?? 0;
+
+              if (targetInms.length > 0) {
+                const stats = targetInms.map(calcSingleInmDebt);
+                sumDeudaBs = Math.round(stats.reduce((acc, s) => acc + s.deudaBs, 0) * 100) / 100;
+                maxMeses = stats.reduce((acc, s) => Math.max(acc, s.meses), 0);
+                sumMMV = stats.reduce((acc, s) => acc + s.deudaMMV, 0);
+                sumMulta = stats.reduce((acc, s) => acc + s.multaBs, 0);
+                sumCongelada = stats.reduce((acc, s) => acc + s.congelada, 0);
+                sumSaldoFavor = stats.reduce((acc, s) => acc + s.saldoFavor, 0);
+              }
+
+              return {
+                ...c,
+                Correo: freshContrib?.email || freshContrib?.correo_electronico || c.Correo,
+                Telefono: freshContrib?.telefono || c.Telefono,
+                Contribuyente: freshContrib?.nombre || c.Contribuyente,
+                Direccion: freshContrib?.direccion || c.Direccion,
+                DeudaBs: sumDeudaBs,
+                MesesDeuda: maxMeses,
+                DeudaMMV: sumMMV,
+                MultaBs: sumMulta,
+                DeudaCongelada: sumCongelada,
+                SaldoFavor: sumSaldoFavor,
+                esAgenteRetencion: freshInms ? (
+                  freshInms.some((i: any) => !i.condominio_padre_id)
+                    ? freshInms.some((i: any) => !i.condominio_padre_id && i.agente_retencion === true)
+                    : freshInms.some((i: any) => i.agente_retencion === true)
+                ) : c.esAgenteRetencion
+              };
+            }
+            return c;
+          });
+        });
       }
 
       // Refrescar convenios de este contribuyente
@@ -850,41 +935,92 @@ export function AppProvider({ children }: { children: ReactNode }) {
         (payload: any) => {
           const updated = payload.new;
           if (!updated) return;
-          setInmuebles(prev => prev.map(inm => (inm.id === updated.id || inm.inmueble === updated.inmueble) ? { ...inm, ...updated } : inm));
-          setContribuyentes(prev => prev.map(c => {
-            if ((c.Identidad && c.Identidad === updated.identidad) || (c.CodCont && c.CodCont.includes(updated.inmueble))) {
-              const esElim = updated.estado === 'Eliminado';
-              const esTerreno = isTerrenoInm(updated);
-              const deudaMMV = (esElim || esTerreno) ? 0 : parseFloat(updated.deuda_mmv || 0);
-              const multaBs = (esElim || esTerreno) ? 0 : parseFloat(updated.multa_bs || 0);
-              const congelada = (esElim || esTerreno) ? 0 : parseFloat(updated.deuda_congelada_bs || 0);
-              let updatedDeudaBs = 0;
-              if (!esElim && !esTerreno) {
-                const esRes = isResidencialInm(updated);
-                const bMes = calcularMensualidad(updated, tcmmvRef.current || 1);
-                const m = parseInt(String(updated.meses_deuda || 0), 10) || 0;
-                const totalMeses = Math.max(0, m > 0 ? m : (deudaMMV > 0 ? 1 : 0));
+          const rateNow = tcmmvRef.current || 1;
+          const calcInmMetrics = (row: any) => {
+            const esElim = ['eliminado', 'inactivo', 'desactivado'].includes(String(row.estado || '').trim().toLowerCase());
+            const esTerreno = isTerrenoInm(row);
+            const isCondoChild = Boolean(row.condominio_padre_id);
+            const isCommercialChild = isCondoChild && (row.tipo || '').toUpperCase().includes('COMERCIAL');
+            const isParentCondo = Boolean(row.es_condominio || row.clasificacion === 'Condominio');
+            const deudaMMV = (isCommercialChild || esElim || esTerreno) ? 0 : parseFloat(row.deuda_mmv || 0);
+            const multaBs = (isParentCondo || esElim || esTerreno) ? 0 : parseFloat(row.multa_bs || 0);
+            const congelada = (esElim || esTerreno) ? 0 : parseFloat(row.deuda_congelada_bs || 0);
+            const saldoFavor = parseFloat(String(row.saldo_favor_bs || 0)) || 0;
+            const meses = (esElim || esTerreno) ? 0 : (parseInt(String(row.meses_deuda || 0), 10) || 0);
+            let deudaBs = 0;
+            if (!esElim && !esTerreno) {
+              if (isCommercialChild) {
+                deudaBs = multaBs + congelada;
+              } else {
+                const esRes = isResidencialInm(row);
+                const bMes = calcularMensualidad(row, rateNow);
+                const totalMeses = Math.max(0, meses > 0 ? meses : (deudaMMV > 0 ? 1 : 0));
                 const mesesConMora = Math.max(0, totalMeses - 1);
                 const tasaMora = esRes ? 0.10 : 0.12;
 
                 const base4 = Math.round((bMes * totalMeses) * 10000) / 10000;
                 const iva4 = esRes ? 0 : Math.round((base4 * 0.16) * 10000) / 10000;
                 const multa4 = Math.round((bMes * tasaMora * mesesConMora) * 10000) / 10000;
-                const ret4 = (!esRes && updated.agente_retencion === true) ? Math.round((iva4 * 0.75) * 10000) / 10000 : 0;
-                const saldoFavor = parseFloat(String(updated.saldo_favor_bs || 0)) || 0;
-                updatedDeudaBs = Math.round(Math.max(0, base4 + iva4 + multa4 + congelada + multaBs - ret4 - saldoFavor) * 100) / 100;
+                const ret4 = (!esRes && row.agente_retencion === true) ? Math.round((iva4 * 0.75) * 10000) / 10000 : 0;
+                deudaBs = Math.round(Math.max(0, base4 + iva4 + multa4 + congelada + multaBs - ret4 - saldoFavor) * 100) / 100;
               }
-              return {
-                ...c,
-                DeudaMMV: deudaMMV,
-                MultaBs: multaBs,
-                DeudaCongelada: congelada,
-                DeudaBs: updatedDeudaBs,
-                Estado: updated.estado || c.Estado
-              };
             }
-            return c;
-          }));
+            return { deudaMMV, multaBs, congelada, saldoFavor, meses, deudaBs };
+          };
+
+          setInmuebles(prev => {
+            const nextInms = prev.map(inm => (inm.id === updated.id || inm.inmueble === updated.inmueble) ? {
+              ...inm,
+              ...updated,
+              'Inmueble': updated.inmueble || updated.cod_cont || inm['Inmueble'],
+              'Saldo': (parseFloat(updated.deuda_congelada_bs || 0) + (parseFloat(updated.deuda_mmv || 0) * 57 * rateNow)).toFixed(2),
+              'DeudaMMV': parseFloat(updated.deuda_mmv || 0),
+              'DeudaCongelada': parseFloat(updated.deuda_congelada_bs || 0),
+            } : inm);
+
+            const updIdClean = (updated.identidad || '').replace(/-/g, '').toUpperCase();
+            setContribuyentes(prevCont => {
+              const sameIdRows = prevCont.filter(c => (c.Identidad || '').replace(/-/g, '').toUpperCase() === updIdClean);
+              return prevCont.map(c => {
+                const cIdClean = (c.Identidad || '').replace(/-/g, '').toUpperCase();
+                const cCodes = String(c.CodCont || c.cod_cont || '').trim().split(/\s+/).filter(Boolean);
+                const matchesCode = updated.inmueble && cCodes.includes(updated.inmueble);
+                const matchesId = updIdClean && cIdClean === updIdClean && (sameIdRows.length <= 1 || cCodes.length === 0);
+
+                if (matchesCode || matchesId) {
+                  const relevantInms = nextInms.filter(i => {
+                    if (sameIdRows.length > 1 && cCodes.length > 0) {
+                      return cCodes.includes(i.inmueble) || (i.padre_id && cCodes.includes(i.padre_id));
+                    }
+                    const iIdClean = (i.identidad || '').replace(/-/g, '').toUpperCase();
+                    return (updIdClean && iIdClean === updIdClean) || (updated.inmueble && cCodes.includes(i.inmueble));
+                  });
+                  const listToSum = relevantInms.length > 0 ? relevantInms : [updated];
+                  const metrics = listToSum.map(calcInmMetrics);
+                  const totalDeudaMMV = metrics.reduce((acc, m) => acc + m.deudaMMV, 0);
+                  const totalMultaBs = metrics.reduce((acc, m) => acc + m.multaBs, 0);
+                  const totalCongelada = metrics.reduce((acc, m) => acc + m.congelada, 0);
+                  const totalDeudaBs = Math.round(metrics.reduce((acc, m) => acc + m.deudaBs, 0) * 100) / 100;
+                  const maxMeses = metrics.reduce((acc, m) => Math.max(acc, m.meses), 0);
+                  const totalSaldoFavor = metrics.reduce((acc, m) => acc + m.saldoFavor, 0);
+
+                  return {
+                    ...c,
+                    DeudaMMV: totalDeudaMMV,
+                    MultaBs: totalMultaBs,
+                    DeudaCongelada: totalCongelada,
+                    DeudaBs: totalDeudaBs,
+                    MesesDeuda: maxMeses,
+                    SaldoFavor: totalSaldoFavor,
+                    Estado: listToSum.some(i => (i.estado || 'Activo') === 'Activo') ? 'Activo' : (updated.estado || c.Estado)
+                  };
+                }
+                return c;
+              });
+            });
+
+            return nextInms;
+          });
         }
       )
       // 3. Pre-registros y solicitudes en tiempo real

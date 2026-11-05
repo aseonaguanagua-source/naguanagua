@@ -63,6 +63,7 @@ interface FacturaFiscal {
   pagoId: string;
   numeroFactura: string;
   numeroControl: string;
+  inmueble?: string;
   fechaEmision: string;
   periodo?: string;
   montoTotal: number;
@@ -171,12 +172,20 @@ export default function FacturacionPortalPage() {
           const base = parseFloat(String(r.base || (total ? total / 1.16 : 0))) || 0;
           const iva = parseFloat(String(r.iva || (total - base))) || 0;
           const periodoFacturado = resolverPeriodoFactura(p, det, matchedRet);
+          const codigoInm =
+            det.inmueble ||
+            det.codigo_inmueble ||
+            det.cod_inmueble ||
+            det.condominio?.codigo ||
+            det.recibo_caja?.[0]?.inmueble ||
+            'General';
 
           lista.push({
             id: `fac_${p.id}`,
             pagoId: p.id,
             numeroFactura: String(numDoc).padStart(8, '0'),
             numeroControl: numCtrl,
+            inmueble: String(codigoInm),
             fechaEmision: fechaEmi,
             periodo: periodoFacturado,
             montoTotal: total,
@@ -289,6 +298,9 @@ export default function FacturacionPortalPage() {
                     </td>
                     <td className="px-5 py-3.5 font-mono text-slate-600 font-medium">
                       {fac.numeroControl}
+                    </td>
+                    <td className="px-5 py-3.5 text-center font-mono font-bold text-slate-700">
+                      {fac.inmueble || 'General'}
                     </td>
                     <td className="px-5 py-3.5 text-center text-slate-600 font-medium">
                       {fac.fechaEmision}

@@ -96,7 +96,7 @@ export async function GET(request: Request) {
     }
 
     // ── Reconstrucción ──
-    const { data: cont } = await supabase.from('contribuyentes').select('nombre, direccion').eq('identidad', pago.identidad).maybeSingle();
+    const { data: cont } = await supabase.from('contribuyentes').select('nombre, direccion').eq('identidad', pago.identidad).limit(1).maybeSingle();
     const refs: string[] = Array.isArray(det.recibos) ? det.recibos : [];
     const montos: Record<string, any> = det.montos && typeof det.montos === 'object' ? det.montos : {};
     const codigos = [...new Set(refs.map(r => extraerCodigoInmueble(r)).filter(Boolean))] as string[];

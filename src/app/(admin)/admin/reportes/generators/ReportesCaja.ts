@@ -77,6 +77,7 @@ export async function generarTotalPuntosVenta(pagos: any[], fechaInicio: string,
   deb.forEach(p => {
     const det = parseDet(p);
     const dia = fechaVE(p.created_at);
+    if (!dia) return;
     const { caja, cajero } = cajaDe(det);
     todasCajas.set(caja, cajero);
     if (!porDia.has(dia)) porDia.set(dia, new Map());

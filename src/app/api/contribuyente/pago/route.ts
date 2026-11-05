@@ -4,11 +4,21 @@ import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { metodo, facturaIds, convenioIds, monto, referencia, banco, bancoDestino, fecha, identidad, reciboRefs } = body;
+    const identidad = body.identidad;
+    const monto = body.monto;
+    const referencia = body.referencia;
+    const metodo = body.metodo || body.metodo_pago || body.tipo;
+    const banco = body.banco || body.banco_origen;
+    const bancoDestino = body.bancoDestino || body.banco_destino;
+    const fecha = body.fecha || body.fecha_pago;
+    const rawRecibosIds = body.facturaIds || body.facturas_ids || body.recibosIds || body.recibos_ids || [];
+    const facturaIds = Array.isArray(rawRecibosIds) ? rawRecibosIds : [];
+    const convenioIds = Array.isArray(body.convenioIds || body.convenios_ids) ? (body.convenioIds || body.convenios_ids) : [];
+    const reciboRefs = Array.isArray(body.reciboRefs || body.recibos_refs || body.recibos) ? (body.reciboRefs || body.recibos_refs || body.recibos) : [];
     // Servicios especiales / extraordinarios (referencias SRV-…) seleccionados en el portal
     // IVA retenido por agentes de retención (75%): activa el flujo de factura con comprobante de retención
-    const montoRetencionIva = Math.max(0, Number(body.montoRetencionIva) || 0);
-    const servicioRefs: string[] = Array.isArray(body.servicioRefs) ? body.servicioRefs.map(String).filter(Boolean) : [];
+    const montoRetencionIva = Math.max(0, Number(body.montoRetencionIva ?? body.monto_retencion_iva) || 0);
+    const servicioRefs: string[] = Array.isArray(body.servicioRefs || body.servicios_refs) ? (body.servicioRefs || body.servicios_refs).map(String).filter(Boolean) : [];
 
     if (!identidad || !monto || !metodo) {
       return NextResponse.json({ error: 'Datos incompletos' }, { status: 400 });
@@ -130,15 +140,40 @@ export async function POST(request: Request) {
               .in('id', facturaIds)
           : Promise.resolve(),
         convenioIds && convenioIds.length > 0
-          ? supabase
-              .from('convenios_pago')
-              .update({
-                estado: 'En Revisión',
-                metodo_pago: banco || metodo,
-                referencia_pago: cleanRef,
-                fecha_pago: fechaPago
-              })
-              .in('id', convenioIds)
+          ? (async () => {
+              const cuotaIds: string[] = [];
+              const pureConvIds: string[] = [];
+              for (const rawId of convenioIds) {
+                const str = String(rawId || '');
+                if (str.startsWith('conv_')) {
+                  const parts = str.split('_');
+                  if (parts.length >= 3) {
+                    cuotaIds.push(parts.slice(2).join('_'));
+                  } else if (parts[1]) {
+                    pureConvIds.push(parts[1]);
+                  }
+                } else {
+                  pureConvIds.push(str);
+                }
+              }
+              if (cuotaIds.length > 0) {
+                await supabase
+                  .from('convenios_cuotas')
+                  .update({ estado: 'En Revisión' })
+                  .in('id', cuotaIds);
+              }
+              if (pureConvIds.length > 0) {
+                await supabase
+                  .from('convenios_pago')
+                  .update({
+                    estado: 'En Revisión',
+                    metodo_pago: banco || metodo,
+                    referencia_pago: cleanRef,
+                    fecha_pago: fechaPago
+                  })
+                  .in('id', pureConvIds);
+              }
+            })()
           : Promise.resolve(),
         servicioRefs.length > 0
           ? supabase

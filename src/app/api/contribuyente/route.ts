@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
 
+export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const identidad = searchParams.get('identidad');
@@ -10,11 +13,12 @@ export async function GET(request: Request) {
   }
 
   // Normalizar: Si el usuario escribe J123456, convertirlo a J-123456 para buscar en BD
-  const idLimpio = identidad.replace(/-/g, '').toUpperCase().trim();
+  const safeId = identidad.replace(/[,()]/g, ' ').trim();
+  const idLimpio = safeId.replace(/-/g, '').toUpperCase().trim();
   const primeraEsLetra = /^[A-Z]/.test(idLimpio);
   const idFormateado = primeraEsLetra ? `${idLimpio.charAt(0)}-${idLimpio.slice(1)}` : null;
-  const soloNumeros = identidad.replace(/\D/g, '');
-  const variantesGet = [idLimpio, identidad.toUpperCase().trim(), soloNumeros];
+  const soloNumeros = safeId.replace(/\D/g, '');
+  const variantesGet = [idLimpio, safeId.toUpperCase(), soloNumeros].filter(Boolean);
   if (idFormateado) variantesGet.push(idFormateado);
   const orFilterGet = [...new Set(variantesGet)].map(v => `identidad.eq.${v}`).join(',');
 

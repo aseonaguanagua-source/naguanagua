@@ -180,7 +180,7 @@ export async function POST(request: Request) {
 
     // Registrar en auditoría de pago
     if (pagoId) {
-      const { data: pago } = await supabase.from('pagos_reportados').select('detalles').eq('id', pagoId).single();
+      const { data: pago } = await supabase.from('pagos_reportados').select('detalles').eq('id', pagoId).maybeSingle();
       let det = pago?.detalles || {};
       if (typeof det === 'string') {
         try { det = JSON.parse(det); } catch(e) { det = {}; }

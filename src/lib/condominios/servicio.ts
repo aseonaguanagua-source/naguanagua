@@ -8,7 +8,7 @@
  */
 import { supabaseAdmin as sb } from '@/lib/supabaseAdmin';
 import * as M from './motor';
-import { actividadConNivel, resolverFOComercial, isExoneradoTotalMultas, isMesExoneradoMulta } from '@/lib/calculos';
+import { actividadConNivel, resolverFOComercial, isExoneradoTotalMultas, isMesExoneradoMulta, getFAR } from '@/lib/calculos';
 
 const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -218,7 +218,7 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasaRaw: numb
     if (periodos.length > 0 && (u?.periodos_custom || u?.desocupada_desde)) {
       const tDesoc = M.tarifaDesocupadaBs(tasa);
       const mmvActiva = Number(u.tarifa_activa_mmv || u.tarifa_mmv) || 3.77;
-      const tActiva = r2(mmvActiva * 57 * tasa * (res ? 0.04 : 0.128));
+      const tActiva = r2(mmvActiva * 57 * tasa * (res ? getFAR(u.actividad || u.clasificacion || condoRow?.actividad) : 0.128));
 
       const bases: number[] = [];
       const multas: (boolean | number)[] = [];
@@ -238,7 +238,7 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasaRaw: numb
             }
           }
           const mmvNum = Number(mmv);
-          const base = r2((isNaN(mmvNum) ? mmvActiva : mmvNum) * 57 * tasa * (res ? 0.04 : 0.128));
+          const base = r2((isNaN(mmvNum) ? mmvActiva : mmvNum) * 57 * tasa * (res ? getFAR(custom.actividad || u.actividad || u.clasificacion || condoRow?.actividad) : 0.128));
           bases.push(base);
 
           // Multa
@@ -295,9 +295,8 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasaRaw: numb
       mesesMultaRemanente = Math.max(0, mesesMultaRemanente - 1);
     }
     const multaMeses = mesesMultaEnAseo + mesesMultaRemanente;
-    const multaExtraUnitEur = tasa > 0 ? r2(r2(baseParaMultaExtra / tasa) * tMulta) : 0;
     const multaExtraBs = (!mu?.es_grupo && u)
-      ? (tasa > 0 ? r2(r2(multaExtraUnitEur * mesesMultaRemanente) * tasa) : r2(baseParaMultaExtra * tMulta * mesesMultaRemanente))
+      ? r2(r2(baseParaMultaExtra * tMulta) * mesesMultaRemanente)
       : 0;
     const manuales = multasPend
       .filter(m => (u ? m.unidad_id === u.id : !m.unidad_id) && !(omitirMultaSeptiembre && m.periodo === '2026-09'))
@@ -339,75 +338,6 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasaRaw: numb
     });
   }
 
-  // Alinear céntimos de Bolívares para que (Total en € × Tasa) coincida exactamente al céntimo con la suma en Bs y Caja
-  if (tasa > 0) {
-    const cobrables = renglones.filter(x => !x.esGrupo && x.totalBs > 0.01);
-    if (cobrables.length > 0) {
-      const sumEur = (fn: (x: RenglonEstado) => number) => r2(cobrables.reduce((acc, x) => acc + r2(fn(x) / tasa), 0));
-      const totBaseEur = sumEur(x => x.deuda.baseBs);
-      const totMultaEur = sumEur(x => x.deuda.multaBs + x.multaExtraBs + x.multasManualesBs);
-      const totIvaEur = sumEur(x => x.deuda.ivaBs);
-      const totRetEur = sumEur(x => x.deuda.retencionBs);
-      const totBrutoEur = r2(totBaseEur + totMultaEur + totIvaEur);
-      const totNetoEur = r2(totBrutoEur - totRetEur);
-
-      const targetBaseBs = r2(totBaseEur * tasa);
-      const targetMultaBs = r2(totMultaEur * tasa);
-      const targetBrutoBs = r2(totBrutoEur * tasa);
-      const targetIvaBs = r2(targetBrutoBs - targetBaseBs - targetMultaBs);
-      const targetRetBs = r2(totRetEur * tasa);
-      const targetNetoBs = r2(totNetoEur * tasa);
-
-      const curBaseBs = r2(renglones.reduce((a, x) => a + x.deuda.baseBs, 0));
-      const curMultaBs = r2(renglones.reduce((a, x) => a + x.deuda.multaBs + x.multaExtraBs + x.multasManualesBs, 0));
-      const curIvaBs = r2(renglones.reduce((a, x) => a + x.deuda.ivaBs, 0));
-      const curRetBs = r2(renglones.reduce((a, x) => a + x.deuda.retencionBs, 0));
-
-      const diffBase = r2(targetBaseBs - curBaseBs);
-      const diffMulta = r2(targetMultaBs - curMultaBs);
-      const diffIva = r2(targetIvaBs - curIvaBs);
-      const diffRet = r2(targetRetBs - curRetBs);
-
-      const last = cobrables[cobrables.length - 1];
-      if (Math.abs(diffBase) <= 2.0 && Math.abs(diffIva) <= 2.0) {
-        last.deuda.baseBs = r2(last.deuda.baseBs + diffBase);
-        if (diffMulta !== 0 && last.deuda.multaBs > 0) {
-          last.deuda.multaBs = r2(last.deuda.multaBs + diffMulta);
-        } else if (diffMulta !== 0 && last.multaExtraBs > 0) {
-          last.multaExtraBs = r2(last.multaExtraBs + diffMulta);
-        }
-        if (diffIva !== 0 && !last.residencial) {
-          last.deuda.ivaBs = r2(last.deuda.ivaBs + diffIva);
-        }
-        if (diffRet !== 0 && last.deuda.retencionBs > 0) {
-          last.deuda.retencionBs = r2(last.deuda.retencionBs + diffRet);
-        }
-        if (last.deuda.porMes && last.deuda.porMes.length > 0) {
-          const pm = last.deuda.porMes[last.deuda.porMes.length - 1];
-          pm.baseBs = r2(pm.baseBs + diffBase);
-          if (diffMulta !== 0 && pm.multaBs > 0) pm.multaBs = r2(pm.multaBs + diffMulta);
-          if (diffIva !== 0 && !last.residencial) pm.ivaBs = r2(pm.ivaBs + diffIva);
-          if (diffRet !== 0 && pm.retencionBs > 0) pm.retencionBs = r2(pm.retencionBs + diffRet);
-          pm.totalBs = r2(pm.baseBs + pm.multaBs + pm.ivaBs - pm.retencionBs);
-        }
-        last.deuda.totalBs = r2(last.deuda.baseBs + last.deuda.multaBs + last.deuda.ivaBs - last.deuda.retencionBs);
-        last.totalBs = r2(last.deuda.totalBs + last.multaExtraBs + last.multasManualesBs);
-        const curNetoBs = r2(renglones.reduce((a, x) => a + x.totalBs, 0));
-        const diffNetoRem = r2(targetNetoBs - curNetoBs);
-        if (diffNetoRem !== 0 && Math.abs(diffNetoRem) <= 0.5) {
-          last.deuda.baseBs = r2(last.deuda.baseBs + diffNetoRem);
-          if (last.deuda.porMes && last.deuda.porMes.length > 0) {
-            const pm = last.deuda.porMes[last.deuda.porMes.length - 1];
-            pm.baseBs = r2(pm.baseBs + diffNetoRem);
-            pm.totalBs = r2(pm.baseBs + pm.multaBs + pm.ivaBs - pm.retencionBs);
-          }
-          last.deuda.totalBs = r2(last.deuda.baseBs + last.deuda.multaBs + last.deuda.ivaBs - last.deuda.retencionBs);
-          last.totalBs = r2(last.deuda.totalBs + last.multaExtraBs + last.multasManualesBs);
-        }
-      }
-    }
-  }
-
   const s = (f: (x: RenglonEstado) => number) => r2(renglones.reduce((a, x) => a + f(x), 0));
   return {
     tasa,
@@ -425,7 +355,7 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasaRaw: numb
 }
 
 export async function cargarCondominio(codigo: string) {
-  let { data: condo, error } = await sb.from('condominios').select('*').eq('codigo', codigo.toUpperCase()).neq('estado', 'Eliminado').maybeSingle();
+  let { data: condo, error } = await sb.from('condominios').select('*').eq('codigo', codigo.toUpperCase()).neq('estado', 'Eliminado').limit(1).maybeSingle();
   if (error) throw new Error(error.message);
 
   if (!condo) {
@@ -449,17 +379,18 @@ export async function cargarCondominio(codigo: string) {
       .select('condominio_padre_id')
       .ilike('inmueble', codigo.trim())
       .neq('estado', 'Eliminado')
+      .limit(1)
       .maybeSingle();
 
     if (inmHijo?.condominio_padre_id) {
-      const { data: condoByPadre } = await sb.from('condominios').select('*').eq('codigo', inmHijo.condominio_padre_id.toUpperCase()).neq('estado', 'Eliminado').maybeSingle();
+      const { data: condoByPadre } = await sb.from('condominios').select('*').eq('codigo', inmHijo.condominio_padre_id.toUpperCase()).neq('estado', 'Eliminado').limit(1).maybeSingle();
       condo = condoByPadre;
     }
   }
 
   if (!condo) return null;
 
-  const { data: inm } = await sb.from('inmuebles').select('agente_retencion, telefono, correo_electronico, notas, clave_portal').eq('inmueble', condo.codigo).maybeSingle();
+  const { data: inm } = await sb.from('inmuebles').select('agente_retencion, telefono, correo_electronico, notas, clave_portal').eq('inmueble', condo.codigo).limit(1).maybeSingle();
   if (inm) {
     condo.clave_portal = inm.clave_portal || '';
     condo.agente_retencion = Boolean(condo.agente_retencion || inm.agente_retencion);
@@ -556,16 +487,6 @@ export async function cargarCondominio(codigo: string) {
     };
   });
 
-  if (unidadesASincronizarBD.length > 0) {
-    Promise.all(
-      unidadesASincronizarBD.map(item =>
-        sb.from('condominio_unidades')
-          .update({ aseo_pendiente_desde: item.aseo_pendiente_desde, multa_meses: item.multa_meses })
-          .eq('id', item.id)
-      )
-    ).catch(() => {});
-  }
-  
   const { data: movimientos } = await sb.from('condominio_movimientos').select('*').eq('condominio_id', condo.id).order('created_at', { ascending: false }).limit(1000);
   const { data: multas } = await sb.from('condominio_multas').select('*').eq('condominio_id', condo.id).order('created_at', { ascending: false });
 

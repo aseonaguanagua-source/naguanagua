@@ -209,7 +209,7 @@ export default function FacturacionElectronicaPage() {
     try {
       const r = await fetch('/api/admin/factura-digital/eliminar-pago', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pagoId: pago.id, usuario: adminUser?.usuario, confirmar: false }),
+        body: JSON.stringify({ pagoId: pago.pagoId || pago.id, usuario: adminUser?.usuario, confirmar: false }),
       });
       const d = await r.json();
       setEliminar({ pago, cargando: false, motivo: '', ...(r.ok ? { preview: d } : { error: d.error || 'No se pudo preparar la eliminación' }) });
@@ -223,7 +223,7 @@ export default function FacturacionElectronicaPage() {
     try {
       const r = await fetch('/api/admin/factura-digital/eliminar-pago', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pagoId: eliminar.pago.id, usuario: adminUser?.usuario, motivo: eliminar.motivo, confirmar: true }),
+        body: JSON.stringify({ pagoId: eliminar.pago.pagoId || eliminar.pago.id, usuario: adminUser?.usuario, motivo: eliminar.motivo, confirmar: true }),
       });
       const d = await r.json();
       if (!r.ok) { setEliminar({ ...eliminar, cargando: false, error: d.error || 'No se pudo eliminar' }); return; }
@@ -241,6 +241,7 @@ export default function FacturacionElectronicaPage() {
     setAnularEstado({ ...anularEstado, cargando: true });
     try {
       const pago = anularEstado.pago;
+      const realPagoId = pago.pagoId || pago.id;
       let uActual = adminUser?.usuario || '';
       if (!uActual) {
         try { const u = JSON.parse(localStorage.getItem('admin_user_data') || 'null'); uActual = u?.usuario || 'Administrador'; } catch {}
@@ -248,7 +249,7 @@ export default function FacturacionElectronicaPage() {
       const r = await fetch('/api/admin/factura-digital/anular', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          pagoId: pago.id,
+          pagoId: realPagoId,
           usuario: uActual || 'Administrador',
           contribuyente: pago.contribuyente,
           identidad: pago.identidad,
@@ -266,7 +267,7 @@ export default function FacturacionElectronicaPage() {
           const rf = await fetch('/api/admin/factura-digital/anular', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              pagoId: pago.id,
+              pagoId: realPagoId,
               usuario: uActual || 'Administrador',
               forzarMarcadoAnulada: true
             }),
@@ -395,7 +396,7 @@ export default function FacturacionElectronicaPage() {
       // Se cargan los pagos según el tab; si es 'anuladas' y no hay búsqueda, se consulta filter=anuladas
       const filterParam = filterTab === 'anuladas' && !searchTerm ? 'anuladas' : 'todos';
       const fechaParam = filterTab === 'anuladas' && !searchTerm ? '' : fecha;
-      const res = await fetch(`/api/admin/factura-digital/listar?filter=${filterParam}&fecha=${fechaParam}&q=${encodeURIComponent(searchTerm)}`);
+      const res = await fetch(`/api/admin/factura-digital/listar?filter=${filterParam}&fecha=${fechaParam}&q=${encodeURIComponent(searchTerm)}&_t=${Date.now()}`, { cache: 'no-store' });
       const data = await res.json();
       if (data.success) {
         const items = data.items || [];
@@ -1788,6 +1789,7 @@ export default function FacturacionElectronicaPage() {
                                     if (!confirm('¿Está seguro que desea anular esta factura electrónica y generar una Nota de Crédito en The Factory HKA? Esto no se puede deshacer.')) return;
                                     setAnularEstado({ pago, cargando: true });
                                     try {
+                                      const realPagoId = pago.pagoId || pago.id;
                                       let uActual = adminUser?.usuario || '';
                                       if (!uActual) {
                                         try { const u = JSON.parse(localStorage.getItem('admin_user_data') || 'null'); uActual = u?.usuario || 'Administrador'; } catch {}
@@ -1795,7 +1797,7 @@ export default function FacturacionElectronicaPage() {
                                       const r = await fetch('/api/admin/factura-digital/anular', {
                                         method: 'POST', headers: { 'Content-Type': 'application/json' },
                                         body: JSON.stringify({
-                                          pagoId: pago.id,
+                                          pagoId: realPagoId,
                                           usuario: uActual || 'Administrador',
                                           contribuyente: pago.contribuyente,
                                           identidad: pago.identidad,
@@ -1813,7 +1815,7 @@ export default function FacturacionElectronicaPage() {
                                           const rf = await fetch('/api/admin/factura-digital/anular', {
                                             method: 'POST', headers: { 'Content-Type': 'application/json' },
                                             body: JSON.stringify({
-                                              pagoId: pago.id,
+                                              pagoId: realPagoId,
                                               usuario: uActual || 'Administrador',
                                               forzarMarcadoAnulada: true
                                             }),

@@ -75,7 +75,7 @@ export async function PATCH(req: Request) {
   try {
     const { codigo, cambios, usuario, motivo } = await req.json();
     const u = String(usuario || '').trim().toLowerCase();
-    const { data: trab } = await sb.from('trabajadores').select('usuario, nombre, rol, estado').ilike('usuario', u).maybeSingle();
+    const { data: trab } = await sb.from('trabajadores').select('usuario, nombre, rol, estado').ilike('usuario', u).limit(1).maybeSingle();
     
     // Si solo modifica notas, teléfono, correo, dirección, clave_portal o agente_retencion, permitir a cualquier operador o usuario autenticado
     const keysModificadas = Object.keys(cambios || {});
@@ -86,7 +86,7 @@ export async function PATCH(req: Request) {
       if (String(motivo || '').trim().length < 5) return NextResponse.json({ error: 'Escriba el motivo del cambio.' }, { status: 400 });
     }
 
-    const { data: antes } = await sb.from('condominios').select('*').eq('codigo', String(codigo || '').toUpperCase()).maybeSingle();
+    const { data: antes } = await sb.from('condominios').select('*').eq('codigo', String(codigo || '').toUpperCase()).limit(1).maybeSingle();
     if (!antes) return NextResponse.json({ error: 'Condominio no encontrado' }, { status: 404 });
 
     const upd: Record<string, any> = {};
@@ -250,17 +250,17 @@ export async function PATCH(req: Request) {
 export async function DELETE(req: Request) {
   try {
     const { codigo, usuario, motivo } = await req.json();
-    const cod = String(codigo || '').trim().toUpperCase();
+    const cod = String(codigo || '').replace(/[,()]/g, '').trim().toUpperCase();
     if (!cod) return NextResponse.json({ error: 'Código de condominio requerido' }, { status: 400 });
 
     const u = String(usuario || '').trim().toLowerCase();
-    const { data: trab } = await sb.from('trabajadores').select('usuario, nombre, rol, estado').ilike('usuario', u).maybeSingle();
+    const { data: trab } = await sb.from('trabajadores').select('usuario, nombre, rol, estado').ilike('usuario', u).limit(1).maybeSingle();
     if (!trab || !(trab.rol === 'Administrador' || u === 'dzara')) {
       return NextResponse.json({ error: 'Solo un administrador puede eliminar un condominio.' }, { status: 403 });
     }
 
     // 1. Cargar el condominio
-    const { data: condo } = await sb.from('condominios').select('*').eq('codigo', cod).maybeSingle();
+    const { data: condo } = await sb.from('condominios').select('*').eq('codigo', cod).limit(1).maybeSingle();
     if (!condo) {
       return NextResponse.json({ error: `Condominio "${cod}" no encontrado.` }, { status: 404 });
     }

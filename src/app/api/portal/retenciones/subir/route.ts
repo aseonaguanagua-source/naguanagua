@@ -11,30 +11,42 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(request: Request) {
   try {
-    const { identidad, pagoId, numeroComprobante, fechaComprobante, planillaUrl } = await request.json().catch(() => ({}));
-    if (!identidad || !pagoId) return NextResponse.json({ error: 'Faltan datos (identidad / factura).' }, { status: 400 });
+    const body = await request.json().catch(() => ({}));
+    const pagoId = body.pagoId || body.pago_id;
+    const numeroComprobante = body.numeroComprobante || body.numComprobante || body.numero_comprobante;
+    const fechaComprobante = body.fechaComprobante || body.fechaEmision || body.fecha_retencion || body.fecha_emision || null;
+    const montoRetenidoReq = body.montoRetenido ?? body.monto_retenido;
+    const porcentajeRetencionReq = body.porcentajeRetencion ?? body.porcentaje ?? body.porcentaje_retencion;
+    const planillaUrl = body.planillaUrl || body.comprobanteUrl || body.archivo_url || body.comprobante_url;
+    const identidadReq = body.identidad;
+
+    if (!pagoId) return NextResponse.json({ error: 'Faltan datos (identidad / factura).' }, { status: 400 });
     if (!String(numeroComprobante || '').trim()) return NextResponse.json({ error: 'Indique el número del comprobante de retención.' }, { status: 400 });
     if (!String(planillaUrl || '').trim()) return NextResponse.json({ error: 'Debe adjuntar el comprobante de retención (PDF o imagen).' }, { status: 400 });
 
-    const { data: pago, error } = await supabase.from('pagos_reportados').select('id, identidad, monto, detalles').eq('id', pagoId).maybeSingle();
+    const { data: pago, error } = await supabase.from('pagos_reportados').select('id, identidad, monto, estado, detalles').eq('id', pagoId).maybeSingle();
     if (error) throw error;
-    if (!pago || !getIdentidadVariants(identidad).includes(pago.identidad)) {
+    const identidad = identidadReq || pago?.identidad;
+    if (!pago || !identidad || !getIdentidadVariants(identidad).includes(pago.identidad)) {
       return NextResponse.json({ error: 'La factura no corresponde a este contribuyente.' }, { status: 403 });
     }
     const det = parseDet(pago.detalles);
     const fd = det.factura_digital || {};
-    const retMonto = parseFloat(String(det.monto_retencion_iva || det.retencion_iva || fd.retencion?.retenido || 0)) || 0;
+    const retMonto = parseFloat(String(montoRetenidoReq ?? det.monto_retencion_iva ?? det.retencion_iva ?? fd.retencion?.retenido ?? 0)) || 0;
     const esRet = det.es_retencion || det.agente_retencion || retMonto > 0 || !!fd.retencion;
     if (!esRet) return NextResponse.json({ error: 'Este pago no requiere comprobante de retención.' }, { status: 400 });
 
     const ret = fd.retencion || {};
     if (ret.estado === 'aprobada' || det.retencion_aprobada === true) return NextResponse.json({ error: 'El comprobante de esta retención ya fue aprobado.' }, { status: 409 });
-    if (ret.estado === 'planilla_recibida') return NextResponse.json({ error: 'Ya hay un comprobante en revisión para este pago.' }, { status: 409 });
+    if (ret.estado === 'planilla_recibida' || ret.estado === 'por_verificar') return NextResponse.json({ error: 'Ya hay un comprobante en revisión para este pago.' }, { status: 409 });
 
-    const baseCalc = ret.base || (det.total_seleccionado ? Math.round((det.total_seleccionado / 1.16) * 100) / 100 : Math.round((retMonto / 0.12) * 100) / 100);
-    const ivaCalc = ret.iva || (baseCalc ? Math.round((baseCalc * 0.16) * 100) / 100 : Math.round((retMonto / 0.75) * 100) / 100);
+    const pctRet = Number(porcentajeRetencionReq || ret.porcentaje_retencion || det.porcentaje_retencion || 75) || 75;
+    const baseCalc = ret.base || (det.total_seleccionado ? Math.round((det.total_seleccionado / 1.16) * 100) / 100 : Math.round((retMonto / (0.16 * (pctRet / 100))) * 100) / 100);
+    const ivaCalc = ret.iva || (baseCalc ? Math.round((baseCalc * 0.16) * 100) / 100 : Math.round((retMonto / (pctRet / 100)) * 100) / 100);
     const totalCalc = ret.total || (baseCalc + ivaCalc);
-    const retenidoCalc = ret.retenido || retMonto;
+    const retenidoCalc = (montoRetenidoReq !== undefined && montoRetenidoReq !== null && Number(montoRetenidoReq) > 0)
+      ? Number(montoRetenidoReq)
+      : (ret.retenido || retMonto);
 
     const { data: inmLink } = await supabase.from('inmuebles').select('inmueble, contribuyente').eq('identidad', pago.identidad).eq('agente_retencion', true).limit(1).maybeSingle();
     const fechaEmi = fd.fecha_emision ? new Date(fd.fecha_emision) : new Date();
@@ -64,14 +76,23 @@ export async function POST(request: Request) {
       iva: ivaCalc,
       total: totalCalc,
       retenido: retenidoCalc,
+      porcentaje_retencion: pctRet,
+      numero_comprobante: String(numeroComprobante).trim(),
+      fecha_comprobante: fechaComprobante || null,
+      comprobante_url: planillaUrl,
       pagado: ret.pagado || (parseFloat(String(pago.monto || 0)) || (totalCalc - retenidoCalc)),
       estado: 'planilla_recibida',
+      estado_revision: 'por_verificar',
       retencion_id: ins.id,
       planilla_recibida_at: new Date().toISOString(),
       motivo_rechazo: undefined
     };
     det.factura_digital = fd;
-    const { error: eUp } = await supabase.from('pagos_reportados').update({ detalles: det }).eq('id', pagoId);
+    // IMPORTANTE: Si el pago principal ya está Aprobado o Conciliado, NO degradar su estado a 'Por Verificar'
+    const estadoPagoPreservado = (pago.estado === 'Aprobado' || pago.estado === 'Conciliado')
+      ? pago.estado
+      : (pago.estado || 'Por Verificar');
+    const { error: eUp } = await supabase.from('pagos_reportados').update({ estado: estadoPagoPreservado, detalles: det }).eq('id', pagoId);
     if (eUp) throw eUp;
 
     await supabase.from('auditoria').insert({

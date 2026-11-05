@@ -105,8 +105,9 @@ export async function PATCH(req: NextRequest) {
       query = query.eq('referencia', referencia);
     }
 
-    const { data, error } = await query.select().single();
+    const { data: rows, error } = await query.select();
     if (error) throw error;
+    const data = rows?.[0] || null;
 
     await logAuditServer(
       `Recibo ${estado}`,

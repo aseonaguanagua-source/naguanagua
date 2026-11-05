@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
 import { getTasaBCV } from "@/services/bcv";
 
+export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
+
 function getISOWeek(date: Date): number {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   const dayNum = d.getUTCDay() || 7;
@@ -37,12 +40,12 @@ export async function GET(request: Request) {
     }]);
 
     if (insertError) {
-      await supabase.from("sistema_config").upsert([{
-        clave: `ucd_semana_${anio}_${semana}`,
-        valor: String(tcmmv),
-        descripcion: `UCD Semana ${semana} del ${anio} - ${fechaRegistro}`,
-        updated_at: fechaRegistro
-      }], { onConflict: "clave" });
+      const tasaValor = tcmmv;
+      await supabase.from("sistema_config").upsert({
+        id: "tasa_ucd_actual",
+        valor: String(tasaValor),
+        updated_at: new Date().toISOString()
+      }, { onConflict: "id" });
     }
 
     return NextResponse.json({ ok: true, semana, anio, tcmmv, tasa_usd, fecha_registro: fechaRegistro });

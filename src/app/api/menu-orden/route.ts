@@ -16,7 +16,7 @@ const parse = (v: any) => {
 };
 
 export async function GET() {
-  const { data } = await sb.from('system_config').select('value').eq('key', KEY).maybeSingle();
+  const { data } = await sb.from('system_config').select('value').eq('key', KEY).limit(1).maybeSingle();
   return NextResponse.json({ orden: parse((data as any)?.value) });
 }
 
@@ -51,7 +51,7 @@ export async function POST(req: Request) {
         limpio[k] = r;
       }
     }
-    const { data: antes } = await sb.from('system_config').select('value').eq('key', KEY).maybeSingle();
+    const { data: antes } = await sb.from('system_config').select('value').eq('key', KEY).limit(1).maybeSingle();
     const valor = JSON.stringify(limpio);
     const { error } = await sb.from('system_config')
       .upsert({ key: KEY, value: valor, description: 'Orden del menú lateral (Modo Dios)' }, { onConflict: 'key' });

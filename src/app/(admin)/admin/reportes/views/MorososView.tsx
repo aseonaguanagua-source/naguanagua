@@ -51,7 +51,7 @@ export default function MorososView({ contribuyentes = [], tcmmv = 0, onBack }: 
           .select(
             'id,identidad,inmueble,contribuyente,tipo,clasificacion,telefono,actividad_principal,mmv_mes,cant_inmuebles,deuda_mmv,deuda_congelada_bs,saldo_favor_bs,multa_bs,meses_deuda,agente_retencion,estado,es_condominio,condominio_padre_id,padre_id'
           )
-          .gt('meses_deuda', 0)
+          .or('meses_deuda.gt.0,deuda_mmv.gt.0,multa_bs.gt.0,deuda_congelada_bs.gt.0')
           .neq('estado', 'Eliminado')
           .order('id', { ascending: true })
           .limit(STEP);

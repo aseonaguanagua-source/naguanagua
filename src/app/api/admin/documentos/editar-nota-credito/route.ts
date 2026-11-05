@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
-import { acreditarSaldoFavor, descontarSaldoFavor } from '@/lib/saldoFavor';
 import { parseLocalFloat } from '@/lib/formatters';
 
 export const dynamic = 'force-dynamic';
@@ -42,27 +41,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'El monto de la nota de crédito debe ser mayor a 0.' }, { status: 400 });
     }
 
-    const identidad = String(doc.identidad || '').trim().toUpperCase();
+    const identidad = String(doc.identidad || details.rif || '').trim().toUpperCase();
     const codigoCondo = details.codigo_condominio || details.condominio || (/^CM-/i.test(identidad) ? identidad : undefined);
+    const codigoInm = String(details.codigo_inmueble || details.inmueble_id || codigoCondo || (/^(URB|AURI)/i.test(identidad) ? identidad : '')).trim().toUpperCase();
 
-    // 3. Calcular diferencia de monto y ajustar saldos correspondientes
+    // 3. Calcular diferencia de monto
     const diff = Math.round((montoNuevo - montoAnterior) * 100) / 100;
 
-    if (diff > 0) {
-      // Aumentó el monto: se acredita la diferencia adicional
-      const resAcred = await acreditarSaldoFavor(identidad, diff, codigoCondo, supabase);
-      if (!resAcred.ok) {
-        console.warn('Aviso acreditando saldo adicional:', resAcred.error);
-      }
-    } else if (diff < 0) {
-      // Disminuyó el monto: se descuenta el exceso
-      const resDesc = await descontarSaldoFavor(identidad, Math.abs(diff), codigoCondo, supabase);
-      if (!resDesc.ok) {
-        console.warn('Aviso descontando saldo:', resDesc.error);
-      }
-    }
-
-    // 4. Actualizar detalles del documento
+    // 4. Primero actualizar el registro id en documentos con el nuevo monto/datos (sin tocar otras filas de documentos)
     const refFinal = nuevaReferencia !== undefined && String(nuevaReferencia).trim() !== ''
       ? String(nuevaReferencia).trim()
       : (details.origen_referencia || '');
@@ -102,10 +88,76 @@ export async function POST(req: Request) {
       })
       .eq('id', id)
       .select()
-      .single();
+      .maybeSingle();
 
     if (errUpd) {
       return NextResponse.json({ error: `Error al actualizar documento: ${errUpd.message}` }, { status: 500 });
+    }
+
+    // 4.1 Aplicar diff directamente sobre inmuebles.saldo_favor_bs, condominios.abono_bs y/o contribuyentes.saldo_favor_bs (nunca menor a 0)
+    if (diff !== 0 && (identidad || codigoInm)) {
+      const sinGuion = identidad.replace(/-/g, '');
+      const conGuion = /^[VEJPG]\d/.test(sinGuion) ? `${sinGuion[0]}-${sinGuion.slice(1)}` : identidad;
+      const variantes = [...new Set([identidad, sinGuion, conGuion].filter(Boolean))];
+      const esAmbitoLocal = String(details.ambito || '').toUpperCase() === 'LOCAL';
+
+      // Condominios (abono_bs)
+      if (!esAmbitoLocal) {
+        let condoRow: any = null;
+        if (codigoCondo) {
+          const { data } = await supabase.from('condominios').select('id, abono_bs').eq('codigo', String(codigoCondo).trim().toUpperCase()).neq('estado', 'Eliminado').limit(1).maybeSingle();
+          condoRow = data;
+        } else if (variantes.length > 0 && (!codigoInm || !/^(URB|AURI)/i.test(codigoInm))) {
+          const { data } = await supabase.from('condominios').select('id, abono_bs').in('identidad', variantes).neq('estado', 'Eliminado').order('created_at', { ascending: true }).limit(1).maybeSingle();
+          condoRow = data;
+        }
+        if (condoRow) {
+          const curAbono = parseFloat(String(condoRow.abono_bs || 0)) || 0;
+          const nuevoAbono = Math.max(0, Math.round((curAbono + diff) * 100) / 100);
+          await supabase.from('condominios').update({ abono_bs: nuevoAbono }).eq('id', condoRow.id);
+        }
+      }
+
+      // Inmuebles (saldo_favor_bs)
+      let inms: any[] = [];
+      if (codigoInm) {
+        const { data: inmsCod } = await supabase.from('inmuebles').select('id, saldo_favor_bs, estado').eq('inmueble', codigoInm).order('id', { ascending: true });
+        if (inmsCod && inmsCod.length > 0) inms = inmsCod;
+      }
+      if (inms.length === 0 && variantes.length > 0) {
+        const { data: inmsId } = await supabase.from('inmuebles').select('id, saldo_favor_bs, estado').in('identidad', variantes).order('id', { ascending: true });
+        if (inmsId && inmsId.length > 0) inms = inmsId;
+      }
+      if (inms.length > 0) {
+        if (diff > 0) {
+          const targetInm = inms.find((i: any) => (parseFloat(String(i.saldo_favor_bs || 0)) || 0) > 0.009) || inms.find((i: any) => i.estado !== 'Eliminado') || inms[0];
+          const curSf = parseFloat(String(targetInm.saldo_favor_bs || 0)) || 0;
+          const nuevoSf = Math.max(0, Math.round((curSf + diff) * 100) / 100);
+          await supabase.from('inmuebles').update({ saldo_favor_bs: nuevoSf }).eq('id', targetInm.id);
+        } else {
+          let porDescontar = Math.abs(diff);
+          for (const inm of inms) {
+            const s = parseFloat(String(inm.saldo_favor_bs || 0)) || 0;
+            if (porDescontar <= 0.009 || s <= 0.009) continue;
+            const usa = Math.min(s, porDescontar);
+            const nuevoSf = Math.max(0, Math.round((s - usa) * 100) / 100);
+            await supabase.from('inmuebles').update({ saldo_favor_bs: nuevoSf }).eq('id', inm.id);
+            porDescontar = Math.max(0, Math.round((porDescontar - usa) * 100) / 100);
+          }
+        }
+      }
+
+      // Contribuyentes (saldo_favor_bs, si existe en tabla)
+      if (variantes.length > 0) {
+        try {
+          const { data: contRow } = await supabase.from('contribuyentes').select('id, identidad, saldo_favor_bs').in('identidad', variantes).limit(1).maybeSingle();
+          if (contRow && contRow.saldo_favor_bs !== undefined && contRow.saldo_favor_bs !== null) {
+            const curSf = parseFloat(String(contRow.saldo_favor_bs || 0)) || 0;
+            const nuevoSf = Math.max(0, Math.round((curSf + diff) * 100) / 100);
+            await supabase.from('contribuyentes').update({ saldo_favor_bs: nuevoSf }).eq('identidad', contRow.identidad);
+          }
+        } catch {}
+      }
     }
 
     // 5. Auditoría

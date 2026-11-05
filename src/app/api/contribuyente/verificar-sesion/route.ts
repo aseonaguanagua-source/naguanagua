@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { esCondominioDoc, MENSAJE_CONDOMINIO_BLOQUEADO } from "@/lib/portalConfig";
 
+export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);

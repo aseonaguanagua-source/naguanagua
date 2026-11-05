@@ -291,9 +291,11 @@ export function formatMonthYear(dateStr?: string | null): string {
  */
 export function getIdentidadVariants(rawInput: string, defaultPrefix = 'V'): string[] {
   if (!rawInput || !rawInput.trim()) return [];
+  const safeRawInput = rawInput.replace(/[,()]/g, ' ').trim();
+  if (!safeRawInput) return [];
 
   let prefix = defaultPrefix.toUpperCase().trim();
-  let raw = rawInput.trim().toUpperCase();
+  let raw = safeRawInput.toUpperCase();
 
   // Si el usuario incluyó el prefijo dentro del texto escrito (ej: "J-075477308" o "J075477308")
   const prefixMatch = raw.match(/^([VEJPG])[-_\s]?(.*)$/);
@@ -305,7 +307,7 @@ export function getIdentidadVariants(rawInput: string, defaultPrefix = 'V'): str
 
   // Quitar cualquier carácter no alfanumérico
   const clean = raw.replace(/[^0-9A-Z]/g, '');
-  if (!clean) return [rawInput.trim().toUpperCase()];
+  if (!clean) return [safeRawInput.toUpperCase()];
 
   // CRÍTICO: Si el resto contiene letras (ej: "AURI000012", "URB035277", "INMUEBLE"),
   // NO es un documento de identidad personal/jurídico (C.I./RIF).
@@ -314,7 +316,7 @@ export function getIdentidadVariants(rawInput: string, defaultPrefix = 'V'): str
   const isPureDigits = /^\d+$/.test(cleanRemainder);
   if (!isPureDigits) {
     const directVariants = new Set<string>();
-    directVariants.add(rawInput.trim().toUpperCase());
+    directVariants.add(safeRawInput.toUpperCase());
     directVariants.add(clean);
     return Array.from(directVariants);
   }
@@ -326,7 +328,7 @@ export function getIdentidadVariants(rawInput: string, defaultPrefix = 'V'): str
   const variants = new Set<string>();
 
   // 1. Entradas directas
-  variants.add(rawInput.trim().toUpperCase());
+  variants.add(safeRawInput.toUpperCase());
   variants.add(clean);
 
   // 2. Prefijos a considerar: el prefijo principal primero, luego alternativas
@@ -368,7 +370,8 @@ export function getIdentidadVariants(rawInput: string, defaultPrefix = 'V'): str
  */
 export function getIdentidadVariantsExact(identidad: string): string[] {
   if (!identidad || !identidad.trim()) return [];
-  const raw = identidad.trim().toUpperCase();
+  const raw = identidad.replace(/[,()]/g, ' ').trim().toUpperCase();
+  if (!raw) return [];
   
   // Si son solo dígitos numéricos (ej. el contribuyente escribe su cédula "12345678" sin la V)
   if (/^\d+$/.test(raw)) {

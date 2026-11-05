@@ -12,7 +12,7 @@ const DEV_PASS = '1756762';
 const parse = (v: any) => { if (!v) return {}; if (typeof v === 'object') return v; try { return JSON.parse(String(v)); } catch { return {}; } };
 
 export async function GET() {
-  const { data } = await sb.from('system_config').select('value').eq('key', KEY).maybeSingle();
+  const { data } = await sb.from('system_config').select('value').eq('key', KEY).limit(1).maybeSingle();
   return NextResponse.json({ textos: parse((data as any)?.value) });
 }
 
@@ -31,7 +31,7 @@ export async function POST(req: Request) {
     const nuevo = body.nuevo == null ? null : String(body.nuevo).slice(0, 2000);
     if (!original) return NextResponse.json({ error: 'Falta el texto original' }, { status: 400 });
 
-    const { data: fila } = await sb.from('system_config').select('value').eq('key', KEY).maybeSingle();
+    const { data: fila } = await sb.from('system_config').select('value').eq('key', KEY).limit(1).maybeSingle();
     const antes = parse((fila as any)?.value);
     const todo: Record<string, Record<string, string>> = JSON.parse(JSON.stringify(antes));
     todo[ruta] = todo[ruta] || {};

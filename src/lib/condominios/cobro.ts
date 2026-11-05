@@ -121,28 +121,28 @@ export async function prepararCobro(sol: SolicitudCobro): Promise<Cobro & { _dat
     const avisos: string[] = [];
     const modo: ModoCobro = sol.modo ? sol.modo : (sol.identidad ? 'CONTRIBUYENTE' : 'CONDOMINIO');
 
-  const conDeuda = estado.renglones.filter(r => r.totalBs > 0.01);
-  const pedidas = new Set((sol.claves || []).filter(Boolean));
-  const coincidePedida = (r: RenglonEstado) =>
-    pedidas.has(r.clave) ||
-    Boolean(r.padreId && pedidas.has(r.padreId)) ||
-    Boolean(r.inmueble && pedidas.has(r.inmueble)) ||
-    Boolean(r.padreInmueble && pedidas.has(r.padreInmueble));
-  let elegidas: RenglonEstado[];
-  if (modo === 'CONDOMINIO') {
-    if (pedidas.size > 0) {
-      elegidas = conDeuda.filter(coincidePedida);
-      if (elegidas.length < conDeuda.length) {
-        avisos.push(`Abono por locales al condominio: Cobrando ${elegidas.length} de ${conDeuda.length} unidades seleccionadas a nombre del condominio.`);
-      }
+    const conDeuda = estado.renglones.filter(r => r.totalBs > 0.01);
+    const pedidas = new Set((sol.claves || []).filter(Boolean));
+    const coincidePedida = (r: RenglonEstado) =>
+        pedidas.has(r.clave) ||
+        Boolean(r.padreId && pedidas.has(r.padreId)) ||
+        Boolean(r.inmueble && pedidas.has(r.inmueble)) ||
+        Boolean(r.padreInmueble && pedidas.has(r.padreInmueble));
+    let elegidas: RenglonEstado[];
+    if (modo === 'CONDOMINIO') {
+        if (pedidas.size > 0) {
+            elegidas = conDeuda.filter(coincidePedida);
+            if (elegidas.length < conDeuda.length) {
+                avisos.push(`Abono por locales al condominio: Cobrando ${elegidas.length} de ${conDeuda.length} unidades seleccionadas a nombre del condominio.`);
+            }
+        } else {
+            elegidas = conDeuda;
+        }
     } else {
-      elegidas = conDeuda;
+        const ced = sol.identidad ? n(sol.identidad) : '';
+        elegidas = conDeuda.filter(r => coincidePedida(r) || (ced && n(r.identidad) === ced));
+        if (!porAct && elegidas.some(r => r.deuda.meses > 0)) avisos.push('Residencial centralizado: al pagar una unidad por separado, se descuenta solo esa unidad.');
     }
-  } else {
-    const ced = sol.identidad ? n(sol.identidad) : '';
-    elegidas = conDeuda.filter(r => coincidePedida(r) || (ced && n(r.identidad) === ced));
-    if (!porAct && elegidas.some(r => r.deuda.meses > 0)) avisos.push('Residencial centralizado: al pagar una unidad por separado, se descuenta solo esa unidad.');
-  }
 
     const lineas: LineaCobro[] = elegidas.map(r => {
         if (sol.soloMultas) {
@@ -224,54 +224,6 @@ export async function prepararCobro(sol: SolicitudCobro): Promise<Cobro & { _dat
             ivaBs: iva, retencionBs: ret, totalBs: r2(base + multaMora + iva - ret + aparte), multaMesesQueQuedan,
         };
     }).filter(l => l.totalBs > 0.01);
-
-    if (lineas.length > 0 && tasa > 0) {
-        const sumEur = (fn: (l: LineaCobro) => number) => r2(lineas.reduce((acc, l) => acc + r2(fn(l) / tasa), 0));
-        const totBaseEur = sumEur(l => l.baseBs);
-        const totMultaMoraEur = sumEur(l => l.multaBs);
-        const totAparteEur = sumEur(l => l.multasAparteBs);
-        const totIvaEur = sumEur(l => l.ivaBs);
-        const totRetEur = sumEur(l => l.retencionBs);
-        const totBrutoEur = r2(totBaseEur + totMultaMoraEur + totAparteEur + totIvaEur);
-        const totNetoEur = r2(totBrutoEur - totRetEur);
-
-        const targetBaseBs = r2(totBaseEur * tasa);
-        const targetMultaMoraBs = r2(totMultaMoraEur * tasa);
-        const targetAparteBs = r2(totAparteEur * tasa);
-        const targetBrutoBs = r2(totBrutoEur * tasa);
-        const targetIvaBs = r2(targetBrutoBs - targetBaseBs - targetMultaMoraBs - targetAparteBs);
-        const targetRetBs = r2(totRetEur * tasa);
-        const targetNetoBs = r2(totNetoEur * tasa);
-
-        const curBaseBs = r2(lineas.reduce((a, l) => a + l.baseBs, 0));
-        const curMultaMoraBs = r2(lineas.reduce((a, l) => a + l.multaBs, 0));
-        const curAparteBs = r2(lineas.reduce((a, l) => a + l.multasAparteBs, 0));
-        const curIvaBs = r2(lineas.reduce((a, l) => a + l.ivaBs, 0));
-        const curRetBs = r2(lineas.reduce((a, l) => a + l.retencionBs, 0));
-
-        const diffBase = r2(targetBaseBs - curBaseBs);
-        const diffMultaMora = r2(targetMultaMoraBs - curMultaMoraBs);
-        const diffAparte = r2(targetAparteBs - curAparteBs);
-        const diffIva = r2(targetIvaBs - curIvaBs);
-        const diffRet = r2(targetRetBs - curRetBs);
-
-        const last = lineas[lineas.length - 1];
-        if (Math.abs(diffBase) <= 2.0 && Math.abs(diffIva) <= 2.0) {
-            if (last.baseBs > 0) last.baseBs = r2(last.baseBs + diffBase);
-            if (diffMultaMora !== 0 && last.multaBs > 0) last.multaBs = r2(last.multaBs + diffMultaMora);
-            if (diffAparte !== 0 && last.multasAparteBs > 0) last.multasAparteBs = r2(last.multasAparteBs + diffAparte);
-            if (diffIva !== 0 && !last.residencial && last.ivaBs > 0) last.ivaBs = r2(last.ivaBs + diffIva);
-            if (diffRet !== 0 && last.retencionBs > 0) last.retencionBs = r2(last.retencionBs + diffRet);
-            last.totalBs = r2(last.baseBs + last.multaBs + last.ivaBs - last.retencionBs + last.multasAparteBs);
-            const curNetoBs = r2(lineas.reduce((a, l) => a + l.totalBs, 0));
-            const diffNetoRem = r2(targetNetoBs - curNetoBs);
-            if (diffNetoRem !== 0 && Math.abs(diffNetoRem) <= 0.5) {
-                if (last.baseBs > 0) last.baseBs = r2(last.baseBs + diffNetoRem);
-                else if (last.multasAparteBs > 0) last.multasAparteBs = r2(last.multasAparteBs + diffNetoRem);
-                last.totalBs = r2(last.baseBs + last.multaBs + last.ivaBs - last.retencionBs + last.multasAparteBs);
-            }
-        }
-    }
 
     if (modo === 'CONDOMINIO' && porAct && !sol.incluirMultas && conDeuda.some(r => r.deuda.multaBs + r.multaExtraBs + r.multasManualesBs > 0))
         avisos.push('Las multas están desactivadas por defecto en el pago del condominio; marque "Cobrar Aseo + Multas" si el condominio desea pagarlas.');
@@ -461,24 +413,23 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
 
     // Si la referencia ingresada ya existía en un pago previo rechazado, anulado o reversado, liberarla
     if (refFinal && !refFinal.startsWith('EFECTIVO-')) {
-        try {
-            await sb
-                .from('pagos_reportados')
-                .update({ referencia: `RECH-${refFinal}-${Date.now().toString().slice(-4)}` })
-                .eq('referencia', refFinal)
-                .in('estado', ['Rechazado', 'Anulado', 'Reversado']);
+        await sb
+            .from('pagos_reportados')
+            .update({ referencia: `RECH-${refFinal}-${Date.now().toString().slice(-4)}` })
+            .eq('referencia', refFinal)
+            .in('estado', ['Rechazado', 'Anulado', 'Reversado']);
 
+        if (!esMetodoSinRefUnica) {
             const { data: refActiva } = await sb
                 .from('pagos_reportados')
                 .select('id, referencia, estado, monto, identidad')
                 .eq('referencia', refFinal)
+                .not('estado', 'in', '(Rechazado,Anulado,Reversado)')
                 .limit(1);
 
             if (refActiva && refActiva.length > 0) {
-                refFinal = `${refFinal}-${c.codigo || 'CONDO'}`;
+                throw new Error(`El número de referencia ${refFinal} ya fue registrado previamente (${refActiva[0].identidad}, Bs ${refActiva[0].monto}).`);
             }
-        } catch (e) {
-            console.warn('Error verificando duplicidad de referencia:', e);
         }
     }
 
@@ -609,12 +560,13 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
                 : undefined,
         };
 
+        const modalidadCobroActiva = sol.modalidad || (sol.soloMultas ? 'multas_separadas' : (cobro.modo === 'CONDOMINIO' ? 'completo' : 'individual'));
         const detalles = {
-            modulo: 'condominios', modo: cobro.modo, cajero: pago.cajero, tasa_bcv: tasa, es_condominio: true, isCondominio: true,
+            modulo: 'condominios', modo: cobro.modo, modalidad_cobro: modalidadCobroActiva, cajero: pago.cajero, tasa_bcv: tasa, es_condominio: true, isCondominio: true,
             soloMultas: !!sol.soloMultas,
             solo_multas: !!sol.soloMultas,
             condominio: {
-                codigo: c.codigo, nombre: c.nombre, identidad: c.identidad, modalidad: c.modalidad, tipo: c.tipo,
+                codigo: c.codigo, nombre: c.nombre, identidad: c.identidad, modalidad: c.modalidad, modalidad_cobro: modalidadCobroActiva, tipo: c.tipo,
                 solo_multas: !!sol.soloMultas,
                 lineas: ls.map(l => ({ unidad_id: porId.get(l.clave)?.id || undefined, inmueble: l.inmueble, numero: l.numero, propietario: l.propietario, identidad: l.identidad, actividad: l.actividad, residencial: l.residencial, meses: l.meses, periodos: l.periodos, aseoBs: l.baseBs, ivaBs: l.ivaBs, multaBs: r2(l.multaBs + l.multasAparteBs), retencionBs: l.retencionBs, totalBs: l.totalBs, totalBrutoBs: r2(l.baseBs + l.multaBs + l.multasAparteBs + l.ivaBs), _multasDetalle: l._multasDetalle || undefined }))
             },
@@ -659,6 +611,7 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
             periodos_pagados: periodoTexto,
             recibo_caja: [reciboCajaItem],
             deuda_previa: antes,
+            deuda_condo_aplicada: true,
             ...(i === 0 && (pago.saldoFavorGenerado || 0) >= 1.00 ? { saldo_favor: r2(pago.saldoFavorGenerado || 0), saldo_favor_acreditado: true } : {}),
         };
 
@@ -677,16 +630,21 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
         if (grupoId) fila.grupo_pago = grupoId;
 
         let { error } = await sb.from('pagos_reportados').insert(fila);
-        if (error && error.message.includes('duplicate')) {
-            // Reintentar resolviendo colisión de clave primaria o referencia
+        if (error && (error.code === '23505' || error.message.includes('duplicate'))) {
             if (error.message.includes('referencia_key') || error.message.includes('referencia')) {
-                fila.referencia = `${refFinal}-${Date.now().toString().slice(-4)}`;
+                if (esMetodoSinRefUnica) {
+                    fila.referencia = `${refFinal}-${Date.now().toString().slice(-4)}`;
+                    const reintento = await sb.from('pagos_reportados').insert(fila);
+                    error = reintento.error;
+                } else {
+                    throw new Error(`El número de referencia ${refFinal} ya fue registrado previamente.`);
+                }
             } else {
                 id = crypto.randomUUID();
                 fila.id = id;
+                const reintento = await sb.from('pagos_reportados').insert(fila);
+                error = reintento.error;
             }
-            const reintento = await sb.from('pagos_reportados').insert(fila);
-            error = reintento.error;
         }
 
         if (error) {
@@ -864,15 +822,22 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
             }
             // Sincronizar en inmuebles para evitar bloqueos de solvencia
             if (u.inmueble && l.meses > 0 && !sol.soloMultas) {
-                const { data: curInm } = await sb.from('inmuebles').select('meses_deuda, deuda_mmv, multa_bs').ilike('inmueble', u.inmueble).maybeSingle();
+                const { data: curInm } = await sb.from('inmuebles').select('meses_deuda, deuda_mmv, multa_bs').ilike('inmueble', u.inmueble).limit(1).maybeSingle();
                 const nMesesRest = l.meses >= l.mesesDeuda ? 0 : Math.max(0, (parseInt(curInm?.meses_deuda || 0) || 0) - l.meses);
                 const permitirMultasInm = sol.incluirMultas === true;
-                await sb.from('inmuebles').update({
+                const updInmLocal: any = {
                     meses_deuda: nMesesRest,
                     deuda_mmv: nMesesRest === 0 ? 0 : (curInm?.deuda_mmv || 0),
                     deuda_congelada_bs: nMesesRest === 0 ? 0 : undefined,
-                    multa_bs: permitirMultasInm ? 0 : (l.multaMesesQueQuedan > 0 ? Math.max(parseFloat(curInm?.multa_bs || '0') || 0, r2(l.multaBs + l.multasAparteBs)) : 0),
-                }).ilike('inmueble', u.inmueble);
+                };
+                if (permitirMultasInm) {
+                    updInmLocal.multa_bs = 0;
+                } else if (l.multaMesesQueQuedan > 0) {
+                    updInmLocal.multa_bs = Math.max(parseFloat(curInm?.multa_bs || '0') || 0, r2(l.multaBs + l.multasAparteBs));
+                } else if (sol.omitirMultaSeptiembre && l.periodos.includes('2026-09') && l.multaMesesQueQuedan === 0) {
+                    updInmLocal.multa_bs = 0;
+                }
+                await sb.from('inmuebles').update(updInmLocal).ilike('inmueble', u.inmueble);
             }
         } else if (l.clave === M.SIN_REGISTRAR || l.clave === '__CONDOMINIO__') {
             const upd: any = {};
@@ -889,14 +854,17 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
             if (Object.keys(upd).length) { await sb.from('condominios').update(upd).eq('id', c.id); }
             // Sincronizar condominio en inmuebles
             if (c.codigo && l.meses > 0 && !sol.soloMultas) {
-                const { data: curInm } = await sb.from('inmuebles').select('meses_deuda, deuda_mmv').eq('inmueble', c.codigo).maybeSingle();
+                const { data: curInm } = await sb.from('inmuebles').select('meses_deuda, deuda_mmv, multa_bs').eq('inmueble', c.codigo).limit(1).maybeSingle();
                 if (curInm) {
                     const nMesesRest = Math.max(0, (parseInt(curInm.meses_deuda || 0) || 0) - l.meses);
-                    await sb.from('inmuebles').update({
+                    const updCondoInm: any = {
                         meses_deuda: nMesesRest,
                         deuda_mmv: nMesesRest === 0 ? 0 : curInm.deuda_mmv,
-                        multa_bs: 0
-                    }).eq('inmueble', c.codigo);
+                    };
+                    if (sol.incluirMultas && (l.clave === '__CONDOMINIO__' || l.clave === M.SIN_REGISTRAR)) {
+                        updCondoInm.multa_bs = 0;
+                    }
+                    await sb.from('inmuebles').update(updCondoInm).eq('inmueble', c.codigo);
                 }
             }
         }
@@ -905,8 +873,9 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
     // Residencial centralizado pagado completo: el condominio también avanza
     if (cobro.modo === 'CONDOMINIO' && !cobro.estado.porActividad && !cobro.lineas.some(l => l.clave === M.SIN_REGISTRAR) && !sol.soloMultas) {
         const nMeses = cobro.totales.meses;
+        const safeCod = String(c.codigo || '').replace(/[,()]/g, '').trim();
         if (nMeses > 0 && c.aseo_pendiente_desde) await sb.from('condominios').update({ aseo_pendiente_desde: M.avanzarPendiente(c.aseo_pendiente_desde, nMeses, hoy), multa_meses: 0 }).eq('id', c.id);
-        await sb.from('inmuebles').update({ meses_deuda: 0, deuda_mmv: 0, multa_bs: 0 }).or(`inmueble.eq.${c.codigo},condominio_padre_id.eq.${c.codigo},padre_id.eq.${c.codigo}`);
+        if (safeCod) await sb.from('inmuebles').update({ meses_deuda: 0, deuda_mmv: 0, multa_bs: 0 }).or(`inmueble.eq.${safeCod},condominio_padre_id.eq.${safeCod},padre_id.eq.${safeCod}`);
     }
 
     // Sincronizar unidades contenedor / es_grupo / N/A con la fecha pendiente del condominio matriz

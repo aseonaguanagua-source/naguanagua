@@ -51,7 +51,7 @@ export async function POST(req: Request) {
       const hora = /^\d{2}:\d{2}$/.test(p.hora || '') ? p.hora : '12:00';
       const refFinal = p.referencia ? String(p.referencia).trim() : '';
       if (refFinal) {
-        const { data: existente } = await sb.from('pagos_reportados').select('*').eq('referencia', refFinal).maybeSingle();
+        const { data: existente } = await sb.from('pagos_reportados').select('*').eq('referencia', refFinal).limit(1).maybeSingle();
         if (existente) {
           const detExist = det(existente);
           const nuevoDetalles = {

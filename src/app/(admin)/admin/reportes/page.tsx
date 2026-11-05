@@ -52,6 +52,9 @@ export default function ReportesPage() {
   const [fechaFin, setFechaFin] = useState(hoyStr);
   const [morososData, setMorososData] = useState<{total: number; deudaTotal: number} | null>(null);
   const [loadingMorosos, setLoadingMorosos] = useState(false);
+  const [tfecha, setTfecha] = useState(hoyStr);
+  const [tfechaFin, setTfechaFin] = useState(hoyStr);
+  const [testado, setTestado] = useState('Todos');
 
   useEffect(() => {
     let activeUser = (typeof window !== 'undefined' ? localStorage.getItem('adminUser') : null) || '';
@@ -158,32 +161,36 @@ export default function ReportesPage() {
   const generarLibroVentas = (tipo: 'Diario' | 'Semanal' | 'Mensual') => {
     let pf = pagos;
     if (fechaInicio && fechaFin) {
-      const s = new Date(fechaInicio + 'T00:00:00'), e = new Date(fechaFin + 'T23:59:59');
+      const s = new Date(fechaInicio + 'T00:00:00.000-04:00'), e = new Date(fechaFin + 'T23:59:59.999-04:00');
       pf = pagos.filter((p: any) => { const d = fechaEfectivaPago(p); return d >= s && d <= e; });
     }
     generarLibroVentasExcel(pf, contribuyentes, tipo, fechaInicio, fechaFin);
   };
   const generarSaldosFavor = async () => {
     const mes = new Date().toLocaleString('es-VE', { month: 'long' });
-    const { data } = await supabase.from('saldos_favor').select('*');
+    const { data } = await supabase
+      .from('inmuebles')
+      .select('id, inmueble, identidad, contribuyente, clasificacion, estado, saldo_favor_bs, updated_at')
+      .gt('saldo_favor_bs', 0)
+      .order('saldo_favor_bs', { ascending: false });
     generarSaldosFavorExcel(data || [], mes);
   };
   const generarCorteCaja = () => {
-    const s = fechaInicio ? new Date(fechaInicio + 'T00:00:00') : new Date(new Date().setHours(0,0,0,0));
-    const e = fechaFin ? new Date(fechaFin + 'T23:59:59') : new Date(new Date().setHours(23,59,59,999));
+    const s = fechaInicio ? new Date(fechaInicio + 'T00:00:00.000-04:00') : new Date(new Date().setHours(0,0,0,0));
+    const e = fechaFin ? new Date(fechaFin + 'T23:59:59.999-04:00') : new Date(new Date().setHours(23,59,59,999));
     const pf = pagos.filter((p: any) => { const d = new Date(p.created_at); return d >= s && d <= e; });
     generarCorteCajaPDF(pf, contribuyentes, fechaInicio, fechaFin);
   };
   const generarIngresoBancario = (tipo: 'Diario' | 'Semanal' | 'Mensual') => {
     let pf = pagos;
     if (fechaInicio && fechaFin) {
-      const s = new Date(fechaInicio + 'T00:00:00'), e = new Date(fechaFin + 'T23:59:59');
+      const s = new Date(fechaInicio + 'T00:00:00.000-04:00'), e = new Date(fechaFin + 'T23:59:59.999-04:00');
       pf = pagos.filter((p: any) => { const d = new Date(p.created_at); return d >= s && d <= e; });
     }
     generarIngresoBancarioPDF(pf, contribuyentes, tipo, fechaInicio, fechaFin);
   };
   const generarEmpleados = async () => {
-    const { data } = await supabase.from('gestion_empleados').select('*');
+    const { data } = await supabase.from('trabajadores').select('*');
     if (data) generarEmpleadosExcel(data);
   };
   const generarFiscalizacion = (tipo: string) => {
@@ -233,7 +240,7 @@ export default function ReportesPage() {
   );
 
   if (activeView === 'recibos-pagos') {
-    const s = new Date(fechaInicio + 'T00:00:00'), e = new Date(fechaFin + 'T23:59:59');
+    const s = new Date(fechaInicio + 'T00:00:00.000-04:00'), e = new Date(fechaFin + 'T23:59:59.999-04:00');
     const pf = pagos.filter((p: any) => { const d = fechaEfectivaPago(p); return d >= s && d <= e; });
     return (
       <div className="space-y-4">
@@ -262,7 +269,7 @@ export default function ReportesPage() {
   }
 
   if (activeView === 'conciliacion-bancaria') {
-    const s = new Date(fechaInicio + 'T00:00:00'), e = new Date(fechaFin + 'T23:59:59');
+    const s = new Date(fechaInicio + 'T00:00:00.000-04:00'), e = new Date(fechaFin + 'T23:59:59.999-04:00');
     const pf = pagos.filter((p: any) => { const d = fechaEfectivaPago(p); return d >= s && d <= e; });
     return (
       <div className="space-y-4">
@@ -291,8 +298,8 @@ export default function ReportesPage() {
   }
 
   if (activeView === 'puntos-venta') {
-    const s = new Date(fechaInicio + 'T00:00:00'), e = new Date(fechaFin + 'T23:59:59');
-    const pf = pagos.filter((p: any) => { const d = new Date(p.created_at); return d >= s && d <= e; });
+    const s = new Date(fechaInicio + 'T00:00:00.000-04:00'), e = new Date(fechaFin + 'T23:59:59.999-04:00');
+    const pf = pagos.filter((p: any) => { const d = fechaEfectivaPago(p); return d >= s && d <= e; });
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-3">
@@ -456,9 +463,6 @@ export default function ReportesPage() {
   if (activeView === 'transferencias') {
     const fmtBsR = (n: number) => n.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const fmtDateR = (d: string) => { try { return new Date(d).toLocaleDateString('es-VE'); } catch { return d; } };
-    const [tfecha, setTfecha] = React.useState(new Date().toISOString().slice(0,10));
-    const [tfechaFin, setTfechaFin] = React.useState(new Date().toISOString().slice(0,10));
-    const [testado, setTestado] = React.useState('Todos');
     const getNombreR = (p: any) => {
       if (!p.identidad) return p.contribuyente || '';
       const clean = (s: string) => (s||'').replace(/[-.\s]/g,'').toUpperCase();
@@ -470,7 +474,7 @@ export default function ReportesPage() {
     const isDebitoR = (p: any) => p.tipo==='Debito'||p.tipo==='REC'||p.tipo==='Punto de Venta';
     const pagosR = pagos.filter(p => {
       const d = new Date(p.created_at);
-      const s = new Date(tfecha+'T00:00'); const e = new Date(tfechaFin+'T23:59');
+      const s = new Date(tfecha+'T00:00:00.000-04:00'); const e = new Date(tfechaFin+'T23:59:59.999-04:00');
       if (d < s || d > e) return false;
       if (testado !== 'Todos' && p.estado !== testado) return false;
       return true;

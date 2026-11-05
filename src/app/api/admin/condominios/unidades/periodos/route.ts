@@ -24,7 +24,7 @@ export async function POST(req: Request) {
     }
 
     // 2. Cargar notas actuales de inmuebles
-    const { data: inm } = await sb.from('inmuebles').select('notas, contribuyente, actividad_principal').eq('inmueble', inmCode).maybeSingle();
+    const { data: inm } = await sb.from('inmuebles').select('notas, contribuyente, actividad_principal').eq('inmueble', inmCode).limit(1).maybeSingle();
     let existingNotas: any = {};
     try {
       if (inm?.notas) {

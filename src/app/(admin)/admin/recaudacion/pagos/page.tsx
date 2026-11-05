@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 import { useState, useEffect } from 'react';
 import { Wallet, Search, Plus, CheckCircle, Receipt, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -24,9 +24,17 @@ export default function PagosPage() {
 
   const fetchPagos = async () => {
     setLoading(true);
-    const { data, error } = await supabase.from('hacienda_pagos').select('*').order('created_at', { ascending: false });
+    const { data, error } = await supabase.from('pagos_reportados').select('*').order('created_at', { ascending: false }).limit(200);
     if (!error && data) {
-      setPagos(data);
+      setPagos(data.map((p: any) => ({
+        ...p,
+        contribuyente_identidad: p.identidad || p.contribuyente_identidad || '',
+        contribuyente_nombre: p.contribuyente || p.contribuyente_nombre || '',
+        concepto: p.concepto || p.detalles?.concepto || 'Aseo Urbano Municipal',
+        monto_total: Number(p.monto || p.monto_total || 0),
+        metodo_pago: p.tipo || p.metodo_pago || 'Transferencia',
+        referencia_comprobante: p.referencia || p.referencia_comprobante || '',
+      })));
     }
     setLoading(false);
   };
@@ -34,7 +42,16 @@ export default function PagosPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    const { error } = await supabase.from('hacienda_pagos').insert([formData]);
+    const { error } = await supabase.from('pagos_reportados').insert([{
+      identidad: formData.contribuyente_identidad,
+      contribuyente: formData.contribuyente_nombre,
+      monto: Number(formData.monto_total || 0),
+      tipo: formData.metodo_pago,
+      referencia: formData.referencia_comprobante,
+      fecha: new Date().toISOString().slice(0, 10),
+      estado: formData.metodo_pago === 'Punto de Venta' ? 'Aprobado' : 'Por Verificar',
+      detalles: { concepto: formData.concepto, origen: 'recaudacion_pagos' }
+    }]);
     setSaving(false);
     
     if (!error) {
@@ -46,7 +63,7 @@ export default function PagosPage() {
       });
       fetchPagos();
     } else {
-      alert('Error al registrar el pago. Verifique que creó la tabla hacienda_pagos en Supabase.');
+      alert('Error al registrar el pago: ' + (error.message || 'Verifique la referencia.'));
     }
   };
 

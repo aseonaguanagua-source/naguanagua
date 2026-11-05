@@ -55,8 +55,10 @@ export async function generarMontoDiarioRecaudado({
   fechaFin,
   tcmmvActual = 0
 }: MontoDiarioParams) {
-  const s = new Date(fechaInicio + 'T00:00:00');
-  const e = new Date(fechaFin + 'T23:59:59');
+  const dFromStr = String(fechaInicio || '').split('T')[0];
+  const dToStr = String(fechaFin || '').split('T')[0];
+  const s = new Date(dFromStr + 'T00:00:00');
+  const e = new Date(dToStr + 'T23:59:59');
 
   const vivos = pagos.filter((p: any) => {
     if (esAnulado(p) || esRetencion(p) || esSaldoFavor(p)) return false;

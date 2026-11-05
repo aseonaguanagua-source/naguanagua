@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 async function adminActivo(usuario: string) {
   const u = String(usuario || '').trim().toLowerCase();
   if (!u) return null;
-  const { data: t } = await sb.from('trabajadores').select('usuario, nombre, rol, estado').ilike('usuario', u).maybeSingle();
+  const { data: t } = await sb.from('trabajadores').select('usuario, nombre, rol, estado').ilike('usuario', u).limit(1).maybeSingle();
   if (!t || !(t.rol === 'Administrador' || u === 'dzara')) return null;
   if (t.estado && String(t.estado).trim().toLowerCase() !== 'activo') return null;
   return t;
@@ -26,7 +26,7 @@ export async function POST(req: Request) {
     if (String(concepto || '').trim().length < 3) return NextResponse.json({ error: 'Escriba el concepto de la multa.' }, { status: 400 });
     const bs = Number(monto_bs) || 0, mmv = Number(monto_mmv) || 0;
     if (bs <= 0 && mmv <= 0) return NextResponse.json({ error: 'Indique el monto (Bs o MMV).' }, { status: 400 });
-    const { data: c } = await sb.from('condominios').select('id, codigo, nombre, identidad, multa_meses').eq('codigo', String(codigo || '').toUpperCase()).maybeSingle();
+    const { data: c } = await sb.from('condominios').select('id, codigo, nombre, identidad, multa_meses').eq('codigo', String(codigo || '').toUpperCase()).limit(1).maybeSingle();
     if (!c) return NextResponse.json({ error: 'Condominio no encontrado' }, { status: 404 });
     let identidad = c.identidad;
     let unidadInm: string | null = null;
@@ -96,7 +96,7 @@ export async function POST(req: Request) {
     // Sincronizar también en tabla inmuebles (para que se vea en Contribuyentes)
     const targetCodigoInm = unidadInm || c.codigo;
     if (targetCodigoInm && bs > 0) {
-      const { data: inmRow } = await sb.from('inmuebles').select('id, multa_bs, notas').eq('inmueble', targetCodigoInm).maybeSingle();
+      const { data: inmRow } = await sb.from('inmuebles').select('id, multa_bs, notas').eq('inmueble', targetCodigoInm).limit(1).maybeSingle();
       if (inmRow) {
         const nuevaMultaBs = Math.round(((Number(inmRow.multa_bs) || 0) + bs) * 100) / 100;
         let nuevaNota = String(inmRow.notas || '')
@@ -148,7 +148,7 @@ export async function PATCH(req: Request) {
         if (c?.codigo) targetInmCode = c.codigo;
       }
       if (targetInmCode && Number(multaAnulada.monto_bs) > 0) {
-        const { data: inmRow } = await sb.from('inmuebles').select('id, multa_bs, notas').eq('inmueble', targetInmCode).maybeSingle();
+        const { data: inmRow } = await sb.from('inmuebles').select('id, multa_bs, notas').eq('inmueble', targetInmCode).limit(1).maybeSingle();
         if (inmRow) {
           const nextMultaBs = Math.max(0, Math.round(((Number(inmRow.multa_bs) || 0) - (Number(multaAnulada.monto_bs) || 0)) * 100) / 100);
           let notaStr = String(inmRow.notas || '').trim();
