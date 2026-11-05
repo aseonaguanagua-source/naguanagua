@@ -20,6 +20,7 @@ export async function POST(req: Request) {
       fechaAsignacion,
       sinMulta,
       concepto,
+      formasPago,
       usuario
     } = await req.json();
 
@@ -252,8 +253,32 @@ export async function POST(req: Request) {
       }
     }
 
-    // Actualizar monto pagado en formasPago y monto_conciliado si el monto fue modificado expresamente
-    if (montoCambio) {
+    // Si se envían formasPago editadas (ej. pago múltiple con Débito + Transferencia), persistirlas
+    if (Array.isArray(formasPago) && formasPago.length > 0) {
+      const normalizedFps = formasPago.map((fp: any) => ({
+        descripcion: String(fp?.descripcion || fp?.tipo || fp?.metodo || 'Transferencia').trim(),
+        tipo: String(fp?.tipo || fp?.descripcion || fp?.metodo || 'Transferencia').trim(),
+        metodo: String(fp?.metodo || fp?.descripcion || fp?.tipo || 'Transferencia').trim(),
+        banco: String(fp?.banco || '').trim(),
+        referencia: String(fp?.referencia || '').trim(),
+        fecha: fp?.fecha || fechaUnificada || det.fecha_transaccion || pago.created_at,
+        monto: Math.round(((parseFloat(String(fp?.monto ?? 0).replace(',', '.')) || 0) + Number.EPSILON) * 100) / 100,
+      })).filter((fp: any) => fp.monto > 0);
+
+      if (normalizedFps.length > 0) {
+        nuevosDetalles.formasPago = normalizedFps;
+        nuevosDetalles.pagos_agregados = normalizedFps.map((fp: any) => ({
+          tipo: fp.tipo,
+          metodo: fp.metodo,
+          descripcion: fp.descripcion,
+          banco: fp.banco,
+          referencia: fp.referencia,
+          fecha: String(fp.fecha || '').slice(0, 10),
+          monto: fp.monto,
+        }));
+      }
+    } else if (montoCambio) {
+      // Actualizar monto pagado en formasPago y monto_conciliado si el monto fue modificado expresamente
       nuevosDetalles.monto_conciliado = String(nuevoMonto);
       if (Array.isArray(nuevosDetalles.formasPago) && nuevosDetalles.formasPago[0]) {
         nuevosDetalles.formasPago[0].monto = nuevoMonto;

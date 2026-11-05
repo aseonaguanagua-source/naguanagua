@@ -1636,6 +1636,22 @@ export async function POST(request: Request) {
                 ? (retCalculada > 0 ? retCalculada : (parseFloat(String(detPago.monto_retencion_iva || detPago.retencion_iva || 0)) || 0))
                 : 0;
 
+              // Obtener lista de pagos múltiples (priorizando el array formasPago enviado desde el modal si tiene > 1 renglón)
+              const fuenteMultiOriginal: any[] =
+                Array.isArray(formasPago) && formasPago.length > 1
+                  ? formasPago
+                  : Array.isArray(detPago.formasPago) && detPago.formasPago.length > 1
+                  ? detPago.formasPago
+                  : Array.isArray(detPago.pagos_agregados) && detPago.pagos_agregados.length > 1
+                  ? detPago.pagos_agregados
+                  : [];
+
+              const pagosBancarios = fuenteMultiOriginal.filter(
+                (pa: any) =>
+                  !String(pa?.descripcion || pa?.metodo || pa?.tipo || '').toLowerCase().includes('saldo a favor') &&
+                  !String(pa?.descripcion || pa?.metodo || pa?.tipo || '').toLowerCase().includes('nota de credito')
+              );
+
               // Si hubo Saldo a Favor o Retención de IVA, desglosar claramente las formas de pago
               if (saldoFavorUsado > 0 || (conRetencion && montoRetNum > 0)) {
                 const montoRetFinal = conRetencion && montoRetNum > 0 ? Math.min(totalAPagar, montoRetNum) : 0;
@@ -1643,14 +1659,11 @@ export async function POST(request: Request) {
                 const montoNetoCaja = r2(totalAPagar - montoRetFinal - montoSF);
 
                 const fps: any[] = [];
-                const pagosBancarios = Array.isArray(detPago.pagos_agregados)
-                  ? detPago.pagos_agregados.filter((pa: any) => !String(pa?.metodo || pa?.tipo || '').toLowerCase().includes('saldo a favor') && !String(pa?.metodo || pa?.tipo || '').toLowerCase().includes('nota de credito'))
-                  : [];
 
                 if (pagosBancarios.length > 1 && montoNetoCaja > 0) {
                   let sumPa = 0;
                   for (const pa of pagosBancarios) {
-                    const descPa = String(pa.metodo || pa.tipo || tipoPago).trim();
+                    const descPa = String(pa.descripcion || pa.metodo || pa.tipo || tipoPago).trim();
                     const nPa = descPa.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
                     const hPa = tabla.find(([, , keys]) => keys.some(k => nPa.includes(k)));
                     const cPa = hPa ? hPa[0] : codigo;
@@ -1713,32 +1726,40 @@ export async function POST(request: Request) {
                 return fps;
               }
 
-              // Múltiples formas de pago registradas en caja (sin retención)
-              if (Array.isArray(detPago.formasPago) && detPago.formasPago.length > 1) {
+              // Múltiples formas de pago registradas o editadas en el modal (ej. Débito + Transferencia)
+              if (pagosBancarios.length > 1) {
                 let sumFp = 0;
-                const fps = detPago.formasPago.map((fp: any) => {
-                  const desc = String(fp.descripcion || fp.tipo || 'Pago').trim();
-                  const n = desc.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-                  const h = tabla.find(([, , keys]) => keys.some(k => n.includes(k)));
-                  const c = h ? h[0] : (fp.forma || '99');
-                  const f = casilla(h ? h[1] : desc, 40);
-                  const r = casilla(String(fp.referencia || ''), 25);
-                  const b = casilla(String(fp.banco || ''), Math.max(0, 100 - 2 - f.length - r.length));
-                  const m = r2(parseFloat(String(fp.monto || 0)) || 0);
-                  sumFp += m;
-                  return {
-                    Descripcion: [f, b, r].join('|'),
-                    Fecha:       formatearFecha(fp.fecha || fechaPago),
-                    Forma:       c,
-                    Monto:       m.toFixed(2),
-                    Moneda:      'BSD',
-                    TipoCambio:  '0.0000',
-                  };
-                });
-                if (Math.abs(sumFp - totalAPagar) <= 0.05) {
+                const fps = pagosBancarios
+                  .map((fp: any) => {
+                    const desc = String(fp.descripcion || fp.metodo || fp.tipo || 'Pago').trim();
+                    const n = desc.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                    const h = tabla.find(([, , keys]) => keys.some(k => n.includes(k)));
+                    const c = h ? h[0] : (fp.forma || '99');
+                    const f = casilla(h ? h[1] : desc, 40);
+                    const r = casilla(String(fp.referencia || ''), 25);
+                    const b = casilla(String(fp.banco || ''), Math.max(0, 100 - 2 - f.length - r.length));
+                    const m = r2(parseFloat(String(fp.monto || 0)) || 0);
+                    sumFp = r2(sumFp + m);
+                    return {
+                      Descripcion: [f, b, r].join('|'),
+                      Fecha:       formatearFecha(fp.fecha || fp.fechaTransaccion || fechaPago),
+                      Forma:       c,
+                      Monto:       m.toFixed(2),
+                      Moneda:      'BSD',
+                      TipoCambio:  '0.0000',
+                    };
+                  })
+                  .filter((it: any) => parseFloat(it.Monto) > 0);
+
+                if (fps.length > 1 && sumFp > 0) {
                   const difFp = r2(totalAPagar - sumFp);
-                  if (difFp !== 0 && fps.length > 0) {
-                    fps[fps.length - 1].Monto = (parseFloat(fps[fps.length - 1].Monto) + difFp).toFixed(2);
+                  if (difFp !== 0) {
+                    const lastIdx = fps.length - 1;
+                    if (parseFloat(fps[lastIdx].Monto) + difFp > 0) {
+                      fps[lastIdx].Monto = r2(parseFloat(fps[lastIdx].Monto) + difFp).toFixed(2);
+                    } else if (parseFloat(fps[0].Monto) + difFp > 0) {
+                      fps[0].Monto = r2(parseFloat(fps[0].Monto) + difFp).toFixed(2);
+                    }
                   }
                   return fps;
                 }
@@ -1790,18 +1811,45 @@ export async function POST(request: Request) {
                 ? saldoFavorGenerado
                 : (parseFloat(String(detPago.saldo_a_favor_nuevo || detPago.monto_sobrante || detPago.saldo_favor || 0)) || 0);
 
-              const refsMulti = Array.isArray(detPago.pagos_agregados) && detPago.pagos_agregados.length > 1
-                ? detPago.pagos_agregados
-                    .filter((pa: any) => !String(pa?.metodo || pa?.tipo || '').toLowerCase().includes('saldo a favor') && !String(pa?.metodo || pa?.tipo || '').toLowerCase().includes('nota de credito'))
-                    .map((pa: any) => `${pa.referencia} (Bs. ${f2(parseFloat(String(pa.monto || 0)) || 0)})`)
+              const fuenteObsMulti: any[] =
+                Array.isArray(formasPago) && formasPago.length > 1
+                  ? formasPago
+                  : Array.isArray(detPago.formasPago) && detPago.formasPago.length > 1
+                  ? detPago.formasPago
+                  : Array.isArray(detPago.pagos_agregados) && detPago.pagos_agregados.length > 1
+                  ? detPago.pagos_agregados
+                  : [];
+
+              const pagosObsBancarios = fuenteObsMulti.filter(
+                (pa: any) =>
+                  !String(pa?.descripcion || pa?.metodo || pa?.tipo || '').toLowerCase().includes('saldo a favor') &&
+                  !String(pa?.descripcion || pa?.metodo || pa?.tipo || '').toLowerCase().includes('nota de credito')
+              );
+
+              const refsMulti = pagosObsBancarios.length > 1
+                ? pagosObsBancarios
+                    .map((pa: any) => {
+                      const mTipo = String(pa.descripcion || pa.metodo || pa.tipo || tipoPago).trim();
+                      const mBanco = String(pa.banco || '').trim();
+                      const mRef = String(pa.referencia || '').trim();
+                      return `${mTipo}${mBanco ? ' ' + mBanco : ''}${mRef ? ' Ref. ' + mRef : ''} (Bs. ${f2(parseFloat(String(pa.monto || 0)) || 0)})`;
+                    })
                     .join(' + ')
                 : '';
 
               const partes: string[] = [];
               if (montoConciliado > 0) {
-                partes.push(`Monto Conciliado: Bs. ${f2(montoConciliado)} (${tipoPago}${bancoPago ? ' ' + bancoPago : ''}${refsMulti ? ' Refs. ' + refsMulti : (refPago ? ' Ref. ' + refPago : '')})`);
+                partes.push(
+                  refsMulti
+                    ? `Monto Conciliado: Bs. ${f2(montoConciliado)} (${refsMulti})`
+                    : `Monto Conciliado: Bs. ${f2(montoConciliado)} (${tipoPago}${bancoPago ? ' ' + bancoPago : ''}${refPago ? ' Ref. ' + refPago : ''})`
+                );
               } else if (montoNetoCaja > 0) {
-                partes.push(`Monto Pagado en Caja: Bs. ${f2(montoNetoCaja)} (${tipoPago}${bancoPago ? ' ' + bancoPago : ''}${refsMulti ? ' Refs. ' + refsMulti : (refPago ? ' Ref. ' + refPago : '')})`);
+                partes.push(
+                  refsMulti
+                    ? `Monto Pagado en Caja: Bs. ${f2(montoNetoCaja)} (${refsMulti})`
+                    : `Monto Pagado en Caja: Bs. ${f2(montoNetoCaja)} (${tipoPago}${bancoPago ? ' ' + bancoPago : ''}${refPago ? ' Ref. ' + refPago : ''})`
+                );
               }
 
               if (montoSF > 0) {
@@ -2052,6 +2100,31 @@ export async function POST(request: Request) {
     }
     if (modulo) {
       nuevosDetalles.modulo = modulo;
+    }
+    if (Array.isArray(formasPago) && formasPago.length > 1) {
+      const normalizedFps = formasPago
+        .map((fp: any) => ({
+          descripcion: String(fp?.descripcion || fp?.tipo || fp?.metodo || 'Transferencia').trim(),
+          tipo: String(fp?.tipo || fp?.descripcion || fp?.metodo || 'Transferencia').trim(),
+          metodo: String(fp?.metodo || fp?.descripcion || fp?.tipo || 'Transferencia').trim(),
+          banco: String(fp?.banco || '').trim(),
+          referencia: String(fp?.referencia || '').trim(),
+          fecha: fp?.fecha || fechaPago,
+          monto: r2(parseFloat(String(fp?.monto ?? 0).replace(',', '.')) || 0),
+        }))
+        .filter((fp: any) => fp.monto > 0);
+      if (normalizedFps.length > 1) {
+        nuevosDetalles.formasPago = normalizedFps;
+        nuevosDetalles.pagos_agregados = normalizedFps.map((fp: any) => ({
+          tipo: fp.tipo,
+          metodo: fp.metodo,
+          descripcion: fp.descripcion,
+          banco: fp.banco,
+          referencia: fp.referencia,
+          fecha: String(fp.fecha || '').slice(0, 10),
+          monto: fp.monto,
+        }));
+      }
     }
     nuevosDetalles.base_imponible = totalGravado;
     nuevosDetalles.iva_monto = totalIVA;
