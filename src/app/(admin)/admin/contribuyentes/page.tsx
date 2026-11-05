@@ -3382,6 +3382,63 @@ function ContribuyentesPageContent() {
                     {ordenanzaData.clasificaciones.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
+
+                {(formData.Clasificacion === 'Residencial' || formData.Clasificacion === 'Mixto') && (
+                  <div>
+                    <label className="block text-[10px] font-semibold text-blue-600 mb-1">Tipo de Residencia</label>
+                    <select
+                      value={formData.TipoResidencia || ordenanzaData.tiposResidenciales[0].label}
+                      onChange={e => {
+                        const val = e.target.value;
+                        const updatedLocales = (formData.locales || []).map((loc: any, idx: number) =>
+                          idx === 0 && loc.uso === 'Residencial' ? { ...loc, tipoResidencia: val } : loc
+                        );
+                        setFormData({ ...formData, TipoResidencia: val, locales: updatedLocales });
+                      }}
+                      className="w-full border border-slate-300 bg-white rounded px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500"
+                    >
+                      {ordenanzaData.tiposResidenciales.map(t => <option key={t.label} value={t.label}>{t.label}</option>)}
+                    </select>
+                  </div>
+                )}
+
+                {(formData.Clasificacion?.includes('Comercial') || formData.Clasificacion === 'Industrial' || formData.Clasificacion === 'Mixto') && (
+                  <>
+                    <div>
+                      <label className="block text-[10px] font-semibold text-blue-600 mb-1">Actividad Económica</label>
+                      <select
+                        value={formData.ActividadComercial || todasLasActividades[0].label}
+                        onChange={e => {
+                          const val = e.target.value;
+                          const updatedLocales = (formData.locales || []).map((loc: any, idx: number) =>
+                            idx === 0 && loc.uso !== 'Residencial' ? { ...loc, actividadComercial: val } : loc
+                          );
+                          setFormData({ ...formData, ActividadComercial: val, locales: updatedLocales });
+                        }}
+                        className="w-full border border-slate-300 bg-white rounded px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500"
+                      >
+                        <option value="N/A">N/A (No Aplica)</option>
+                        {todasLasActividades.map(a => <option key={a.label} value={a.label}>{a.label}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-semibold text-blue-600 mb-1">Nivel (Rango de Metraje)</label>
+                      <select
+                        value={formData.NivelMetraje || ordenanzaData.nivelesMetraje[0]}
+                        onChange={e => {
+                          const val = e.target.value;
+                          const updatedLocales = (formData.locales || []).map((loc: any, idx: number) =>
+                            idx === 0 && loc.uso !== 'Residencial' ? { ...loc, nivelMetraje: val } : loc
+                          );
+                          setFormData({ ...formData, NivelMetraje: val, locales: updatedLocales });
+                        }}
+                        className="w-full border border-slate-300 bg-white rounded px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500"
+                      >
+                        {ordenanzaData.nivelesMetraje.map(n => <option key={n} value={n}>{n}</option>)}
+                      </select>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Checkbox de Condominio informativo */}

@@ -1126,7 +1126,11 @@ function Ficha() {
                                   )}
                                 </td>
                                 <td className="py-2.5 px-3 text-xs text-slate-700">
-                                  <div>{m.concepto}</div>
+                                  <div>
+                                    {m.tipo === 'PAGO' && !/aseo|multa/i.test(String(m.concepto || ''))
+                                      ? String(m.concepto || '').replace(/^Pago del (condominio|contribuyente)/i, 'Pago de Aseo Urbano ($1)')
+                                      : m.concepto}
+                                  </div>
                                   {p?.referencia && (
                                     <span className="inline-block mt-0.5 font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
                                       Ref: {p.referencia}
@@ -1271,6 +1275,7 @@ function Ficha() {
                             <th className="text-left py-2.5 px-3">Método / Banco</th>
                             <th className="text-left py-2.5 px-3">Contribuyente</th>
                             <th className="text-left py-2.5 px-3">Código / Local / Unidad</th>
+                            <th className="text-left py-2.5 px-3">Concepto / Períodos</th>
                             <th className="text-right py-2.5 px-3">Monto (Bs)</th>
                             <th className="text-center py-2.5 px-3">Estado</th>
                             <th className="text-left py-2.5 px-3">Cajero / Operador</th>
@@ -1329,6 +1334,41 @@ function Ficha() {
                                       )}
                                     </div>
                                   )}
+                                </td>
+                                <td className="py-2.5 px-3 text-xs text-slate-700">
+                                  {(() => {
+                                    const lineas: any[] = Array.isArray(det?.condominio?.lineas) ? det.condominio.lineas : [];
+                                    const lineasMatch = t
+                                      ? lineas.filter(l => String(l?.inmueble || '').toUpperCase().includes(t) || String(l?.unidad || '').toUpperCase().includes(t))
+                                      : lineas;
+                                    const targetLineas = lineasMatch.length > 0 ? lineasMatch : lineas;
+                                    const periodosSet = new Set<string>();
+                                    let tieneAseo = false;
+                                    let tieneMulta = Boolean(det?.condominio?.soloMultas);
+                                    targetLineas.forEach(l => {
+                                      if (Array.isArray(l?.periodos)) l.periodos.forEach((pr: string) => pr && periodosSet.add(pr));
+                                      if (Number(l?.aseoBs || 0) > 0 || Number(l?.ivaBs || 0) > 0 || !det?.condominio?.soloMultas) tieneAseo = true;
+                                      if (Number(l?.multaBs || 0) > 0 || Number(l?.multasAparteBs || 0) > 0) tieneMulta = true;
+                                    });
+                                    const periodosArr = [...periodosSet].sort();
+                                    const tipoLabel = det?.condominio?.soloMultas
+                                      ? 'Pago de Multas'
+                                      : tieneAseo && tieneMulta
+                                      ? 'Aseo Urbano + Multas'
+                                      : 'Pago de Aseo Urbano';
+                                    return (
+                                      <div>
+                                        <span className="font-semibold text-slate-800 block">{tipoLabel}</span>
+                                        {periodosArr.length > 0 ? (
+                                          <span className="text-[11px] font-mono text-emerald-700">
+                                            {periodosArr.length} mes(es): {periodosArr.join(', ')}
+                                          </span>
+                                        ) : det?.concepto ? (
+                                          <span className="text-[11px] text-slate-500">{det.concepto}</span>
+                                        ) : null}
+                                      </div>
+                                    );
+                                  })()}
                                 </td>
                                 <td className="py-2.5 px-3 text-right tabular-nums font-black text-emerald-700 text-xs">
                                   Bs {fmtBs(p.monto)}

@@ -269,8 +269,6 @@ export default function ReportesPage() {
   }
 
   if (activeView === 'conciliacion-bancaria') {
-    const s = new Date(fechaInicio + 'T00:00:00.000-04:00'), e = new Date(fechaFin + 'T23:59:59.999-04:00');
-    const pf = pagos.filter((p: any) => { const d = fechaEfectivaPago(p); return d >= s && d <= e; });
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-3">
@@ -287,7 +285,7 @@ export default function ReportesPage() {
             <div className="flex flex-col flex-1"><label className="text-xs text-slate-500 mb-1">Hasta</label><input type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)} className="border rounded-lg px-3 py-2 text-sm" /></div>
           </div>
           <button
-            onClick={() => generarConciliacionTransferencias(pf, contribuyentes, fechaInicio, fechaFin)}
+            onClick={() => generarConciliacionTransferencias(pagos, contribuyentes, fechaInicio, fechaFin)}
             className="w-full flex items-center justify-between px-4 py-3 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg text-sm font-semibold text-purple-900 transition-colors"
           >
             Descargar Conciliación Bancaria (Excel) <Download className="w-4 h-4 text-purple-700" />
@@ -298,8 +296,12 @@ export default function ReportesPage() {
   }
 
   if (activeView === 'puntos-venta') {
-    const s = new Date(fechaInicio + 'T00:00:00.000-04:00'), e = new Date(fechaFin + 'T23:59:59.999-04:00');
-    const pf = pagos.filter((p: any) => { const d = fechaEfectivaPago(p); return d >= s && d <= e; });
+    const pf = pagos.filter((p: any) => {
+      const x = new Date(p.created_at);
+      if (isNaN(x.getTime())) return false;
+      const dStr = new Date(x.getTime() - 4 * 3600 * 1000).toISOString().slice(0, 10);
+      return dStr >= fechaInicio && dStr <= fechaFin;
+    });
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-3">

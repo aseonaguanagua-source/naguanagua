@@ -79,6 +79,28 @@ function formatPeriodosPagados(det: any, p?: any): string {
     return det.recibo_caja.trim();
   }
 
+  // 2.5. Si viene de condominio con lineas (det.condominio.lineas)
+  if (Array.isArray(det?.condominio?.lineas) && det.condominio.lineas.length > 0) {
+    const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    const fmt = (k: string) => {
+      const [y, m] = String(k).split('-');
+      const idx = parseInt(m, 10) - 1;
+      return idx >= 0 && idx < 12 ? `${MESES[idx]} ${y}` : k;
+    };
+    const allPeriodos = Array.from(
+      new Set<string>(
+        det.condominio.lineas.flatMap((l: any) => (Array.isArray(l?.periodos) ? l.periodos.map(String) : []))
+      )
+    ).sort();
+    const prefijo = det.condominio?.soloMultas ? 'Multas' : 'Aseo Urbano';
+    if (allPeriodos.length === 1) {
+      return `${prefijo}: ${fmt(allPeriodos[0])} (1 mes)`;
+    }
+    if (allPeriodos.length > 1) {
+      return `${prefijo}: ${fmt(allPeriodos[0])} a ${fmt(allPeriodos[allPeriodos.length - 1])} (${allPeriodos.length} meses)`;
+    }
+  }
+
   // 3. Si viene en det.periodos (ej: ['2026-01', '2026-02', '2026-03'])
   if (Array.isArray(det?.periodos) && det.periodos.length > 0) {
     const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];

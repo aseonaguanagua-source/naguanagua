@@ -773,10 +773,19 @@ export async function POST(request: Request) {
       try {
         const rc = typeof detPago.recibo_caja === 'string' ? JSON.parse(detPago.recibo_caja) : detPago.recibo_caja;
         if (Array.isArray(rc) && rc.length > 0) {
-          rcSubTotal = r2(rc.reduce((acc: number, r: any) => acc + (parseFloat(String(r.subTotal || 0)) || 0), 0));
-          rcIva = r2(rc.reduce((acc: number, r: any) => acc + (parseFloat(String(r.iva || 0)) || 0), 0));
-          rcTotal = r2(rc.reduce((acc: number, r: any) => acc + (parseFloat(String(r.total || 0)) || 0), 0));
+          const sumRcTotal = r2(rc.reduce((acc: number, r: any) => acc + (parseFloat(String(r.total || 0)) || 0), 0));
+          const esRcAbono = rc.some((r: any) => Boolean(r?.esAbono || (Number(r?.montoPendiente || 0) > 0.01)));
+          const mFacFull = parseFloat(String(detPago.monto_factura || detPago.total_seleccionado || detPago.montoTotal || 0)) || 0;
           periodoRecibo = rc[0]?.periodo || '';
+          if (esRcAbono && mFacFull > sumRcTotal + 0.01) {
+            rcTotal = r2(mFacFull);
+            rcSubTotal = 0;
+            rcIva = 0;
+          } else {
+            rcSubTotal = r2(rc.reduce((acc: number, r: any) => acc + (parseFloat(String(r.subTotal || 0)) || 0), 0));
+            rcIva = r2(rc.reduce((acc: number, r: any) => acc + (parseFloat(String(r.iva || 0)) || 0), 0));
+            rcTotal = sumRcTotal;
+          }
 
           // 1. Revisar si el desglose de condominio indica explícitamente multas
           let multaCondo = 0;

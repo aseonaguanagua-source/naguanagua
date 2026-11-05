@@ -895,7 +895,7 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
         condominio_id: c.id, unidad_id: porId.has(l.clave) ? l.clave : null, tipo: 'PAGO', periodo: l.periodos[0] ? `${l.periodos[0]}-01` : null,
         concepto: sol.soloMultas
             ? `Pago de multas${l.inmueble ? ` · ${l.inmueble}` : ''}: ${l.meses} mes(es) de multas (${l.periodos.join(', ')})`
-            : `${cobro.modo === 'CONDOMINIO' ? 'Pago del condominio' : 'Pago del contribuyente'}${l.inmueble ? ` · ${l.inmueble}` : ''}: ${l.meses ? `${l.meses} mes(es) ${l.periodos.join(', ')}` : ''}${l.multasAparteBs > 0 ? ' + multas' : ''}`,
+            : `Pago de Aseo Urbano (${cobro.modo === 'CONDOMINIO' ? 'Condominio' : 'Contribuyente'})${l.inmueble ? ` · ${l.inmueble}` : ''}: ${l.meses ? `${l.meses} mes(es) (${l.periodos.join(', ')})` : ''}${l.multasAparteBs > 0 ? ' + multas' : ''}`,
         monto_bs: -l.totalBs, tasa_bcv: tasa, pago_id: pagoDe(l.clave), usuario: pago.usuario,
     }));
     for (let i = 0; i < movs.length; i += 300) await sb.from('condominio_movimientos').insert(movs.slice(i, i + 300));

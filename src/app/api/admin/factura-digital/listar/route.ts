@@ -849,12 +849,6 @@ export async function GET(request: Request) {
             .filter((fp: any) => String(fp?.descripcion || fp?.tipo || fp?.metodo || '').toLowerCase().includes('saldo a favor') || String(fp?.descripcion || fp?.tipo || fp?.metodo || '').toLowerCase().includes('nota de credito'))
             .reduce((sum: number, fp: any) => sum + (parseFloat(String(fp.monto || 0)) || 0), 0);
         }
-        if (sf === 0 && det.monto_factura) {
-          const mFactura = parseFloat(String(det.monto_factura)) || 0;
-          const mPago = parseFloat(String(pago.monto || det.montoTotal || 0)) || 0;
-          const dif = Math.round((mFactura - mPago - montoRetNum + (sFavorGuardado > 0 ? sFavorGuardado : 0)) * 100) / 100;
-          if (dif > 0.05) sf = dif;
-        }
         return Math.round(sf * 100) / 100;
       })();
 
@@ -865,7 +859,12 @@ export async function GET(request: Request) {
         try {
           const rc = typeof det.recibo_caja === 'string' ? JSON.parse(det.recibo_caja) : det.recibo_caja;
           if (Array.isArray(rc) && rc.length > 0) {
-            rcTotal = rc.reduce((acc: number, r: any) => acc + (parseFloat(String(r.total || 0)) || 0), 0);
+            const sumRc = rc.reduce((acc: number, r: any) => acc + (parseFloat(String(r.total || 0)) || 0), 0);
+            const esRcAbono = rc.some((r: any) => Boolean(r?.esAbono || (Number(r?.montoPendiente || 0) > 0.01)));
+            const mFacDet = parseFloat(String(det.monto_factura || det.total_seleccionado || det.montoTotal || 0)) || 0;
+            if (!(esRcAbono && mFacDet > sumRc + 0.01)) {
+              rcTotal = sumRc;
+            }
           }
         } catch(e) {}
       }
@@ -949,7 +948,13 @@ export async function GET(request: Request) {
         : (fd?.retencion?.estado || (retRow ? (retRow.estado === 'Pendiente' ? 'planilla_recibida' : String(retRow.estado).toLowerCase()) : null));
 
       const infoAbonos = abonosInfoPorPagoPrincipal.get(pago.id);
-      const montoPagadoEfectivo = Math.round(((parseFloat(pago.monto || '0') || 0) + (infoAbonos?.montoTotal || 0)) * 100) / 100;
+      const sumFormasPagoBancarias = Array.isArray(det.formasPago) && det.formasPago.length > 1
+        ? det.formasPago
+            .filter((fp: any) => !String(fp?.descripcion || fp?.tipo || fp?.metodo || '').toLowerCase().includes('saldo a favor') && !String(fp?.descripcion || fp?.tipo || fp?.metodo || '').toLowerCase().includes('nota de credito'))
+            .reduce((s: number, fp: any) => s + (parseFloat(String(fp?.monto || 0)) || 0), 0)
+        : 0;
+      const baseMontoPago = Math.max(parseFloat(pago.monto || '0') || 0, sumFormasPagoBancarias);
+      const montoPagadoEfectivo = Math.round((baseMontoPago + (infoAbonos?.montoTotal || 0)) * 100) / 100;
       const refRawStr = String(pago.referencia || 'N/A');
       const refBaseClean = refRawStr.replace(/\s*\(\+[^)]*\)/g, '').trim() || 'N/A';
       const existingPlusMatch = refRawStr.match(/\(\+\s*([^)]+)\)/);
@@ -1120,13 +1125,14 @@ export async function GET(request: Request) {
         // se agregan como ítems independientes para que aparezcan en la pestaña de Anuladas (NC)
         previas.forEach((prevFd: any, pIdx: number) => {
           if (!prevFd) return;
-          const esPrevAnulada = Boolean(prevFd.anulada || prevFd.nota_credito);
+          if (String(prevFd.url || '').includes('democonsulta.thefactoryhka.com.ve')) return;
+          const esPrevAnulada = true;
           const prevEmitida = Boolean(prevFd.emitida || prevFd.numero_documento || prevFd.numero_control);
-          if (!esPrevAnulada && !prevEmitida) return;
+          if (!prevEmitida && !prevFd.anulada && !prevFd.nota_credito) return;
 
           const prevNCControl = prevFd.nota_credito?.numero_control ||
             prevFd.nota_credito?.numero_documento ||
-            (prevFd.anulada ? 'ANULADA' : null);
+            'ANULADA / REEMPLAZADA';
 
           dedupedItems.push({
             ...item,

@@ -35,7 +35,14 @@ const esAnulado = (p: any) => {
   return false;
 };
 const esDebito = (p: any) => /^(d[eé]bito|cr[eé]dito|tmd|tvd)\b|punto|tarjeta/i.test(String(p.tipo || '').trim());
-const esTransferencia = (p: any) => /transfer|m[oó]vil|pago m/i.test(String(p.tipo || ''));
+const esTransferencia = (p: any) => {
+  if (!/transfer|m[oó]vil|pago m/i.test(String(p.tipo || ''))) return false;
+  const ref = String(p.referencia || '').trim();
+  const det = parseDet(p);
+  const tieneTransfAgregada = Array.isArray(det?.pagos_agregados) && det.pagos_agregados.some((pa: any) => /transfer|m[oó]vil|pago m/i.test(String(pa?.metodo || pa?.tipo || '')));
+  if (/^desc\.?\s*saldo|^saldo[-_ ]?favor/i.test(ref) && !tieneTransfAgregada) return false;
+  return true;
+};
 const esRetencion = (p: any) => /retenci/i.test(String(p.tipo || ''));
 
 /** "M-valentina" -> { caja: 'CAJA M', cajero: 'VALENTINA' } */
@@ -537,7 +544,8 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
         if (limiteFecha && fPagoSub > limiteFecha) {
           fPagoSub = limiteFecha;
         }
-        const keySub = (fFactura && fFactura.slice(0, 7) < fPagoSub.slice(0, 7) ? fFactura : fPagoSub).slice(0, 7);
+        if ((fechaInicio && fPagoSub < fechaInicio) || (fechaFin && fPagoSub > fechaFin)) return;
+        const keySub = fPagoSub.slice(0, 7);
         if (!porMes.has(keySub)) porMes.set(keySub, []);
         porMes.get(keySub)!.push({
           p: {
@@ -565,7 +573,8 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
       if (limiteFecha && fPago > limiteFecha) {
         fPago = limiteFecha;
       }
-      const key = (fFactura && fFactura.slice(0, 7) < fPago.slice(0, 7) ? fFactura : fPago).slice(0, 7);
+      if ((fechaInicio && fPago < fechaInicio) || (fechaFin && fPago > fechaFin)) return;
+      const key = fPago.slice(0, 7);
       if (!porMes.has(key)) porMes.set(key, []);
       porMes.get(key)!.push({ p, det, fPago, fFactura, esSubPago: false, montoTotalReportado: Number(p.monto) || 1, yaExistenComoFilasSeparadas: !!yaExistenComoFilasSeparadas });
     }
@@ -647,7 +656,8 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
           exento: r2(mtTotal.exento * factor)
         } : mtTotal;
         const fd = det.factura_digital || {};
-        const ncTotal = Number(det.saldo_favor || 0) > 0 ? Number(det.saldo_favor) : 0;
+        const ncRaw = Number(det.descuento_saldo_favor || det.saldo_favor_usado || det.saldo_usado || det.saldo_favor || 0);
+        const ncTotal = ncRaw > 0 ? ncRaw : 0;
         const nc = esPagoMultipleSeparado ? r2(ncTotal * factor) : ncTotal;
         const cajero = det.cajero || det.usuario || p.usuario || '';
         const bClass = clasificarBancoDestino(p);
@@ -655,8 +665,15 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
         
         let refTexto = String(p.referencia || '').trim();
         if (!esSubPago && !yaExistenComoFilasSeparadas && Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1) {
-          const todasRefs = [...new Set(det.pagos_agregados.map((pa: any) => String(pa.referencia || '').trim()).filter(Boolean))];
-          if (todasRefs.length > 1) {
+          const todasRefs = [
+            ...new Set(
+              det.pagos_agregados
+                .filter((pa: any) => !/saldo\s*a\s*favor|nota\s*de\s*cr[eé]dito/i.test(String(pa?.metodo || pa?.tipo || pa?.referencia || '')))
+                .map((pa: any) => String(pa.referencia || '').trim())
+                .filter(Boolean)
+            )
+          ];
+          if (todasRefs.length >= 1) {
             refTexto = todasRefs.join(' / ');
           }
         }

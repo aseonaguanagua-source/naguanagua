@@ -606,18 +606,24 @@ export default function FacturacionElectronicaPage() {
       sumRecibos = Object.values(montosMap).reduce((acc: number, val: any) => acc + (parseFloat(String(val)) || 0), 0);
     }
 
-    // Obtener total de recibo_caja si existe
+    // Obtener total de recibo_caja si existe (ignorando recibos parciales de abono cuando el pago ya completó la factura total)
     let rcTotal = 0;
+    let rcEsAbonoParcial = false;
     if (pago.detalles?.recibo_caja) {
       try {
         const rcParsed = typeof pago.detalles.recibo_caja === 'string' ? JSON.parse(pago.detalles.recibo_caja) : pago.detalles.recibo_caja;
         if (Array.isArray(rcParsed) && rcParsed.length > 0) {
           rcTotal = rcParsed.reduce((acc: number, r: any) => acc + (parseFloat(String(r.total || 0)) || 0), 0);
+          rcEsAbonoParcial = rcParsed.some((r: any) => Boolean(r?.esAbono || (Number(r?.montoPendiente || 0) > 0.01)));
         }
       } catch (_) {}
     }
 
     const montoFacturaDet = parseFloat(String(pago.detalles?.monto_factura || 0)) || sumRecibos || 0;
+    const montoPagadoConsolidado = parseFloat(String(pago.montoPagado || pago.monto || 0)) || 0;
+    if (rcEsAbonoParcial && ((montoFacturaDet > rcTotal + 0.01) || (montoPagadoConsolidado > rcTotal + 0.01))) {
+      rcTotal = 0;
+    }
     let saldoFavor = parseFloat(String(pago.detalles?.saldo_a_favor_nuevo || pago.detalles?.monto_sobrante || pago.detalles?.saldo_favor || pago.detalles?.saldo_favor_generado || 0)) || 0;
     
     // Si el saldo a favor coincide con la retención, era la retención y no un saldo a favor / nota de crédito
@@ -810,7 +816,14 @@ export default function FacturacionElectronicaPage() {
     setEmitDireccion(dirInicial);
 
     // Forma de pago y banco inicial
-    const fpDesc = pago.tipo || (Array.isArray(pago.detalles?.formasPago) && pago.detalles.formasPago[0]?.descripcion) || 'Transferencia';
+    const fpRaw = String(pago.tipo || (Array.isArray(pago.detalles?.formasPago) && pago.detalles.formasPago[0]?.descripcion) || 'Transferencia').trim();
+    const fpDesc = /d[eé]bito|punto de venta|\bpos\b/i.test(fpRaw)
+      ? 'Tarjeta de débito'
+      : /pago\s*m[oó]vil|c2p|p2p/i.test(fpRaw)
+      ? 'Pago Móvil'
+      : /efectivo/i.test(fpRaw)
+      ? 'Efectivo'
+      : 'Transferencia';
     setEmitFormaPago(fpDesc);
     const bancoDesc = pago.banco || (Array.isArray(pago.detalles?.formasPago) && pago.detalles.formasPago[0]?.banco) || pago.detalles?.banco || '';
     setEmitBanco(bancoDesc);
