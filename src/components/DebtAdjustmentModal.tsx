@@ -451,6 +451,7 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
         if (errInm) throw errInm;
 
         // Si es una matriz N/A o contenedor con locales hijos (padre_id), sincronizar meses_deuda en sus actividades hijas
+        // SOLO cuando el contenedor realmente consolida la tarifa de esos hijos (mismo local multi-actividad)
         const { data: hijosPadre } = await supabase
           .from('inmuebles')
           .select('id, inmueble, mmv_mes')
@@ -458,12 +459,15 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
           .neq('estado', 'Eliminado');
 
         if (hijosPadre && hijosPadre.length > 0) {
-          for (const h of hijosPadre) {
-            await supabase.from('inmuebles').update({
-              meses_deuda: selectedCount,
-              notas: nuevaNota,
-              ...(selectedCount === 0 ? { multa_bs: 0, deuda_congelada_bs: 0, deuda_mmv: 0 } : {})
-            }).eq('id', h.id);
+          const sumHijosMmv = hijosPadre.reduce((s, h: any) => s + (parseFloat(String(h.mmv_mes || 0)) || 0), 0);
+          if (mmvMes === 0 || Math.abs(mmvMes - sumHijosMmv) < 0.25) {
+            for (const h of hijosPadre) {
+              await supabase.from('inmuebles').update({
+                meses_deuda: selectedCount,
+                notas: nuevaNota,
+                ...(selectedCount === 0 ? { multa_bs: 0, deuda_congelada_bs: 0, deuda_mmv: 0 } : {})
+              }).eq('id', h.id);
+            }
           }
         }
 

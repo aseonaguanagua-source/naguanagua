@@ -117,7 +117,14 @@ export const getUserInmuebles = (
       const iCode = String(i.inmueble || '').toUpperCase();
       const pCode = String((i as any).condominio_padre_id || '').toUpperCase();
       const nCode = String((i as any).padre_id || '').toUpperCase();
-      if (iCode === sCode || pCode === sCode || nCode === sCode) return true;
+      if (iCode === sCode || pCode === sCode) return true;
+      if (nCode === sCode) {
+        const parentObj = source.find((x: any) => String(x.inmueble || '').toUpperCase() === sCode);
+        const siblings = source.filter((x: any) => isActivo(x) && String((x as any).padre_id || '').trim().toUpperCase() === sCode);
+        const sumSiblingsMmv = siblings.reduce((s, x: any) => s + (parseFloat(String(x.mmv_mes || 0)) || 0), 0);
+        const pMmv = parentObj ? (parseFloat(String((parentObj as any).mmv_mes || 0)) || 0) : 0;
+        if (!parentObj || pMmv === 0 || Math.abs(pMmv - sumSiblingsMmv) < 0.25) return true;
+      }
       if (parentOfSCode && (iCode === parentOfSCode || nCode === parentOfSCode)) return true;
       return false;
     }
@@ -207,19 +214,39 @@ export function clusterInmueblesByLocal(userInms: InmuebleBasic[]): Map<string, 
   const activeInms = (userInms || []).filter(isActivo);
   const clusters: Array<{ localId: string; label: string; direccion: string; inms: InmuebleBasic[] }> = [];
 
+  // Verificar cuáles contenedores padre_id realmente unifican un mismo local (suma de MMV coincide o padre tiene MMV 0)
+  const validPadreIds = new Set<string>();
+  const padreGroups = new Map<string, InmuebleBasic[]>();
+  for (const inm of activeInms) {
+    const pid = String((inm as any).padre_id || '').trim().toUpperCase();
+    if (pid) {
+      if (!padreGroups.has(pid)) padreGroups.set(pid, []);
+      padreGroups.get(pid)!.push(inm);
+    }
+  }
+  padreGroups.forEach((children, pid) => {
+    const parentObj = activeInms.find((x: any) => String(x.inmueble || '').trim().toUpperCase() === pid);
+    const pMmv = parentObj ? (parseFloat(String((parentObj as any).mmv_mes || 0)) || 0) : 0;
+    const sumMmv = children.reduce((s, x: any) => s + (parseFloat(String(x.mmv_mes || 0)) || 0), 0);
+    if (!parentObj || pMmv === 0 || Math.abs(pMmv - sumMmv) < 0.25) {
+      validPadreIds.add(pid);
+    }
+  });
+
   for (const inm of activeInms) {
     const rawDir = (inm.direccion || '').trim();
     // El contenedor local de actividades (N/A) SIEMPRE es padre_id (NO condominio_padre_id)
-    const localPadreId = (inm as any).padre_id;
+    const rawPadreId = String((inm as any).padre_id || '').trim().toUpperCase();
+    const localPadreId = rawPadreId && validPadreIds.has(rawPadreId) ? (inm as any).padre_id : undefined;
     const isNA = (inm.actividad_principal || '').trim().toUpperCase() === 'N/A';
 
     const matchedCluster = clusters.find((c) => {
       // 1. Si este inm tiene un contenedor padre (padre_id), asociar al cluster que tenga a ese padre o a sus hermanos
-      if (localPadreId && c.inms.some((i: any) => i.inmueble === localPadreId || i.padre_id === localPadreId)) {
+      if (localPadreId && c.inms.some((i: any) => i.inmueble === localPadreId || (validPadreIds.has(String(i.padre_id || '').trim().toUpperCase()) && i.padre_id === localPadreId))) {
         return true;
       }
       // 2. Si este inm es el contenedor padre N/A de alguno que ya está en el cluster
-      if (inm.inmueble && c.inms.some((i: any) => i.padre_id === inm.inmueble)) {
+      if (inm.inmueble && validPadreIds.has(String(inm.inmueble).trim().toUpperCase()) && c.inms.some((i: any) => i.padre_id === inm.inmueble)) {
         return true;
       }
       // 3. Coincidencia por dirección física SOLO si NINGUNO pertenece a un contenedor padre N/A ni tienen códigos URB distintos independientes
@@ -326,10 +353,29 @@ export function groupInmueblesByLocal(userInms: InmuebleBasic[]): InmuebleCluste
   const activeInms = (userInms || []).filter(isActivo);
   const clusters: Array<{ localId: string; label: string; direccion: string; inms: InmuebleBasic[] }> = [];
 
+  const validPadreIds = new Set<string>();
+  const padreGroups = new Map<string, InmuebleBasic[]>();
+  for (const inm of activeInms) {
+    const pid = String((inm as any).padre_id || '').trim().toUpperCase();
+    if (pid) {
+      if (!padreGroups.has(pid)) padreGroups.set(pid, []);
+      padreGroups.get(pid)!.push(inm);
+    }
+  }
+  padreGroups.forEach((children, pid) => {
+    const parentObj = activeInms.find((x: any) => String(x.inmueble || '').trim().toUpperCase() === pid);
+    const pMmv = parentObj ? (parseFloat(String((parentObj as any).mmv_mes || 0)) || 0) : 0;
+    const sumMmv = children.reduce((s, x: any) => s + (parseFloat(String(x.mmv_mes || 0)) || 0), 0);
+    if (!parentObj || pMmv === 0 || Math.abs(pMmv - sumMmv) < 0.25) {
+      validPadreIds.add(pid);
+    }
+  });
+
   for (const inm of activeInms) {
     const rawDir = (inm.direccion || '').trim();
     // El contenedor local de actividades (N/A) SIEMPRE es padre_id (NO condominio_padre_id)
-    const localPadreId = (inm as any).padre_id;
+    const rawPadreId = String((inm as any).padre_id || '').trim().toUpperCase();
+    const localPadreId = rawPadreId && validPadreIds.has(rawPadreId) ? (inm as any).padre_id : undefined;
     const isNA = (inm.actividad_principal || '').trim().toUpperCase() === 'N/A' ||
                  (inm.actividad_principal || '').toLowerCase().includes('padre en sigyr');
 
@@ -341,11 +387,11 @@ export function groupInmueblesByLocal(userInms: InmuebleBasic[]): InmuebleCluste
       if (inmIsRes !== cIsRes) return false;
 
       // 1. Si este inm tiene un contenedor padre (padre_id), asociar al cluster que tenga a ese padre o a sus hermanos
-      if (localPadreId && c.inms.some((i: any) => i.inmueble === localPadreId || i.padre_id === localPadreId)) {
+      if (localPadreId && c.inms.some((i: any) => i.inmueble === localPadreId || (validPadreIds.has(String(i.padre_id || '').trim().toUpperCase()) && i.padre_id === localPadreId))) {
         return true;
       }
       // 2. Si este inm es el contenedor padre N/A de alguno que ya está en el cluster
-      if (inm.inmueble && c.inms.some((i: any) => i.padre_id === inm.inmueble)) {
+      if (inm.inmueble && validPadreIds.has(String(inm.inmueble).trim().toUpperCase()) && c.inms.some((i: any) => i.padre_id === inm.inmueble)) {
         return true;
       }
       // 3. Coincidencia por dirección física SOLO si NINGUNO pertenece a un contenedor padre N/A ni tienen códigos URB distintos independientes

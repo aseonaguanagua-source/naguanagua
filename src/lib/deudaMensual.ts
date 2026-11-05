@@ -212,9 +212,10 @@ export function codigosContenedoresNA(inms: any[]): string[] {
     .filter((i: any) => {
       const act = String(i.actividad_principal || i.actividad || '').trim().toUpperCase();
       const esNA = act === 'N/A' || act.startsWith('PADRE') || i.es_grupo === true;
-      const tieneHijos = (parseInt(String(i.cant_inmuebles || '0')) > 1) || 
-        (inms || []).some((c: any) => c.condominio_padre_id === i.inmueble || c.padre_id === i.inmueble || c.padre_unidad_id === i.id);
-      return esNA || tieneHijos;
+      const tieneHijos = (inms || []).some(
+        (c: any) => c.inmueble !== i.inmueble && (c.condominio_padre_id === i.inmueble || c.padre_id === i.inmueble || c.padre_unidad_id === i.id)
+      );
+      return esNA && tieneHijos;
     })
     .map((i: any) => i.inmueble);
 }

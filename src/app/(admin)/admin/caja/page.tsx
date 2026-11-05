@@ -1309,10 +1309,13 @@ export default function CajaPage() {
         setPaymentMethod(prev => prev === 'Saldo a Favor' ? 'Debito' : prev);
       }
 
-      // Calcular deuda total fresca (excluyendo contenedores N/A para evitar duplicar montos con sus actividades hijas)
-      const billableActiveInms = activeInmFresh.filter(
-        (i: any) => (i.actividad_principal || '').trim().toUpperCase() !== 'N/A' && !isTerrenoInm(i)
-      );
+      // Calcular deuda total fresca (excluyendo contenedores N/A que agrupan actividades hijas para evitar duplicar montos)
+      const billableActiveInms = activeInmFresh.filter((i: any) => {
+        if (isTerrenoInm(i)) return false;
+        const isNA = (i.actividad_principal || '').trim().toUpperCase() === 'N/A';
+        const hasChildren = activeInmFresh.some((c: any) => c.inmueble !== i.inmueble && (c.condominio_padre_id === i.inmueble || c.padre_id === i.inmueble));
+        return !isNA || !hasChildren;
+      });
       const deudaTotalFresh = billableActiveInms.reduce(
         (sum: number, i: any) => {
           // Si el inmueble es de condominio centralizado: ninguna información de condominios sale por sistema,
@@ -2613,7 +2616,12 @@ export default function CajaPage() {
       const grupos = Object.values(facturasPorInmueble);
 
       if (grupos.length === 0) {
-        const activeUserInms = userInmsRec.filter((i: any) => (i.actividad_principal || '').toUpperCase() !== 'N/A' && i.inmueble);
+        const activeUserInms = userInmsRec.filter((i: any) => {
+          if (!i.inmueble) return false;
+          const isNA = (i.actividad_principal || '').trim().toUpperCase() === 'N/A';
+          const hasChildren = userInmsRec.some((c: any) => c.inmueble !== i.inmueble && (c.condominio_padre_id === i.inmueble || c.padre_id === i.inmueble));
+          return !isNA || !hasChildren;
+        });
         if (activeUserInms.length > 1) {
           const porcion = Math.round((montoReal / activeUserInms.length) * 100) / 100;
           return activeUserInms.map((inmItem: any, idx: number) => {
@@ -4999,10 +5007,14 @@ export default function CajaPage() {
                   const userInms = getUserInmuebles(freshInmuebles, condominioHijos, inmuebles, foundUser);
                   if (userInms.length === 0) return 'No hay inmuebles registrados.';
 
-                  // 1. Filtrar inmuebles contenedores "N/A" (no son actividades económicas facturables)
+                  // 1. Filtrar inmuebles contenedores "N/A" solo cuando agrupan actividades hijas
                   const billableInms = userInms.filter((inm: any) => {
                     const act = (inm.actividad_principal || '').trim().toUpperCase();
-                    if (act === 'N/A' || act === '') return false;
+                    if (act === 'N/A' || act === '') {
+                      const hasChildren = userInms.some((c: any) => c.inmueble !== inm.inmueble && (c.condominio_padre_id === inm.inmueble || c.padre_id === inm.inmueble));
+                      if (hasChildren) return false;
+                      return (parseFloat(String(inm.mmv_mes || 0)) || 0) > 0 || (parseInt(String(inm.meses_deuda || 0), 10) || 0) > 0 || (parseFloat(String(inm.deuda_mmv || 0)) || 0) > 0;
+                    }
                     return true;
                   });
 
@@ -5078,7 +5090,7 @@ export default function CajaPage() {
                             ? 0
                             : (esRes
                               ? (mmvRaw >= 0.22 && mmvRaw <= 1.50 ? mmvRaw : foOficial)
-                              : (foOficial && foOficial > 1.00 ? foOficial : (mmvRaw > 1.00 ? mmvRaw : 1.98)));
+                              : (mmvRaw >= 1.54 ? mmvRaw : (foOficial && foOficial > 1.00 ? foOficial : (mmvRaw > 1.00 ? mmvRaw : 1.98))));
                           const cant = inm.es_condominio === true ? parseInt(inm.cant_inmuebles || 1) : 1;
                           const far = getFAR(inm.actividad_principal || '');
                           const formulaUCD = esTerreno ? 0 : (esRes ? (mmv * 57 * far) : (mmv * 57 * 0.1280));
@@ -6451,7 +6463,11 @@ export default function CajaPage() {
             {/* Actividades Unificadas Badge en Resumen */}
             {(() => {
               const userInms = getUserInmuebles(freshInmuebles, condominioHijos, inmuebles, foundUser);
-              const billableInms = userInms.filter((i: any) => (i.actividad_principal || '').trim().toUpperCase() !== 'N/A');
+              const billableInms = userInms.filter((i: any) => {
+                const isNA = (i.actividad_principal || '').trim().toUpperCase() === 'N/A';
+                const hasChildren = userInms.some((c: any) => c.inmueble !== i.inmueble && (c.condominio_padre_id === i.inmueble || c.padre_id === i.inmueble));
+                return !isNA || !hasChildren;
+              });
               const clustersMap = clusterInmueblesByLocal(billableInms);
               const selectedRefsThisUser = selectedRecibos.filter(r => r.startsWith('RECIB-HIST-'));
               
