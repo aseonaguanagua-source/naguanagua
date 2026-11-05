@@ -494,6 +494,17 @@ export async function cargarCondominio(codigo: string) {
     };
   });
 
+  if (unidadesASincronizarBD.length > 0) {
+    Promise.all(
+      unidadesASincronizarBD.map(uSync =>
+        sb.from('condominio_unidades').update({
+          aseo_pendiente_desde: uSync.aseo_pendiente_desde,
+          multa_meses: uSync.multa_meses,
+        }).eq('id', uSync.id)
+      )
+    ).catch(() => {});
+  }
+
   const { data: movimientos } = await sb.from('condominio_movimientos').select('*').eq('condominio_id', condo.id).order('created_at', { ascending: false }).limit(1000);
   const { data: multas } = await sb.from('condominio_multas').select('*').eq('condominio_id', condo.id).order('created_at', { ascending: false });
 
