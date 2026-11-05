@@ -5,20 +5,29 @@ import { Save, RefreshCw } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { logAudit } from '@/lib/audit';
+import { useAppContext } from '@/store/AppContext';
 
 
 export default function ManualBCVRateEditor({ currentRate }: { currentRate: number }) {
   const [manualRate, setManualRate] = useState<string>(currentRate.toString());
   const [isSaving, setIsSaving] = useState(false);
   const router = useRouter();
+  const { setTcmmv } = useAppContext();
+
+  const parseInputRate = (raw: string) => {
+    const s = String(raw || '').trim();
+    if (!s) return NaN;
+    const normalized = s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : s;
+    return parseFloat(normalized);
+  };
 
   const handleSave = async () => {
-    if (!manualRate || isNaN(parseFloat(manualRate.replace(',', '.')))) {
+    const numericRate = parseInputRate(manualRate);
+    if (isNaN(numericRate) || numericRate <= 0) {
       alert('Por favor ingrese un número válido.');
       return;
     }
 
-    const numericRate = parseFloat(manualRate.replace(',', '.'));
     setIsSaving(true);
 
     try {
@@ -29,6 +38,7 @@ export default function ManualBCVRateEditor({ currentRate }: { currentRate: numb
 
       if (error) throw error;
 
+      setTcmmv(numericRate);
       alert(`Tasa manual guardada exitosamente: Bs. ${numericRate}. Esta tasa ahora se utilizará en todo el sistema de forma automática.`);
       
       // Force API cache revalidation
@@ -52,8 +62,13 @@ export default function ManualBCVRateEditor({ currentRate }: { currentRate: numb
 
       if (error) throw error;
       
+      const res = await fetch('/api/bcv?sync=true');
+      const data = await res.json().catch(() => null);
+      if (data?.tcmmv > 0) {
+        setTcmmv(data.tcmmv);
+        setManualRate(String(data.tcmmv));
+      }
       alert('Tasa manual eliminada. El sistema volverá a utilizar el valor oficial automático.');
-      await fetch('/api/bcv?sync=true');
       router.refresh();
     } catch (e: any) {
       alert('Error: ' + e.message);

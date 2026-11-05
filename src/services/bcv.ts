@@ -131,11 +131,19 @@ export async function getTasaBCV(sync: boolean = false) {
 
     const $ = cheerio.load(html);
     
-    const euroText = $('#euro strong').text().trim().replace(',', '.');
-    const usdText = $('#dolar strong').text().trim().replace(',', '.');
+    const parseBcvNum = (txt: string) => {
+      const s = txt.trim();
+      if (!s) return NaN;
+      // En español BCV usa "." como separador de miles y "," para decimales (ej. "1.006,03263992")
+      const normalized = s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : s;
+      return parseFloat(normalized);
+    };
+
+    const euroText = $('#euro strong').text();
+    const usdText = $('#dolar strong').text();
     
-    euroVal = parseFloat(euroText);
-    usdVal = parseFloat(usdText);
+    euroVal = parseBcvNum(euroText);
+    usdVal = parseBcvNum(usdText);
 
     // Sanity check de seguridad para prevenir inyección MITM o parseo corrupto del HTML del BCV
     if (isNaN(euroVal) || isNaN(usdVal) || euroVal <= 10 || euroVal > 100000 || usdVal <= 10 || usdVal > 100000) {
@@ -153,6 +161,13 @@ export async function getTasaBCV(sync: boolean = false) {
       
       usdVal = parseFloat(usdData.promedio);
       euroVal = parseFloat(eurData.promedio);
+      // Si DolarAPI truncó el separador de miles en BCV >= 1.000 (ej. 1.006 en lugar de 1006), corregir escala
+      if (euroVal > 0 && euroVal < 10 && usdVal > 100) {
+        euroVal = euroVal * 1000;
+      }
+      if (usdVal > 0 && usdVal < 10 && euroVal > 100) {
+        usdVal = usdVal * 1000;
+      }
       if (isNaN(euroVal) || isNaN(usdVal) || euroVal <= 10 || euroVal > 100000) {
         throw new Error(`Invalid DolarAPI rates: EUR=${euroVal}, USD=${usdVal}`);
       }

@@ -9,13 +9,20 @@
 import { supabaseAdmin as sb } from '@/lib/supabaseAdmin';
 import * as M from './motor';
 import { actividadConNivel, resolverFOComercial, isExoneradoTotalMultas, isMesExoneradoMulta, getFAR } from '@/lib/calculos';
+import { getTasaBCV } from '@/services/bcv';
 
 const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
 export async function tasaVigente(): Promise<number> {
-  const { data } = await sb.from('sistema_config').select('id, valor').in('id', ['tasa_bcv_manual', 'tasa_bcv_semanal']);
+  try {
+    const bcv = await getTasaBCV(false);
+    if (bcv?.success && Number(bcv.tcmmv) > 10) {
+      return r2(Number(bcv.tcmmv));
+    }
+  } catch (_) {}
+  const { data } = await sb.from('sistema_config').select('id, valor').in('id', ['tasa_bcv_manual', 'tasa_bcv_diaria', 'tasa_bcv_semanal']);
   const v = (id: string) => parseFloat(String(data?.find((c: any) => c.id === id)?.valor || 0)) || 0;
-  return r2(v('tasa_bcv_manual') || v('tasa_bcv_semanal'));
+  return r2(v('tasa_bcv_manual') || v('tasa_bcv_diaria') || v('tasa_bcv_semanal'));
 }
 
 /** Lee todas las filas de una consulta paginando de 1000 en 1000. */

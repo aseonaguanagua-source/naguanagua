@@ -229,9 +229,9 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
 
   // Cargar tasa Euro del BCV
   useEffect(() => {
-    fetch('https://ve.dolarapi.com/v1/euros/oficial')
+    fetch(`/api/bcv?t=${Date.now()}`, { cache: 'no-store' })
       .then(r => r.json())
-      .then(d => { if (d?.promedio > 0) setTasaEuro(d.promedio); })
+      .then(d => { if (d?.tcmmv > 10) setTasaEuro(d.tcmmv); })
       .catch(() => {});
   }, []);
 

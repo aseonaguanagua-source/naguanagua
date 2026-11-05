@@ -23,6 +23,7 @@ type AppState = {
   ordenanzasConfig: typeof ordenanzaData;
   addCertificado: (cert: any) => void;
   tcmmv: number;
+  setTcmmv: React.Dispatch<React.SetStateAction<number>>;
   isLoading: boolean;
   cacheStatus: 'cached' | 'syncing' | 'fresh';
   setInmuebles: (inmuebles: any[]) => void;
@@ -124,9 +125,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
         if (currentTcmmv <= 0) {
           try {
-            const eurRes = await fetch('https://ve.dolarapi.com/v1/euros/oficial');
+            const eurRes = await fetch('/api/bcv');
             const eurData = await eurRes.json();
-            if (eurData && eurData.promedio > 0) currentTcmmv = eurData.promedio;
+            if (eurData && eurData.tcmmv > 10) currentTcmmv = eurData.tcmmv;
           } catch (e) {
             console.error(e);
           }
@@ -336,13 +337,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       let currentTcmmv = manualTcmmv > 0 ? manualTcmmv : (bcvData?.tcmmv > 0 ? bcvData.tcmmv : semanalTcmmv);
       if (currentTcmmv <= 0) {
         try {
-          const eurRes = await fetch('https://ve.dolarapi.com/v1/euros/oficial');
+          const eurRes = await fetch('/api/bcv');
           const eurData = await eurRes.json();
-          if (eurData && eurData.promedio > 10 && eurData.promedio < 100000) {
-            currentTcmmv = eurData.promedio;
+          if (eurData && eurData.tcmmv > 10 && eurData.tcmmv < 100000) {
+            currentTcmmv = eurData.tcmmv;
           }
         } catch (e) {
-          console.error("DolarAPI Frontend Fallback failed", e);
+          console.error("BCV API Fallback failed", e);
         }
       }
 
@@ -1669,6 +1670,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       addAuditLog,
       auditLogs,
       tcmmv,
+      setTcmmv,
       isLoading,
       cacheStatus,
       setInmuebles,

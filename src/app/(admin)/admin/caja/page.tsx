@@ -604,7 +604,16 @@ export default function CajaPage() {
       return;
     }
 
-    setCustomBcvRate(tempBcvRate);
+    const rawRateStr = String(tempBcvRate || '').trim();
+    const normalizedRate = rawRateStr.includes(',') ? rawRateStr.replace(/\./g, '').replace(',', '.') : rawRateStr;
+    const numericRate = parseFloat(normalizedRate);
+    if (isNaN(numericRate) || numericRate <= 0) {
+      setRateAuthError('Ingrese una tasa BCV válida.');
+      setIsAuthorizing(false);
+      return;
+    }
+
+    setCustomBcvRate(String(numericRate));
     setJustificacionBcv(rateNote);
     setShowRateModal(false);
     setAdminPassword('');
@@ -7653,10 +7662,12 @@ export default function CajaPage() {
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Nueva Tasa BCV</label>
                 <input 
-                  type="number" step="0.01" 
+                  type="text"
+                  inputMode="decimal"
                   value={tempBcvRate} 
                   onChange={e => setTempBcvRate(e.target.value)}
                   className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none font-bold"
+                  placeholder="Ej: 1006,03"
                   required
                 />
               </div>
