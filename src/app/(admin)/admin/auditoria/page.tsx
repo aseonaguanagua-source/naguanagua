@@ -155,6 +155,12 @@ export default function AuditoriaPage() {
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
   const [filterCat, setFilterCat] = useState('TODAS');
   const [filterCrit, setFilterCrit] = useState<'TODAS' | AuditCriticality>('TODAS');
   const [filterUser, setFilterUser] = useState('');
@@ -204,6 +210,7 @@ export default function AuditoriaPage() {
       if (filterDateTo)   params.set('hasta', filterDateTo);
       if (filterUser)     params.set('usuario', filterUser);
       if (filterCat !== 'TODAS') params.set('categoria', filterCat);
+      if (debouncedSearch) params.set('q', debouncedSearch);
       if (modoDios)       params.set('modo_dios', '1');
       const res = await fetch(`/api/admin/auditoria?${params.toString()}`, { cache: 'no-store' });
       const json = await res.json().catch(() => ({}));
@@ -214,7 +221,7 @@ export default function AuditoriaPage() {
     } finally {
       setLoading(false);
     }
-  }, [filterDateFrom, filterDateTo, filterUser, filterCat, modoDios]);
+  }, [filterDateFrom, filterDateTo, filterUser, filterCat, debouncedSearch, modoDios]);
 
   useEffect(() => {
     fetchLogs();
