@@ -191,6 +191,8 @@ export async function PATCH(req: Request) {
     if (inmuebleAActualizar) {
       const inmUpd: any = {};
       if ('inmueble' in upd && upd.inmueble) inmUpd.inmueble = upd.inmueble;
+      if ('numero' in upd) inmUpd.numero_local = upd.numero;
+      if ('padre_unidad_id' in upd && !upd.padre_unidad_id) inmUpd.padre_id = null;
       if ('propietario' in upd && upd.propietario) inmUpd.contribuyente = upd.propietario;
       if ('identidad' in upd && upd.identidad) {
         inmUpd.identidad = upd.identidad;
@@ -313,12 +315,11 @@ export async function PATCH(req: Request) {
       const { error } = await sb.from('condominio_unidades').update(upd).eq('id', id);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-      // Si la unidad modificada es un contenedor padre (es_grupo = true o actividad = 'N/A' o tiene hijos con padre_unidad_id = id),
-      // propagar propietario, identidad, numero, estado, aseo_pendiente_desde, multa_meses y multa_exonerada_hasta a sus actividades hijas
+      // Si la unidad modificada es un contenedor padre (es_grupo = true y tiene hijos con padre_unidad_id = id),
+      // propagar propietario, identidad, estado, aseo_pendiente_desde, multa_meses y multa_exonerada_hasta a sus actividades hijas
       const childSync: Record<string, any> = {};
       if ('propietario' in upd) childSync.propietario = upd.propietario;
       if ('identidad' in upd) childSync.identidad = upd.identidad;
-      if ('numero' in upd) childSync.numero = upd.numero;
       if ('estado' in upd) childSync.estado = upd.estado;
       if ('aseo_pendiente_desde' in upd) childSync.aseo_pendiente_desde = upd.aseo_pendiente_desde;
       if ('multa_meses' in upd) childSync.multa_meses = upd.multa_meses;

@@ -116,15 +116,7 @@ export const aMotorUnidad = (u: any, grupos?: Set<string>): M.Unidad => ({
  * actividades migradas no tienen `padre_unidad_id` y el N/A terminaba cobrando doble.
  */
 export const idsGrupo = (unidades: any[]) => {
-  const s = new Set(unidades.filter(u => u.padre_unidad_id).map(u => u.padre_unidad_id as string));
-  const porInm = new Map<string, string>();
-  unidades.forEach(u => { if (u.inmueble) porInm.set(String(u.inmueble).toUpperCase(), u.id); });
-  unidades.forEach(u => {
-    if (u.estado === 'Eliminada' || !u.padre_inmueble) return;
-    const p = porInm.get(String(u.padre_inmueble).toUpperCase());
-    if (p && p !== u.id) s.add(p);
-  });
-  return s;
+  return new Set(unidades.filter(u => u.estado !== 'Eliminada' && u.padre_unidad_id).map(u => u.padre_unidad_id as string));
 };
 
 export interface MultaManual { id: string; concepto: string; montoBs: number; periodo: string | null; creada_por: string | null; created_at: string }
@@ -191,19 +183,17 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasaRaw: numb
 
   const renglones: RenglonEstado[] = reparto.map(r => {
     const u: any = porId.get(r.clave);
-    const padre: any = u?.padre_unidad_id
-      ? porId.get(u.padre_unidad_id)
-      : (u?.padre_inmueble ? porInmUpper.get(String(u.padre_inmueble).toUpperCase()) : null);
+    const padre: any = u?.padre_unidad_id ? porId.get(u.padre_unidad_id) : null;
     const mu = motorPorId.get(r.clave);
     const res = M.unidadResidencial(c, mu || null);
     const tMulta = res ? M.TASA_MULTA_RES : M.TASA_MULTA_COM;
-    // Unidad registrada: sus propios meses. Si es actividad hija de un local contenedor (padre), hereda del padre cuando el padre fue actualizado.
-    const esGrupoOuNA = Boolean(mu?.es_grupo || String(u?.actividad || '').trim().toUpperCase() === 'N/A');
+    // Unidad registrada: usa siempre sus propios meses y multas. Solo los contenedores puros sin tarifa propia heredan del condominio.
+    const esGrupoOuNA = Boolean(mu?.es_grupo || (String(u?.actividad || '').trim().toUpperCase() === 'N/A' && !(Number(u?.tarifa_mmv) > 0)));
     const desde = (u && !esGrupoOuNA)
-      ? (padre && padre.aseo_pendiente_desde !== undefined ? padre.aseo_pendiente_desde : u.aseo_pendiente_desde)
+      ? (u.aseo_pendiente_desde !== undefined ? u.aseo_pendiente_desde : (padre ? padre.aseo_pendiente_desde : condoRow.aseo_pendiente_desde))
       : condoRow.aseo_pendiente_desde;
     const meses = r.montoBs > 0 ? M.mesesPendientes(desde, hoy) : 0;
-    const multaMesesRaw = Number((u && !esGrupoOuNA) ? (padre && padre.multa_meses !== undefined && padre.multa_meses !== null ? padre.multa_meses : (u.multa_meses ?? condoRow.multa_meses)) : condoRow.multa_meses) || 0;
+    const multaMesesRaw = Number((u && !esGrupoOuNA) ? (u.multa_meses !== undefined && u.multa_meses !== null ? u.multa_meses : (padre?.multa_meses ?? condoRow.multa_meses)) : condoRow.multa_meses) || 0;
     const notasInmCheck = String((u && !esGrupoOuNA) ? (u.notas_inmueble || padre?.notas_inmueble || '') : (condoRow.notas_inmueble || condoRow.notas || ''));
     const exoneradoTotalInm = isExoneradoTotalMultas(notasInmCheck);
     // Multas exoneradas o ya pagadas poco a poco por el contribuyente:
@@ -326,7 +316,7 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasaRaw: numb
     const identEfectiva = usarDatosPadre
       ? (padre.identidad || u?.identidad)
       : (u?.identidad ?? (padre?.identidad || (r.clave === M.SIN_REGISTRAR ? null : condoRow.identidad)));
-    const numEfectivo = padre?.numero || u?.numero || null;
+    const numEfectivo = u?.numero || padre?.numero || null;
     return {
       clave: r.clave, inmueble: u?.inmueble ?? null, numero: numEfectivo,
       propietario: propEfectivo,
