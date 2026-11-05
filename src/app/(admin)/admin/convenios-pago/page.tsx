@@ -5,7 +5,8 @@ import { Handshake, FileEdit, Plus, X, Search, Upload, Ban } from 'lucide-react'
 import { useAppContext } from '@/store/AppContext';
 import { supabase } from '@/lib/supabase';
 import { logAudit } from '@/lib/audit';
-import { calcularMensualidad, getFAR } from '@/lib/calculos';
+import { calcularMensualidad, getFAR, isExoneradoTotalMultas } from '@/lib/calculos';
+import { calcularDeudaInmueble, mesesHistoricos } from '@/lib/deudaMensual';
 
 export default function ConveniosPagoPage() {
   const { convenios, inmuebles, recibos, tcmmv, refreshData, refreshUserData } = useAppContext();
@@ -348,26 +349,49 @@ export default function ConveniosPagoPage() {
           return acc + (meses * mmv);
         }, 0);
 
+        let totalBaseInmueblesBs = 0;
+        let totalIvaInmueblesBs = 0;
+        let totalMultasInmueblesBs = 0;
+
         const totalOrdenanzaInmueblesBs = userInmuebles.reduce((acc, curr) => {
           const congelada = parseFloat(curr.deuda_congelada_bs) || parseFloat(curr.DeudaCongelada) || 0;
-          if (congelada > 0) return acc + congelada;
+          if (congelada > 0) {
+            totalBaseInmueblesBs += congelada;
+            return acc + congelada;
+          }
           const meses = Math.max(1, parseInt(curr.meses_deuda || '1') || 1);
-          const mensBs = calcularMensualidad(curr, tasaEfectiva);
-          const multaBs = parseFloat(curr.multa_bs || '0') || 0;
-          return acc + (mensBs * meses) + multaBs;
+          const inmConMeses = { ...curr, meses_deuda: meses };
+          const d = calcularDeudaInmueble(inmConMeses, tasaEfectiva, mesesHistoricos(inmConMeses));
+          const multaManual = isExoneradoTotalMultas(curr) ? 0 : (parseFloat(curr.multa_bs || '0') || 0);
+          const multaFinal = isExoneradoTotalMultas(curr) ? 0 : Math.max(d.multa, multaManual);
+          totalBaseInmueblesBs += d.base;
+          totalIvaInmueblesBs += d.iva;
+          totalMultasInmueblesBs += multaFinal;
+          return acc + d.base + d.iva + multaFinal;
         }, 0);
 
         const totalCondoBs = userCondoUnidades.reduce((acc, curr) => {
           const meses = parseInt(curr.multa_meses || '0') || 0;
+          if (meses <= 0) return acc;
           const mmv = parseFloat(curr.tarifa_mmv || '0') || 0;
           const act = String(curr.actividad || curr.clasificacion || '');
           const esRes = act.toLowerCase().includes('residencial');
           const far = esRes ? getFAR(act) : 0.128;
-          const base = meses * mmv * 57 * far * tasaEfectiva;
-          return acc + (esRes ? base : base * 1.16);
+          const bMes = mmv * 57 * far * tasaEfectiva;
+          const base = Math.round(meses * bMes * 100) / 100;
+          const iva = esRes ? 0 : Math.round(base * 0.16 * 100) / 100;
+          const mesesConMora = Math.max(0, meses - 1);
+          const tasaMora = esRes ? 0.10 : 0.12;
+          const multaCalc = Math.round(mesesConMora * bMes * tasaMora * 100) / 100;
+          const multaManual = parseFloat(curr.multa_bs || '0') || 0;
+          const multaFinal = Math.max(multaCalc, multaManual);
+          totalBaseInmueblesBs += base;
+          totalIvaInmueblesBs += iva;
+          totalMultasInmueblesBs += multaFinal;
+          return acc + base + iva + multaFinal;
         }, 0);
 
-        let montoACongelarNum = totalOrdenanzaInmueblesBs + totalCondoBs + totalFacturasBs;
+        let montoACongelarNum = Math.round((totalOrdenanzaInmueblesBs + totalCondoBs + totalFacturasBs) * 100) / 100;
 
         // Si la nota del inmueble contiene un monto previo de refinanciamiento (ej. Bs. 567.781,16)
         if (montoACongelarNum <= 0.01) {
@@ -432,6 +456,9 @@ export default function ConveniosPagoPage() {
           totalMMV: Math.round((totalMMV + totalCondoMMV) * 100) / 100,
           totalCongelada,
           totalFacturasBs,
+          totalBaseBs: Math.round(totalBaseInmueblesBs * 100) / 100,
+          totalIvaBs: Math.round(totalIvaInmueblesBs * 100) / 100,
+          totalMultasBs: Math.round(totalMultasInmueblesBs * 100) / 100,
           totalMesesDeuda,
           valorMesBs: Math.round(valorMesBs * 100) / 100,
           tasaEfectiva,
@@ -509,9 +536,11 @@ export default function ConveniosPagoPage() {
         const currentFrozen = parseFloat(inm.deuda_congelada_bs || inm.DeudaCongelada || '0');
         if (mmv > 0 || currentFrozen > 0) {
           const meses = Math.max(1, parseInt(inm.meses_deuda || '1') || 1);
-          const mensBs = calcularMensualidad(inm, tasaAplicada);
-          const multaBs = parseFloat(inm.multa_bs || '0') || 0;
-          const calcBs = (mensBs * meses) + multaBs;
+          const inmConMeses = { ...inm, meses_deuda: meses };
+          const d = calcularDeudaInmueble(inmConMeses, tasaAplicada, mesesHistoricos(inmConMeses));
+          const multaManual = isExoneradoTotalMultas(inm) ? 0 : (parseFloat(inm.multa_bs || '0') || 0);
+          const multaFinal = isExoneradoTotalMultas(inm) ? 0 : Math.max(d.multa, multaManual);
+          const calcBs = Math.round((d.base + d.iva + multaFinal) * 100) / 100;
           const bsToFreeze = currentFrozen > 0 ? currentFrozen : (calcBs > 0 ? calcBs : mmv * tasaAplicada);
           inmueblesUpdates.push({
             id: inm.id,
@@ -645,6 +674,24 @@ export default function ConveniosPagoPage() {
                       <span>Deuda Fluctuante a Congelar (UCD):</span>
                       <span>{foundUser.totalMMV} UCD</span>
                     </p>
+                    {foundUser.totalBaseBs > 0 && (
+                      <p className="flex justify-between items-center text-slate-700 text-xs mt-1">
+                        <span>Subtotal Servicio de Aseo Urbano ({foundUser.totalMesesDeuda} meses):</span>
+                        <span className="font-semibold">Bs. {Number(foundUser.totalBaseBs).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      </p>
+                    )}
+                    {foundUser.totalIvaBs > 0 && (
+                      <p className="flex justify-between items-center text-slate-700 text-xs mt-0.5">
+                        <span>IVA (16% Comercial):</span>
+                        <span className="font-semibold">Bs. {Number(foundUser.totalIvaBs).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      </p>
+                    )}
+                    {foundUser.totalMultasBs > 0 && (
+                      <p className="flex justify-between items-center text-amber-800 text-xs font-semibold mt-0.5">
+                        <span>Multas por Mora Incluidas:</span>
+                        <span>+ Bs. {Number(foundUser.totalMultasBs).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      </p>
+                    )}
                     {foundUser.totalFacturasBs > 0 && (
                       <p className="flex justify-between items-center text-slate-600 font-medium mt-1">
                         <span>Deuda por Facturas / Recibos:</span>

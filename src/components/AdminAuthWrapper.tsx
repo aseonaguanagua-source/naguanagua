@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { performLogout } from '@/lib/logout';
 
 export const PUESTOS_PLANTILLA = [
-  { puesto: 'Administrador', usuario: 'admin', defaultClave: 'admin123', rol: 'Administrador' },
+  { puesto: 'Administrador', usuario: 'admin', defaultClave: 'dzara18', rol: 'Administrador' },
   { puesto: 'Cajero', usuario: 'cajero', defaultClave: 'cajero123', rol: 'Taquilla / Operador' },
   { puesto: 'Supervisor de Operaciones', usuario: 'supervisor', defaultClave: 'supervisor123', rol: 'Supervisor' },
   { puesto: 'Operador de Censo / Catastro', usuario: 'censo', defaultClave: 'censo123', rol: 'Operador de Censo' },
@@ -161,35 +161,53 @@ export default function AdminAuthWrapper({ children }: { children: React.ReactNo
         return;
       }
 
-      // Soporte directo para credenciales maestras de administrador (emitiendo también cookie de sesión en el servidor)
-      if ((u.toLowerCase() === 'dzara' || u.toLowerCase() === 'administrador' || u.toLowerCase() === 'admin') && (p === 'dzara' || p === 'admin123')) {
-        const uMaster = u.toLowerCase() === 'dzara' ? 'dzara' : 'admin';
-        const adminData = {
-          usuario: uMaster,
-          nombre: 'Administrador',
-          rol: 'Administrador',
-          letra: 'DZ',
-          permisos: {} // Administrador tiene bypass total
-        };
+      // Soporte directo para credenciales maestras de administrador (clave unificada dzara18)
+      const isMasterUser = u.toLowerCase() === 'dzara' || u.toLowerCase() === 'administrador' || u.toLowerCase() === 'admin';
+      if (isMasterUser) {
+        if (p === 'dzara18') {
+          const uMaster = u.toLowerCase() === 'dzara' ? 'dzara' : 'admin';
+          const adminData = {
+            usuario: uMaster,
+            nombre: 'Administrador',
+            rol: 'Administrador',
+            letra: 'DZ',
+            permisos: {} // Administrador tiene bypass total
+          };
 
-        // Intentar emitir cookie httpOnly en el servidor para endpoints como /api/admin/dios
-        await fetch('/api/admin/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username: uMaster, password: p })
-        }).catch(() => {});
+          // Intentar emitir cookie httpOnly en el servidor para endpoints como /api/admin/dios
+          await fetch('/api/admin/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: uMaster, password: p })
+          }).catch(() => {});
 
-        localStorage.setItem('admin_user_data', JSON.stringify(adminData));
-        localStorage.setItem('adminUser', uMaster);
-        localStorage.setItem('adminLetra', 'DZ');
-        localStorage.setItem('admin_auth_andministrador', 'true');
+          localStorage.setItem('admin_user_data', JSON.stringify(adminData));
+          localStorage.setItem('adminUser', uMaster);
+          localStorage.setItem('adminLetra', 'DZ');
+          localStorage.setItem('admin_auth_andministrador', 'true');
+          try {
+            sessionStorage.setItem('admin_user_data', JSON.stringify(adminData));
+            sessionStorage.setItem('active_cajero_id', `DZ-${uMaster}`);
+            (window as any).__activeCajeroId = `DZ-${uMaster}`;
+          } catch {}
 
-        await logAudit(`Inicio de Sesión Administrador (${uMaster})`, { usuario: uMaster }, 'SESION', 'BAJA');
+          await logAudit(`Inicio de Sesión Administrador (${uMaster})`, { usuario: uMaster }, 'SESION', 'BAJA');
 
-        setUser(adminData);
-        setIsAuthenticated(true);
-        setLoginLoading(false);
-        return;
+          setUser(adminData);
+          setIsAuthenticated(true);
+          setLoginLoading(false);
+          return;
+        } else {
+          await logAudit(
+            `Intento fallido de acceso a Usuario Master (${u})`,
+            { usuario_intentado: u, alerta: 'Intentando entrar a usuario master: se enviará IP para verificar su login' },
+            'SEGURIDAD',
+            'CRITICA'
+          );
+          setLoginError('⚠️ Intentando entrar a usuario master: se enviará IP para verificar su login.');
+          setLoginLoading(false);
+          return;
+        }
       }
 
       // Consulta a la API de autenticación de trabajadores

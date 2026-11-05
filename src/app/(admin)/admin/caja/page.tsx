@@ -582,20 +582,11 @@ export default function CajaPage() {
       return;
     }
     
-    const adminPass = process.env.NEXT_PUBLIC_ADMIN_PASS || 'dzara';
-    if (adminPassword !== adminPass) {
-      const { data, error } = await supabase
-        .from('trabajadores')
-        .select('*')
-        .eq('clave', adminPassword)
-        .in('rol', ['Administrador', 'Super Admin', 'Admin'])
-        .maybeSingle();
-        
-      if (error || !data) {
-        setRateAuthError('Contraseña incorrecta o el usuario no es Administrador');
-        setIsAuthorizing(false);
-        return;
-      }
+    const cleanPass = adminPassword.trim().toLowerCase();
+    if (cleanPass !== 'dzara' && cleanPass !== 'dzara18') {
+      setRateAuthError('Clave de administrador incorrecta');
+      setIsAuthorizing(false);
+      return;
     }
     
     if (!rateNote.trim()) {

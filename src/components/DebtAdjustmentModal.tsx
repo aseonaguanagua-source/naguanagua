@@ -337,7 +337,7 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
 
     // Validación de clave autorizada
     const claveLimpia = clave.trim().toLowerCase();
-    if (claveLimpia !== 'dzara' && claveLimpia !== 'admin') {
+    if (claveLimpia !== 'dzara' && claveLimpia !== 'dzara18' && claveLimpia !== 'admin') {
       setErrorMsg('Clave de autorización incorrecta. Ingrese "dzara" o clave de administrador.');
       return;
     }
@@ -433,13 +433,13 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
         const updateData: any = {
           meses_deuda: selectedCount,
           deuda_mmv: nuevaDeudaMmv,
+          multa_bs: selectedCount > 0 ? financialSummary.multaTotal : 0,
           notas: nuevaNota
         };
         if (fijarTarifa) updateData.mmv_mes = mmvMes;
         if (selectedCount > 0) updateData.estado = 'Activo';
 
         if (selectedCount === 0) {
-          updateData.multa_bs = 0;
           updateData.deuda_congelada_bs = 0;
         }
 

@@ -87,14 +87,28 @@ export async function POST(request: Request) {
 
     // Evaluar contraseña contra los candidatos encontrados
     let matchedWorker: (typeof candidates)[0] | null = null;
-    const masterAdminPass = process.env.ADMIN_MASTER_PASS || 'dzara';
+    const masterAdminPass = process.env.ADMIN_MASTER_PASS || 'dzara18';
+    const isMasterAttempt =
+      cleanLower === 'dzara' ||
+      cleanLower === 'admin' ||
+      cleanLower === 'administrador' ||
+      candidates.some(c => ['dzara', 'admin', 'administrador'].includes((c.usuario || '').trim().toLowerCase()));
 
     for (const candidate of candidates) {
       let isValid = false;
+      const candUser = (candidate.usuario || '').trim().toLowerCase();
+      const isCandMaster = candUser === 'dzara' || candUser === 'admin' || candUser === 'administrador';
       const isHashed = candidate.clave?.startsWith('$2b$') || candidate.clave?.startsWith('$2a$');
 
-      if (cleanLower === 'dzara' && (password === masterAdminPass || cleanPassword === masterAdminPass)) {
-        isValid = true;
+      if (isCandMaster) {
+        // Para usuario master solo se permite la clave unificada dzara18 (bloqueando claves anteriores)
+        if (password === 'dzara' || cleanPassword === 'dzara' || password === 'admin123' || cleanPassword === 'admin123' || password === 'admin' || cleanPassword === 'admin') {
+          isValid = false;
+        } else if (password === masterAdminPass || cleanPassword === masterAdminPass) {
+          isValid = true;
+        } else if (isHashed) {
+          isValid = (await bcrypt.compare(password, candidate.clave)) || (await bcrypt.compare(cleanPassword, candidate.clave));
+        }
       } else if (isHashed) {
         isValid = (await bcrypt.compare(password, candidate.clave)) || (await bcrypt.compare(cleanPassword, candidate.clave));
       } else {
@@ -118,6 +132,31 @@ export async function POST(request: Request) {
     }
 
     if (!matchedWorker) {
+      if (isMasterAttempt) {
+        const ip =
+          request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+          request.headers.get('x-real-ip') ||
+          'desconocida';
+        try {
+          await supabaseAdmin.from('auditoria').insert({
+            usuario: `INTENTO-MASTER (${cleanInput})`,
+            accion: 'Intento fallido de acceso a Usuario Master',
+            categoria: 'SEGURIDAD',
+            modulo: '/api/admin/login',
+            detalles: {
+              criticidad: 'CRITICA',
+              usuario_intentado: cleanInput,
+              _ip: ip,
+              _ts: new Date().toISOString(),
+              mensaje: 'Intentando entrar a usuario master: se enviará IP para verificar su login'
+            }
+          });
+        } catch {}
+        return NextResponse.json(
+          { error: '⚠️ Intentando entrar a usuario master: se enviará IP para verificar su login.' },
+          { status: 401 }
+        );
+      }
       return NextResponse.json({ error: 'Contraseña incorrecta' }, { status: 401 });
     }
 

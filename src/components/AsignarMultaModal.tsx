@@ -193,7 +193,7 @@ export function AsignarMultaModal({ row, inmuebles, tcmmv, onClose, onSuccess }:
 
     // Validar clave
     const claveLimpia = clave.trim().toLowerCase();
-    if (claveLimpia !== 'dzara' && claveLimpia !== 'admin') {
+    if (claveLimpia !== 'dzara' && claveLimpia !== 'dzara18' && claveLimpia !== 'admin') {
       setErrorMsg('Clave de autorización incorrecta. Solo administradores autorizados pueden asignar multas.');
       return;
     }

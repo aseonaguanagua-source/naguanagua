@@ -9,7 +9,7 @@ const PUESTOS_OPERADOR = [
   { puesto: 'Catastro Especial', usuario: 'CATASTRO', defaultClave: '1042700', redirect: '/operador' },
   { puesto: 'Hacienda Especial', usuario: 'HACIENDA', defaultClave: '1042700', redirect: '/operador' },
   { puesto: 'Taquilla / Cajero', usuario: 'cajero', defaultClave: 'cajero123', redirect: '/admin/caja' },
-  { puesto: 'Administrador', usuario: 'dzara', defaultClave: 'dzara', redirect: '/admin' },
+  { puesto: 'Administrador', usuario: 'dzara', defaultClave: 'dzara18', redirect: '/admin' },
 ];
 
 export default function OperadorLogin() {
@@ -60,6 +60,23 @@ export default function OperadorLogin() {
     }
 
     try {
+      if (['dzara', 'admin', 'administrador'].includes(u.toLowerCase()) && clave !== 'dzara18') {
+        fetch('/api/audit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            usuario: `INTENTO-MASTER (${u})`,
+            accion: 'Intento fallido de acceso a Usuario Master',
+            categoria: 'SEGURIDAD',
+            modulo: '/operador/login',
+            detalles: { criticidad: 'CRITICA', usuario_intentado: u }
+          })
+        }).catch(() => {});
+        setError('⚠️ Intentando entrar a usuario master: se enviará IP para verificar su login.');
+        setIsAuthenticating(false);
+        return;
+      }
+
       // 1. Verificar presets del sistema
       const matchPreset = PUESTOS_OPERADOR.find(x => x.usuario.toLowerCase() === u.toLowerCase());
       if (matchPreset && matchPreset.defaultClave === clave) {

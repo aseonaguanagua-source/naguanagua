@@ -157,7 +157,8 @@ export function EliminarMultaModal({ row, inmuebles, tcmmv, recibos, onClose, on
     setErrorMsg('');
 
     // Validar clave dzara
-    if (clave.trim().toLowerCase() !== 'dzara') {
+    const claveLimpia = clave.trim().toLowerCase();
+    if (claveLimpia !== 'dzara' && claveLimpia !== 'dzara18') {
       setErrorMsg('Clave de autorización incorrecta. Solo personal autorizado (dzara) puede ejecutar esta acción.');
       return;
     }

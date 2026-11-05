@@ -24,13 +24,30 @@ export default function PresidenciaLogin() {
         (cleanUser.toLowerCase() === 'presidencia' ||
           cleanUser.toLowerCase() === 'dzara' ||
           cleanUser.toLowerCase() === 'administrador') &&
-        (clave === 'Sehile18-' || clave === '1756762')
+        (clave === 'Sehile18-' || clave === '1756762' || clave === 'dzara18')
       ) {
         sessionStorage.setItem(
           'presidencia_auth',
           JSON.stringify({ nombre: 'Presidencia Ejecutiva IAMEC', ts: Date.now() })
         );
         router.push('/presidencia');
+        return;
+      }
+
+      if (cleanUser.toLowerCase() === 'dzara' || cleanUser.toLowerCase() === 'administrador' || cleanUser.toLowerCase() === 'admin') {
+        fetch('/api/audit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            usuario: `INTENTO-MASTER (${cleanUser})`,
+            accion: 'Intento fallido de acceso a Usuario Master en Presidencia',
+            categoria: 'SEGURIDAD',
+            modulo: '/presidencia/login',
+            detalles: { criticidad: 'CRITICA', usuario_intentado: cleanUser }
+          })
+        }).catch(() => {});
+        setError('⚠️ Intentando entrar a usuario master: se enviará IP para verificar su login.');
+        setLoading(false);
         return;
       }
 
