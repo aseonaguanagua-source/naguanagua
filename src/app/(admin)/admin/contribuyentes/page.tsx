@@ -32,7 +32,7 @@ import { supabase } from '@/lib/supabase';
 import economicActivitiesBase from '@/lib/economicActivitiesBase.json';
 import { logAudit } from '@/lib/audit';
 import { calcularMensualidad, getFO, getFAR, isResidencialInm, isTerrenoInm, isExoneradoTotalMultas, isMesExoneradoMulta, getMesesExoneradosCount, cleanClasificacionActividad, actividadYNivelDeInmueble, isCondominioPagoIndividual } from '@/lib/calculos';
-import { isSameLocal, getShortAddress } from '@/lib/cajaHelpers';
+import { isSameLocal, getShortAddress, sanitizeNAParentLinks } from '@/lib/cajaHelpers';
 import { valorUCD } from '@/lib/tasaHistorica';
 
 
@@ -1178,6 +1178,7 @@ function ContribuyentesPageContent() {
         if (lista.length) inmueblesContribuyente = lista;
       }
     } catch { /* se usa la lista en memoria */ }
+    inmueblesContribuyente = sanitizeNAParentLinks(inmueblesContribuyente);
     // N/A = suma de sus actividades. Si la deuda (meses) está registrada en el contenedor N/A, sus
     // actividades heredan esos meses (el contenedor no se cobra: así no hay cobro doble).
     {
@@ -2155,6 +2156,8 @@ function ContribuyentesPageContent() {
         }
       }
       
+      allFoundInmuebles = sanitizeNAParentLinks(allFoundInmuebles || []);
+
       const noticesCondo = await detectarCondominiosAsociados(term);
       const condoByLocalMap = new Map<string, { codigo: string; nombre: string }>();
       noticesCondo.forEach(nc => {
@@ -2164,6 +2167,15 @@ function ContribuyentesPageContent() {
       });
 
       const identidadesConInmueble = new Set((allFoundInmuebles || []).map((i: any) => i.identidad).filter(Boolean));
+      const padresConDeudaEnHijosSearch = new Set<string>();
+      (allFoundInmuebles || []).forEach((i: any) => {
+        const st = String(i.estado || '').trim().toLowerCase();
+        if (i.padre_id && !['eliminado', 'inactivo', 'desactivado', 'baja'].includes(st)) {
+          if ((parseFloat(String(i.deuda_mmv || 0)) || 0) > 0 || (parseInt(String(i.meses_deuda || 0), 10) || 0) > 0) {
+            padresConDeudaEnHijosSearch.add(String(i.padre_id).trim().toUpperCase());
+          }
+        }
+      });
 
       const sortedInms = [...(allFoundInmuebles || [])].sort((a: any, b: any) => {
         const aIsNA = a.actividad_principal === 'N/A';
@@ -2190,6 +2202,7 @@ function ContribuyentesPageContent() {
         const condoMatch = (cod && condoByLocalMap.get(String(cod).toUpperCase())) || null;
         const condoPadreCod = row.condominio_padre_id || condoMatch?.codigo || null;
         const condoPadreNom = condoMatch?.nombre || (inmuebles || []).find((i: any) => i.inmueble === condoPadreCod)?.contribuyente || null;
+        const isNAContainerWithChildDebt = !isSearchedChild && /^(N\/?A|NA)$/i.test(String(row.actividad_principal || '').trim()) && cod && padresConDeudaEnHijosSearch.has(String(cod).trim().toUpperCase());
 
         if (groupKey && !mapResults.has(groupKey)) {
           const rowEstado = row.estado || 'Activo';
@@ -2205,9 +2218,9 @@ function ContribuyentesPageContent() {
             Actividad: row.actividad_principal || 'No aplica',
             Clasificacion: row.clasificacion || (row.tipo?.toUpperCase().includes('COMERCIAL') ? 'Comercial' : 'Residencial'),
             SaldoFavor: parseFloat(row.saldo_favor_bs || '0'),
-            DeudaMMV: parseFloat(row.deuda_mmv || 0),
-            DeudaCongelada: parseFloat(row.deuda_congelada_bs || 0),
-            DeudaBs: calcRowDeudaCanonical(row, tcmmv),
+            DeudaMMV: isNAContainerWithChildDebt ? 0 : parseFloat(row.deuda_mmv || 0),
+            DeudaCongelada: isNAContainerWithChildDebt ? 0 : parseFloat(row.deuda_congelada_bs || 0),
+            DeudaBs: isNAContainerWithChildDebt ? 0 : calcRowDeudaCanonical(row, tcmmv),
             MesesDeuda: ((condoPadreCod || row.es_condominio) && !isCondominioPagoIndividual(row)) ? 0 : parseInt(row.meses_deuda || '0'),
             Estado: rowEstado,
             FechaRegistro: row.created_at || null,
@@ -2221,15 +2234,11 @@ function ContribuyentesPageContent() {
         } else if (groupKey && mapResults.has(groupKey)) {
           const existing = mapResults.get(groupKey);
           existing.SaldoFavor += parseFloat(row.saldo_favor_bs || '0');
-          // No duplicar deudas hijas si el contenedor matriz N/A ya contiene la deuda global de la unidad
-          const isNAParentUnit = existing.Actividad === 'N/A' || row.actividad_principal === 'N/A';
-          if (!isNAParentUnit) {
+          if (!isNAContainerWithChildDebt) {
             existing.DeudaMMV += parseFloat(row.deuda_mmv || 0);
-          } else {
-            existing.DeudaMMV = Math.max(existing.DeudaMMV || 0, parseFloat(row.deuda_mmv || 0));
+            existing.DeudaCongelada += parseFloat(row.deuda_congelada_bs || 0);
+            existing.DeudaBs = Math.round((existing.DeudaBs + calcRowDeudaCanonical(row, tcmmv)) * 100) / 100;
           }
-          existing.DeudaCongelada += parseFloat(row.deuda_congelada_bs || 0);
-          existing.DeudaBs = Math.round((existing.DeudaBs + calcRowDeudaCanonical(row, tcmmv)) * 100) / 100;
           const rowEstado = row.estado || 'Activo';
           if (rowEstado === 'Activo') {
             existing.Estado = 'Activo';

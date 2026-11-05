@@ -12,7 +12,7 @@ import { ReciboImprimible } from '@/components/ReciboImprimible';
 import { ModalComprobante } from '@/components/caja/ModalComprobante';
 import { logAudit } from '@/lib/audit';
 import { calcularMensualidad, getFO, getFAR, isResidencialInm, isTerrenoInm, isCondominioPagoIndividual, isMesExoneradoMulta, cleanClasificacionActividad } from '@/lib/calculos';
-import { getUserInmuebles, getCajeroId, isSameLocal, clusterInmueblesByLocal, getShortAddress } from '@/lib/cajaHelpers';
+import { getUserInmuebles, getCajeroId, isSameLocal, clusterInmueblesByLocal, getShortAddress, sanitizeNAParentLinks } from '@/lib/cajaHelpers';
 import { acreditarSaldoFavor, descontarSaldoFavor } from '@/lib/saldoFavor';
 import { useCajaCalculations } from './hooks/useCajaCalculations';
 import { useCajaSelection } from './hooks/useCajaSelection';
@@ -1024,8 +1024,9 @@ export default function CajaPage() {
       // Obtener datos frescos del inmueble desde Supabase
       const userIdentVariants = getIdentidadVariantsExact(user.Identidad);
       let orFilterInms = '';
-      if (isCodeFormat && (user.CodCont || user.cod_cont)) {
-        const specificCode = String(user.CodCont || user.cod_cont).trim().toUpperCase();
+      const searchedSpecificCode = String(user.cod_cont || String(user.CodCont || '').split(/\s+/)[0] || '').trim().toUpperCase();
+      if (isCodeFormat && searchedSpecificCode) {
+        const specificCode = searchedSpecificCode;
         // REQUISITO: Cuando se busca por código, debe salir la información de ese código y de su local/unidad.
         // Si el código buscado pertenece a un local unificado (tiene padre_id hacia una matriz N/A del mismo local),
         // traer tanto la matriz como todas sus actividades hijas unificadas.
@@ -1067,10 +1068,25 @@ export default function CajaPage() {
         }
       }
 
-      const { data: inmFresh } = await supabase
+      const { data: inmFreshRaw } = await supabase
         .from('inmuebles')
         .select('*')
         .or(orFilterInms);
+
+      const sanitizedFresh = sanitizeNAParentLinks(inmFreshRaw || []);
+      const inmFresh = (isCodeFormat && searchedSpecificCode)
+        ? (() => {
+            const searchedObj = sanitizedFresh.find((i: any) => String(i?.inmueble || '').trim().toUpperCase() === searchedSpecificCode);
+            const rootCode = searchedObj?.padre_id
+              ? String(searchedObj.padre_id).trim().toUpperCase()
+              : searchedSpecificCode;
+            return sanitizedFresh.filter((i: any) => {
+              const ic = String(i?.inmueble || '').trim().toUpperCase();
+              const ip = String(i?.padre_id || '').trim().toUpperCase();
+              return ic === rootCode || ip === rootCode || ic === searchedSpecificCode;
+            });
+          })()
+        : sanitizedFresh;
 
       // N/A = suma de sus actividades. Si la deuda (meses) está registrada en el contenedor N/A,
       // sus actividades hijas heredan esos meses (misma lógica que Estado de Cuenta y Detalles Contribuyente).

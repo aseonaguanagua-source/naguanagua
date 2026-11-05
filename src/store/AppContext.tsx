@@ -8,6 +8,7 @@ import { isResidencialInm, isTerrenoInm, calcularMensualidad, actividadConNivel,
 import { getFromIndexedDB, saveToIndexedDB, clearAllIndexedDB, CURRENT_CACHE_VERSION } from '@/lib/indexedDbCache';
 import { formatPhoneNumber, isFictitiousEmail, getIdentidadVariants } from '@/lib/formatters';
 import { logAudit, AuditCategoria, AuditCriticidad } from '@/lib/audit';
+import { sanitizeNAParentLinks } from '@/lib/cajaHelpers';
 
 type AppState = {
   inmuebles: any[];
@@ -143,9 +144,89 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (!forceFresh && typeof window !== 'undefined') {
         const cached = await getFromIndexedDB<any>('naguanagua_full_cache');
         if (cached && (cached.version === CURRENT_CACHE_VERSION || cached.version === 'v2026_10_06_carga_completa_v1') && Array.isArray(cached.inmuebles) && cached.inmuebles.length > 0) {
-          // CARGA INSTANTÁNEA (< 50ms)
-          setInmuebles(cached.inmuebles);
-          setContribuyentes(cached.contribuyentes || []);
+          // CARGA INSTANTÁNEA (< 50ms) con saneamiento de códigos independientes mal unificados en N/A
+          const cleanCachedInms = sanitizeNAParentLinks(cached.inmuebles);
+          const detachedCodesMap = new Map<string, any>();
+          cached.inmuebles.forEach((orig: any, idx: number) => {
+            const after = cleanCachedInms[idx];
+            if (orig?.padre_id && !after?.padre_id && after?.inmueble) {
+              detachedCodesMap.set(String(after.inmueble).trim().toUpperCase(), after);
+            }
+          });
+          // También verificar si algún inmueble sin padre_id aparece fusionado dentro del CodCont de otro en cached.contribuyentes
+          const independentByCode = new Map<string, any>();
+          cleanCachedInms.forEach((inm: any) => {
+            const c = String(inm?.inmueble || '').trim().toUpperCase();
+            if (c && !inm?.padre_id && !['eliminado', 'inactivo', 'desactivado'].includes(String(inm?.estado || '').trim().toLowerCase())) {
+              independentByCode.set(c, inm);
+            }
+          });
+          let cleanCachedContribs = Array.isArray(cached.contribuyentes) ? [...cached.contribuyentes] : [];
+          if (cleanCachedContribs.length > 0) {
+            const extraContribs: any[] = [];
+            const primaryCodesExisting = new Set(
+              cleanCachedContribs.map((c: any) => String(c?.cod_cont || String(c?.CodCont || '').split(/\s+/)[0] || '').trim().toUpperCase()).filter(Boolean)
+            );
+            cleanCachedContribs = cleanCachedContribs.map((c: any) => {
+              const tokens = String(c?.CodCont || '').split(/\s+/).map((t: string) => t.trim().toUpperCase()).filter(Boolean);
+              if (tokens.length <= 1) return c;
+              const primary = tokens[0];
+              const keptTokens: string[] = [primary];
+              for (let i = 1; i < tokens.length; i++) {
+                const tk = tokens[i];
+                const indInm = detachedCodesMap.get(tk) || independentByCode.get(tk);
+                if (indInm && !indInm.padre_id) {
+                  if (!primaryCodesExisting.has(tk)) {
+                    primaryCodesExisting.add(tk);
+                    const rateC = cached.tcmmv || 1000;
+                    const esRes = isResidencialInm(indInm);
+                    const bMes = calcularMensualidad(indInm, rateC);
+                    const m = parseInt(String(indInm.meses_deuda || 0), 10) || 0;
+                    const deudaMMV = parseFloat(String(indInm.deuda_mmv || 0)) || 0;
+                    const totalMeses = Math.max(0, m > 0 ? m : (deudaMMV > 0 ? 1 : 0));
+                    const mesesConMora = Math.max(0, totalMeses - 1);
+                    const tasaMora = esRes ? 0.10 : 0.12;
+                    const base4 = Math.round((bMes * totalMeses) * 10000) / 10000;
+                    const iva4 = esRes ? 0 : Math.round((base4 * 0.16) * 10000) / 10000;
+                    const multa4 = Math.round((bMes * tasaMora * mesesConMora) * 10000) / 10000;
+                    const ret4 = (!esRes && indInm.agente_retencion === true) ? Math.round((iva4 * 0.75) * 10000) / 10000 : 0;
+                    const deudaBs = Math.round(Math.max(0, base4 + iva4 + multa4 - ret4) * 100) / 100;
+                    extraContribs.push({
+                      ...c,
+                      id: indInm.id || `${c.id}-${tk}`,
+                      CodCont: tk,
+                      cod_cont: tk,
+                      Direccion: indInm.direccion || c.Direccion || '',
+                      Actividad: indInm.actividad_principal || c.Actividad || 'No aplica',
+                      ActividadComercial: indInm.actividad_principal || '',
+                      DeudaMMV: deudaMMV,
+                      DeudaBs: deudaBs,
+                      MesesDeuda: totalMeses,
+                      isParentNormal: false,
+                      isChildNormal: false,
+                      childNormalCount: 0,
+                      padre_id: null,
+                    });
+                  }
+                } else {
+                  keptTokens.push(tk);
+                }
+              }
+              if (keptTokens.length !== tokens.length) {
+                return {
+                  ...c,
+                  CodCont: keptTokens.join(' '),
+                  childNormalCount: Math.max(0, keptTokens.length - 1),
+                };
+              }
+              return c;
+            });
+            if (extraContribs.length > 0) {
+              cleanCachedContribs.push(...extraContribs);
+            }
+          }
+          setInmuebles(cleanCachedInms);
+          setContribuyentes(cleanCachedContribs);
           setCondominios(cached.condominios || []);
           setFacturas(cached.facturas || []);
           setPreRegistros(cached.preRegistros || []);
@@ -255,7 +336,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const contribMap = new Map();
       rawContribuyentes.forEach(c => contribMap.set(c.identidad, c));
 
-      const allInmuebles = rawInmuebles.map(inm => ({
+      const sanitizedRawInmuebles = sanitizeNAParentLinks(rawInmuebles);
+      const allInmuebles = sanitizedRawInmuebles.map(inm => ({
         ...inm,
         contribuyentes: contribMap.get(inm.identidad) || null
       }));
@@ -263,12 +345,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Contar unidades/locales hijos vinculados por condominio_padre_id
       const hijosCountMap = new Map<string, number>();
       const hijosNormalesCountMap = new Map<string, number>();
+      const padresConDeudaEnHijos = new Set<string>();
       allInmuebles.forEach(i => {
         if (i.condominio_padre_id && i.estado !== 'Eliminado') {
           hijosCountMap.set(i.condominio_padre_id, (hijosCountMap.get(i.condominio_padre_id) || 0) + 1);
         }
         if (i.padre_id && i.estado !== 'Eliminado') {
           hijosNormalesCountMap.set(i.padre_id, (hijosNormalesCountMap.get(i.padre_id) || 0) + 1);
+          if ((parseFloat(String(i.deuda_mmv || 0)) || 0) > 0 || (parseInt(String(i.meses_deuda || 0), 10) || 0) > 0) {
+            padresConDeudaEnHijos.add(i.padre_id);
+          }
         }
       });
 
@@ -432,13 +518,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
         // Inmuebles "Eliminado", "Inactivo" o con actividad TERRENO no suman deuda ni multas (ellos no pagan).
         const esEliminado = ['eliminado', 'inactivo', 'desactivado'].includes(String(row.estado || '').trim().toLowerCase());
         const esTerreno = isTerrenoInm(row);
-        const rowDeudaMMV = (isCommercialChild || esEliminado || esTerreno) ? 0 : parseFloat(row.deuda_mmv || 0);
-        const rowMultaBs = (isParentCondo || esEliminado || esTerreno) ? 0 : parseFloat(row.multa_bs || 0);
-        const rowCongelada = (esEliminado || esTerreno) ? 0 : parseFloat(row.deuda_congelada_bs || 0);
+        // Si es un contenedor matriz N/A cuyos hijos activos ya tienen su deuda desglosada, no sumar el contenedor para evitar duplicar la deuda
+        const isNAContainerWithChildDebt = isParentNormal && /^(N\/?A|NA)$/i.test(String(row.actividad_principal || '').trim()) && padresConDeudaEnHijos.has(cod);
+        const rowDeudaMMV = (isCommercialChild || esEliminado || esTerreno || isNAContainerWithChildDebt) ? 0 : parseFloat(row.deuda_mmv || 0);
+        const rowMultaBs = (isParentCondo || esEliminado || esTerreno || isNAContainerWithChildDebt) ? 0 : parseFloat(row.multa_bs || 0);
+        const rowCongelada = (esEliminado || esTerreno || isNAContainerWithChildDebt) ? 0 : parseFloat(row.deuda_congelada_bs || 0);
         
         // Cálculo canónico idéntico a Caja (Base + IVA + Multa - Retención 75% - Saldo a favor)
         let rowDeudaBs = 0;
-        if (!esEliminado && !esTerreno) {
+        if (!esEliminado && !esTerreno && !isNAContainerWithChildDebt) {
           if (isCommercialChild) {
             rowDeudaBs = rowMultaBs + rowCongelada;
           } else {

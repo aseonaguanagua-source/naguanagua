@@ -40,6 +40,106 @@ export interface ContribuyenteBasic {
   DeudaTotal?: number;
 }
 
+// ─── sanitizeNAParentLinks ────────────────────────────────────────────────────
+/**
+ * Sanitiza vínculos `padre_id` hacia contenedores N/A cuando un mismo RIF posee
+ * tanto un local multi-actividad (N/A) como otros inmuebles independientes en otra dirección
+ * que fueron vinculados por error a `padre_id` en migraciones previas.
+ * Si la suma de MMV de los hijos supera el `mmv_mes` de la matriz N/A y existe un subconjunto
+ * exacto de actividades cuya suma de MMV coincide con la matriz N/A, solo ese subconjunto
+ * conserva `padre_id` y los demás quedan como códigos individuales independientes (`padre_id: undefined`).
+ */
+export function sanitizeNAParentLinks<T extends InmuebleBasic>(inms: T[]): T[] {
+  if (!Array.isArray(inms) || inms.length === 0) return inms;
+  const isActivo = (i: any) => {
+    const est = String(i?.estado || 'Activo').trim().toLowerCase();
+    return est !== 'eliminado' && est !== 'inactivo' && est !== 'desactivado' && est !== 'baja';
+  };
+
+  const byCode = new Map<string, T>();
+  const childrenByPadre = new Map<string, T[]>();
+
+  for (const item of inms) {
+    if (!item || !isActivo(item)) continue;
+    const code = String(item.inmueble || '').trim().toUpperCase();
+    if (code) byCode.set(code, item);
+    const pid = String((item as any).padre_id || '').trim().toUpperCase();
+    if (pid && pid !== code) {
+      if (!childrenByPadre.has(pid)) childrenByPadre.set(pid, []);
+      childrenByPadre.get(pid)!.push(item);
+    }
+  }
+
+  const detachCodes = new Set<string>();
+
+  childrenByPadre.forEach((kids, pid) => {
+    if (kids.length < 2 || kids.length > 18) return;
+    const parent = byCode.get(pid);
+    if (!parent) return;
+    const pMmv = parseFloat(String(parent.mmv_mes || 0)) || 0;
+    if (pMmv <= 0) return;
+
+    const sumKidsMmv = Math.round(kids.reduce((acc, k) => acc + (parseFloat(String(k.mmv_mes || 0)) || 0), 0) * 100) / 100;
+    if (sumKidsMmv <= pMmv + 0.05) return;
+
+    const pDeudaMmv = parseFloat(String(parent.deuda_mmv || 0)) || 0;
+    const pDir = String(parent.direccion || '').trim();
+    const n = kids.length;
+
+    let bestMask = -1;
+    let bestScore = -Infinity;
+
+    for (let mask = 1; mask < (1 << n) - 1; mask++) {
+      let sMmv = 0;
+      let sDeuda = 0;
+      for (let b = 0; b < n; b++) {
+        if (mask & (1 << b)) {
+          sMmv += parseFloat(String(kids[b].mmv_mes || 0)) || 0;
+          sDeuda += parseFloat(String(kids[b].deuda_mmv || 0)) || 0;
+        }
+      }
+      if (Math.abs(sMmv - pMmv) <= 0.03) {
+        let score = 0;
+        if (pDeudaMmv > 0 && Math.abs(sDeuda - pDeudaMmv) <= 0.05) {
+          score += 100;
+        }
+        for (let b = 0; b < n; b++) {
+          const kDir = String(kids[b].direccion || '').trim();
+          const sim = pDir && kDir ? addressSimilarity(pDir, kDir) : 0;
+          if (mask & (1 << b)) {
+            score += sim * 10;
+          } else {
+            score -= sim * 10;
+          }
+        }
+        if (score > bestScore) {
+          bestScore = score;
+          bestMask = mask;
+        }
+      }
+    }
+
+    if (bestMask !== -1) {
+      for (let b = 0; b < n; b++) {
+        if (!(bestMask & (1 << b))) {
+          const kCode = String(kids[b].inmueble || '').trim().toUpperCase();
+          if (kCode) detachCodes.add(kCode);
+        }
+      }
+    }
+  });
+
+  if (detachCodes.size === 0) return inms;
+
+  return inms.map((item) => {
+    const code = String(item?.inmueble || '').trim().toUpperCase();
+    if (code && detachCodes.has(code)) {
+      return { ...item, padre_id: undefined, cant_inmuebles: 1 };
+    }
+    return item;
+  });
+}
+
 // ─── getUserInmuebles ──────────────────────────────────────────────────────────
 /**
  * Retorna los inmuebles que pertenecen al usuario actualmente buscado.
@@ -58,10 +158,11 @@ export const getUserInmuebles = (
     ((foundUser as any).Clasificacion || '').toLowerCase().includes('condominio') ||
     (((foundUser as any).Tipo || '').toUpperCase().includes('RESIDENCIAL') && (foundUser as any).es_condominio);
 
-  const source: InmuebleBasic[] =
+  const rawSource: InmuebleBasic[] =
     freshInmuebles.length > 0
       ? (isTrueCondo ? [...freshInmuebles, ...condominioHijos] : freshInmuebles)
       : contextInmuebles || [];
+  const source: InmuebleBasic[] = sanitizeNAParentLinks(rawSource);
 
   const fid = (foundUser.Identidad || '').replace(/^[VEJPG]-?/i, '').replace(/-/g, '').toUpperCase();
   const specificCode = (foundUser as any).CodCont || (foundUser as any).cod_cont;
@@ -204,12 +305,23 @@ export const addressSimilarity = (a: string, b: string): number => {
 /**
  * Retorna true si dos direcciones son suficientemente similares para
  * considerarse el mismo local físico (default 75% de similitud).
+ * Si ambas direcciones contienen números cívicos explícitos distintos (ej. 191-77 vs 191-85),
+ * retorna false inmediatamente.
  */
 export const isSameLocal = (
   dir1: string,
   dir2: string,
   threshold = 0.75
-): boolean => addressSimilarity(dir1, dir2) > threshold;
+): boolean => {
+  const numRegex = /\b(\d{2,4}-\d{1,4})\b/g;
+  const nums1 = Array.from(new Set(String(dir1 || '').match(numRegex) || []));
+  const nums2 = Array.from(new Set(String(dir2 || '').match(numRegex) || []));
+  if (nums1.length > 0 && nums2.length > 0) {
+    const overlap = nums1.some((n) => nums2.includes(n));
+    if (!overlap) return false;
+  }
+  return addressSimilarity(dir1, dir2) > threshold;
+};
 
 export const getShortAddress = (addr?: string | null): string => {
   if (!addr || addr.trim() === '0 0' || addr.trim() === '') return 'Local Principal';
@@ -239,7 +351,7 @@ export function clusterInmueblesByLocal(userInms: InmuebleBasic[]): Map<string, 
     const est = (i.estado || 'Activo').trim().toLowerCase();
     return est !== 'eliminado' && est !== 'inactivo' && est !== 'desactivado';
   };
-  const activeInms = (userInms || []).filter(isActivo);
+  const activeInms = sanitizeNAParentLinks((userInms || []).filter(isActivo));
   const clusters: Array<{ localId: string; label: string; direccion: string; inms: InmuebleBasic[] }> = [];
 
   // Verificar cuáles contenedores padre_id realmente unifican un mismo local (suma de MMV coincide o padre tiene MMV 0)
@@ -378,7 +490,7 @@ export function groupInmueblesByLocal(userInms: InmuebleBasic[]): InmuebleCluste
     const est = (i.estado || 'Activo').trim().toLowerCase();
     return est !== 'eliminado' && est !== 'inactivo' && est !== 'desactivado';
   };
-  const activeInms = (userInms || []).filter(isActivo);
+  const activeInms = sanitizeNAParentLinks((userInms || []).filter(isActivo));
   const clusters: Array<{ localId: string; label: string; direccion: string; inms: InmuebleBasic[] }> = [];
 
   const validPadreIds = new Set<string>();

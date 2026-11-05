@@ -17,6 +17,7 @@ import {
   extractNivelZona
 } from '@/lib/calculos';
 import { codigosDePago } from '@/app/(admin)/admin/reportes/generators/LibroVentas';
+import { sanitizeNAParentLinks } from '@/lib/cajaHelpers';
 
 interface DetallesContribuyenteModalProps {
   isOpen: boolean;
@@ -347,6 +348,45 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
           }
         }
 
+        const { data: todosRifRaw } = idVariants.length > 0
+          ? await (async () => {
+              const rawDigits = ident.replace(/\D/g, '');
+              const allIdVariants = new Set<string>(idVariants);
+              if (rawDigits.length >= 4) {
+                ['V-', 'E-', 'J-', 'G-', 'V', 'E', 'J', 'G'].forEach(pre => {
+                  allIdVariants.add(`${pre}${rawDigits}`);
+                });
+                allIdVariants.add(rawDigits);
+              }
+              return supabase
+                .from('inmuebles')
+                .select('inmueble, tipo, actividad_principal, direccion, identidad, estado, meses_deuda, deuda_mmv, mmv_mes, padre_id, condominio_padre_id, es_condominio, numero_local, nombre_comercial, propietario')
+                .neq('estado', 'Eliminado')
+                .neq('estado', 'Inactivo')
+                .or(Array.from(allIdVariants).map(v => `identidad.eq.${v}`).join(','));
+            })()
+          : { data: null };
+
+        const todosRif = todosRifRaw ? sanitizeNAParentLinks(todosRifRaw) : null;
+
+        // Sanear vínculos padre_id falsos (ej: inmuebles individuales distintos del mismo RIF que fueron atados a un N/A)
+        allInms = sanitizeNAParentLinks(allInms);
+        const primaryCode = String(viewData?.cod_cont || viewData?.inmueble || codes[0] || '').trim().toUpperCase();
+        if (primaryCode && !viewData?.es_condominio) {
+          const primaryInmObj = allInms.find((i: any) => String(i.inmueble || '').trim().toUpperCase() === primaryCode);
+          const rootCode = primaryInmObj?.padre_id
+            ? String(primaryInmObj.padre_id).trim().toUpperCase()
+            : primaryCode;
+          const filteredHierarchy = allInms.filter((i: any) => {
+            const ic = String(i.inmueble || '').trim().toUpperCase();
+            const ip = String(i.padre_id || '').trim().toUpperCase();
+            return ic === rootCode || ip === rootCode || ic === primaryCode;
+          });
+          if (filteredHierarchy.length > 0) {
+            allInms = filteredHierarchy;
+          }
+        }
+
         // Consultar todos los inmuebles y actividades asociados a este RIF/Cédula en el municipio
         if (idVariants.length > 0) {
           try {
@@ -359,19 +399,13 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
               allIdVariants.add(rawDigits);
             }
 
-            const { data: todosRif } = await supabase
-              .from('inmuebles')
-              .select('inmueble, tipo, actividad_principal, direccion, identidad, estado, meses_deuda, deuda_mmv, padre_id, condominio_padre_id, es_condominio, numero_local, nombre_comercial, propietario')
-              .neq('estado', 'Eliminado')
-              .neq('estado', 'Inactivo')
-              .or(Array.from(allIdVariants).map(v => `identidad.eq.${v}`).join(','));
-
             if (isMounted && todosRif) {
               setTodosInmueblesRif(todosRif);
-              const otrosFiltrados = todosRif.filter((o: any) => !codes.includes(o.inmueble) && !o.padre_id);
+              const activeFichaCodes = new Set(allInms.map((i: any) => String(i.inmueble || '').trim().toUpperCase()).filter(Boolean));
+              const otrosFiltrados = todosRif.filter((o: any) => !activeFichaCodes.has(String(o.inmueble || '').trim().toUpperCase()) && !o.padre_id);
               setOtrosInmuebles(otrosFiltrados);
-              if (otrosFiltrados.length > 0 && codes.length === 1) {
-                setFiltroInmueblePago(codes[0]);
+              if (otrosFiltrados.length > 0 && primaryCode) {
+                setFiltroInmueblePago(primaryCode);
               } else {
                 setFiltroInmueblePago('todos');
               }
@@ -847,6 +881,15 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
     });
   }, [inmueblesList]);
 
+  const realActivitiesCount = useMemo(() => {
+    return userInms.filter(i => !/^(N\/?A|NA)$/i.test(String(i.actividad_principal || '').trim())).length;
+  }, [userInms]);
+
+  const primaryFichaCode = useMemo(() => {
+    const rawPrimary = String(viewData?.cod_cont || viewData?.inmueble || String(viewData?.CodCont || '').split(/\s+/)[0] || '').trim().toUpperCase();
+    return rawPrimary || (userInms[0]?.inmueble ? String(userInms[0].inmueble).trim().toUpperCase() : '');
+  }, [viewData, userInms]);
+
   // Unificación jerárquica: Inmuebles N/A con sus locales e hijos
   const unifiedInmuebles = useMemo(() => {
     // 1. Agrupar hijos por su padre_id (no agrupar todo un centro comercial bajo su matriz condominio_padre_id para que cada local salga desglosado)
@@ -1082,16 +1125,20 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                     {extractNivelZona(viewData.Actividad || viewData.actividad_principal).zona}
                   </span>
                 )}
-                {viewData.CodCont && <span className="font-mono text-slate-400">· {viewData.CodCont}</span>}
+                {(userInms.length > 0 || viewData.CodCont) && (
+                  <span className="font-mono text-slate-400">
+                    · {userInms.length > 0 ? userInms.map(i => i.inmueble).filter(Boolean).join(' ') : viewData.CodCont}
+                  </span>
+                )}
               </div>
             </div>
 
             {/* Acciones Rápidas del Encabezado */}
             <div className="flex items-center gap-2 self-start shrink-0">
               <a
-                href={`/admin/caja?cedula=${encodeURIComponent(viewData.Identidad || '')}`}
+                href={`/admin/caja?cedula=${encodeURIComponent(primaryFichaCode || viewData.Identidad || '')}`}
                 className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all"
-                title="Cobrar en Caja General"
+                title={primaryFichaCode ? `Cobrar código ${primaryFichaCode} en Caja` : 'Cobrar en Caja General'}
               >
                 <Wallet className="w-3.5 h-3.5" />
                 <span>Cobrar en Caja</span>
@@ -1129,7 +1176,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Inmuebles / Locales</span>
               <span className="text-base font-black text-white tabular-nums">
                 {unifiedInmuebles.length} {unifiedInmuebles.length === 1 ? 'unidad' : 'unidades'}
-                {userInms.length > unifiedInmuebles.length ? ` (${userInms.length} actividades)` : ''}
+                {realActivitiesCount > unifiedInmuebles.length ? ` (${realActivitiesCount} actividades)` : ''}
               </span>
             </div>
 
@@ -1255,7 +1302,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
         <div className="bg-slate-100/80 border-b border-slate-200 px-4 sm:px-6 flex gap-1 overflow-x-auto shrink-0 select-none">
           {[
             { id: 'perfil', label: 'Perfil y Contacto', icon: Users },
-            { id: 'inmuebles', label: `Inmuebles (${unifiedInmuebles.length}${userInms.length > unifiedInmuebles.length ? ` · ${userInms.length} act.` : ''})`, icon: Building2 },
+            { id: 'inmuebles', label: `Inmuebles (${unifiedInmuebles.length}${realActivitiesCount > unifiedInmuebles.length ? ` · ${realActivitiesCount} act.` : ''})`, icon: Building2 },
             { id: 'deuda', label: `Estado de Cuenta (${facturasDb.length} recibos)`, icon: DollarSign },
             { id: 'pagos', label: `Historial de Pagos (${pagosDb.length})`, icon: Receipt },
             { id: 'servicios', label: `Servicios y Convenios (${serviciosEspDb.length + (conveniosDb.length > 0 ? conveniosDb.filter(c => {
@@ -1349,8 +1396,10 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                         </thead>
                         <tbody className="divide-y divide-indigo-900/30">
                           {todosInmueblesRif.map((inmRif: any, iIdx: number) => {
-                            const currentCodes = userInms.map((u: any) => u.inmueble).concat([viewData.inmueble, viewData.CodCont, viewData.cod_cont]).filter(Boolean);
-                            const isCurrentSelected = currentCodes.includes(inmRif.inmueble);
+                            const currentCodes = userInms.length > 0
+                              ? userInms.map((u: any) => String(u.inmueble || '').trim().toUpperCase()).filter(Boolean)
+                              : [primaryFichaCode].filter(Boolean);
+                            const isCurrentSelected = currentCodes.includes(String(inmRif.inmueble || '').trim().toUpperCase());
                             const meses = parseInt(inmRif.meses_deuda || '0');
                             const actClean = cleanClasificacionActividad(inmRif.actividad_principal) || inmRif.actividad_principal || 'No especificada';
                             
