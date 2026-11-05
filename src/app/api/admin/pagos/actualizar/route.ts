@@ -126,15 +126,68 @@ export async function POST(req: Request) {
           await sb.from('servicios_especiales').update({ estado: 'Pendiente' }).in('referencia', detMerged.tala_poda.map((s: any) => typeof s === 'string' ? s : s.referencia).filter(Boolean));
         }
 
-        // Rechazar comprobantes de retención vinculados
+        // Rechazar comprobantes de retención vinculados (tanto JSONB directo como JSON serializado en string)
         await sb.from('pagos_reportados').update({ estado: 'Rechazado' }).filter('detalles->>pago_vinculado', 'eq', pagoId);
+        if (actualP.identidad) {
+          const { data: retCandidatos } = await sb
+            .from('pagos_reportados')
+            .select('id, detalles, estado')
+            .eq('identidad', actualP.identidad)
+            .ilike('referencia', 'RET-%')
+            .neq('estado', 'Rechazado');
+          const idsRetRechazar = (retCandidatos || [])
+            .filter((r: any) => String(typeof r.detalles === 'string' ? r.detalles : JSON.stringify(r.detalles || {})).includes(pagoId))
+            .map((r: any) => r.id);
+          if (idsRetRechazar.length > 0) {
+            await sb.from('pagos_reportados').update({ estado: 'Rechazado' }).in('id', idsRetRechazar);
+          }
+        }
 
         if (habiaDescontadoDeuda) {
-          const prevLista = Array.isArray(detP.deuda_previa) && detP.deuda_previa.length > 0
+          // Extraer primero los códigos de inmueble explícitamente afectados por ESTE pago
+          const propCodesPago = new Set<string>();
+          recibos.forEach((r: string) => {
+            const m = String(r).match(/(?:RECIB-HIST|dummy-hist|CM|RECIB|MULTA)-([A-Z0-9_-]+?)(?:-M\d+)?$/i);
+            if (m && m[1]) propCodesPago.add(m[1].toUpperCase());
+            const mDir = String(r).match(/(URB\d+|AURI\d+)/i);
+            if (mDir && mDir[1]) propCodesPago.add(mDir[1].toUpperCase());
+          });
+          if (detMerged.cod_inmueble) propCodesPago.add(String(detMerged.cod_inmueble).trim().toUpperCase());
+          if (detMerged.codigo_inmueble) propCodesPago.add(String(detMerged.codigo_inmueble).trim().toUpperCase());
+          if (detMerged.inmueble) propCodesPago.add(String(detMerged.inmueble).trim().toUpperCase());
+          if (actualP.cod_inmueble) propCodesPago.add(String(actualP.cod_inmueble).trim().toUpperCase());
+          if (Array.isArray(detMerged.inmuebles)) {
+            detMerged.inmuebles.forEach((ic: any) => {
+              if (typeof ic === 'string') propCodesPago.add(ic.trim().toUpperCase());
+              else if (ic?.inmueble) propCodesPago.add(String(ic.inmueble).trim().toUpperCase());
+            });
+          }
+          if (detMerged.recibo_caja) {
+            const rcArr = Array.isArray(detMerged.recibo_caja) ? detMerged.recibo_caja : [detMerged.recibo_caja];
+            rcArr.forEach((rc: any) => {
+              if (rc?.codContribuyente) propCodesPago.add(String(rc.codContribuyente).trim().toUpperCase());
+              if (rc?.inmueble) propCodesPago.add(String(rc.inmueble).trim().toUpperCase());
+            });
+          }
+
+          const prevListaRaw = Array.isArray(detP.deuda_previa) && detP.deuda_previa.length > 0
             ? detP.deuda_previa
             : (Array.isArray(detMerged.deuda_previa) && detMerged.deuda_previa.length > 0 ? detMerged.deuda_previa : []);
-          
+
+          // CRÍTICO: Si el pago especifica inmuebles (propCodesPago.size > 0), filtrar deuda_previa
+          // para restaurar ÚNICAMENTE los inmuebles de este pago y NUNCA sobreescribir otros inmuebles del mismo RIF
+          const prevLista = propCodesPago.size > 0
+            ? prevListaRaw.filter((prev: any) => {
+                if (prev?.unidad || prev?.condominio) return true;
+                const cod = String(prev?.inmueble || '').trim().toUpperCase();
+                return cod && propCodesPago.has(cod);
+              })
+            : prevListaRaw;
+
+          const usoSaldoFavorEnPago = (parseFloat(String(detMerged.saldo_usado || detMerged.descuentoSaldoFavor || 0)) || 0) > 0.01;
           const codsInmRestaurados = new Set<string>();
+          const padresNAAfectados = new Set<string>();
+
           if (prevLista.length > 0) {
             for (const prev of prevLista) {
               if (prev.unidad) {
@@ -151,17 +204,38 @@ export async function POST(req: Request) {
                 }).eq('id', prev.condominio);
               }
               if (prev.id || (prev.inmueble && prev.meses_deuda !== undefined)) {
-                const nMeses = Math.max(0, parseInt(String(prev.meses_deuda ?? 0)));
+                let curInm: any = null;
+                if (prev.id) {
+                  const { data } = await sb.from('inmuebles').select('id, inmueble, meses_deuda, deuda_mmv, multa_bs, deuda_congelada_bs, saldo_favor_bs, mmv_mes, padre_id').eq('id', prev.id).maybeSingle();
+                  curInm = data;
+                } else if (prev.inmueble) {
+                  const { data } = await sb.from('inmuebles').select('id, inmueble, meses_deuda, deuda_mmv, multa_bs, deuda_congelada_bs, saldo_favor_bs, mmv_mes, padre_id').eq('inmueble', prev.inmueble).maybeSingle();
+                  curInm = data;
+                }
+                const prevMeses = Math.max(0, parseInt(String(prev.meses_deuda ?? 0), 10) || 0);
+                const curMeses = Math.max(0, parseInt(String(curInm?.meses_deuda ?? 0), 10) || 0);
+                // NUNCA rebajar meses_deuda por debajo de lo que el inmueble ya tiene actualmente en BD
+                const nMeses = Math.max(prevMeses, curMeses);
+                const mmvMes = parseFloat(String(curInm?.mmv_mes || 0)) || 0;
+                const prevDeudaMmv = parseFloat(String(prev.deuda_mmv || 0)) || 0;
+                const curDeudaMmv = parseFloat(String(curInm?.deuda_mmv || 0)) || 0;
+                const nDeudaMmv = nMeses > prevMeses && mmvMes > 0
+                  ? parseFloat((nMeses * mmvMes).toFixed(6))
+                  : Math.max(prevDeudaMmv, curDeudaMmv);
+
                 const updInm: any = {
                   meses_deuda: nMeses,
-                  deuda_mmv: parseFloat(String(prev.deuda_mmv || 0)),
-                  multa_bs: parseFloat(String(prev.multa_bs || 0)),
-                  deuda_congelada_bs: parseFloat(String(prev.deuda_congelada_bs || 0)),
-                  saldo_favor_bs: parseFloat(String(prev.saldo_favor_bs || 0)),
+                  deuda_mmv: nDeudaMmv,
+                  multa_bs: Math.max(parseFloat(String(prev.multa_bs || 0)) || 0, parseFloat(String(curInm?.multa_bs || 0)) || 0),
+                  deuda_congelada_bs: Math.max(parseFloat(String(prev.deuda_congelada_bs || 0)) || 0, parseFloat(String(curInm?.deuda_congelada_bs || 0)) || 0),
                 };
+                if (usoSaldoFavorEnPago) {
+                  updInm.saldo_favor_bs = parseFloat(String(prev.saldo_favor_bs || 0)) || 0;
+                }
                 if (prev.id) await sb.from('inmuebles').update(updInm).eq('id', prev.id);
                 else if (prev.inmueble) await sb.from('inmuebles').update(updInm).eq('inmueble', prev.inmueble);
                 if (prev.inmueble) codsInmRestaurados.add(String(prev.inmueble).toUpperCase());
+                if (curInm?.padre_id) padresNAAfectados.add(String(curInm.padre_id).toUpperCase());
               } else if (prev.inmueble && prev.aseo_pendiente_desde) {
                 // Pagos de condominio previos donde deuda_previa guardó aseo_pendiente_desde sin meses_deuda explícito
                 const [yP, mP] = String(prev.aseo_pendiente_desde).slice(0, 7).split('-').map(Number);
@@ -169,13 +243,16 @@ export async function POST(req: Request) {
                 const mesesCalc = (yP && mP)
                   ? Math.max(1, (hoyNow.getFullYear() - yP) * 12 + ((hoyNow.getMonth() + 1) - mP))
                   : 1;
-                const { data: inmRow } = await sb.from('inmuebles').select('id, mmv_mes, deuda_mmv').eq('inmueble', prev.inmueble).limit(1).maybeSingle();
+                const { data: inmRow } = await sb.from('inmuebles').select('id, mmv_mes, deuda_mmv, meses_deuda, padre_id').eq('inmueble', prev.inmueble).limit(1).maybeSingle();
                 if (inmRow) {
+                  const curMeses = Math.max(0, parseInt(String(inmRow.meses_deuda ?? 0), 10) || 0);
+                  const nMeses = Math.max(mesesCalc, curMeses);
                   const mmvMes = parseFloat(String(inmRow.mmv_mes || 0)) || 0;
                   await sb.from('inmuebles').update({
-                    meses_deuda: mesesCalc,
-                    ...(mmvMes > 0 ? { deuda_mmv: parseFloat((mmvMes * mesesCalc).toFixed(6)) } : {}),
+                    meses_deuda: nMeses,
+                    ...(mmvMes > 0 ? { deuda_mmv: parseFloat((mmvMes * nMeses).toFixed(6)) } : {}),
                   }).eq('id', inmRow.id);
+                  if (inmRow.padre_id) padresNAAfectados.add(String(inmRow.padre_id).toUpperCase());
                 }
                 codsInmRestaurados.add(String(prev.inmueble).toUpperCase());
               }
@@ -184,29 +261,7 @@ export async function POST(req: Request) {
 
           // Fallback adicional: restaurar cualquier inmueble referenciado en recibos que no haya estado en prevLista
           {
-            const propCodes = new Set<string>();
-            recibos.forEach((r: string) => {
-              const m = r.match(/(?:RECIB-HIST|dummy-hist|CM|RECIB|MULTA)-([A-Z0-9_-]+)/i);
-              if (m && m[1]) propCodes.add(m[1].toUpperCase());
-              const mDir = r.match(/(URB\d+|AURI\d+)/i);
-              if (mDir && mDir[1]) propCodes.add(mDir[1].toUpperCase());
-            });
-            if (detMerged.cod_inmueble) propCodes.add(String(detMerged.cod_inmueble).toUpperCase());
-            if (detMerged.inmueble) propCodes.add(String(detMerged.inmueble).toUpperCase());
-            if (actualP.cod_inmueble) propCodes.add(String(actualP.cod_inmueble).toUpperCase());
-            if (Array.isArray(detMerged.inmuebles)) {
-              detMerged.inmuebles.forEach((ic: any) => {
-                if (typeof ic === 'string') propCodes.add(ic.toUpperCase());
-                else if (ic?.inmueble) propCodes.add(String(ic.inmueble).toUpperCase());
-              });
-            }
-            if (detMerged.recibo_caja) {
-              const rcArr = Array.isArray(detMerged.recibo_caja) ? detMerged.recibo_caja : [detMerged.recibo_caja];
-              rcArr.forEach((rc: any) => {
-                if (rc?.codContribuyente) propCodes.add(String(rc.codContribuyente).toUpperCase());
-                if (rc?.inmueble) propCodes.add(String(rc.inmueble).toUpperCase());
-              });
-            }
+            const propCodes = new Set<string>(propCodesPago);
             // Excluir códigos ya restaurados mediante prevLista
             codsInmRestaurados.forEach(c => propCodes.delete(c));
 
@@ -217,7 +272,7 @@ export async function POST(req: Request) {
               const idVars = [...new Set([rawId, sinG, conG].filter(Boolean))];
               
               const orConditions = [
-                ...(prevLista.length === 0 ? idVars.map(v => `identidad.eq.${v}`) : []),
+                ...(prevLista.length === 0 && propCodes.size === 0 ? idVars.map(v => `identidad.eq.${v}`) : []),
                 ...Array.from(propCodes).map(c => String(c || '').replace(/[,()]/g, '').trim()).filter(Boolean).map(c => `inmueble.eq.${c}`)
               ].filter(Boolean);
 
@@ -234,6 +289,7 @@ export async function POST(req: Request) {
                       meses_deuda: nuevoMeses,
                       deuda_mmv: parseFloat((mmv * nuevoMeses).toFixed(6)),
                     }).eq('id', inm.id);
+                    if (inm.padre_id) padresNAAfectados.add(String(inm.padre_id).toUpperCase());
                   }
                 }
               }
@@ -252,6 +308,29 @@ export async function POST(req: Request) {
                     await sb.from('condominios').update({ aseo_pendiente_desde: nuevaFecha }).eq('id', cRow.id);
                     await sb.from('condominio_unidades').update({ aseo_pendiente_desde: nuevaFecha }).eq('condominio_id', cRow.id);
                   }
+                }
+              }
+            }
+          }
+
+          // Sincronizar padres N/A si alguno de sus hijos fue restaurado
+          if (padresNAAfectados.size > 0) {
+            for (const pCod of padresNAAfectados) {
+              const { data: hermanosNA } = await sb
+                .from('inmuebles')
+                .select('meses_deuda, deuda_mmv')
+                .eq('padre_id', pCod)
+                .neq('estado', 'Eliminado');
+              if (hermanosNA && hermanosNA.length > 0) {
+                const maxMesesH = hermanosNA.reduce((m, h: any) => Math.max(m, parseInt(String(h.meses_deuda || 0), 10) || 0), 0);
+                const { data: parentRow } = await sb.from('inmuebles').select('id, meses_deuda, mmv_mes').eq('inmueble', pCod).maybeSingle();
+                if (parentRow) {
+                  const finalParentMeses = Math.max(maxMesesH, parseInt(String(parentRow.meses_deuda || 0), 10) || 0);
+                  const pMmvMes = parseFloat(String(parentRow.mmv_mes || 0)) || 0;
+                  await sb.from('inmuebles').update({
+                    meses_deuda: finalParentMeses,
+                    ...(pMmvMes > 0 ? { deuda_mmv: parseFloat((finalParentMeses * pMmvMes).toFixed(6)) } : {}),
+                  }).eq('id', parentRow.id);
                 }
               }
             }

@@ -1237,7 +1237,7 @@ export async function POST(request: Request) {
     if (!matchedPropEspecifico && codInmEspecifico) {
       const { data: dbInm } = await supabase
         .from('inmuebles')
-        .select('inmueble, tipo, actividad_principal, direccion, correo_electronico, contribuyente, clasificacion, estado, mmv_mes, agente_retencion, identidad')
+        .select('inmueble, tipo, actividad_principal, direccion, correo_electronico, contribuyente, clasificacion, estado, mmv_mes, agente_retencion, identidad, padre_id')
         .eq('inmueble', codInmEspecifico)
         .limit(1)
         .maybeSingle();
@@ -1261,17 +1261,43 @@ export async function POST(request: Request) {
     }
 
     // Campos de la plantilla TFHKA (Guía de Mapeo §7): Campo/Valor en PascalCase
-    const comRef: any = matchedPropEspecifico || activeProps.find((p: any) => !isResidencialInm(p)) || propRef;
+    // Si el contribuyente es un N/A multi-actividad (ej. ASOCIACION CARABOBEÑA DE TIRO URB030879 con actividades hijas),
+    // en el renglón de Código (CodigoContribuyente) debe salir SIEMPRE el código principal N/A y NO la lista de códigos hijos.
+    const naPrincipalProp = (activeProps || []).find(
+      (p: any) => String(p.actividad_principal || '').trim().toUpperCase() === 'N/A' && !p.padre_id
+    );
+    const resolverCodigoPrincipal = (cod: string | null | undefined): string => {
+      const c = String(cod || '').trim().toUpperCase();
+      if (!c) return '';
+      const prop = (userProps || []).find((p: any) => String(p.inmueble || '').trim().toUpperCase() === c)
+        || (matchedPropEspecifico && String(matchedPropEspecifico.inmueble || '').trim().toUpperCase() === c ? matchedPropEspecifico : null);
+      if (prop?.padre_id) {
+        return String(prop.padre_id).trim().toUpperCase();
+      }
+      if (naPrincipalProp && !esPagoPorLocal && !esCondoGlobal && prop && !prop.condominio_padre_id) {
+        return String(naPrincipalProp.inmueble || '').trim().toUpperCase();
+      }
+      return c;
+    };
+
+    const comRef: any = naPrincipalProp || matchedPropEspecifico || activeProps.find((p: any) => !isResidencialInm(p)) || propRef;
     const codsComercialesPago = Array.from(new Set(
       (recibos || [])
         .map((r: string) => extraerCodigoInmueble(r))
         .filter((c): c is string => Boolean(c) && !codigosResidenciales.includes(String(c).toUpperCase()))
+        .map((c: string) => resolverCodigoPrincipal(c))
+        .filter(Boolean)
     ));
+    const singleCodigoPrincipal = resolverCodigoPrincipal(
+      (matchedPropEspecifico?.inmueble) || (lineaCom?.inmueble) || (condoDet?.codigo) || (condoCode) || codHist || comRef?.inmueble || ''
+    );
     const codigoContribuyente = esCondoGlobal
-      ? ((condoDet?.codigo) || (condoCode) || (matchedPropEspecifico?.inmueble) || codHist || comRef?.inmueble || '')
-      : (codsComercialesPago.length > 1
-          ? codsComercialesPago.join(', ')
-          : ((matchedPropEspecifico?.inmueble) || (lineaCom?.inmueble) || (condoDet?.codigo) || (condoCode) || codHist || comRef?.inmueble || ''));
+      ? ((condoDet?.codigo) || (condoCode) || singleCodigoPrincipal || '')
+      : (naPrincipalProp && !esPagoPorLocal
+          ? String(naPrincipalProp.inmueble).trim().toUpperCase()
+          : (codsComercialesPago.length > 1
+              ? codsComercialesPago.join(', ')
+              : singleCodigoPrincipal));
     // N° de Licencia de Actividades Económicas: el NÚMERO registrado en el inmueble (nunca el nombre de la actividad).
     // Si el sistema no lo tiene, el campo no se envía.
     let licenciaAE = '';

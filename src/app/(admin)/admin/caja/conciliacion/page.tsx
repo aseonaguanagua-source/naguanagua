@@ -1068,19 +1068,25 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         try {
           const propCodesSnap = new Set<string>();
           recibos.forEach((r: string) => {
-            const m = r.match(/(?:RECIB-HIST|dummy-hist|CM|RECIB|MULTA)-([A-Z0-9_-]+)/i);
+            const m = r.match(/(?:RECIB-HIST|dummy-hist|CM|RECIB|MULTA)-([A-Z0-9_-]+?)(?:-M\d+)?$/i);
             if (m && m[1]) propCodesSnap.add(m[1].toUpperCase());
             const mDir = r.match(/(URB\d+|AURI\d+)/i);
             if (mDir && mDir[1]) propCodesSnap.add(mDir[1].toUpperCase());
           });
+          if (updatedDet.cod_inmueble) propCodesSnap.add(String(updatedDet.cod_inmueble).trim().toUpperCase());
+          if (updatedDet.codigo_inmueble) propCodesSnap.add(String(updatedDet.codigo_inmueble).trim().toUpperCase());
           const idVarsSnap = getIdentidadVariantsExact(pago.identidad);
-          const orConditionsSnap = [
-            ...idVarsSnap.map(v => `identidad.eq.${v}`),
-            ...Array.from(propCodesSnap).map(c => `inmueble.eq.${c}`)
-          ];
-          const { data: inmsFoto } = await supabase.from('inmuebles').select('id, inmueble, meses_deuda, deuda_mmv, multa_bs, deuda_congelada_bs, saldo_favor_bs').or(orConditionsSnap.join(','));
-          if (inmsFoto && inmsFoto.length > 0) {
-            updatedDet.deuda_previa = inmsFoto;
+          const orConditionsSnap = propCodesSnap.size > 0
+            ? [
+                ...Array.from(propCodesSnap).map(c => `inmueble.eq.${c}`),
+                ...Array.from(propCodesSnap).map(c => `padre_id.eq.${c}`)
+              ]
+            : idVarsSnap.map(v => `identidad.eq.${v}`);
+          if (orConditionsSnap.length > 0) {
+            const { data: inmsFoto } = await supabase.from('inmuebles').select('id, inmueble, meses_deuda, deuda_mmv, multa_bs, deuda_congelada_bs, saldo_favor_bs').or(orConditionsSnap.join(','));
+            if (inmsFoto && inmsFoto.length > 0) {
+              updatedDet.deuda_previa = inmsFoto;
+            }
           }
         } catch(e) {}
       }

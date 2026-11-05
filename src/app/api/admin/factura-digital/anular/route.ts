@@ -104,7 +104,32 @@ function formatearFecha(isoString: string): string {
 
 async function restaurarDeudaPreviaAnulacion(detPago: any, recibos: string[]) {
   try {
-    const previa: any[] = Array.isArray(detPago?.deuda_previa) ? detPago.deuda_previa : [];
+    const previaRaw: any[] = Array.isArray(detPago?.deuda_previa) ? detPago.deuda_previa : [];
+    const propCodesPago = new Set<string>();
+    (recibos || []).forEach((r: string) => {
+      const m = String(r).match(/(?:RECIB-HIST|dummy-hist|CM|RECIB|MULTA)-([A-Z0-9_-]+?)(?:-M\d+)?$/i);
+      if (m && m[1]) propCodesPago.add(m[1].toUpperCase());
+      const mDir = String(r).match(/(URB\d+|AURI\d+)/i);
+      if (mDir && mDir[1]) propCodesPago.add(mDir[1].toUpperCase());
+    });
+    if (detPago?.cod_inmueble) propCodesPago.add(String(detPago.cod_inmueble).trim().toUpperCase());
+    if (detPago?.codigo_inmueble) propCodesPago.add(String(detPago.codigo_inmueble).trim().toUpperCase());
+    if (detPago?.inmueble) propCodesPago.add(String(detPago.inmueble).trim().toUpperCase());
+    if (Array.isArray(detPago?.recibo_caja)) {
+      detPago.recibo_caja.forEach((rc: any) => {
+        if (rc?.codContribuyente) propCodesPago.add(String(rc.codContribuyente).trim().toUpperCase());
+        if (rc?.inmueble) propCodesPago.add(String(rc.inmueble).trim().toUpperCase());
+      });
+    }
+
+    const previa = propCodesPago.size > 0
+      ? previaRaw.filter((dp: any) => {
+          if (dp?.unidad || dp?.condominio || dp?.aseo_pendiente_desde) return true;
+          const cod = String(dp?.inmueble || '').trim().toUpperCase();
+          return cod && propCodesPago.has(cod);
+        })
+      : previaRaw;
+
     if (previa.length > 0) {
       for (const dp of previa) {
         if (!dp) continue;
@@ -133,12 +158,30 @@ async function restaurarDeudaPreviaAnulacion(detPago: any, recibos: string[]) {
             await supabase.from('condominios').update(updCondo).eq('codigo', dp.inmueble || dp.codigo);
           }
         } else {
-          // Si es inmueble ordinario
+          // Si es inmueble ordinario: NUNCA rebajar meses_deuda por debajo del valor actual en base de datos
+          // (ej. si hubo ajuste manual de deuda posterior o corte mensual)
+          let curInm: any = null;
+          if (dp.id) {
+            const { data } = await supabase.from('inmuebles').select('id, meses_deuda, deuda_mmv, multa_bs, mmv_mes').eq('id', dp.id).maybeSingle();
+            curInm = data;
+          } else if (dp.inmueble) {
+            const { data } = await supabase.from('inmuebles').select('id, meses_deuda, deuda_mmv, multa_bs, mmv_mes').eq('inmueble', dp.inmueble).maybeSingle();
+            curInm = data;
+          }
+          const curMeses = Math.max(0, parseInt(String(curInm?.meses_deuda ?? 0), 10) || 0);
+          const prevMeses = Math.max(0, parseInt(String(dp.meses_deuda ?? 0), 10) || 0);
+          const finalMeses = Math.max(prevMeses, curMeses);
+          const mmvMes = parseFloat(String(curInm?.mmv_mes || 0)) || 0;
+          const prevDeudaMmv = parseFloat(String(dp.deuda_mmv || 0)) || 0;
+          const curDeudaMmv = parseFloat(String(curInm?.deuda_mmv || 0)) || 0;
+          const finalDeudaMmv = finalMeses > prevMeses && mmvMes > 0
+            ? parseFloat((finalMeses * mmvMes).toFixed(6))
+            : Math.max(prevDeudaMmv, curDeudaMmv);
+
           const updInm: any = {};
-          if (dp.meses_deuda !== undefined) updInm.meses_deuda = dp.meses_deuda;
-          if (dp.deuda_mmv !== undefined) updInm.deuda_mmv = dp.deuda_mmv;
-          if (dp.multa_bs !== undefined) updInm.multa_bs = dp.multa_bs;
-          if (dp.saldo_favor_bs !== undefined) updInm.saldo_favor_bs = dp.saldo_favor_bs;
+          if (dp.meses_deuda !== undefined) updInm.meses_deuda = finalMeses;
+          if (dp.deuda_mmv !== undefined) updInm.deuda_mmv = finalDeudaMmv;
+          if (dp.multa_bs !== undefined) updInm.multa_bs = Math.max(parseFloat(String(dp.multa_bs || 0)) || 0, parseFloat(String(curInm?.multa_bs || 0)) || 0);
           if (dp.deuda_congelada_bs !== undefined) updInm.deuda_congelada_bs = dp.deuda_congelada_bs;
           if (Object.keys(updInm).length > 0) {
             if (dp.id) {
@@ -442,7 +485,7 @@ export async function POST(request: Request) {
     const idVariants = [identResuelta, idNaked, `V-${idNaked}`, `J-${idNaked}`, `E-${idNaked}`].filter(Boolean);
     const { data: userProps, error: propsErr } = await supabase
       .from('inmuebles')
-      .select('inmueble, tipo, actividad_principal, direccion, correo_electronico, contribuyente, clasificacion, estado, mmv_mes')
+      .select('inmueble, tipo, actividad_principal, direccion, correo_electronico, contribuyente, clasificacion, estado, mmv_mes, padre_id')
       .in('identidad', idVariants);
 
     if (propsErr) {
@@ -1010,8 +1053,13 @@ export async function POST(request: Request) {
     }
 
     // Campos de la plantilla TFHKA (Guía de Mapeo §7): Campo/Valor en PascalCase
-    const comRef: any = activeProps.find((p: any) => !isResidencialInm(p)) || propRef;
-    const codHist = histRecibos.length > 0 ? histRecibos[0].split('-').slice(2, -1).join('-') : '';
+    const naPrincipalProp = (activeProps || []).find(
+      (p: any) => String(p.actividad_principal || '').trim().toUpperCase() === 'N/A' && !p.padre_id
+    );
+    const comRef: any = naPrincipalProp || activeProps.find((p: any) => !isResidencialInm(p)) || propRef;
+    const codHistRaw = histRecibos.length > 0 ? histRecibos[0].split('-').slice(2, -1).join('-') : '';
+    const propHist = codHistRaw ? (userProps || []).find((p: any) => String(p.inmueble || '').trim().toUpperCase() === codHistRaw.toUpperCase()) : null;
+    const codHist = propHist?.padre_id ? String(propHist.padre_id).trim().toUpperCase() : (naPrincipalProp ? String(naPrincipalProp.inmueble).trim().toUpperCase() : codHistRaw);
     const lineaCom = lineasCondo?.find((l: any) => !l.residencial);
     const codigoContribuyente = lineasCondo ? (lineaCom?.inmueble || condoDet?.codigo || '') : (codHist || comRef?.inmueble || '');
     // N° de Licencia de Actividades Económicas: el NÚMERO registrado en el inmueble (nunca el nombre de la actividad).

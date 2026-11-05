@@ -73,9 +73,13 @@ const snapshotDeudaPrevia = async (identidad: string, hijosIds: string[] = [], c
     const cols = 'id, inmueble, meses_deuda, deuda_mmv, multa_bs, deuda_congelada_bs, saldo_favor_bs';
     const idVars = getIdentidadVariantsExact(identidad);
     const ors: string[] = [];
-    if (idVars.length > 0) ors.push(...idVars.map(v => `identidad.eq.${v}`));
     const cods = Array.from(new Set((codigosExtra || []).filter(Boolean).map(c => String(c).trim().toUpperCase())));
-    if (cods.length > 0) ors.push(...cods.map(c => `inmueble.eq.${c}`));
+    const ids = Array.from(new Set((hijosIds || []).filter(Boolean)));
+    if (cods.length > 0) {
+      ors.push(...cods.map(c => `inmueble.eq.${c}`), ...cods.map(c => `padre_id.eq.${c}`));
+    } else if (ids.length === 0 && idVars.length > 0) {
+      ors.push(...idVars.map(v => `identidad.eq.${v}`));
+    }
 
     let propios: any[] = [];
     if (ors.length > 0) {
@@ -83,7 +87,6 @@ const snapshotDeudaPrevia = async (identidad: string, hijosIds: string[] = [], c
       propios = data || [];
     }
     let hijos: any[] = [];
-    const ids = Array.from(new Set((hijosIds || []).filter(Boolean)));
     if (ids.length > 0) {
       const { data } = await supabase.from('inmuebles').select(cols).in('id', ids);
       hijos = data || [];
