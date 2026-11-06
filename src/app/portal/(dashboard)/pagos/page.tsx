@@ -17,7 +17,7 @@ import { clusterInmueblesByLocal, formatActividad } from '@/lib/cajaHelpers';
 import { LISTA_BANCOS } from '@/lib/bancos';
 import ComprobantePickerWithCamera from '@/components/portal/ComprobantePickerWithCamera';
 
-type Metodo = 'transferencia' | '';
+type Metodo = 'transferencia' | 'saldo_a_favor' | '';
 
 interface ReciboItem {
   id: string;
@@ -90,6 +90,45 @@ export default function DondePagarPage() {
   const [serviciosPend, setServiciosPend] = useState<any[]>([]);
   const [selectedServicios, setSelectedServicios] = useState<string[]>([]);
   const [expandedLocals, setExpandedLocals] = useState<Record<string, boolean>>({});
+  // Notas de Crédito / Saldo a Favor vigentes por inmueble (fuente única: tabla `documentos`, sin duplicados)
+  const [notasCreditoVigentes, setNotasCreditoVigentes] = useState<any[]>([]);
+  const [usarNotaPorLocal, setUsarNotaPorLocal] = useState<Record<string, boolean>>({});
+
+  const fetchNotasCreditoVigentes = async (docIdent: string, inmsList: any[]) => {
+    const cleanDoc = String(docIdent || '').trim();
+    if (!cleanDoc) {
+      setNotasCreditoVigentes([]);
+      return;
+    }
+    try {
+      const variants = getIdentidadVariantsExact(cleanDoc);
+      const inmCodes = (inmsList || [])
+        .map((i: any) => String(i?.inmueble || '').trim().toUpperCase())
+        .filter(Boolean);
+      const identTargets = Array.from(new Set([...variants, cleanDoc.toUpperCase(), ...inmCodes].filter(Boolean)));
+      if (identTargets.length === 0) {
+        setNotasCreditoVigentes([]);
+        return;
+      }
+      const { data: docsNC } = await supabase
+        .from('documentos')
+        .select('id, identidad, tipo, estado, concepto, detalles, created_at')
+        .eq('tipo', 'Nota de Credito')
+        .eq('estado', 'Vigente')
+        .in('identidad', identTargets);
+
+      const seenDocIds = new Set<string>();
+      const deduped: any[] = [];
+      (docsNC || []).forEach((d: any) => {
+        if (!d?.id || seenDocIds.has(String(d.id))) return;
+        seenDocIds.add(String(d.id));
+        deduped.push(d);
+      });
+      setNotasCreditoVigentes(deduped);
+    } catch (e) {
+      console.warn('Error consultando notas de crédito vigentes en portal:', e);
+    }
+  };
 
   // 1. Obtener tasa BCV oficial
   useEffect(() => {
@@ -176,6 +215,7 @@ export default function DondePagarPage() {
         allInms.forEach(a => { if (!seenMap.has(a.inmueble)) seenMap.set(a.inmueble, a); });
         const validInms = Array.from(seenMap.values()).filter(i => !isTerrenoInm(i) && (i.estado || 'Activo').toLowerCase() !== 'eliminado' && (i.estado || 'Activo').toLowerCase() !== 'inactivo');
         setUserInms(validInms);
+        await fetchNotasCreditoVigentes(portalDoc, allInms);
 
         // Cargar nombres oficiales de los condominios asociados
         const condoPadreCodes = Array.from(new Set(
@@ -761,9 +801,120 @@ export default function DondePagarPage() {
   }, [selectedConvenioIds, conveniosData]);
 
   const totalMontoServicios = serviciosPend.filter(x => selectedServicios.includes(x.referencia)).reduce((t, x) => t + (Number(x.monto) || 0), 0);
-  
-  // Monto final a cancelar / transferir (descontando retención 75% IVA de agentes)
-  const montoTotal = parseFloat(Math.max(0, totalMontoRecibosBruto - totalRetencionRecibos + totalMontoConvenios + totalMontoServicios).toFixed(2));
+
+  // Asignación 1-a-1 de cada Nota de Crédito vigente (deduplicada por `doc.id`) a su Inmueble (`localGroup.localId`)
+  // Garantiza CERO duplicados: un documento jamás se asigna a dos inmuebles ni se multiplica por las actividades de un local unificado.
+  const notasPorLocalMap = useMemo(() => {
+    const map: Record<string, {
+      totalBs: number;
+      items: Array<{ id: string; montoBs: number; motivo: string; codigoInmueble: string }>;
+    }> = {};
+    const nonCondoGroups = localGroups.filter(g => !(g as any).isCondo);
+    if (nonCondoGroups.length === 0 || notasCreditoVigentes.length === 0) return map;
+
+    const parseMontoNC = (raw: any): number => {
+      if (typeof raw === 'number') return isFinite(raw) ? raw : 0;
+      const s = String(raw ?? '0').trim();
+      if (!s) return 0;
+      return (s.includes(',') ? parseFloat(s.replace(/\./g, '').replace(',', '.')) : parseFloat(s.replace(/[^\d.]/g, ''))) || 0;
+    };
+
+    const assignedDocIds = new Set<string>();
+    notasCreditoVigentes.forEach((doc: any) => {
+      const docId = String(doc?.id || '');
+      if (!docId || assignedDocIds.has(docId)) return;
+
+      let det: any = {};
+      try {
+        det = typeof doc.detalles === 'string' ? JSON.parse(doc.detalles) : (doc.detalles || {});
+      } catch {}
+
+      if (String(det?.ambito || '').toUpperCase() === 'CONDOMINIO') return;
+      const montoBs = r2(parseMontoNC(det?.monto_bs ?? det?.monto ?? 0));
+      if (montoBs <= 0) return;
+
+      const rawCod = String(det?.codigo_inmueble || det?.cod_inmueble || det?.inmueble || '').trim().toUpperCase();
+      const matchRef = String(det?.origen_referencia || det?.motivo || doc?.concepto || '').toUpperCase().match(/\b((?:URB|AURI)\d+)\b/);
+      const matchIdentInm = /^(?:URB|AURI)\d+$/i.test(String(doc?.identidad || '').trim())
+        ? String(doc.identidad).trim().toUpperCase()
+        : '';
+      const targetCode = rawCod || (matchRef ? matchRef[1] : '') || matchIdentInm;
+
+      let matchedGroup = targetCode
+        ? nonCondoGroups.find(g =>
+            g.localId.toUpperCase() === targetCode ||
+            g.inms.some((i: any) =>
+              String(i?.inmueble || '').toUpperCase() === targetCode ||
+              String(i?.padre_id || '').toUpperCase() === targetCode
+            )
+          )
+        : undefined;
+
+      if (!matchedGroup) {
+        matchedGroup = nonCondoGroups[0];
+      }
+      if (!matchedGroup) return;
+
+      assignedDocIds.add(docId);
+      const lid = matchedGroup.localId;
+      if (!map[lid]) {
+        map[lid] = { totalBs: 0, items: [] };
+      }
+      map[lid].totalBs = r2(map[lid].totalBs + montoBs);
+      map[lid].items.push({
+        id: docId,
+        montoBs,
+        motivo: String(det?.motivo || det?.concepto || doc?.concepto || 'Saldo a favor acreditado').trim(),
+        codigoInmueble: targetCode || lid,
+      });
+    });
+
+    return map;
+  }, [localGroups, notasCreditoVigentes]);
+
+  // Cálculo del descuento de Nota de Crédito estrictamente por inmueble seleccionado
+  const { descuentoNotaPorLocal, totalNotaCreditoAplicada } = useMemo(() => {
+    const porLocal: Record<string, number> = {};
+    let totalAplicado = 0;
+    const refSet = new Set(selectedReceiptRefs);
+    const nonCondoGroups = localGroups.filter(g => !(g as any).isCondo);
+
+    nonCondoGroups.forEach((group, idx) => {
+      const notaInfo = notasPorLocalMap[group.localId];
+      if (!notaInfo || notaInfo.totalBs <= 0) return;
+      const usar = usarNotaPorLocal[group.localId] ?? true;
+      if (!usar) return;
+
+      let netoLocal = 0;
+      const groupRefSet = new Set(group.allReceiptRefs);
+      rawRecibos.forEach((r: any) => {
+        if (refSet.has(r.referencia) && groupRefSet.has(r.referencia)) {
+          netoLocal += Math.max(0, getReciboMonto(r) - getReciboRetencion(r));
+        }
+      });
+
+      if (nonCondoGroups.length === 1 && idx === 0) {
+        netoLocal += totalMontoConvenios + totalMontoServicios;
+      }
+
+      const netoRedondeado = r2(Math.max(0, netoLocal));
+      if (netoRedondeado > 0) {
+        const desc = r2(Math.min(netoRedondeado, notaInfo.totalBs));
+        if (desc > 0) {
+          porLocal[group.localId] = desc;
+          totalAplicado = r2(totalAplicado + desc);
+        }
+      }
+    });
+
+    return { descuentoNotaPorLocal: porLocal, totalNotaCreditoAplicada: totalAplicado };
+  }, [localGroups, notasPorLocalMap, usarNotaPorLocal, selectedReceiptRefs, rawRecibos, effectiveTcmmv, totalMontoConvenios, totalMontoServicios]);
+
+  // Deuda neta antes de aplicar Nota de Crédito (descontando retención 75% IVA de agentes)
+  const deudaNetaAntesDeNota = parseFloat(Math.max(0, totalMontoRecibosBruto - totalRetencionRecibos + totalMontoConvenios + totalMontoServicios).toFixed(2));
+
+  // Monto final a cancelar / transferir (descontando retención 75% IVA + Nota de Crédito del inmueble)
+  const montoTotal = parseFloat(Math.max(0, deudaNetaAntesDeNota - totalNotaCreditoAplicada).toFixed(2));
 
   // Conteo de meses únicos seleccionados para no confundir períodos con cantidad de actividades
   const totalMesesSeleccionados = useMemo(() => {
@@ -790,7 +941,12 @@ export default function DondePagarPage() {
 
   useEffect(() => {
     setFormData(prev => ({ ...prev, monto: montoTotal > 0 ? formatBs(montoTotal) : '' }));
-  }, [montoTotal]);
+    if (deudaNetaAntesDeNota > 0 && montoTotal === 0 && totalNotaCreditoAplicada > 0) {
+      setMetodo('saldo_a_favor');
+    } else if (metodo === 'saldo_a_favor' && montoTotal > 0) {
+      setMetodo('transferencia');
+    }
+  }, [montoTotal, deudaNetaAntesDeNota, totalNotaCreditoAplicada]);
 
   const bancos = LISTA_BANCOS;
 
@@ -823,8 +979,10 @@ export default function DondePagarPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (montoTotal === 0) { alert('Debe seleccionar al menos una deuda.'); return; }
-    if (!metodo) { alert('Debe seleccionar el método de pago.'); return; }
+    const cubiertoPorNota = deudaNetaAntesDeNota > 0 && montoTotal === 0 && totalNotaCreditoAplicada > 0;
+    if (deudaNetaAntesDeNota === 0) { alert('Debe seleccionar al menos una deuda.'); return; }
+    const metodoEfectivo: Metodo = cubiertoPorNota ? 'saldo_a_favor' : metodo;
+    if (!metodoEfectivo) { alert('Debe seleccionar el método de pago.'); return; }
 
     // Validar orden cronológico estricto: no permitir adelantar meses
     for (const group of localGroups) {
@@ -856,7 +1014,7 @@ export default function DondePagarPage() {
       }
     }
 
-    if (metodo === 'transferencia') {
+    if (metodoEfectivo === 'transferencia') {
       if (!formData.bancoOrigen) { alert('Seleccione el banco origen.'); return; }
       const refLimpia = String(formData.referencia || '').trim().replace(/\D/g, '');
       if (!refLimpia) { alert('Ingrese el número de referencia.'); return; }
@@ -871,7 +1029,7 @@ export default function DondePagarPage() {
     setResult(null);
 
     let comprobanteUrl = '';
-    if (metodo === 'transferencia') {
+    if (metodoEfectivo === 'transferencia') {
       if (!formData.comprobante) {
         setIsSubmitting(false);
         alert('Debe adjuntar obligatoriamente el comprobante de pago.');
@@ -945,12 +1103,14 @@ export default function DondePagarPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          metodo,
+          metodo: metodoEfectivo,
           facturaIds: facturaDbIds,
           reciboRefs: selectedReceiptRefs,
           convenioIds: convenioDbIds,
           servicioRefs: selectedServicios,
           montoRetencionIva: r2(rawRecibos.filter(r => selectedReceiptRefs.includes(r.referencia)).reduce((t, r) => t + getReciboRetencion(r), 0)),
+          saldoFavorUsado: totalNotaCreditoAplicada,
+          notasCreditoPorInmueble: descuentoNotaPorLocal,
           monto: montoTotal,
           tasa_bcv: effectiveTcmmv,
           montos: montosPorRecibo,
@@ -969,8 +1129,12 @@ export default function DondePagarPage() {
 
       if (res.ok) {
         setResult({
-          type: 'success',
-          msg: '¡Pago reportado exitosamente! Su comprobante fue enviado para validación por el equipo de Recaudación y Caja.'
+          type: metodoEfectivo === 'saldo_a_favor' ? 'approved' : 'success',
+          msg: metodoEfectivo === 'saldo_a_favor'
+            ? '¡Pago aplicado exitosamente con su Nota de Crédito / Saldo a Favor!'
+            : totalNotaCreditoAplicada > 0
+              ? `¡Pago reportado exitosamente! Se aplicó su Nota de Crédito por Bs. ${formatBs(totalNotaCreditoAplicada)} y su comprobante fue enviado para validación.`
+              : '¡Pago reportado exitosamente! Su comprobante fue enviado para validación por el equipo de Recaudación y Caja.'
         });
         
         // Bloquear inmediatamente las referencias reportadas
@@ -978,11 +1142,14 @@ export default function DondePagarPage() {
         setPagosPorVerificar(prev => [
           ...prev,
           {
-            referencia: formData.referencia,
+            referencia: formData.referencia || 'SALDO-FAVOR',
             monto: montoTotal,
-            detalles: JSON.stringify({ recibos: justPaidRefs, banco_destino: formData.bancoDestino })
+            detalles: JSON.stringify({ recibos: justPaidRefs, banco_destino: formData.bancoDestino, saldo_usado: totalNotaCreditoAplicada })
           }
         ]);
+
+        // Refrescar Notas de Crédito vigentes para reflejar de inmediato el consumo sin duplicados
+        await fetchNotasCreditoVigentes(identidad, userInms);
 
         // Limpiar selecciones y formulario
         setSelectedReceiptRefs([]);
@@ -1249,6 +1416,12 @@ export default function DondePagarPage() {
                                   Agente de Retención (75% IVA Retenido)
                                 </span>
                               )}
+                              {notasPorLocalMap[group.localId]?.totalBs > 0 && (
+                                <span className="bg-emerald-100 text-emerald-900 text-[10px] font-black px-2 py-0.5 rounded flex items-center gap-1 border border-emerald-300">
+                                  <Sparkles className="w-3 h-3 text-emerald-600" />
+                                  Notas de Crédito / Saldo a Favor: Bs. {formatBs(notasPorLocalMap[group.localId].totalBs)}
+                                </span>
+                              )}
                             </div>
                             {group.direccion && group.direccion !== '0 0' && (
                               <p className="text-[11px] text-slate-500 truncate mt-0.5 flex items-center gap-1" title={group.direccion}>
@@ -1331,6 +1504,47 @@ export default function DondePagarPage() {
                           </div>
                         ) : (
                           <div className="p-2.5 space-y-2 bg-slate-50/40">
+                          {/* Banner de Nota de Crédito / Saldo a Favor exclusivo de este Inmueble (idéntico a Caja) */}
+                          {notasPorLocalMap[group.localId]?.totalBs > 0 && (
+                            <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border-2 border-emerald-300 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-xs">
+                              <div className="space-y-1 min-w-0">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="text-[11px] font-black uppercase tracking-wider text-emerald-900 flex items-center gap-1">
+                                    📜 Notas de Crédito / Saldo a Favor ({group.localId})
+                                  </span>
+                                </div>
+                                {notasPorLocalMap[group.localId].items.some(it => it.motivo) && (
+                                  <p className="text-[10px] text-emerald-800 truncate" title={notasPorLocalMap[group.localId].items.map(it => it.motivo).join(' • ')}>
+                                    {notasPorLocalMap[group.localId].items.map(it => it.motivo).join(' • ')}
+                                  </p>
+                                )}
+                                <label className="inline-flex items-center gap-2 cursor-pointer select-none pt-0.5">
+                                  <input
+                                    type="checkbox"
+                                    checked={usarNotaPorLocal[group.localId] ?? true}
+                                    onChange={(e) => setUsarNotaPorLocal(prev => ({ ...prev, [group.localId]: e.target.checked }))}
+                                    className="w-4 h-4 text-emerald-600 rounded border-emerald-400 focus:ring-emerald-500"
+                                  />
+                                  <span className="text-[11px] font-bold text-emerald-900">
+                                    Aplicar / Cancelar con este saldo
+                                  </span>
+                                </label>
+                              </div>
+                              <div className="text-left sm:text-right shrink-0">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 block">
+                                  Saldo Disponible
+                                </span>
+                                <span className="text-base font-black text-emerald-700">
+                                  Bs. {formatBs(notasPorLocalMap[group.localId].totalBs)}
+                                </span>
+                                {(descuentoNotaPorLocal[group.localId] || 0) > 0 && (
+                                  <span className="block text-[10px] font-black text-emerald-900 bg-emerald-200/70 px-2 py-0.5 rounded mt-0.5">
+                                    Descontando: - Bs. {formatBs(descuentoNotaPorLocal[group.localId])}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          )}
                           {/* CASO 1: Local Unificado (Múltiples Actividades en el mismo local agrupadas por MES) */}
                           {group.isUnified ? (
                             group.monthlyGroups.map((month) => {
@@ -1527,14 +1741,22 @@ export default function DondePagarPage() {
                   {selectedServicios.length > 0 ? ` • ${selectedServicios.length} serv. especial(es)` : ''}
                 </span>
               </div>
-              {totalRetencionRecibos > 0 ? (
+              {(totalRetencionRecibos > 0 || totalNotaCreditoAplicada > 0) ? (
                 <div className="text-right space-y-0.5">
                   <div className="text-[11px] text-slate-500">
                     Subtotal Facturado: <span className="font-bold text-slate-700">Bs. {formatBs(totalMontoRecibosBruto + totalMontoConvenios + totalMontoServicios)}</span>
                   </div>
-                  <div className="text-[11px] text-amber-700 font-semibold">
-                    IVA Retenido 75% (SENIAT): <span className="font-black text-amber-800">- Bs. {formatBs(totalRetencionRecibos)}</span>
-                  </div>
+                  {totalRetencionRecibos > 0 && (
+                    <div className="text-[11px] text-amber-700 font-semibold">
+                      IVA Retenido 75% (SENIAT): <span className="font-black text-amber-800">- Bs. {formatBs(totalRetencionRecibos)}</span>
+                    </div>
+                  )}
+                  {totalNotaCreditoAplicada > 0 && (
+                    <div className="text-[11px] text-emerald-700 font-semibold">
+                      Nota de Crédito / Saldo a Favor ({Object.keys(descuentoNotaPorLocal).join(', ')}):{' '}
+                      <span className="font-black text-emerald-800">- Bs. {formatBs(totalNotaCreditoAplicada)}</span>
+                    </div>
+                  )}
                   <div className="pt-1 border-t border-slate-200">
                     <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-semibold">Total a Transferir</span>
                     <span className="font-black text-xl text-emerald-600">Bs. {formatBs(montoTotal)}</span>
@@ -1585,13 +1807,28 @@ export default function DondePagarPage() {
               )}
 
               {/* Aviso si no ha seleccionado conceptos */}
-              {montoTotal === 0 && !result && (
+              {deudaNetaAntesDeNota === 0 && !result && (
                 <div className="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-lg text-xs flex items-start gap-2">
                   <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-600" />
                   <div>
                     <span className="font-bold block">Seleccione los períodos</span>
                     Elija los recibos que desea cancelar en la columna de la izquierda para continuar.
                   </div>
+                </div>
+              )}
+
+              {/* Resumen de Nota de Crédito Aplicada en el formulario */}
+              {totalNotaCreditoAplicada > 0 && (
+                <div className="bg-emerald-50 border border-emerald-300 text-emerald-900 p-3 rounded-lg text-xs space-y-1">
+                  <div className="flex items-center justify-between font-bold">
+                    <span>📜 Nota de Crédito Aplicada ({Object.keys(descuentoNotaPorLocal).join(', ')})</span>
+                    <span className="font-black text-emerald-700">- Bs. {formatBs(totalNotaCreditoAplicada)}</span>
+                  </div>
+                  <p className="text-[10px] text-emerald-800">
+                    {montoTotal > 0
+                      ? `Su saldo a favor se descuenta automáticamente. Solo debe transferir la diferencia de Bs. ${formatBs(montoTotal)}.`
+                      : 'Su Nota de Crédito cubre el 100% de los períodos seleccionados.'}
+                  </p>
                 </div>
               )}
 
@@ -1610,22 +1847,46 @@ export default function DondePagarPage() {
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  disabled={montoTotal === 0}
-                  onClick={() => setMetodo('transferencia')}
-                  className={`w-full p-3 rounded-lg border-2 text-left transition-all flex items-start gap-3 disabled:opacity-40 disabled:cursor-not-allowed ${
-                    metodo === 'transferencia'
-                      ? 'border-emerald-500 bg-emerald-50/60 ring-1 ring-emerald-400'
-                      : 'border-slate-200 hover:border-slate-300 bg-white'
-                  }`}
-                >
-                  <ArrowRightLeft className={`w-4 h-4 mt-0.5 flex-shrink-0 ${metodo === 'transferencia' ? 'text-emerald-600' : 'text-slate-400'}`} />
-                  <div>
-                    <p className="font-bold text-xs text-slate-800">Transferencia Bancaria</p>
-                    <p className="text-[10px] text-slate-500">Conciliación automática y validación por taquilla</p>
+                {deudaNetaAntesDeNota > 0 && montoTotal === 0 && totalNotaCreditoAplicada > 0 ? (
+                  <div className="space-y-3">
+                    <div className="w-full p-3 rounded-lg border-2 border-emerald-500 bg-emerald-50/70 ring-1 ring-emerald-400 text-left flex items-start gap-3">
+                      <Sparkles className="w-4 h-4 mt-0.5 flex-shrink-0 text-emerald-600" />
+                      <div>
+                        <p className="font-bold text-xs text-slate-800">Cancelación Total con Nota de Crédito / Saldo a Favor</p>
+                        <p className="text-[10px] text-slate-600">Se descontarán Bs. {formatBs(totalNotaCreditoAplicada)} de su saldo a favor disponible.</p>
+                      </div>
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="w-full py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 disabled:opacity-50 shadow-sm transition-all text-white bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99]"
+                    >
+                      {isSubmitting ? 'Aplicando Nota de Crédito...' : (
+                        <>
+                          <CheckCircle2 className="w-4 h-4" />
+                          Confirmar Pago con Nota de Crédito (Bs. {formatBs(totalNotaCreditoAplicada)})
+                        </>
+                      )}
+                    </button>
                   </div>
-                </button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={montoTotal === 0}
+                    onClick={() => setMetodo('transferencia')}
+                    className={`w-full p-3 rounded-lg border-2 text-left transition-all flex items-start gap-3 disabled:opacity-40 disabled:cursor-not-allowed ${
+                      metodo === 'transferencia'
+                        ? 'border-emerald-500 bg-emerald-50/60 ring-1 ring-emerald-400'
+                        : 'border-slate-200 hover:border-slate-300 bg-white'
+                    }`}
+                  >
+                    <ArrowRightLeft className={`w-4 h-4 mt-0.5 flex-shrink-0 ${metodo === 'transferencia' ? 'text-emerald-600' : 'text-slate-400'}`} />
+                    <div>
+                      <p className="font-bold text-xs text-slate-800">Transferencia Bancaria</p>
+                      <p className="text-[10px] text-slate-500">Conciliación automática y validación por taquilla</p>
+                    </div>
+                  </button>
+                )}
               </div>
 
               {/* Campos del Formulario de Transferencia */}

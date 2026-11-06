@@ -32,6 +32,7 @@ export default function EstadoCuentaPage() {
   const [cuotasData, setCuotasData] = useState<any[]>([]);
   const [serviciosEsp, setServiciosEsp] = useState<any[]>([]);
   const [pagosPorVerificar, setPagosPorVerificar] = useState<any[]>([]);
+  const [notasCreditoVigentes, setNotasCreditoVigentes] = useState<any[]>([]);
   const [contribuyenteMaster, setContribuyenteMaster] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedLocal, setSelectedLocal] = useState<string>('TODOS');
@@ -169,6 +170,24 @@ export default function EstadoCuentaPage() {
             .eq('estado', 'Por Verificar')
             .order('created_at', { ascending: false });
           setPagosPorVerificar(pagosVerif || []);
+
+          // 6. Notas de Crédito / Saldo a Favor Vigentes (deduplicadas por ID)
+          const { data: docsNC } = await supabase.from('documentos')
+            .select('*')
+            .or(orFilter)
+            .eq('estado', 'Vigente')
+            .order('created_at', { ascending: false });
+          const seenDocIds = new Set<string>();
+          const validNC = (docsNC || []).filter((doc: any) => {
+            if (!doc?.id || seenDocIds.has(String(doc.id))) return false;
+            const tipoLower = String(doc.tipo || '').toLowerCase();
+            if (!tipoLower.includes('nota') && !tipoLower.includes('crédito') && !tipoLower.includes('credito') && !tipoLower.includes('saldo')) return false;
+            const monto = parseFloat(String(doc.monto_bs || 0)) || 0;
+            if (monto <= 0) return false;
+            seenDocIds.add(String(doc.id));
+            return true;
+          });
+          setNotasCreditoVigentes(validNC);
         }
       } catch (e) { console.error(e); }
       setIsLoading(false);
@@ -201,6 +220,54 @@ export default function EstadoCuentaPage() {
   const clusters: InmuebleClusterGroup[] = useMemo(() => {
     return groupInmueblesByLocal(misInmuebles);
   }, [misInmuebles]);
+
+  // Mapear Notas de Crédito vigentes por Inmueble/Cluster (1 a 1, sin duplicar entre locales)
+  const notasPorLocalMap = useMemo(() => {
+    const map = new Map<string, { totalBs: number; notas: any[] }>();
+    if (!notasCreditoVigentes || notasCreditoVigentes.length === 0 || clusters.length === 0) return map;
+
+    const assignedDocIds = new Set<string>();
+    const extractInmFromDoc = (doc: any): string => {
+      const m = String(doc?.motivo || '').match(/\[INMUEBLE:\s*([^\]]+)\]/i);
+      if (m && m[1]) return m[1].trim().toUpperCase();
+      return '';
+    };
+
+    for (const doc of notasCreditoVigentes) {
+      const docId = String(doc.id);
+      if (assignedDocIds.has(docId)) continue;
+      const monto = Math.round((parseFloat(String(doc.monto_bs || 0)) || 0) * 100) / 100;
+      if (monto <= 0) continue;
+
+      const tagInm = extractInmFromDoc(doc);
+      let targetLocalId = '';
+      if (tagInm) {
+        const matched = clusters.find(c =>
+          c.localId.toUpperCase() === tagInm ||
+          c.inms.some((i: any) => String(i.inmueble || '').toUpperCase() === tagInm || String(i.padre_id || '').toUpperCase() === tagInm)
+        );
+        if (matched) targetLocalId = matched.localId;
+      }
+      if (!targetLocalId && clusters.length === 1) {
+        targetLocalId = clusters[0].localId;
+      }
+      if (!targetLocalId && tagInm) {
+        targetLocalId = tagInm;
+      }
+      if (!targetLocalId && clusters.length > 0) {
+        targetLocalId = clusters[0].localId;
+      }
+
+      if (targetLocalId) {
+        assignedDocIds.add(docId);
+        const prev = map.get(targetLocalId) || { totalBs: 0, notas: [] };
+        prev.totalBs = Math.round((prev.totalBs + monto) * 100) / 100;
+        prev.notas.push(doc);
+        map.set(targetLocalId, prev);
+      }
+    }
+    return map;
+  }, [notasCreditoVigentes, clusters]);
 
   // Mes RECIB-HIST con la fórmula única de Caja (incluye retención 75% solo para agentes de retención)
   const histMes = (r: any) => {
@@ -1155,6 +1222,16 @@ export default function EstadoCuentaPage() {
                         <div className="text-[10px] text-slate-400">{cluster.count > 1 ? `${cluster.count} actividades` : '1 actividad'}</div>
                       </div>
                     )}
+                    {(notasPorLocalMap.get(cluster.localId)?.totalBs || 0) > 0 && (
+                      <div className="bg-emerald-50 border border-emerald-400 rounded-lg px-2.5 py-1 text-right shadow-sm">
+                        <div className="text-[9px] font-extrabold uppercase text-emerald-700 tracking-wide">
+                          💳 Nota de Crédito / Saldo a Favor
+                        </div>
+                        <div className="text-xs font-black text-emerald-800">
+                          Bs. {formatBs(notasPorLocalMap.get(cluster.localId)?.totalBs || 0)}
+                        </div>
+                      </div>
+                    )}
                     <button
                       type="button"
                       onClick={() => handleDownloadPDF(cluster.localId)}
@@ -1327,6 +1404,11 @@ export default function EstadoCuentaPage() {
         const targetItems = targetGrupos.flatMap(g => g.items.map(it => it.recibo));
         const ivaTot = targetItems.reduce((s: number, f: any) => s + getReciboBreakdown(f).ivaMes, 0);
         const retTot = targetItems.reduce((s: number, f: any) => s + getReciboBreakdown(f).retencionMes, 0);
+        const targetLocalIds = Array.from(new Set(targetGrupos.map(g => g.localId)));
+        const notaCredDispBs = targetLocalIds.reduce((s, lid) => s + (notasPorLocalMap.get(lid)?.totalBs || 0), 0);
+        const netoSinNota = retTot > 0 ? (currentPendBs - retTot) : currentPendBs;
+        const notaCredAplicableBs = Math.min(notaCredDispBs, Math.max(0, netoSinNota));
+        const totalNetoFinalBs = Math.max(0, Math.round((netoSinNota - notaCredAplicableBs) * 100) / 100);
         const recibosGrupos = targetGrupos;
 
         return (
@@ -1336,13 +1418,18 @@ export default function EstadoCuentaPage() {
               <h3 className="font-bold text-red-700 uppercase text-sm tracking-wide">
                 Recibos Pendientes {selectedLocal !== 'TODOS' ? `(${selectedLocal})` : ''}
               </h3>
-              <span className="ml-auto text-xs font-bold text-red-600">Total a Cancelar: Bs. {formatBs(retTot > 0 ? (currentPendBs - retTot) : currentPendBs)}</span>
+              <span className="ml-auto text-xs font-bold text-red-600">Total a Cancelar: Bs. {formatBs(totalNetoFinalBs)}</span>
             </div>
-            {retTot > 0 && (
-              <div className="grid grid-cols-3 gap-2 px-4 py-3 border-b border-red-100 text-xs">
+            {(retTot > 0 || notaCredDispBs > 0) && (
+              <div className={`grid grid-cols-1 ${retTot > 0 && notaCredDispBs > 0 ? 'sm:grid-cols-4' : 'sm:grid-cols-3'} gap-2 px-4 py-3 border-b border-red-100 text-xs`}>
                 <div className="bg-blue-50 border border-blue-100 rounded px-2 py-1.5"><span className="block text-blue-700 font-semibold">Subtotal Facturado</span><span className="font-black text-blue-900">Bs. {formatBs(currentPendBs)}</span></div>
-                <div className="bg-amber-50 border border-amber-100 rounded px-2 py-1.5"><span className="block text-amber-700 font-semibold">IVA retenido 75% (Agente de Retención)</span><span className="font-black text-amber-900">- Bs. {formatBs(retTot)}</span></div>
-                <div className="bg-emerald-50 border border-emerald-100 rounded px-2 py-1.5"><span className="block text-emerald-700 font-semibold">Total neto a cancelar</span><span className="font-black text-emerald-900">Bs. {formatBs(currentPendBs - retTot)}</span></div>
+                {retTot > 0 && (
+                  <div className="bg-amber-50 border border-amber-100 rounded px-2 py-1.5"><span className="block text-amber-700 font-semibold">IVA retenido 75% (Agente de Retención)</span><span className="font-black text-amber-900">- Bs. {formatBs(retTot)}</span></div>
+                )}
+                {notaCredDispBs > 0 && (
+                  <div className="bg-emerald-50 border border-emerald-300 rounded px-2 py-1.5"><span className="block text-emerald-700 font-semibold">💳 Nota de Crédito / Saldo a Favor</span><span className="font-black text-emerald-800">- Bs. {formatBs(notaCredAplicableBs)}</span></div>
+                )}
+                <div className="bg-emerald-50 border border-emerald-100 rounded px-2 py-1.5"><span className="block text-emerald-700 font-semibold">Total neto a cancelar</span><span className="font-black text-emerald-900">Bs. {formatBs(totalNetoFinalBs)}</span></div>
               </div>
             )}
             <div className="overflow-x-auto">

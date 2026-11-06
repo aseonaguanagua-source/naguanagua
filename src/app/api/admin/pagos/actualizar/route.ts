@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as sb } from '@/lib/supabaseAdmin';
-import { descontarSaldoFavor, acreditarSaldoFavor } from '@/lib/saldoFavor';
+import { descontarSaldoFavor, acreditarSaldoFavor, restaurarSaldoFavorAplicado } from '@/lib/saldoFavor';
 
 export const dynamic = 'force-dynamic';
 
@@ -449,6 +449,57 @@ export async function POST(req: Request) {
           d.reverso_aplicado = true;
           d.deuda_condo_aplicada = false;
           upd.detalles = d;
+        }
+
+        // Si el pago rechazado había consumido Nota de Crédito / Saldo a Favor (ya sea desde Soy Contribuyente en 'Por Verificar' o desde Caja/Conciliación en 'Aprobado'),
+        // restaurar el documento original en `documentos` de 'Aplicada' a 'Vigente' sin duplicar registros.
+        const saldoUsadoEnPago = parseFloat(String(
+          detP?.saldo_usado ??
+          detP?.nota_credito_usada ??
+          detP?.saldo_favor_usado ??
+          detP?.descuentoSaldoFavor ??
+          0
+        )) || 0;
+        if (!yaReversado && !detP?.nota_credito_restaurada && saldoUsadoEnPago > 0.01) {
+          try {
+            const rawIdentRest = String(actualP.identidad || detMerged.identidad || '').trim().toUpperCase();
+            const sinGRest = rawIdentRest.replace(/-/g, '');
+            const conGRest = /^[VEJPG]\d/.test(sinGRest) ? `${sinGRest[0]}-${sinGRest.slice(1)}` : rawIdentRest;
+            const identRest = conGRest || rawIdentRest;
+            const prevListaSnap = Array.isArray(detP?.deuda_previa) ? detP.deuda_previa : [];
+            const yaRestauroInmSaldo = habiaDescontadoDeuda && prevListaSnap.some((p: any) => p && p.saldo_favor_bs !== undefined);
+
+            const notasPorInm = detP?.notas_credito_por_inmueble && typeof detP.notas_credito_por_inmueble === 'object'
+              ? detP.notas_credito_por_inmueble
+              : null;
+            const entriesInm = notasPorInm
+              ? Object.entries(notasPorInm).filter(([, m]) => (parseFloat(String(m || 0)) || 0) > 0.01)
+              : [];
+
+            if (entriesInm.length > 0) {
+              for (const [codInmKey, mVal] of entriesInm) {
+                const mNum = Math.round((parseFloat(String(mVal || 0)) || 0) * 100) / 100;
+                const codLimpio = String(codInmKey || '').trim().toUpperCase();
+                if (mNum > 0 && identRest) {
+                  await restaurarSaldoFavorAplicado(identRest, mNum, codLimpio || undefined, sb, yaRestauroInmSaldo);
+                }
+              }
+            } else if (identRest) {
+              const codUnico = String(
+                detP?.codigo_condominio ||
+                detP?.condominio?.codigo ||
+                detP?.cod_inmueble ||
+                detP?.codigo_inmueble ||
+                actualP.cod_inmueble ||
+                ''
+              ).trim().toUpperCase() || undefined;
+              await restaurarSaldoFavorAplicado(identRest, saldoUsadoEnPago, codUnico, sb, yaRestauroInmSaldo);
+            }
+            d.nota_credito_restaurada = true;
+            upd.detalles = d;
+          } catch (eRestNC) {
+            console.warn('Error restaurando nota de crédito aplicada al rechazar pago:', eRestNC);
+          }
         }
       }
     }

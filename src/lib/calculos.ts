@@ -336,12 +336,16 @@ export const calcularMensualidad = (
     const esNAInm = (actividad.trim().toUpperCase() === 'N/A' || /^(N\/?A|NA|NINGUNA|SIN ACTIVIDAD|-)$/i.test(actividad.trim())) &&
       !(typeof clasificacionOrInm === 'object' && clasificacionOrInm?.es_condominio === true);
     if (esNAInm && !(mmv !== undefined && mmv >= 1.54)) return 0;
+    const actNormDesoc = actividad.trim().toUpperCase();
+    const esLocalDesocupado = actNormDesoc === 'INMUEBLES Y LOCALES DESOCUPADOS' || actNormDesoc === 'INMUEBLES DESOCUPADOS' || actNormDesoc === 'LOCAL DESOCUPADO';
     // Comercial / Industrial / Institucional:
     // DECISIÓN DEL MUNICIPIO: se cobra SIEMPRE la tarifa guardada en el inmueble (mmv_mes),
     // para que el sistema nunca cambie la tarifa de un usuario por el texto de la actividad.
-    // La tarifa guardada fue normalizada al F.O. real de la ordenanza (resolverFOComercial).
+    // Excepción: cuando la actividad es explícitamente INMUEBLES Y LOCALES DESOCUPADOS, su único F.O. en la Ordenanza es 1.98.
     // Solo si no hay tarifa válida guardada (< 1.54, no existe F.O. comercial menor) se resuelve por ordenanza.
-    if (mmv !== undefined && mmv >= 1.54) {
+    if (esLocalDesocupado) {
+      fo = 1.98;
+    } else if (mmv !== undefined && mmv >= 1.54) {
       fo = mmv;
     } else {
       fo = resolverFOComercial(actividad, mmv);

@@ -341,3 +341,79 @@ export async function descontarSaldoFavor(
 
   return { ok: true, nuevoSaldo: Math.max(0, Math.round((total - (Number(monto) || 0)) * 100) / 100) };
 }
+
+/**
+ * Restaura en sitio (sin crear duplicados) las Notas de Crédito de `documentos`
+ * que fueron consumidas (`Aplicada` o rebajadas parcialmente) cuando un pago por verificar es rechazado.
+ */
+export async function restaurarSaldoFavorAplicado(
+  identidad: string,
+  monto: number,
+  codigoInmueble?: string,
+  dbClient?: any,
+  skipInmuebleCredit?: boolean
+): Promise<SaldoUpdateResult> {
+  const client = dbClient || supabase;
+  const montoNum = Math.round((Number(monto) || 0) * 100) / 100;
+  if (montoNum <= 0) return { ok: true, nuevoSaldo: 0 };
+
+  const id = String(identidad || '').replace(/[,()]/g, '').trim().toUpperCase();
+  const sinGuion = id.replace(/-/g, '');
+  const conGuion = /^[VEJPG]\d/.test(sinGuion) ? `${sinGuion[0]}-${sinGuion.slice(1)}` : id;
+  const codTargetUpper = codigoInmueble ? String(codigoInmueble).trim().toUpperCase() : '';
+  const docIdents = [...new Set([id, sinGuion, conGuion, ...(codTargetUpper ? [codTargetUpper] : [])].filter(Boolean))];
+
+  try {
+    if (docIdents.length > 0) {
+      const { data: docs } = await client
+        .from('documentos')
+        .select('id, estado, identidad, detalles')
+        .eq('tipo', 'Nota de Credito')
+        .in('identidad', docIdents)
+        .order('created_at', { ascending: false });
+
+      let porRestaurar = montoNum;
+      for (const doc of docs || []) {
+        if (porRestaurar <= 0.009) break;
+        let det: any = {};
+        try {
+          det = typeof doc.detalles === 'string' ? JSON.parse(doc.detalles) : (doc.detalles || {});
+        } catch {}
+
+        const docInmRaw = String(det.codigo_inmueble || det.cod_inmueble || '').trim().toUpperCase();
+        if (codTargetUpper && docInmRaw && !docInmRaw.includes(codTargetUpper)) continue;
+
+        const montoOrig = parseFloat(String(det.monto_original ?? det.monto_bs ?? det.monto ?? '0').replace(/,/g, '.')) || 0;
+        const montoActual = doc.estado === 'Aplicada'
+          ? 0
+          : (parseFloat(String(det.monto_bs ?? det.monto ?? '0').replace(/,/g, '.')) || 0);
+        const capacidadRestaurar = Math.max(0, Math.round((montoOrig - montoActual) * 100) / 100);
+
+        if (doc.estado === 'Aplicada' || capacidadRestaurar > 0.009) {
+          const devolver = capacidadRestaurar > 0.009 ? Math.min(porRestaurar, capacidadRestaurar) : Math.min(porRestaurar, montoOrig || porRestaurar);
+          const nuevoMontoDoc = Math.round((montoActual + devolver) * 100) / 100;
+          porRestaurar = Math.max(0, Math.round((porRestaurar - devolver) * 100) / 100);
+          await client
+            .from('documentos')
+            .update({
+              estado: 'Vigente',
+              detalles: JSON.stringify({
+                ...det,
+                monto: nuevoMontoDoc.toFixed(2),
+                monto_bs: nuevoMontoDoc,
+                restaurada_at: new Date().toISOString(),
+              }),
+            })
+            .eq('id', doc.id);
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('Error restaurando Nota de Crédito en documentos:', e);
+  }
+
+  if (!skipInmuebleCredit) {
+    return acreditarSaldoFavor(identidad, montoNum, codigoInmueble, client);
+  }
+  return { ok: true, nuevoSaldo: montoNum };
+}
