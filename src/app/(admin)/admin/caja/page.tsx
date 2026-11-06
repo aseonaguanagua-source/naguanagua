@@ -1830,6 +1830,22 @@ export default function CajaPage() {
         const mObjetivo = parseFloat(String(detObj.total_seleccionado || detObj.monto_factura || 0)) || 0;
         if (mObjetivo > 0 && (mPagado + mRet + mSaldo) >= mObjetivo - 0.50) return false;
 
+        // Si existe un pago completo posterior (es_abono !== true) del mismo contribuyente/inmueble, el abono ya fue liquidado
+        const pTime = p.created_at ? new Date(p.created_at).getTime() : 0;
+        const yaLiquidadoPosterior = (allAprobados || []).some((other: any) => {
+          if (other.id === p.id) return false;
+          const oTime = other.created_at ? new Date(other.created_at).getTime() : 0;
+          if (oTime <= pTime) return false;
+          const oDet = typeof other.detalles === 'string' ? (() => { try { return JSON.parse(other.detalles); } catch { return {}; } })() : (other.detalles || {});
+          if (oDet?.es_abono === true || oDet?.anulado || oDet?.factura_digital?.anulada) return false;
+          if (String(other.tipo || '').toLowerCase().includes('retencion')) return false;
+          const pCod = String(detObj.codigo_inmueble || detObj.cod_inmueble || '').toUpperCase();
+          const oCod = String(oDet.codigo_inmueble || oDet.cod_inmueble || '').toUpperCase();
+          if (pCod && oCod && pCod !== oCod) return false;
+          return true;
+        });
+        if (yaLiquidadoPosterior) return false;
+
         const pIdentClean = String(p.identidad || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
         const pIdentNums = String(p.identidad || '').replace(/\D/g, '');
         if (pIdentClean && cleanIdents.has(pIdentClean)) return true;
