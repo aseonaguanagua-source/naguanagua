@@ -98,7 +98,7 @@ export async function POST(request: Request) {
         referencia: cleanRef,
         tipo: 'Transferencia (Web)',
         estado: 'Por Verificar',
-        detalles: JSON.stringify({
+        detalles: {
           origen: 'Portal Web (Soy Contribuyente)',
           banco_destino: bancoDestino || (String(banco || '').includes('0134') ? 'BANESCO - 0134 - 8636' : 'BANCAMIGA - 0172 - 0717'),
           recibos: finalRecibos,
@@ -118,7 +118,7 @@ export async function POST(request: Request) {
             es_agente_retencion: true,
           } : {}),
           fecha_transaccion: fechaPago
-        })
+        }
       });
 
       if (insertErr) {

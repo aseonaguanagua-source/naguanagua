@@ -34,8 +34,27 @@ export function extraerCodigoInmueble(ref: string): string | null {
 }
 
 export function parseDetalles(det: any): any {
+  if (!det) return {};
   if (typeof det === 'string') {
     try { return JSON.parse(det) || {}; } catch { return {}; }
+  }
+  if (typeof det === 'object' && !Array.isArray(det) && det['0'] === '{' && det['1'] === '"') {
+    try {
+      const chars: string[] = [];
+      let i = 0;
+      while (det[String(i)] !== undefined) {
+        chars.push(det[String(i)]);
+        i++;
+      }
+      const parsed = JSON.parse(chars.join(''));
+      const extra: Record<string, any> = {};
+      for (const [k, v] of Object.entries(det)) {
+        if (!/^\d+$/.test(k)) extra[k] = v;
+      }
+      return { ...parsed, ...extra };
+    } catch {
+      return det;
+    }
   }
   return det || {};
 }

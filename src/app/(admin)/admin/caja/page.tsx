@@ -3392,7 +3392,7 @@ export default function CajaPage() {
           tipo: paymentMethod,
           estado: 'Aprobado',
           created_at: fechaUTC,
-          detalles: JSON.stringify(fullDetalles)
+          detalles: fullDetalles
         });
         if (insertErr && (insertErr.code === '23505' || String(insertErr.message).includes('referencia_key') || String(insertErr.message).includes('duplicate'))) {
           throw new Error(`La referencia de pago "${refEfectiva}" ya se encuentra registrada en el sistema (Referencia duplicada).`);
@@ -3415,12 +3415,12 @@ export default function CajaPage() {
             tipo: 'Retencion de IVA',
             estado: 'Aprobado',
             created_at: fechaUTC,
-            detalles: JSON.stringify({
+            detalles: {
               cajero: cajero_id,
               es_abono: false,
               pago_vinculado: pagoId,
               nota: 'Generado automáticamente por retención de agente.'
-            })
+            }
           });
         }
 
@@ -3500,7 +3500,7 @@ export default function CajaPage() {
                     parsedDet.abono_completado = true;
                     parsedDet.completado_con_pago_id = pagoId;
                     await supabase.from('pagos_reportados').update({
-                      detalles: JSON.stringify(parsedDet)
+                      detalles: parsedDet
                     }).eq('id', ap.id);
                   }
                 }
@@ -4037,7 +4037,7 @@ export default function CajaPage() {
           tipo: paymentMethod,
           estado: 'Por Verificar',
           created_at: fechaUTC,
-          detalles: JSON.stringify(detallesTransferenciaObj)
+          detalles: detallesTransferenciaObj
         });
 
         if (pErr && (pErr.code === '23505' || String(pErr.message).includes('referencia_key') || String(pErr.message).includes('duplicate'))) {
@@ -4056,7 +4056,7 @@ export default function CajaPage() {
                 parsedDet.abono_completado = true;
                 parsedDet.completado_con_pago_id = pagoIdT;
                 await supabase.from('pagos_reportados').update({
-                  detalles: JSON.stringify(parsedDet)
+                  detalles: parsedDet
                 }).eq('id', ap.id);
               }
             }
@@ -4078,12 +4078,12 @@ export default function CajaPage() {
             tipo: 'Retencion de IVA',
             estado: tieneTransferencia ? 'Por Verificar' : 'Aprobado',
             created_at: fechaUTC,
-            detalles: JSON.stringify({
+            detalles: {
               cajero: cajero_id,
               es_abono: false,
               pago_vinculado: pagoIdT,
               nota: 'Generado automáticamente por retención de agente.'
-            })
+            }
           });
         }
 

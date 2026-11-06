@@ -13,6 +13,24 @@ function parseDetalles(d: any) {
   if (typeof d === 'string') {
     try { return JSON.parse(d); } catch { return {}; }
   }
+  if (typeof d === 'object' && !Array.isArray(d) && d['0'] === '{' && d['1'] === '"') {
+    try {
+      const chars: string[] = [];
+      let i = 0;
+      while (d[String(i)] !== undefined) {
+        chars.push(d[String(i)]);
+        i++;
+      }
+      const parsed = JSON.parse(chars.join(''));
+      const extra: Record<string, any> = {};
+      for (const [k, v] of Object.entries(d)) {
+        if (!/^\d+$/.test(k)) extra[k] = v;
+      }
+      return { ...parsed, ...extra };
+    } catch {
+      return d;
+    }
+  }
   return d;
 }
 

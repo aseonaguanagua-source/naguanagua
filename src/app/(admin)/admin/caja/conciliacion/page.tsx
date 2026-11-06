@@ -83,8 +83,28 @@ function fmtFecha(iso: string | undefined) {
 
 function parseDetalles(raw: any): any {
   if (!raw) return {};
-  if (typeof raw === 'object') return raw;
-  try { return JSON.parse(raw); } catch { return {}; }
+  if (typeof raw === 'string') {
+    try { return JSON.parse(raw); } catch { return {}; }
+  }
+  if (typeof raw === 'object' && !Array.isArray(raw) && raw['0'] === '{' && raw['1'] === '"') {
+    try {
+      const chars: string[] = [];
+      let i = 0;
+      while (raw[String(i)] !== undefined) {
+        chars.push(raw[String(i)]);
+        i++;
+      }
+      const parsed = JSON.parse(chars.join(''));
+      const extra: Record<string, any> = {};
+      for (const [k, v] of Object.entries(raw)) {
+        if (!/^\d+$/.test(k)) extra[k] = v;
+      }
+      return { ...parsed, ...extra };
+    } catch {
+      return raw;
+    }
+  }
+  return raw;
 }
 
 // ─── EXTRACTOR UNIVERSAL DE COMPROBANTES ────────────────
