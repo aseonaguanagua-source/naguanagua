@@ -74,7 +74,7 @@ export default function EstadoCuentaPage() {
           // 1. Inmuebles, Facturas y Contribuyente en tiempo real
           const { data: inmsDB } = await supabase.from('inmuebles').select('*').or(orFilter);
           // Consultar también unidades de condominios asociadas a esta identidad
-          const { data: condoUnits } = await supabase.from('condominio_unidades').select('inmueble').or(orFilter);
+          const { data: condoUnits } = await supabase.from('condominio_unidades').select('inmueble').neq('estado', 'Eliminada').or(orFilter);
           let allInms = [...(inmsDB || [])];
           if (condoUnits && condoUnits.length > 0) {
             const condoCodes = condoUnits.map(u => u.inmueble).filter(Boolean);

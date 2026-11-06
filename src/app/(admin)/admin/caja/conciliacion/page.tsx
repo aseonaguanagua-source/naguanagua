@@ -605,9 +605,23 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
   const [isProcessing, setIsProcessing] = useState(false);
   const [showComp, setShowComp] = useState(false);
   const [showEdo, setShowEdo] = useState(false);
-  // Tasa personalizada para recalculo exclusivo de esta conciliacion
+  // Tasa BCV (tasa actual por defecto; editable únicamente en convenios de pago)
+  const esPagoConvenio = Boolean(
+    (Array.isArray(det.conveniosIds) && det.conveniosIds.length > 0) ||
+    (Array.isArray(det.cuotas) && det.cuotas.length > 0)
+  );
   const tasaOriginal = det.tasa_bcv ? Number(det.tasa_bcv) : 0;
   const [tasaCustom, setTasaCustom] = useState<string>(tasaOriginal ? tasaOriginal.toFixed(2) : '');
+  useEffect(() => {
+    fetch('/api/bcv')
+      .then(r => r.json())
+      .then(d => {
+        if (d?.tcmmv && (!tasaOriginal || !esPagoConvenio)) {
+          setTasaCustom(Number(d.tcmmv).toFixed(2));
+        }
+      })
+      .catch(() => {});
+  }, [tasaOriginal, esPagoConvenio]);
   const [facturasParaConciliar, setFacturasParaConciliar] = useState<any[]>([]);
   const [pagosVinculados, setPagosVinculados] = useState<any[]>([]);
   const [cargandoVinculados, setCargandoVinculados] = useState(false);
@@ -2047,22 +2061,23 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
               </div>
               <div>
                 <label className={lc}>
-                  Tasa BCV (editable)
-                  {hayRecalculo && <span className="ml-1 text-amber-600 font-bold text-[10px]">? RECALCULANDO</span>}
+                  {esPagoConvenio ? 'Tasa BCV (Convenio)' : 'Tasa BCV Actual'}
+                  {esPagoConvenio && hayRecalculo && <span className="ml-1 text-amber-600 font-bold text-[10px]">? RECALCULANDO</span>}
                 </label>
                 <div className="relative">
                   <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">Bs.</span>
                   <input
                     value={tasaCustom}
-                    onChange={e => setTasaCustom(e.target.value)}
-                    className={ic + ' pl-7 ' + (hayRecalculo ? 'border-amber-400 bg-amber-50 font-bold text-amber-800' : '')}
+                    onChange={e => { if (esPagoConvenio) setTasaCustom(e.target.value); }}
+                    readOnly={!esPagoConvenio}
+                    className={(esPagoConvenio ? ic : icRO) + ' pl-7 font-bold ' + (esPagoConvenio && hayRecalculo ? 'border-amber-400 bg-amber-50 text-amber-800' : 'text-slate-700')}
                     type="number"
                     step="0.01"
                     min="0"
-                    placeholder={tasaOriginal ? tasaOriginal.toFixed(2) : 'Ingrese tasa...'}
+                    placeholder={tasaOriginal ? tasaOriginal.toFixed(2) : 'Tasa BCV actual'}
                   />
                 </div>
-                {tasaOriginal > 0 && <p className="text-[10px] text-slate-400 mt-0.5">Original: Bs. {tasaOriginal.toFixed(2)}</p>}
+                {tasaOriginal > 0 && <p className="text-[10px] text-slate-400 mt-0.5">Tasa registrada: Bs. {tasaOriginal.toFixed(2)}</p>}
               </div>
               <div>
                 <label className={lc}>Estatus de Conciliación</label>

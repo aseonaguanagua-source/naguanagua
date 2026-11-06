@@ -160,7 +160,9 @@ function ContribuyentesPageContent() {
       if (cleanPrefix !== upper && cleanPrefix.length >= 3) cuOrs.push(`identidad.ilike.%${cleanPrefix}%`);
       const { data: cuMatched } = await supabase
         .from('condominio_unidades')
-        .select('id, condominio_id, inmueble, numero, propietario, identidad, es_grupo')
+        .select('id, condominio_id, inmueble, numero, propietario, identidad, es_grupo, estado')
+        .neq('estado', 'Eliminada')
+        .neq('estado', 'Eliminado')
         .or(cuOrs.join(','))
         .limit(100);
 

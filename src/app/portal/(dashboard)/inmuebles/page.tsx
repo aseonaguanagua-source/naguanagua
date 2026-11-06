@@ -39,7 +39,7 @@ export default function InmueblesPage() {
           .neq('estado', 'Eliminado');
 
         // Consultar también unidades de condominios asociadas a esta identidad
-        const { data: condoUnits } = await supabase.from('condominio_unidades').select('inmueble').or(orFilter);
+        const { data: condoUnits } = await supabase.from('condominio_unidades').select('inmueble').neq('estado', 'Eliminada').or(orFilter);
         let allInmsRaw = [...(inmsDB || [])];
         if (condoUnits && condoUnits.length > 0) {
           const condoCodes = condoUnits.map((u: any) => u.inmueble).filter(Boolean);

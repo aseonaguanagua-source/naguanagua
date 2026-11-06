@@ -66,6 +66,7 @@ export default function DatosContribuyentePage() {
           const { data: cUnit } = await supabase
             .from('condominio_unidades')
             .select('propietario, inmueble, actividad, telefono, correo')
+            .neq('estado', 'Eliminada')
             .or(orFilter)
             .limit(1)
             .maybeSingle();
