@@ -1683,17 +1683,18 @@ export default function CajaPage() {
       userConvenios.forEach((conv: any) => {
         let cuotasList: any[] = [];
         if (Array.isArray(conv.convenios_cuotas) && conv.convenios_cuotas.length > 0) {
-          cuotasList = conv.convenios_cuotas;
+          cuotasList = [...conv.convenios_cuotas].sort((a: any, b: any) => String(a.fecha || '').localeCompare(String(b.fecha || '')));
         } else {
           try { cuotasList = JSON.parse(conv.detalle_cuotas || '[]'); } catch(e){}
         }
-        cuotasList.forEach((c: any) => {
+        cuotasList.forEach((c: any, idx: number) => {
           const cEst = (c.estado || (c.pagado ? 'Pagada' : 'Pendiente')).toLowerCase();
           if (cEst.includes('pend')) {
             pendingCuotas.push({
               convId: conv.id,
               numeroConv: conv.numero,
               cuotaId: c.id,
+              numeroCuota: idx + 1,
               fecha: c.fecha,
               monto: c.monto,
               rawConv: conv
@@ -1969,6 +1970,21 @@ export default function CajaPage() {
     }
   };
 
+  const getCuotaMonto = useCallback((c: any): number => {
+    const base = parseFloat(c?.monto || '0') || 0;
+    if (!customBcvRate || isNaN(parseFloat(customBcvRate)) || !tcmmv || tcmmv <= 0) return base;
+    const parsed = parseFloat(customBcvRate);
+    if (Math.abs(parsed - tcmmv) < 0.05) return base;
+    const hoyVE = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' }).format(new Date());
+    const convCreatedDate = c?.rawConv?.created_at
+      ? new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' }).format(new Date(c.rawConv.created_at))
+      : '';
+    if (convCreatedDate === hoyVE) {
+      return Math.round((base * (parsed / tcmmv) + Number.EPSILON) * 100) / 100;
+    }
+    return base;
+  }, [customBcvRate, tcmmv]);
+
   // Recalculate Total — O(n) con Maps, antes era O(n²) con .find() anidados (fix C-4)
   useEffect(() => {
     // ── Construir índices O(1) una sola vez por ejecución ────────────────────
@@ -2000,7 +2016,7 @@ export default function CajaPage() {
     
     selectedCuotas.forEach(sc => {
       const c = cuotasMap.get(`${sc.convId}:${sc.cuotaId}`);
-      if (c) total += parseFloat(c.monto || '0');
+      if (c) total += getCuotaMonto(c);
     });
 
     selectedServicios.forEach(ref => {
@@ -2224,7 +2240,7 @@ export default function CajaPage() {
 
     selectedCuotas.forEach(sc => {
       const c = cuotasMap.get(`${sc.convId}:${sc.cuotaId}`);
-      if (c) extraSb += parseFloat(c.monto || '0');
+      if (c) extraSb += getCuotaMonto(c);
     });
 
     selectedServicios.forEach(ref => {
@@ -2276,7 +2292,7 @@ export default function CajaPage() {
       setComprobanteRetencion('');
     }
 
-  }, [selectedRecibos, selectedCuotas, selectedServicios, selectedTalaPoda, recibos, cuotas, serviciosEsp, talaPoda, inmuebles, customBcvRate, tcmmv, ivaPercent, foundUser, isCondominio, condominioModo, selectedHijos, condominioHijos, montoAbonoCondo, hijosMesesAPagar, getHijoDebt, reciboMontoMap, getReciboMonto, omitirMultaSeptiembre, abonosAprobados]);
+  }, [selectedRecibos, selectedCuotas, selectedServicios, selectedTalaPoda, recibos, cuotas, serviciosEsp, talaPoda, inmuebles, customBcvRate, tcmmv, ivaPercent, foundUser, isCondominio, condominioModo, selectedHijos, condominioHijos, montoAbonoCondo, hijosMesesAPagar, getHijoDebt, reciboMontoMap, getReciboMonto, getCuotaMonto, omitirMultaSeptiembre, abonosAprobados]);
 
   // ─── useCajaSelection hook (Fase 2) ────────────────────────────────────────
   const { sortedRecibos, toggleRecibo, toggleCuota, toggleServicio, toggleTalaPoda } = useCajaSelection({
@@ -6401,11 +6417,11 @@ export default function CajaPage() {
                             className="w-4 h-4 text-orange-600 rounded border-slate-300 focus:ring-orange-500"
                           />
                           <div>
-                            <p className="font-semibold text-sm text-slate-800">{c.numeroConv} - Cuota {c.cuotaId + 1}</p>
+                            <p className="font-semibold text-sm text-slate-800">{c.numeroConv} - Cuota {c.numeroCuota || (i + 1)}</p>
                             <p className="text-xs text-slate-500">Fecha de Pago: {c.fecha}</p>
                           </div>
                         </div>
-                        <span className="font-bold text-orange-700">{c.monto} Bs</span>
+                        <span className="font-bold text-orange-700">Bs. {getCuotaMonto(c).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                       </label>
                     ))}
                   </div>
