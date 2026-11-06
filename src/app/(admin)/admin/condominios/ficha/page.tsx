@@ -1038,8 +1038,36 @@ function Ficha() {
                   const matchUrb = String(m.concepto).toUpperCase().match(/URB\d+/);
                   if (matchUrb) u = unidadPorCod.get(matchUrb[0]) || null;
                 }
-                const pVinc = m.pago_id ? pagoPorId.get(m.pago_id) : null;
-                return { ...m, _u: u, _pago: pVinc };
+                let pVinc = m.pago_id ? pagoPorId.get(m.pago_id) : null;
+                // Si el pago directo no tiene factura_digital pero existe otro pago del mismo grupo/referencia/unidad con factura emitida, enlazarlo
+                const detVinc = pVinc?.detalles || {};
+                if (pVinc && !detVinc?.factura_digital?.numero_documento && u?.inmueble) {
+                  const altPago = (d.pagos || []).find((op: any) => {
+                    if (op.id === pVinc.id) return false;
+                    const od = op.detalles || {};
+                    if (!od?.factura_digital?.numero_documento) return false;
+                    const mismaRef = pVinc.referencia && op.referencia === pVinc.referencia;
+                    const mismoCod = JSON.stringify(od).toUpperCase().includes(String(u.inmueble).toUpperCase());
+                    return mismaRef && mismoCod;
+                  });
+                  if (altPago) pVinc = altPago;
+                }
+                const fd = pVinc?.detalles?.factura_digital || null;
+                const facturaDoc = fd?.numero_documento || null;
+                const facturaCtrl = fd?.numero_control || null;
+                const facturaUrl = fd?.url || fd?.raw_response?.resultado?.urlConsulta || null;
+                const facturaAnulada = Boolean(fd?.anulada || fd?.nota_credito || pVinc?.estado === 'Anulado');
+                const reciboNo = pVinc?.detalles?.recibo_caja?.[0]?.reciboNo || pVinc?.detalles?.recibo_digital?.numero || null;
+                return {
+                  ...m,
+                  _u: u,
+                  _pago: pVinc,
+                  _facturaDoc: facturaDoc,
+                  _facturaCtrl: facturaCtrl,
+                  _facturaUrl: facturaUrl,
+                  _facturaAnulada: facturaAnulada,
+                  _reciboNo: reciboNo,
+                };
               });
 
               const movsFiltrados = movsEnriquecidos.filter((m: any) => {
@@ -1056,6 +1084,9 @@ function Ficha() {
                   m.tipo,
                   m.usuario,
                   p?.referencia,
+                  m._facturaDoc,
+                  m._facturaCtrl,
+                  m._reciboNo,
                 ].some((x: any) => String(x || '').toUpperCase().includes(t));
               });
 
@@ -1099,6 +1130,7 @@ function Ficha() {
                             <th className="text-left py-2.5 px-3">Tipo</th>
                             <th className="text-left py-2.5 px-3">Código / Local / Propietario</th>
                             <th className="text-left py-2.5 px-3">Concepto</th>
+                            <th className="text-left py-2.5 px-3">Factura Asociada</th>
                             <th className="text-right py-2.5 px-3">Monto</th>
                             <th className="text-left py-2.5 px-3">Usuario</th>
                           </tr>
@@ -1135,6 +1167,52 @@ function Ficha() {
                                     <span className="inline-block mt-0.5 font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
                                       Ref: {p.referencia}
                                     </span>
+                                  )}
+                                </td>
+                                <td className="py-2.5 px-3 text-xs">
+                                  {m._facturaDoc ? (
+                                    <div className="space-y-0.5">
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className={`font-mono font-bold text-[11px] px-1.5 py-0.5 rounded border ${
+                                          m._facturaAnulada
+                                            ? 'bg-rose-50 text-rose-800 border-rose-200 line-through'
+                                            : 'bg-blue-50 text-blue-800 border-blue-200'
+                                        }`}>
+                                          Fact. N° {m._facturaDoc}
+                                        </span>
+                                        {m._facturaAnulada && (
+                                          <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-300">
+                                            Anulada
+                                          </span>
+                                        )}
+                                        {m._facturaUrl && (
+                                          <a
+                                            href={m._facturaUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-600 hover:bg-blue-700 text-white shadow-2xs transition-colors"
+                                            title="Abrir Factura Digital PDF (The Factory HKA)"
+                                          >
+                                            <ExternalLink className="w-2.5 h-2.5" /> PDF
+                                          </a>
+                                        )}
+                                      </div>
+                                      {m._facturaCtrl && (
+                                        <div className="text-[10px] font-mono text-slate-500">
+                                          Ctrl: {m._facturaCtrl}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : m._reciboNo ? (
+                                    <span className="inline-block font-mono text-[11px] font-semibold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                      Recibo N° {m._reciboNo}
+                                    </span>
+                                  ) : m.tipo === 'PAGO' ? (
+                                    <span className="inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
+                                      Pendiente de facturar
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-400 text-xs">—</span>
                                   )}
                                 </td>
                                 <td className={`py-2.5 px-3 text-right tabular-nums font-bold ${m.monto_bs < 0 ? 'text-emerald-700' : 'text-red-700'}`}>
@@ -1228,6 +1306,7 @@ function Ficha() {
               const pagosFiltrados = pagosEnriquecidos.filter((p: any) => {
                 if (!t) return true;
                 const det = p.detalles || {};
+                const fd = det.factura_digital || {};
                 const cajero = det.cajero || det.usuario || p.usuario || '';
                 const matchPago = [
                   p.referencia,
@@ -1239,6 +1318,9 @@ function Ficha() {
                   det.cod_inmueble,
                   det.codigo_inmueble,
                   cajero,
+                  fd.numero_documento,
+                  fd.numero_control,
+                  det.recibo_no,
                 ].some((x: any) => String(x || '').toUpperCase().includes(t));
                 if (matchPago) return true;
                 return (p._unidades || []).some((u: any) =>
@@ -1254,7 +1336,7 @@ function Ficha() {
                       <input
                         value={q}
                         onChange={ev => setQ(ev.target.value)}
-                        placeholder="Filtrar pagos por código (URB…), nombre, local, RIF o referencia…"
+                        placeholder="Filtrar pagos por código (URB…), nombre, local, RIF, referencia o N° factura…"
                         className="w-full pl-9 pr-8 py-2 rounded-xl border border-slate-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                       />
                       {q && (
@@ -1292,6 +1374,7 @@ function Ficha() {
                             <th className="text-left py-2.5 px-3">Contribuyente</th>
                             <th className="text-left py-2.5 px-3">Código / Local / Unidad</th>
                             <th className="text-left py-2.5 px-3">Concepto / Períodos</th>
+                            <th className="text-left py-2.5 px-3">Factura Asociada</th>
                             <th className="text-right py-2.5 px-3">Monto (Bs)</th>
                             <th className="text-center py-2.5 px-3">Estado</th>
                             <th className="text-left py-2.5 px-3">Cajero / Operador</th>
@@ -1301,6 +1384,12 @@ function Ficha() {
                         <tbody className="divide-y divide-slate-100">
                           {pagosFiltrados.map((p: any) => {
                             const det = p.detalles || {};
+                            const fd = det.factura_digital || {};
+                            const facturaDoc = fd.numero_documento ? String(fd.numero_documento) : '';
+                            const facturaCtrl = fd.numero_control ? String(fd.numero_control) : '';
+                            const facturaUrl = fd.url || fd.raw_response?.resultado?.urlConsulta || '';
+                            const facturaAnulada = Boolean(fd.anulada || det.nota_credito_digital?.emitida);
+                            const reciboNo = det.recibo_no ? String(det.recibo_no) : '';
                             const cajero = det.cajero || det.usuario || p.usuario || '—';
                             const fechaFmt = p.created_at ? new Date(p.created_at).toLocaleString('es-VE') : '—';
                             const comprobante = p.comprobante_url || det.comprobante_url;
@@ -1385,6 +1474,46 @@ function Ficha() {
                                       </div>
                                     );
                                   })()}
+                                </td>
+                                <td className="py-2.5 px-3 text-xs whitespace-nowrap">
+                                  {facturaDoc ? (
+                                    <div className="flex flex-col items-start gap-0.5">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className={`font-mono font-bold text-[11px] px-1.5 py-0.5 rounded border ${
+                                          facturaAnulada
+                                            ? 'bg-red-50 text-red-700 border-red-200 line-through'
+                                            : 'bg-indigo-50 text-indigo-800 border-indigo-200'
+                                        }`}>
+                                          Fact. N° {facturaDoc}
+                                        </span>
+                                        {facturaUrl && (
+                                          <a
+                                            href={facturaUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            title="Ver factura digital emitida"
+                                            className="inline-flex items-center gap-0.5 text-[10px] font-bold text-indigo-600 hover:text-indigo-800 underline"
+                                          >
+                                            <ExternalLink className="w-3 h-3" /> PDF
+                                          </a>
+                                        )}
+                                      </div>
+                                      {facturaCtrl && (
+                                        <span className="text-[10px] font-mono text-slate-500">
+                                          Ctrl: {facturaCtrl}
+                                        </span>
+                                      )}
+                                      {facturaAnulada && (
+                                        <span className="text-[10px] font-bold text-red-600">Anulada</span>
+                                      )}
+                                    </div>
+                                  ) : reciboNo ? (
+                                    <span className="font-mono text-[11px] text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                                      Recibo N° {reciboNo}
+                                    </span>
+                                  ) : (
+                                    <span className="text-[11px] text-slate-400 italic">Pendiente de facturar</span>
+                                  )}
                                 </td>
                                 <td className="py-2.5 px-3 text-right tabular-nums font-black text-emerald-700 text-xs">
                                   Bs {fmtBs(p.monto)}

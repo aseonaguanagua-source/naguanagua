@@ -7,10 +7,10 @@ import * as M from './motor';
 const fmtBs = (n: number) => (Number(n) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtEur = (n: number) => (Number(n) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-const fmtPeriodo = (p: string) => { 
+const fmtPeriodo = (p: string) => {
   if (!p || p.indexOf('-') === -1) return p;
-  const [y, m] = p.split('-'); 
-  return `${MESES[parseInt(m) - 1]} ${y}`; 
+  const [y, m] = p.split('-');
+  return `${MESES[parseInt(m) - 1]} ${y}`;
 };
 
 function dibujarLogosPie(doc: jsPDF) {
@@ -19,23 +19,23 @@ function dibujarLogosPie(doc: jsPDF) {
     if ((logos as any).lacava) {
       doc.addImage((logos as any).lacava, 'PNG', 14, yFoot, 34, 8.5, undefined, 'FAST');
     }
-  } catch {}
+  } catch { }
   try {
     if ((logos as any).elizabeth) {
       doc.addImage((logos as any).elizabeth, 'PNG', 85, yFoot, 40, 7.5, undefined, 'FAST');
     }
-  } catch {}
+  } catch { }
   try {
     if ((logos as any).naguanaguaTeQuiero) {
       doc.addImage((logos as any).naguanaguaTeQuiero, 'PNG', 162, yFoot - 2, 34, 12, undefined, 'FAST');
     }
-  } catch {}
+  } catch { }
 }
 
 export function generarPdfEstadoCuentaCondominio(
-  c: any, 
-  e: EstadoCuenta, 
-  cajero: string, 
+  c: any,
+  e: EstadoCuenta,
+  cajero: string,
   mostrarNA: boolean = true,
   moneda: 'BS' | 'EUR' = 'BS'
 ) {
@@ -46,18 +46,18 @@ export function generarPdfEstadoCuentaCondominio(
   const toCurr = (montoBs: number) => esEur ? (montoBs / tasaEur) : montoBs;
   const sym = esEur ? '€ ' : 'Bs. ';
   const fmtM = (montoBs: number) => `${sym}${fmtBs(toCurr(montoBs))}`;
-  
+
   const drawHeader = (pageNumber: number, totalPages: number) => {
     try {
       if (logos.alcaldia) doc.addImage(logos.alcaldia, 'PNG', 14, 10, 20, 25, undefined, 'FAST');
       if (logos.instituto) doc.addImage(logos.instituto, 'PNG', 174, 10, 22, 22, undefined, 'FAST');
-    } catch (err) {}
+    } catch (err) { }
 
     // ── TÍTULO ──
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
     doc.text('ESTADO DE CUENTA CONDOMINIO', 105, 18, { align: 'center' });
-    
+
     doc.setFontSize(8);
     doc.setTextColor(220, 38, 38);
     doc.text(`TASA VIGENTE HASTA: ${e.tasa}`, 105, 23, { align: 'center' });
@@ -76,7 +76,7 @@ export function generarPdfEstadoCuentaCondominio(
 
   drawHeader(1, 1);
   let y = 43;
-  
+
   // ── DATOS DEL CONDOMINIO ──
   doc.setFontSize(9);
   doc.setFont('helvetica', 'bold');
@@ -100,7 +100,7 @@ export function generarPdfEstadoCuentaCondominio(
     doc.setFont('helvetica', 'normal');
     y += 5;
   }
-  
+
   doc.setDrawColor(210, 210, 210);
   doc.line(14, y, 196, y);
   doc.setDrawColor(0, 0, 0);
@@ -130,7 +130,7 @@ export function generarPdfEstadoCuentaCondominio(
     doc.text(`TOTAL A COBRAR: ${fmtM(e.totales.totalBs)}${esEur ? `  (En Caja: Bs. ${fmtBs(e.totales.totalBs)})` : ''}`, esEur ? 82 : 130, y);
   }
   y += 6;
-  
+
   // ── PREPARAR LOS DATOS ──
   // Si la unidad es grupo (padre) agrupamos sus hijos debajo
   const rows: any[] = [];
@@ -175,7 +175,7 @@ export function generarPdfEstadoCuentaCondominio(
 
   // Primero los que no tienen padre (o el condominio principal)
   const roots = e.renglones.filter(r => !r.padreId);
-  
+
   let sumTotalNA = 0;
   const validRoots: typeof roots = [];
 
@@ -268,10 +268,10 @@ export function generarPdfEstadoCuentaCondominio(
     body: rows,
     theme: 'grid',
     headStyles: {
-      fillColor: esEur ? [236, 253, 245] : [239, 246, 255], 
+      fillColor: esEur ? [236, 253, 245] : [239, 246, 255],
       textColor: esEur ? [6, 95, 70] : [30, 64, 175],
-      fontStyle: 'bold', 
-      lineColor: esEur ? [167, 243, 208] : [191, 219, 254], 
+      fontStyle: 'bold',
+      lineColor: esEur ? [167, 243, 208] : [191, 219, 254],
       lineWidth: 0.2, halign: 'center', fontSize: 6.8
     },
     styles: { fontSize: 6.5, cellPadding: 1.5 },
@@ -311,17 +311,17 @@ export function generarPdfEstadoCuentaCondominio(
 export function generarPdfMultasCondominio(c: any, e: EstadoCuenta, cajero: string) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const docNro = Math.floor(100000 + Math.random() * 900000).toString();
-  
+
   const drawHeader = (pageNumber: number, totalPages: number) => {
     try {
       if (logos.alcaldia) doc.addImage(logos.alcaldia, 'PNG', 14, 10, 20, 25, undefined, 'FAST');
       if (logos.instituto) doc.addImage(logos.instituto, 'PNG', 174, 10, 22, 22, undefined, 'FAST');
-    } catch (err) {}
+    } catch (err) { }
 
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
     doc.text('REPORTE DE MULTAS CONDOMINIO', 105, 18, { align: 'center' });
-    
+
     doc.setFontSize(8);
     doc.setTextColor(220, 38, 38);
     doc.text(`TASA VIGENTE HASTA: ${e.tasa}`, 105, 23, { align: 'center' });
@@ -339,7 +339,7 @@ export function generarPdfMultasCondominio(c: any, e: EstadoCuenta, cajero: stri
 
   drawHeader(1, 1);
   let y = 43;
-  
+
   doc.setFontSize(9);
   doc.setFont('helvetica', 'bold');
   doc.text(c.nombre, 14, y);
@@ -348,7 +348,7 @@ export function generarPdfMultasCondominio(c: any, e: EstadoCuenta, cajero: stri
   doc.setFontSize(8);
   doc.text(`Código: ${c.codigo}    |    RIF: ${c.identidad}`, 14, y);
   y += 5;
-  
+
   doc.setDrawColor(210, 210, 210);
   doc.line(14, y, 196, y);
   doc.setDrawColor(0, 0, 0);
@@ -424,9 +424,9 @@ export function generarPdfMultasCondominio(c: any, e: EstadoCuenta, cajero: stri
  * Muestra el desglose por mes/período, base, IVA, multas, retenciones y total a pagar.
  */
 export async function generarPdfEstadoCuentaUnidad(
-  c: any, 
-  r: RenglonEstado, 
-  tasa: number | string, 
+  c: any,
+  r: RenglonEstado,
+  tasa: number | string,
   cajero: string,
   direccionContribuyente?: string,
   moneda: 'BS' | 'EUR' = 'BS',
@@ -452,7 +452,6 @@ export async function generarPdfEstadoCuentaUnidad(
           .from('inmuebles')
           .select('direccion')
           .eq('inmueble', r.inmueble)
-          .limit(1)
           .maybeSingle();
         if (inm?.direccion && inm.direccion.trim().length > 3) {
           dirFinal = inm.direccion.trim();
@@ -463,7 +462,6 @@ export async function generarPdfEstadoCuentaUnidad(
           .from('contribuyentes')
           .select('direccion')
           .eq('identidad', r.identidad)
-          .limit(1)
           .maybeSingle();
         if (cont?.direccion && cont.direccion.trim().length > 3) {
           dirFinal = cont.direccion.trim();
@@ -478,12 +476,12 @@ export async function generarPdfEstadoCuentaUnidad(
     try {
       if (logos.alcaldia) doc.addImage(logos.alcaldia, 'PNG', 14, 10, 20, 25, undefined, 'FAST');
       if (logos.instituto) doc.addImage(logos.instituto, 'PNG', 174, 10, 22, 22, undefined, 'FAST');
-    } catch (err) {}
+    } catch (err) { }
 
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
     doc.text(esEur ? 'ESTADO DE CUENTA (EUROS €)' : 'ESTADO DE CUENTA', 105, 18, { align: 'center' });
-    
+
     doc.setFontSize(8);
     doc.setTextColor(220, 38, 38);
     doc.text(`TASA VIGENTE HASTA: ${new Date().toLocaleDateString('es-VE')}`, 105, 23, { align: 'center' });
@@ -766,12 +764,12 @@ export async function generarPdfEstadoCuentaUnidad(
     ],
     theme: 'grid',
     headStyles: {
-      fillColor: esEur ? [236, 253, 245] : [248, 250, 252], 
+      fillColor: esEur ? [236, 253, 245] : [248, 250, 252],
       textColor: esEur ? [6, 95, 70] : [15, 23, 42],
       fontStyle: 'bold', lineColor: [0, 0, 0], lineWidth: 0.2, halign: 'center', fontSize: 7
     },
     footStyles: {
-      fillColor: esEur ? [209, 250, 229] : [241, 245, 249], 
+      fillColor: esEur ? [209, 250, 229] : [241, 245, 249],
       textColor: [15, 23, 42],
       fontStyle: 'bold', lineColor: [0, 0, 0], lineWidth: 0.2, fontSize: 7, halign: 'right'
     },
