@@ -163,9 +163,7 @@ export interface EstadoCuenta {
 /** Monto en Bs de una multa manual. */
 export const montoMulta = (m: any, tasa: number) => {
   const t = r2(Number(tasa) || 0);
-  if (m.monto_bs != null) return r2(Number(m.monto_bs));
-  const eur = r2((Number(m.monto_mmv) || 0) * 57);
-  return t > 0 ? r2(eur * t) : r2(eur * tasa);
+  return m.monto_bs != null ? r2(Number(m.monto_bs)) : r2((Number(m.monto_mmv) || 0) * 57 * t);
 };
 
 /** Estado de cuenta de un condominio con la tarifa vigente. */
@@ -216,8 +214,7 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasaRaw: numb
       const tDesoc = M.tarifaDesocupadaBs(tasa);
       const mmvActiva = Number(u.tarifa_activa_mmv || u.tarifa_mmv) || 3.77;
       const farActiva = res ? getFAR(u.actividad || u.clasificacion || condoRow?.actividad) : 0.128;
-      const tActivaEur = r2(mmvActiva * 57 * farActiva);
-      const tActiva = tasa > 0 ? r2(tActivaEur * tasa) : r2(mmvActiva * 57 * tasa * farActiva);
+      const tActiva = r2(mmvActiva * 57 * tasa * farActiva);
 
       const bases: number[] = [];
       const multas: (boolean | number)[] = [];
@@ -238,8 +235,7 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasaRaw: numb
           }
           const mmvNum = Number(mmv);
           const farCustom = res ? getFAR(custom.actividad || u.actividad || u.clasificacion || condoRow?.actividad) : 0.128;
-          const baseEur = r2((isNaN(mmvNum) ? mmvActiva : mmvNum) * 57 * farCustom);
-          const base = tasa > 0 ? r2(baseEur * tasa) : r2((isNaN(mmvNum) ? mmvActiva : mmvNum) * 57 * tasa * farCustom);
+          const base = r2((isNaN(mmvNum) ? mmvActiva : mmvNum) * 57 * tasa * farCustom);
           bases.push(base);
 
           // Multa
@@ -303,10 +299,7 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasaRaw: numb
       mesesMultaRemanente = prevPeriodos.length;
     }
     const multaMeses = mesesMultaEnAseo + mesesMultaRemanente;
-    const multaExtraUnitEur = tasa > 0 ? r2(r2(baseParaMultaExtra / tasa) * tMulta) : 0;
-    const multaExtraBs = (!mu?.es_grupo && u)
-      ? (tasa > 0 ? r2(r2(multaExtraUnitEur * mesesMultaRemanente) * tasa) : r2(r2(baseParaMultaExtra * tMulta) * mesesMultaRemanente))
-      : 0;
+    const multaExtraBs = (!mu?.es_grupo && u) ? r2(r2(baseParaMultaExtra * tMulta) * mesesMultaRemanente) : 0;
     const manuales = multasPend
       .filter(m => (u ? m.unidad_id === u.id : !m.unidad_id) && !(omitirMultaSeptiembre && m.periodo === '2026-09'))
       .map(m => ({ id: m.id, concepto: m.concepto, montoBs: montoMulta(m, tasa), periodo: m.periodo, creada_por: m.creada_por, created_at: m.created_at }));
@@ -345,75 +338,6 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasaRaw: numb
       estado: 'Condominio', cantidad: 0, esGrupo: false, padreId: null, residencial: M.esResidencial(c), mensualBs: 0, pendienteDesde: null, periodos: [],
       deuda: M.deudaPorMeses(0, 0, true), multaMeses: 0, multaExtraBs: 0, multasManuales: manuales, multasManualesBs: tot, totalBs: tot,
     });
-  }
-
-  // Alinear céntimos de Bolívares para que (Total en € × Tasa) coincida exactamente al céntimo con la suma en Bs y Caja
-  if (tasa > 0) {
-    const cobrables = renglones.filter(x => !x.esGrupo && x.totalBs > 0.01);
-    if (cobrables.length > 0) {
-      const sumEur = (fn: (x: RenglonEstado) => number) => r2(cobrables.reduce((acc, x) => acc + r2(fn(x) / tasa), 0));
-      const totBaseEur = sumEur(x => x.deuda.baseBs);
-      const totMultaEur = sumEur(x => x.deuda.multaBs + x.multaExtraBs + x.multasManualesBs);
-      const totIvaEur = sumEur(x => x.deuda.ivaBs);
-      const totRetEur = sumEur(x => x.deuda.retencionBs);
-      const totBrutoEur = r2(totBaseEur + totMultaEur + totIvaEur);
-      const totNetoEur = r2(totBrutoEur - totRetEur);
-
-      const targetBaseBs = r2(totBaseEur * tasa);
-      const targetMultaBs = r2(totMultaEur * tasa);
-      const targetBrutoBs = r2(totBrutoEur * tasa);
-      const targetIvaBs = r2(targetBrutoBs - targetBaseBs - targetMultaBs);
-      const targetRetBs = r2(totRetEur * tasa);
-      const targetNetoBs = r2(totNetoEur * tasa);
-
-      const curBaseBs = r2(renglones.reduce((a, x) => a + x.deuda.baseBs, 0));
-      const curMultaBs = r2(renglones.reduce((a, x) => a + x.deuda.multaBs + x.multaExtraBs + x.multasManualesBs, 0));
-      const curIvaBs = r2(renglones.reduce((a, x) => a + x.deuda.ivaBs, 0));
-      const curRetBs = r2(renglones.reduce((a, x) => a + x.deuda.retencionBs, 0));
-
-      const diffBase = r2(targetBaseBs - curBaseBs);
-      const diffMulta = r2(targetMultaBs - curMultaBs);
-      const diffIva = r2(targetIvaBs - curIvaBs);
-      const diffRet = r2(targetRetBs - curRetBs);
-
-      const last = cobrables[cobrables.length - 1];
-      if (Math.abs(diffBase) <= 2.0 && Math.abs(diffIva) <= 2.0) {
-        last.deuda.baseBs = r2(last.deuda.baseBs + diffBase);
-        if (diffMulta !== 0 && last.deuda.multaBs > 0) {
-          last.deuda.multaBs = r2(last.deuda.multaBs + diffMulta);
-        } else if (diffMulta !== 0 && last.multaExtraBs > 0) {
-          last.multaExtraBs = r2(last.multaExtraBs + diffMulta);
-        }
-        if (diffIva !== 0 && !last.residencial) {
-          last.deuda.ivaBs = r2(last.deuda.ivaBs + diffIva);
-        }
-        if (diffRet !== 0 && last.deuda.retencionBs > 0) {
-          last.deuda.retencionBs = r2(last.deuda.retencionBs + diffRet);
-        }
-        if (last.deuda.porMes && last.deuda.porMes.length > 0) {
-          const pm = last.deuda.porMes[last.deuda.porMes.length - 1];
-          pm.baseBs = r2(pm.baseBs + diffBase);
-          if (diffMulta !== 0 && pm.multaBs > 0) pm.multaBs = r2(pm.multaBs + diffMulta);
-          if (diffIva !== 0 && !last.residencial) pm.ivaBs = r2(pm.ivaBs + diffIva);
-          if (diffRet !== 0 && pm.retencionBs > 0) pm.retencionBs = r2(pm.retencionBs + diffRet);
-          pm.totalBs = r2(pm.baseBs + pm.multaBs + pm.ivaBs - pm.retencionBs);
-        }
-        last.deuda.totalBs = r2(last.deuda.baseBs + last.deuda.multaBs + last.deuda.ivaBs - last.deuda.retencionBs);
-        last.totalBs = r2(last.deuda.totalBs + last.multaExtraBs + last.multasManualesBs);
-        const curNetoBs = r2(renglones.reduce((a, x) => a + x.totalBs, 0));
-        const diffNetoRem = r2(targetNetoBs - curNetoBs);
-        if (diffNetoRem !== 0 && Math.abs(diffNetoRem) <= 0.5) {
-          last.deuda.baseBs = r2(last.deuda.baseBs + diffNetoRem);
-          if (last.deuda.porMes && last.deuda.porMes.length > 0) {
-            const pm = last.deuda.porMes[last.deuda.porMes.length - 1];
-            pm.baseBs = r2(pm.baseBs + diffNetoRem);
-            pm.totalBs = r2(pm.baseBs + pm.multaBs + pm.ivaBs - pm.retencionBs);
-          }
-          last.deuda.totalBs = r2(last.deuda.baseBs + last.deuda.multaBs + last.deuda.ivaBs - last.deuda.retencionBs);
-          last.totalBs = r2(last.deuda.totalBs + last.multaExtraBs + last.multasManualesBs);
-        }
-      }
-    }
   }
 
   const s = (f: (x: RenglonEstado) => number) => r2(renglones.reduce((a, x) => a + f(x), 0));

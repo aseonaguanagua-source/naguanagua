@@ -362,3 +362,42 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
   }
 }
+
+export async function PATCH(request: Request) {
+  try {
+    const body = await request.json();
+    const convId = String(body.convId || body.convenio_id || '').trim();
+    const cuotaIds: string[] = Array.isArray(body.cuotaIds) ? body.cuotaIds.filter(Boolean) : [];
+    const estado = String(body.estado || 'Pagado').trim();
+
+    if (cuotaIds.length === 0) {
+      return NextResponse.json({ ok: false, error: 'Faltan IDs de cuotas a actualizar' }, { status: 400 });
+    }
+
+    const { error: updErr } = await supabase
+      .from('convenios_cuotas')
+      .update({ estado })
+      .in('id', cuotaIds);
+
+    if (updErr) {
+      console.error('Error actualizando convenios_cuotas en PATCH:', updErr);
+      return NextResponse.json({ ok: false, error: updErr.message }, { status: 500 });
+    }
+
+    if (convId && estado === 'Pagado') {
+      const { data: rest } = await supabase
+        .from('convenios_cuotas')
+        .select('id')
+        .eq('convenio_id', convId)
+        .neq('estado', 'Pagado');
+      if (!rest || rest.length === 0) {
+        await supabase.from('convenios_pago').update({ estado: 'Pagado' }).eq('id', convId);
+      }
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch (err: any) {
+    console.error('API convenios PATCH error:', err);
+    return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
+  }
+}

@@ -1805,27 +1805,30 @@ export default function FacturacionElectronicaPage() {
                             </>
                           ) : (pago.facturaEmitida || pago.facturaAnulada) ? (
                             <>
-                              {pago.facturaUrl && !String(pago.facturaUrl).includes('democonsulta.thefactoryhka.com.ve') ? (
-                                <a
-                                  href={pago.facturaUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="text-[11px] bg-blue-600 hover:bg-blue-700 text-white font-extrabold px-3 py-1.5 rounded-lg flex items-center gap-1 shadow-xs transition-colors"
-                                  title="Abrir Factura Digital Oficial en formato PDF del SENIAT (The Factory HKA)"
-                                >
-                                  <ExternalLink className="w-3.5 h-3.5" />
-                                  <span>{pago.facturaAnulada ? 'Factura PDF' : 'PDF'}</span>
-                                </a>
-                              ) : (
-                                <button
-                                  onClick={() => setSelectedPagoForDemo(pago)}
-                                  className="text-[11px] bg-blue-600 hover:bg-blue-700 text-white font-extrabold px-3 py-1.5 rounded-lg flex items-center gap-1 shadow-xs transition-colors cursor-pointer"
-                                  title="Ver e imprimir Factura Digital en formato PDF"
-                                >
-                                  <Eye className="w-3.5 h-3.5" />
-                                  <span>{pago.facturaAnulada ? 'Factura PDF' : 'PDF'}</span>
-                                </button>
-                              )}
+                              {(() => {
+                                const realFacturaUrl = pago.facturaUrl || pago.detalles?.factura_digital?.url || pago.detalles?.factura_digital?.raw_response?.resultado?.urlConsulta;
+                                return realFacturaUrl && !String(realFacturaUrl).includes('democonsulta.thefactoryhka.com.ve') ? (
+                                  <a
+                                    href={realFacturaUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-[11px] bg-blue-600 hover:bg-blue-700 text-white font-extrabold px-3 py-1.5 rounded-lg flex items-center gap-1 shadow-xs transition-colors"
+                                    title="Abrir Factura Digital Oficial en formato PDF del SENIAT (The Factory HKA)"
+                                  >
+                                    <ExternalLink className="w-3.5 h-3.5" />
+                                    <span>{pago.facturaAnulada ? 'Factura PDF' : 'PDF'}</span>
+                                  </a>
+                                ) : (
+                                  <button
+                                    onClick={() => setSelectedPagoForDemo(pago)}
+                                    className="text-[11px] bg-blue-600 hover:bg-blue-700 text-white font-extrabold px-3 py-1.5 rounded-lg flex items-center gap-1 shadow-xs transition-colors cursor-pointer"
+                                    title="Ver e imprimir Factura Digital en formato PDF"
+                                  >
+                                    <Eye className="w-3.5 h-3.5" />
+                                    <span>{pago.facturaAnulada ? 'Factura PDF' : 'PDF'}</span>
+                                  </button>
+                                );
+                              })()}
                               {pago.notaCreditoUrl && (
                                 <a
                                   href={pago.notaCreditoUrl}
@@ -3783,7 +3786,22 @@ export default function FacturacionElectronicaPage() {
                   <span className="font-extrabold text-blue-800 text-sm block mt-0.5">
                     {modalRetencion.numeroDocumento ? `Factura N° ${modalRetencion.numeroDocumento}` : 'Por Emitir'}
                   </span>
-                  <span className="font-mono text-slate-500">Ctrl: {modalRetencion.numeroControl || '—'}</span>
+                  <span className="font-mono text-slate-500 block">Ctrl: {modalRetencion.numeroControl || '—'}</span>
+                  {(() => {
+                    const realUrl = modalRetencion.facturaUrl || modalRetencion.detalles?.factura_digital?.url || modalRetencion.detalles?.factura_digital?.raw_response?.resultado?.urlConsulta;
+                    return realUrl ? (
+                      <a
+                        href={realUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-1.5 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] shadow-xs transition-colors"
+                        title="Abrir Factura Real en formato PDF desde The Factory HKA"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        <span>Ver Factura Real PDF (Factory HKA)</span>
+                      </a>
+                    ) : null;
+                  })()}
                 </div>
                 <div>
                   <span className="text-[10px] font-bold text-slate-400 uppercase block">Monto Total Factura</span>

@@ -590,6 +590,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
   const [montoConciliado, setMontoConciliado] = useState<string>(
     String(det.monto_conciliado || montoReportadoNum.toFixed(2))
   );
+  const [tipoPagoEdit, setTipoPagoEdit] = useState(pago.tipo || 'Transferencia');
   const [bancoEmisor, setBancoEmisor] = useState(pago.banco || '');
   const [bancoReceptor, setBancoReceptor] = useState(pago.banco_destino || det.banco_destino || det.banco_receptor || '');
   const [referenciaOrigen, setReferenciaOrigen] = useState(pago.referencia || '');
@@ -1012,7 +1013,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
 
     setIsProcessing(true);
     try {
-      const tasaParaGuardar = parseFloat(tasaCustom) || tasaOriginal;
+      const tasaParaGuardar = parseFloat(tasaCustom) || tasaOriginal || Number(det.tasa_bcv_aplicada) || 0;
       const cajeroStr = (typeof window !== 'undefined' ? localStorage.getItem('adminUser') : null) || 'Administrador';
       const letraStr = (typeof window !== 'undefined' ? localStorage.getItem('adminLetra') : null);
       const current_analista = letraStr && cajeroStr !== 'Administrador' ? `${letraStr}-${cajeroStr}` : cajeroStr;
@@ -1130,9 +1131,23 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         updatedDet.fecha_banco = fechaBanco;
       }
 
+      if (Array.isArray(updatedDet.formasPago) && updatedDet.formasPago.length === 1) {
+        const esDeb = /d[eé]bito|punto/i.test(String(tipoPagoEdit || ''));
+        updatedDet.formasPago = [{
+          ...updatedDet.formasPago[0],
+          forma: esDeb ? '05' : '03',
+          tipo: esDeb ? 'Debito' : 'Transferencia',
+          metodo: esDeb ? 'Debito' : 'Transferencia',
+          descripcion: esDeb ? 'TARJETA DE DÉBITO' : 'TRANSFERENCIA BANCARIA',
+          banco: bancoEmisor || updatedDet.formasPago[0]?.banco || '',
+          referencia: refFinal || updatedDet.formasPago[0]?.referencia || '',
+        }];
+      }
+
       // Si el pago ya estaba aprobado y se confirma en Aprobado, es una edición de datos / corrección de referencia
       if (pago.estado === 'Aprobado' && estatus === 'Aprobado') {
         const payloadEdicion: any = {
+          tipo: tipoPagoEdit || pago.tipo,
           banco: bancoEmisor,
           referencia: refFinal,
           ...(montoConciliadoNum > 0 ? { monto: montoConciliadoNum } : {}),
@@ -1152,7 +1167,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
       const payloadAct: any = {
         estado: estatus,
         banco: bancoEmisor,
-        tipo: pago.tipo,
+        tipo: tipoPagoEdit || pago.tipo,
         referencia: refFinal,
         ...(montoConciliadoNum > 0 ? { monto: montoConciliadoNum } : {}),
         detalles: updatedDet,
@@ -1932,7 +1947,11 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
             {/* DATOS DEL PAGO */}
             <div className="grid grid-cols-4 gap-4">
               <div><label className={lc}>Forma de Pago</label>
-                <input value={pago.tipo || '---'} readOnly className={icRO}/>
+                <select value={tipoPagoEdit} onChange={e=>setTipoPagoEdit(e.target.value)} className={ic}>
+                  {Array.from(new Set([pago.tipo || 'Transferencia', 'Transferencia', 'Transferencia (Web)', 'Debito', 'Pago Móvil'])).filter(Boolean).map(tp => (
+                    <option key={tp} value={tp}>{tp}</option>
+                  ))}
+                </select>
               </div>
               <div><label className={lc}>Cajero / Operador</label>
                 <input value={cajeroOperador} onChange={e=>setCajeroOperador(e.target.value)} placeholder="Ej: O-carlieth" className={ic}/>

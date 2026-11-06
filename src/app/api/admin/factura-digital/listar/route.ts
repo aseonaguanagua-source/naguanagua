@@ -1027,7 +1027,7 @@ export async function GET(request: Request) {
           tieneMulta: clasif.tieneMulta,
           // Factura fiscal
           facturaEmitida: emitida,
-          facturaUrl: fd?.url || null,
+          facturaUrl: fd?.url || fd?.raw_response?.resultado?.urlConsulta || retRow?.factura_url || null,
           numeroControl: fd?.numero_control || null,
           numeroDocumento: fd?.numero_documento || null,
           fechaEmision: fd?.fecha_emision || (det.fecha_emision_override ? `${det.fecha_emision_override}T12:00:00-04:00` : null),

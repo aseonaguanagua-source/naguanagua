@@ -322,19 +322,7 @@ export default function DondePagarPage() {
       baseMonto = parseFloat(String(r.monto || '0').replace(/[^\d.]/g, '')) || 0;
     }
 
-    // Descontar abonos o pagos en vuelo parciales
-    let montoPendiente = 0;
-    pagosPorVerificar.forEach((p) => {
-      let det: any = {};
-      try { det = typeof p.detalles === 'string' ? JSON.parse(p.detalles) : (p.detalles || {}); } catch (_) {}
-      const refs: string[] = det.recibos || [];
-      if (refs.includes(r.referencia)) {
-        const montoPago = parseFloat(String(p.monto || '0').replace(/[^0-9.]/g, '')) || 0;
-        if (refs.length > 0) montoPendiente += (montoPago / refs.length);
-      }
-    });
-
-    return Math.max(0, parseFloat((baseMonto - montoPendiente).toFixed(2)));
+    return Math.max(0, parseFloat(baseMonto.toFixed(2)));
   };
 
   // 4. Agrupar inmuebles por Local Físico (clustering idéntico a Cobro Móvil y Caja)
@@ -454,7 +442,8 @@ export default function DondePagarPage() {
 
       const isUnified = c.inms.length > 1;
       const allReceiptRefs = c.receipts.map((r) => r.referencia);
-      const totalBs = c.receipts.reduce((s, r) => s + getReciboMonto(r), 0);
+      const selectableReceipts = c.receipts.filter((r) => !isItemPending(r.referencia));
+      const totalBs = (selectableReceipts.length > 0 ? selectableReceipts : c.receipts).reduce((s, r) => s + getReciboMonto(r), 0);
 
       // Si no es unificado, estructurar lista directa de recibos
       if (!isUnified) {
@@ -930,6 +919,26 @@ export default function DondePagarPage() {
       .map(c => c.dbId);
 
     const identidad = localStorage.getItem('portal_doc') || '';
+    const montosPorRecibo: Record<string, number> = {};
+    rawRecibos.filter(r => selectedReceiptRefs.includes(r.referencia)).forEach(r => {
+      montosPorRecibo[r.referencia] = getReciboMonto(r);
+    });
+    const codigosSeleccionados = Array.from(new Set(
+      selectedReceiptRefs
+        .map(ref => {
+          const m = String(ref).match(/^(?:RECIB-HIST|CM|MULTA)-([A-Za-z0-9]+?)(?:-M\d+|-\d{2}-\d{4})?$/i);
+          return m ? m[1].toUpperCase() : '';
+        })
+        .filter(Boolean)
+    ));
+    const deudaPreviaSnapshot = userInms
+      .filter((i: any) => codigosSeleccionados.length === 0 || codigosSeleccionados.includes(String(i.inmueble || '').toUpperCase()))
+      .map((i: any) => ({
+        inmueble: i.inmueble,
+        meses_deuda: Number(i.meses_deuda) || 0,
+        multa_bs: Number(i.multa_bs) || 0,
+        deuda_congelada_bs: Number(i.deuda_congelada_bs) || 0,
+      }));
 
     try {
       const res = await fetch('/api/contribuyente/pago', {
@@ -943,6 +952,10 @@ export default function DondePagarPage() {
           servicioRefs: selectedServicios,
           montoRetencionIva: r2(rawRecibos.filter(r => selectedReceiptRefs.includes(r.referencia)).reduce((t, r) => t + getReciboRetencion(r), 0)),
           monto: montoTotal,
+          tasa_bcv: effectiveTcmmv,
+          montos: montosPorRecibo,
+          deuda_previa: deudaPreviaSnapshot,
+          cod_inmueble: codigosSeleccionados.join(', '),
           referencia: formData.referencia,
           banco: formData.bancoOrigen,
           bancoDestino: formData.bancoDestino,

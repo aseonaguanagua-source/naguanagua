@@ -90,18 +90,11 @@ export function tarifaUnidadBs(c: Condominio, tasa: number, u?: Unidad): number 
   // la ordenanza por su actividad, NO de la tarifa genérica del condominio (así lo cobra SIGYR).
   const mmv = u?.tarifa_mmv ?? (res && conAct ? undefined : c.tarifa_mmv ?? undefined);
   const rawBs = calcularMensualidad({ tipo, actividad_principal: act || '', mmv_mes: mmv, cant_inmuebles: 1 }, tasa);
-  if (tasa > 0) {
-    const baseEur = r2(rawBs / tasa);
-    return r2(baseEur * tasa);
-  }
   return r2(rawBs);
 }
 
 /** Mensualidad de una unidad desocupada (1,98 MMV con FAC comercial). */
-export const tarifaDesocupadaBs = (tasa: number) => {
-  const baseEur = r2(FO_DESOCUPADO * 57 * FAC_COMERCIAL);
-  return tasa > 0 ? r2(baseEur * tasa) : r2(FO_DESOCUPADO * 57 * tasa * FAC_COMERCIAL);
-};
+export const tarifaDesocupadaBs = (tasa: number) => r2(FO_DESOCUPADO * 57 * tasa * FAC_COMERCIAL);
 
 export interface CargoMensual {
   /** Lo que paga el CONDOMINIO por mes (0 en modalidad INDIVIDUAL) */
@@ -224,36 +217,11 @@ export interface DeudaPeriodos {
  * Mismo criterio que Caja: multa = mensual × tasa × (meses − 1).
  * `sinMultaPrimeros`: los primeros N meses (los más viejos) no llevan multa porque se exoneraron.
  */
-export function deudaPorMeses(meses: number, mensualBs: number | number[], residencial: boolean, agenteRetencion = false, sinMultaPrimeros = 0, multasPorMes?: (boolean | number)[], tasa?: number): DeudaPeriodos {
+export function deudaPorMeses(meses: number, mensualBs: number | number[], residencial: boolean, agenteRetencion = false, sinMultaPrimeros = 0, multasPorMes?: (boolean | number)[], _tasa?: number): DeudaPeriodos {
   const n = Math.max(0, Math.floor(meses));
   const tMulta = residencial ? TASA_MULTA_RES : TASA_MULTA_COM;
-  const tasaEf = tasa && tasa > 0 ? r2(tasa) : 0;
   const porMes = Array.from({ length: n }, (_, i) => {
     const mensual = Array.isArray(mensualBs) ? (mensualBs[i] !== undefined ? mensualBs[i] : (mensualBs[mensualBs.length - 1] ?? 0)) : mensualBs;
-    if (tasaEf > 0) {
-      const baseEur = r2(mensual / tasaEf);
-      const base = r2(baseEur * tasaEf);
-      let multaEur = 0;
-      if (multasPorMes && multasPorMes[i] !== undefined) {
-        if (typeof multasPorMes[i] === 'number') {
-          multaEur = r2((multasPorMes[i] as number) / tasaEf);
-        } else if (multasPorMes[i] === false) {
-          multaEur = 0;
-        } else {
-          multaEur = i < n - 1 ? r2(baseEur * tMulta) : 0;
-        }
-      } else {
-        multaEur = i < n - 1 && i >= sinMultaPrimeros ? r2(baseEur * tMulta) : 0;
-      }
-      const multa = r2(multaEur * tasaEf);
-      const ivaEur = residencial ? 0 : r2(baseEur * IVA);
-      const brutoEur = r2(baseEur + multaEur + ivaEur);
-      const bruto = r2(brutoEur * tasaEf);
-      const iva = residencial ? 0 : r2(bruto - base - multa);
-      const retEur = agenteRetencion && !residencial ? r2(ivaEur * RETENCION_IVA) : 0;
-      const ret = agenteRetencion && !residencial ? r2(retEur * tasaEf) : 0;
-      return { n: i + 1, baseBs: base, multaBs: multa, ivaBs: iva, retencionBs: ret, totalBs: r2(bruto - ret) };
-    }
     const base = r2(mensual);
     let multa = 0;
     if (multasPorMes && multasPorMes[i] !== undefined) {

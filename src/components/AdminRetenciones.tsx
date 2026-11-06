@@ -65,16 +65,26 @@ export default function AdminRetenciones() {
     if (pagos) {
       for (const item of arr) {
         if (!item.factura_url || !item.factura_control) {
+          const itemDoc = item.codigo_retencion?.startsWith('FAC-') ? item.codigo_retencion.slice(4).trim() : '';
+          const itemCtrl = String(item.factura_control || '').trim();
           const matchPago = pagos.find((p: any) => {
+            const det = typeof p.detalles === 'string' ? JSON.parse(p.detalles) : p.detalles;
+            const fd = det?.factura_digital;
+            if (!fd?.emitida && !fd?.url && !fd?.raw_response?.resultado?.urlConsulta) return false;
+            if (itemCtrl && fd?.numero_control === itemCtrl) return true;
+            if (itemDoc && fd?.numero_documento === itemDoc) return true;
+            if (fd?.retencion?.retencion_id === item.id) return true;
+            return false;
+          }) || pagos.find((p: any) => {
             const id1 = String(p.identidad || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
             const id2 = String(item.identidad || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
             if (!id1 || id1 !== id2) return false;
             const det = typeof p.detalles === 'string' ? JSON.parse(p.detalles) : p.detalles;
-            return det?.factura_digital?.emitida && det?.factura_digital?.url;
+            return det?.factura_digital?.emitida && (det?.factura_digital?.url || det?.factura_digital?.raw_response?.resultado?.urlConsulta);
           });
           if (matchPago) {
             const det = typeof matchPago.detalles === 'string' ? JSON.parse(matchPago.detalles) : matchPago.detalles;
-            item.factura_url = item.factura_url || det.factura_digital?.url;
+            item.factura_url = item.factura_url || det.factura_digital?.url || det.factura_digital?.raw_response?.resultado?.urlConsulta;
             item.factura_control = item.factura_control || det.factura_digital?.numero_control;
             item.factura_emitida = true;
             if (!item.codigo_retencion || item.codigo_retencion === 'FAC-') {

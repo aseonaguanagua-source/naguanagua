@@ -369,19 +369,18 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
     }
   }
 
-  // Si el reporte fue emitido en Euros o UCD, dejar una fila en blanco y mostrar el equivalente en Bolívares (Total × Tasa)
+  // Si el reporte fue emitido en Euros o UCD, dejar una fila en blanco y mostrar el equivalente exacto en Bolívares de Caja
   if (enEUR || enUCD) {
     f3++; // fila separadora en blanco para no confundir con la columna en Euros al seleccionar
-    const factorBs = enUCD ? ucd : tasaNum;
     const rBs = ws3.getRow(f3++);
     rBs.getCell(1).value = `EQUIVALENTE EN CAJA (Bs · × Tasa ${tasaStr})`;
-    rBs.getCell(10).value = r2(sumBaseCol * factorBs);
+    rBs.getCell(10).value = r2(totales.baseBs || 0);
     rBs.getCell(10).numFmt = bsFmt;
-    rBs.getCell(11).value = r2((sumMultaCol + sumManualesCol) * factorBs);
+    rBs.getCell(11).value = r2(totales.multaBs || 0);
     rBs.getCell(11).numFmt = bsFmt;
-    rBs.getCell(12).value = r2(rnd(sumIvaCol - cRetTotal) * factorBs);
+    rBs.getCell(12).value = r2((totales.ivaBs || 0) - (totales.retencionBs || 0));
     rBs.getCell(12).numFmt = bsFmt;
-    rBs.getCell(14).value = r2(cNetoTotal * factorBs);
+    rBs.getCell(14).value = r2(totales.totalBs || 0);
     rBs.getCell(14).numFmt = bsFmt;
     for (let k = 1; k <= 14; k++) {
       const cell = rBs.getCell(k);

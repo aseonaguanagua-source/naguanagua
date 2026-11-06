@@ -90,6 +90,34 @@ export async function POST(request: Request) {
       const dbRefs = recibosData ? recibosData.map(r => r.referencia) : [];
       const finalRecibos = Array.from(new Set([...(reciboRefs || []), ...dbRefs]));
 
+      // Extraer códigos de inmueble e instantánea de deuda_previa al momento de reportar el pago
+      const codigosInm = Array.from(new Set(
+        finalRecibos
+          .map((ref: string) => {
+            const m = String(ref || '').match(/^(?:RECIB-HIST|CM|MULTA)-([A-Za-z0-9]+?)(?:-M\d+|-\d{2}-\d{4})?$/i);
+            return m ? m[1].toUpperCase() : '';
+          })
+          .filter(Boolean)
+      ));
+      let deudaPrevia = Array.isArray(body.deuda_previa) && body.deuda_previa.length > 0 ? body.deuda_previa : null;
+      if (!deudaPrevia && codigosInm.length > 0) {
+        const { data: inmsSnap } = await supabase
+          .from('inmuebles')
+          .select('inmueble, meses_deuda, multa_bs, deuda_congelada_bs')
+          .in('inmueble', codigosInm);
+        if (inmsSnap && inmsSnap.length > 0) {
+          deudaPrevia = inmsSnap.map((i: any) => ({
+            inmueble: i.inmueble,
+            meses_deuda: Number(i.meses_deuda) || 0,
+            multa_bs: Number(i.multa_bs) || 0,
+            deuda_congelada_bs: Number(i.deuda_congelada_bs) || 0,
+          }));
+        }
+      }
+      const tasaBcvReportada = parseFloat(String(body.tasa_bcv || body.tasa_bcv_aplicada || 0)) || 0;
+      const montosReportados = body.montos && typeof body.montos === 'object' ? body.montos : undefined;
+      const codInmuebleStr = String(body.cod_inmueble || codigosInm.join(', ') || '').trim() || undefined;
+
       // 1. Insertar primero en pagos_reportados y verificar que no haya error antes de bloquear recibos
       const { error: insertErr } = await supabase.from('pagos_reportados').insert({
         identidad: cleanIdentidad,
@@ -106,6 +134,10 @@ export async function POST(request: Request) {
           conveniosIds: convenioIds,
           servicios: servicioRefs,
           comprobante_url: comprobanteUrl,
+          ...(codInmuebleStr ? { cod_inmueble: codInmuebleStr } : {}),
+          ...(deudaPrevia ? { deuda_previa: deudaPrevia } : {}),
+          ...(tasaBcvReportada > 0 ? { tasa_bcv: tasaBcvReportada, tasa_bcv_aplicada: tasaBcvReportada } : {}),
+          ...(montosReportados ? { montos: montosReportados } : {}),
           monto_factura: Math.round((montoNum + montoRetencionIva) * 100) / 100,
           monto_neto_factura: montoNum,
           montoTotal: Math.round((montoNum + montoRetencionIva) * 100) / 100,

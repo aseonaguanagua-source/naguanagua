@@ -107,17 +107,28 @@ export function generarPdfEstadoCuentaCondominio(
   y += 5;
 
   // ── RESUMEN TOTALES ──
+  const subtotalBrutoBs = (e.totales.baseBs || 0) + (e.totales.multaBs || 0) + (e.totales.ivaBs || 0);
+  const tieneRetencionIva = (e.totales.retencionBs || 0) > 0;
   doc.setFont('helvetica', 'bold');
   doc.text(`RESUMEN DE DEUDA TOTAL (${esEur ? 'EUROS €' : 'BOLÍVARES'})`, 105, y, { align: 'center' });
   y += 6;
   doc.setFont('helvetica', 'normal');
   doc.text(`Aseo: ${fmtM(e.totales.baseBs)}`, 14, y);
   doc.text(`Multas: ${fmtM(e.totales.multaBs)}`, 70, y);
-  doc.text(`IVA: ${fmtM(e.totales.ivaBs)}`, 130, y);
+  doc.text(`IVA (16%): ${fmtM(e.totales.ivaBs)}`, 130, y);
   y += 5;
-  doc.text(`Retenciones: ${fmtM(e.totales.retencionBs)}`, 14, y);
-  doc.setFont('helvetica', 'bold');
-  doc.text(`TOTAL A COBRAR: ${fmtM(e.totales.totalBs)}${esEur ? `  (En Caja: Bs. ${fmtBs(e.totales.totalBs)})` : ''}`, esEur ? 82 : 130, y);
+  if (tieneRetencionIva) {
+    doc.text(`Subtotal Bruto: ${fmtM(subtotalBrutoBs)}`, 14, y);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(124, 58, 237);
+    doc.text(`(-) Retención IVA 75%: -${fmtM(e.totales.retencionBs)}`, 70, y);
+    doc.setTextColor(0, 0, 0);
+    doc.text(`TOTAL A COBRAR: ${fmtM(e.totales.totalBs)}${esEur ? ` (Bs. ${fmtBs(e.totales.totalBs)})` : ''}`, 135, y);
+  } else {
+    doc.text(`Retenciones: ${fmtM(e.totales.retencionBs)}`, 14, y);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`TOTAL A COBRAR: ${fmtM(e.totales.totalBs)}${esEur ? `  (En Caja: Bs. ${fmtBs(e.totales.totalBs)})` : ''}`, esEur ? 82 : 130, y);
+  }
   y += 6;
   
   // ── PREPARAR LOS DATOS ──
@@ -199,6 +210,50 @@ export function generarPdfEstadoCuentaCondominio(
       '—',
       '—',
       fmtM(sumTotalNA)
+    ]);
+  }
+
+  if (tieneRetencionIva) {
+    rows.push([
+      'SUBTOTAL BRUTO',
+      '',
+      'Base Imponible + Multas + IVA 16%',
+      '',
+      `IVA 16%: ${fmtM(e.totales.ivaBs)}`,
+      fmtM((e.totales.baseBs || 0) + (e.totales.ivaBs || 0)),
+      fmtM(e.totales.multaBs || 0),
+      fmtM(subtotalBrutoBs)
+    ]);
+    rows.push([
+      '(-) RETENCIÓN IVA',
+      '75%',
+      'Agente de Retención IVA (75%)',
+      '',
+      `IVA Neto 25%: ${fmtM((e.totales.ivaBs || 0) - (e.totales.retencionBs || 0))}`,
+      `-${fmtM(e.totales.retencionBs)}`,
+      '0,00',
+      `-${fmtM(e.totales.retencionBs)}`
+    ]);
+    rows.push([
+      'TOTAL A COBRAR',
+      '',
+      esEur ? `Equivalente en Caja: Bs. ${fmtBs(e.totales.totalBs)}` : 'Total Neto en Caja (Bs)',
+      '',
+      '',
+      fmtM((e.totales.baseBs || 0) + (e.totales.ivaBs || 0) - (e.totales.retencionBs || 0)),
+      fmtM(e.totales.multaBs || 0),
+      fmtM(e.totales.totalBs)
+    ]);
+  } else {
+    rows.push([
+      'TOTAL A COBRAR',
+      '',
+      esEur ? `Equivalente en Caja: Bs. ${fmtBs(e.totales.totalBs)}` : 'Total en Caja (Bs)',
+      '',
+      `IVA 16%: ${fmtM(e.totales.ivaBs)}`,
+      fmtM((e.totales.baseBs || 0) + (e.totales.ivaBs || 0)),
+      fmtM(e.totales.multaBs || 0),
+      fmtM(e.totales.totalBs)
     ]);
   }
 

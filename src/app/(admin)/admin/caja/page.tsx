@@ -3088,15 +3088,11 @@ export default function CajaPage() {
           
           for (const [cId, data] of convMap.entries()) {
             if (data.toUpdate && data.toUpdate.length > 0) {
-              await supabase.from('convenios_cuotas').update({ estado: 'Pagado' }).in('id', data.toUpdate);
-              const { data: rest } = await supabase
-                .from('convenios_cuotas')
-                .select('id')
-                .eq('convenio_id', cId)
-                .neq('estado', 'Pagado');
-              if (!rest || rest.length === 0) {
-                await supabase.from('convenios_pago').update({ estado: 'Pagado' }).eq('id', cId);
-              }
+              await fetch('/api/admin/convenios', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ convId: cId, cuotaIds: data.toUpdate, estado: 'Pagado' }),
+              });
             }
           }
         }
@@ -4105,7 +4101,11 @@ export default function CajaPage() {
           
           for (const [cId, data] of convMap.entries()) {
             if (data.toUpdate && data.toUpdate.length > 0) {
-              await supabase.from('convenios_cuotas').update({ estado: 'Por Verificar' }).in('id', data.toUpdate);
+              await fetch('/api/admin/convenios', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ convId: cId, cuotaIds: data.toUpdate, estado: 'Por Verificar' }),
+              });
             }
           }
         }

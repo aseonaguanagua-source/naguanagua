@@ -112,11 +112,23 @@ export async function GET(request: Request) {
     (Array.isArray(det.deuda_previa) ? det.deuda_previa : []).forEach((d: any) => {
       if (d?.inmueble) mesesPrevios.set(String(d.inmueble), parseInt(d.meses_deuda || '0') || 0);
     });
+    const maxHistPorCod = new Map<string, number>();
+    refs.forEach((r: string) => {
+      const m = r.match(/^RECIB-HIST-(.+)-M(\d+)$/i);
+      if (m) {
+        const c = m[1].toUpperCase();
+        const idx = parseInt(m[2], 10) || 0;
+        maxHistPorCod.set(c, Math.max(maxHistPorCod.get(c) || 0, idx));
+      }
+    });
     const fechaPago = new Date(new Date(pago.created_at).getTime() - 4 * 3600 * 1000); // hora Venezuela
     const mesKey = (ref: string): string | null => {
       const h = ref.match(/^RECIB-HIST-(.+)-M(\d+)$/i);
       if (h) {
-        const total = mesesPrevios.get(h[1]);
+        const codUp = h[1].toUpperCase();
+        const rawPrev = mesesPrevios.get(h[1]) || mesesPrevios.get(codUp) || 0;
+        const maxIdx = maxHistPorCod.get(codUp) || parseInt(h[2], 10) || 0;
+        const total = Math.max(rawPrev, maxIdx);
         if (!total) return null;
         const d = new Date(Date.UTC(fechaPago.getUTCFullYear(), fechaPago.getUTCMonth() - total + parseInt(h[2]) - 1, 1));
         return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;

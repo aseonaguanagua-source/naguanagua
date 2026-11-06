@@ -95,23 +95,37 @@ export function desglosarPago(pago: any, inmMap: Map<string, any>): DesglosePago
       .map(r => ({ r, n: parseInt(r.match(/^RECIB-HIST-.+-M(\d+)$/i)?.[1] || '0') }))
       .filter(x => x.n > 0)
       .sort((a, b) => a.n - b.n);
-    if (hist.length > 0 && inmActual && tasa > 0) {
+    if (hist.length > 0 && inmActual) {
       // Meses que debía al pagar: snapshot; si no hay (pagos viejos), deuda actual + meses pagados (o abonados)
       const yaDesconto = pago.estado === 'Aprobado' || pago.estado === 'Conciliado' || Boolean(det?.fecha_conciliado);
+      const maxHistIdx = hist[hist.length - 1].n;
       let total = parseInt(String(prev?.meses_deuda ?? '')) || 0;
-      if (!total) {
+      if (total > 0) {
+        total = Math.max(total, maxHistIdx);
+      } else {
         const deudaActual = parseInt(String(inmActual.meses_deuda || 0)) || 0;
         total = yaDesconto
-          ? Math.max(hist[hist.length - 1].n, deudaActual + (esAbono ? 0 : hist.length))
-          : Math.max(hist[hist.length - 1].n, deudaActual);
+          ? Math.max(maxHistIdx, deudaActual + (esAbono ? 0 : hist.length))
+          : Math.max(maxHistIdx, deudaActual);
       }
       const sel = esAbono ? [] : hist.filter(x => x.n <= total);
       const meses = sel.map((x, idx) => ({
         emision: new Date(hoy.getFullYear(), hoy.getMonth() - total + x.n - 1, 1, 12, 0, 0),
         esUltimo: !(idx < sel.length - 1) || x.n >= total,
       }));
-      if (meses.length > 0) {
-        const d = calcularDeudaInmueble(inm, tasa, meses, hoy);
+      let tasaEfectiva = tasa;
+      if (tasaEfectiva <= 0 && meses.length > 0 && porCodigo.size === 1) {
+        const dUnit = calcularDeudaInmueble({ ...inm, multa_bs: 0, deuda_congelada_bs: 0 }, 1, meses, hoy);
+        const sumUnit = dUnit.porMes.reduce((s, p) => {
+          const ret = retiene ? r2(p.iva * PORCENTAJE_RETENCION_AGENTE) : 0;
+          return s + (p.total - ret);
+        }, 0);
+        if (sumUnit > 0) {
+          tasaEfectiva = (montoNeto > 0 ? montoNeto : monto) / sumUnit;
+        }
+      }
+      if (meses.length > 0 && tasaEfectiva > 0) {
+        const d = calcularDeudaInmueble(inm, tasaEfectiva, meses, hoy);
         d.porMes.forEach((p, i) => {
           const f = meses[i].emision as Date;
           fechasMeses.push(f);

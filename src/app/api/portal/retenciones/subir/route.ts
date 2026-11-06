@@ -66,6 +66,7 @@ export async function POST(request: Request) {
       planilla_url: planillaUrl,
       estado: 'Pendiente',
       factura_control: fd.numero_control || null,
+      factura_url: fd.url || fd.raw_response?.resultado?.urlConsulta || null,
       factura_emitida: !!fd.emitida,
     }).select('id').single();
     if (eIns) throw eIns;

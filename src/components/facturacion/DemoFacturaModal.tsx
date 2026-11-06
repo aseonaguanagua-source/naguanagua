@@ -603,6 +603,17 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
               />
               {guardandoFecha && <span className="text-[10px] text-amber-300 animate-pulse">Guardando...</span>}
             </div>
+            {(pago?.facturaUrl || det?.factura_digital?.url || det?.factura_digital?.raw_response?.resultado?.urlConsulta) && (
+              <a
+                href={pago?.facturaUrl || det?.factura_digital?.url || det?.factura_digital?.raw_response?.resultado?.urlConsulta}
+                target="_blank"
+                rel="noreferrer"
+                className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 transition-colors shadow-xs"
+                title="Abrir Factura Digital Real en The Factory HKA"
+              >
+                <span>📄 Ver PDF Real (Factory HKA)</span>
+              </a>
+            )}
             <button
               onClick={handlePrint}
               className="px-3.5 py-1.5 bg-[#EB5424] hover:bg-[#d4481c] text-white text-xs font-bold rounded-lg flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
