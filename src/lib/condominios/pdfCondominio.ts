@@ -213,50 +213,6 @@ export function generarPdfEstadoCuentaCondominio(
     ]);
   }
 
-  if (tieneRetencionIva) {
-    rows.push([
-      'SUBTOTAL BRUTO',
-      '',
-      'Base Imponible + Multas + IVA 16%',
-      '',
-      `IVA 16%: ${fmtM(e.totales.ivaBs)}`,
-      fmtM((e.totales.baseBs || 0) + (e.totales.ivaBs || 0)),
-      fmtM(e.totales.multaBs || 0),
-      fmtM(subtotalBrutoBs)
-    ]);
-    rows.push([
-      '(-) RETENCIÓN IVA',
-      '75%',
-      'Agente de Retención IVA (75%)',
-      '',
-      `IVA Neto 25%: ${fmtM((e.totales.ivaBs || 0) - (e.totales.retencionBs || 0))}`,
-      `-${fmtM(e.totales.retencionBs)}`,
-      '0,00',
-      `-${fmtM(e.totales.retencionBs)}`
-    ]);
-    rows.push([
-      'TOTAL A COBRAR',
-      '',
-      esEur ? `Equivalente en Caja: Bs. ${fmtBs(e.totales.totalBs)}` : 'Total Neto en Caja (Bs)',
-      '',
-      '',
-      fmtM((e.totales.baseBs || 0) + (e.totales.ivaBs || 0) - (e.totales.retencionBs || 0)),
-      fmtM(e.totales.multaBs || 0),
-      fmtM(e.totales.totalBs)
-    ]);
-  } else {
-    rows.push([
-      'TOTAL A COBRAR',
-      '',
-      esEur ? `Equivalente en Caja: Bs. ${fmtBs(e.totales.totalBs)}` : 'Total en Caja (Bs)',
-      '',
-      `IVA 16%: ${fmtM(e.totales.ivaBs)}`,
-      fmtM((e.totales.baseBs || 0) + (e.totales.ivaBs || 0)),
-      fmtM(e.totales.multaBs || 0),
-      fmtM(e.totales.totalBs)
-    ]);
-  }
-
   const colHeadAseo = esEur ? 'Aseo (€)' : 'Aseo (Bs)';
   const colHeadMultas = esEur ? 'Multas (€)' : 'Multas (Bs)';
   const colHeadTotal = esEur ? 'Total (€)' : 'Total Bs';

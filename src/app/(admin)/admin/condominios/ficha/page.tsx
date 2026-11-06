@@ -1056,7 +1056,17 @@ function Ficha() {
                 const facturaDoc = fd?.numero_documento || null;
                 const facturaCtrl = fd?.numero_control || null;
                 const facturaUrl = fd?.url || fd?.raw_response?.resultado?.urlConsulta || null;
-                const facturaAnulada = Boolean(fd?.anulada || fd?.nota_credito || pVinc?.estado === 'Anulado');
+                const refStr = String(pVinc?.referencia || '').toUpperCase();
+                const esAnuladoORechazado = Boolean(
+                  fd?.anulada ||
+                  fd?.nota_credito ||
+                  pVinc?.detalles?.nota_credito_digital?.emitida ||
+                  pVinc?.estado === 'Anulado' ||
+                  pVinc?.estado === 'Rechazado' ||
+                  pVinc?.estado === 'Reversado' ||
+                  refStr.startsWith('RECH-') ||
+                  refStr.startsWith('ANUL-')
+                );
                 const reciboNo = pVinc?.detalles?.recibo_caja?.[0]?.reciboNo || pVinc?.detalles?.recibo_digital?.numero || null;
                 return {
                   ...m,
@@ -1065,7 +1075,7 @@ function Ficha() {
                   _facturaDoc: facturaDoc,
                   _facturaCtrl: facturaCtrl,
                   _facturaUrl: facturaUrl,
-                  _facturaAnulada: facturaAnulada,
+                  _esAnulado: esAnuladoORechazado,
                   _reciboNo: reciboNo,
                 };
               });
@@ -1087,6 +1097,7 @@ function Ficha() {
                   m._facturaDoc,
                   m._facturaCtrl,
                   m._reciboNo,
+                  m._esAnulado ? 'ANULADO RECHAZADO' : '',
                 ].some((x: any) => String(x || '').toUpperCase().includes(t));
               });
 
@@ -1130,7 +1141,6 @@ function Ficha() {
                             <th className="text-left py-2.5 px-3">Tipo</th>
                             <th className="text-left py-2.5 px-3">Código / Local / Propietario</th>
                             <th className="text-left py-2.5 px-3">Concepto</th>
-                            <th className="text-left py-2.5 px-3">Factura Asociada</th>
                             <th className="text-right py-2.5 px-3">Monto</th>
                             <th className="text-left py-2.5 px-3">Usuario</th>
                           </tr>
@@ -1140,9 +1150,16 @@ function Ficha() {
                             const u = m._u;
                             const p = m._pago;
                             return (
-                              <tr key={m.id} className="hover:bg-slate-50/70">
+                              <tr key={m.id} className={`hover:bg-slate-50/70 ${m._esAnulado ? 'bg-rose-50/40' : ''}`}>
                                 <td className="py-2.5 px-3 text-xs text-slate-600 whitespace-nowrap">{new Date(m.created_at).toLocaleString('es-VE')}</td>
-                                <td className="py-2.5 px-3 font-bold text-xs">{m.tipo}</td>
+                                <td className="py-2.5 px-3 font-bold text-xs">
+                                  <div>{m.tipo}</div>
+                                  {m._esAnulado && (
+                                    <span className="inline-block mt-0.5 text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-300">
+                                      {p?.estado === 'Rechazado' || String(p?.referencia || '').toUpperCase().startsWith('RECH-') ? 'RECHAZADO / ANULADO' : 'ANULADO'}
+                                    </span>
+                                  )}
+                                </td>
                                 <td className="py-2.5 px-3 text-xs">
                                   {u ? (
                                     <div>
@@ -1158,64 +1175,61 @@ function Ficha() {
                                   )}
                                 </td>
                                 <td className="py-2.5 px-3 text-xs text-slate-700">
-                                  <div>
+                                  <div className={m._esAnulado ? 'line-through text-slate-400' : ''}>
                                     {m.tipo === 'PAGO' && !/aseo|multa/i.test(String(m.concepto || ''))
                                       ? String(m.concepto || '').replace(/^Pago del (condominio|contribuyente)/i, 'Pago de Aseo Urbano ($1)')
                                       : m.concepto}
                                   </div>
-                                  {p?.referencia && (
-                                    <span className="inline-block mt-0.5 font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
-                                      Ref: {p.referencia}
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="py-2.5 px-3 text-xs">
-                                  {m._facturaDoc ? (
-                                    <div className="space-y-0.5">
-                                      <div className="flex items-center gap-1.5 flex-wrap">
-                                        <span className={`font-mono font-bold text-[11px] px-1.5 py-0.5 rounded border ${
-                                          m._facturaAnulada
+                                  <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                                    {p?.referencia && (
+                                      <span className={`inline-block font-mono text-[10px] px-1.5 py-0.5 rounded border ${
+                                        m._esAnulado
+                                          ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                          : 'bg-slate-100 text-slate-600 border-slate-200'
+                                      }`}>
+                                        Ref: {p.referencia}
+                                      </span>
+                                    )}
+                                    {m._facturaDoc && (
+                                      m._facturaUrl ? (
+                                        <a
+                                          href={m._facturaUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          title="Ver factura digital emitida"
+                                          className={`inline-flex items-center gap-1 font-mono font-bold text-[10px] px-1.5 py-0.5 rounded border ${
+                                            m._esAnulado
+                                              ? 'bg-rose-50 text-rose-800 border-rose-200 line-through'
+                                              : 'bg-indigo-50 text-indigo-800 border-indigo-200 hover:bg-indigo-100'
+                                          }`}
+                                        >
+                                          Fact. N° {m._facturaDoc}
+                                          <ExternalLink className="w-2.5 h-2.5" />
+                                        </a>
+                                      ) : (
+                                        <span className={`inline-block font-mono font-bold text-[10px] px-1.5 py-0.5 rounded border ${
+                                          m._esAnulado
                                             ? 'bg-rose-50 text-rose-800 border-rose-200 line-through'
-                                            : 'bg-blue-50 text-blue-800 border-blue-200'
+                                            : 'bg-indigo-50 text-indigo-800 border-indigo-200'
                                         }`}>
                                           Fact. N° {m._facturaDoc}
                                         </span>
-                                        {m._facturaAnulada && (
-                                          <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-300">
-                                            Anulada
-                                          </span>
-                                        )}
-                                        {m._facturaUrl && (
-                                          <a
-                                            href={m._facturaUrl}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-600 hover:bg-blue-700 text-white shadow-2xs transition-colors"
-                                            title="Abrir Factura Digital PDF (The Factory HKA)"
-                                          >
-                                            <ExternalLink className="w-2.5 h-2.5" /> PDF
-                                          </a>
-                                        )}
-                                      </div>
-                                      {m._facturaCtrl && (
-                                        <div className="text-[10px] font-mono text-slate-500">
-                                          Ctrl: {m._facturaCtrl}
-                                        </div>
-                                      )}
-                                    </div>
-                                  ) : m._reciboNo ? (
-                                    <span className="inline-block font-mono text-[11px] font-semibold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
-                                      Recibo N° {m._reciboNo}
-                                    </span>
-                                  ) : m.tipo === 'PAGO' ? (
-                                    <span className="inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
-                                      Pendiente de facturar
-                                    </span>
-                                  ) : (
-                                    <span className="text-slate-400 text-xs">—</span>
-                                  )}
+                                      )
+                                    )}
+                                    {m._esAnulado && (
+                                      <span className="inline-block text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-300">
+                                        Factura / Pago Anulado
+                                      </span>
+                                    )}
+                                  </div>
                                 </td>
-                                <td className={`py-2.5 px-3 text-right tabular-nums font-bold ${m.monto_bs < 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                                <td className={`py-2.5 px-3 text-right tabular-nums font-bold ${
+                                  m._esAnulado
+                                    ? 'line-through text-rose-500'
+                                    : m.monto_bs < 0
+                                    ? 'text-emerald-700'
+                                    : 'text-red-700'
+                                }`}>
                                   {fmtBs(m.monto_bs)}
                                 </td>
                                 <td className="py-2.5 px-3 text-xs text-slate-600">{m.usuario}</td>
@@ -1374,7 +1388,6 @@ function Ficha() {
                             <th className="text-left py-2.5 px-3">Contribuyente</th>
                             <th className="text-left py-2.5 px-3">Código / Local / Unidad</th>
                             <th className="text-left py-2.5 px-3">Concepto / Períodos</th>
-                            <th className="text-left py-2.5 px-3">Factura Asociada</th>
                             <th className="text-right py-2.5 px-3">Monto (Bs)</th>
                             <th className="text-center py-2.5 px-3">Estado</th>
                             <th className="text-left py-2.5 px-3">Cajero / Operador</th>
@@ -1386,16 +1399,14 @@ function Ficha() {
                             const det = p.detalles || {};
                             const fd = det.factura_digital || {};
                             const facturaDoc = fd.numero_documento ? String(fd.numero_documento) : '';
-                            const facturaCtrl = fd.numero_control ? String(fd.numero_control) : '';
                             const facturaUrl = fd.url || fd.raw_response?.resultado?.urlConsulta || '';
                             const facturaAnulada = Boolean(fd.anulada || det.nota_credito_digital?.emitida);
-                            const reciboNo = det.recibo_no ? String(det.recibo_no) : '';
                             const cajero = det.cajero || det.usuario || p.usuario || '—';
                             const fechaFmt = p.created_at ? new Date(p.created_at).toLocaleString('es-VE') : '—';
                             const comprobante = p.comprobante_url || det.comprobante_url;
                             const esAprobado = p.estado === 'Aprobado' || p.estado === 'Conciliado';
                             const esPendiente = p.estado === 'Por Verificar' || p.estado === 'Pendiente';
-                            const esRechazado = p.estado === 'Rechazado' || p.estado === 'Anulado' || p.estado === 'Reversado';
+                            const esRechazado = p.estado === 'Rechazado' || p.estado === 'Anulado' || p.estado === 'Reversado' || String(p.referencia || '').toUpperCase().startsWith('RECH-');
                             const us: any[] = p._unidades || [];
                             const usVisibles = t
                               ? [
@@ -1465,57 +1476,44 @@ function Ficha() {
                                       <div>
                                         <span className="font-semibold text-slate-800 block">{tipoLabel}</span>
                                         {periodosArr.length > 0 ? (
-                                          <span className="text-[11px] font-mono text-emerald-700">
+                                          <span className="text-[11px] font-mono text-emerald-700 block">
                                             {periodosArr.length} mes(es): {periodosArr.join(', ')}
                                           </span>
                                         ) : det?.concepto ? (
-                                          <span className="text-[11px] text-slate-500">{det.concepto}</span>
+                                          <span className="text-[11px] text-slate-500 block">{det.concepto}</span>
                                         ) : null}
+                                        {facturaDoc && (
+                                          <div className="mt-1">
+                                            {facturaUrl ? (
+                                              <a
+                                                href={facturaUrl}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className={`inline-flex items-center gap-1 font-mono font-bold text-[10px] px-1.5 py-0.5 rounded border ${
+                                                  facturaAnulada || esRechazado
+                                                    ? 'bg-red-50 text-red-700 border-red-200 line-through'
+                                                    : 'bg-indigo-50 text-indigo-800 border-indigo-200 hover:bg-indigo-100'
+                                                }`}
+                                              >
+                                                Fact. N° {facturaDoc}
+                                                <ExternalLink className="w-2.5 h-2.5" />
+                                              </a>
+                                            ) : (
+                                              <span className={`inline-block font-mono font-bold text-[10px] px-1.5 py-0.5 rounded border ${
+                                                facturaAnulada || esRechazado
+                                                  ? 'bg-red-50 text-red-700 border-red-200 line-through'
+                                                  : 'bg-indigo-50 text-indigo-800 border-indigo-200'
+                                              }`}>
+                                                Fact. N° {facturaDoc}
+                                              </span>
+                                            )}
+                                          </div>
+                                        )}
                                       </div>
                                     );
                                   })()}
                                 </td>
-                                <td className="py-2.5 px-3 text-xs whitespace-nowrap">
-                                  {facturaDoc ? (
-                                    <div className="flex flex-col items-start gap-0.5">
-                                      <div className="flex items-center gap-1.5">
-                                        <span className={`font-mono font-bold text-[11px] px-1.5 py-0.5 rounded border ${
-                                          facturaAnulada
-                                            ? 'bg-red-50 text-red-700 border-red-200 line-through'
-                                            : 'bg-indigo-50 text-indigo-800 border-indigo-200'
-                                        }`}>
-                                          Fact. N° {facturaDoc}
-                                        </span>
-                                        {facturaUrl && (
-                                          <a
-                                            href={facturaUrl}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            title="Ver factura digital emitida"
-                                            className="inline-flex items-center gap-0.5 text-[10px] font-bold text-indigo-600 hover:text-indigo-800 underline"
-                                          >
-                                            <ExternalLink className="w-3 h-3" /> PDF
-                                          </a>
-                                        )}
-                                      </div>
-                                      {facturaCtrl && (
-                                        <span className="text-[10px] font-mono text-slate-500">
-                                          Ctrl: {facturaCtrl}
-                                        </span>
-                                      )}
-                                      {facturaAnulada && (
-                                        <span className="text-[10px] font-bold text-red-600">Anulada</span>
-                                      )}
-                                    </div>
-                                  ) : reciboNo ? (
-                                    <span className="font-mono text-[11px] text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
-                                      Recibo N° {reciboNo}
-                                    </span>
-                                  ) : (
-                                    <span className="text-[11px] text-slate-400 italic">Pendiente de facturar</span>
-                                  )}
-                                </td>
-                                <td className="py-2.5 px-3 text-right tabular-nums font-black text-emerald-700 text-xs">
+                                <td className={`py-2.5 px-3 text-right tabular-nums font-black text-xs ${esRechazado || facturaAnulada ? 'line-through text-rose-500' : 'text-emerald-700'}`}>
                                   Bs {fmtBs(p.monto)}
                                 </td>
                                 <td className="py-2.5 px-3 text-center">
