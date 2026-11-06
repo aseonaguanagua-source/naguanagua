@@ -23,7 +23,7 @@ function fmtPeriodo(p: string) {
 function generarMesesCondo(): { key: string; label: string }[] {
   const lista: { key: string; label: string }[] = [];
   const now = new Date();
-  const cursor = new Date(now.getFullYear(), now.getMonth(), 1);
+  const cursor = new Date(now.getFullYear(), now.getMonth() - 2, 1);
   for (let i = 0; i < 36; i++) {
     const y = cursor.getFullYear();
     const m = cursor.getMonth();

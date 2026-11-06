@@ -28,12 +28,12 @@ function fmtPeriodoLabel(key: string): string {
   return idx >= 0 && idx < 12 ? `${MESES_NOMBRES[idx]} ${y}` : key;
 }
 
-// Genera lista de meses descendentes (desde el mes facturable actual hacia atrás 36 meses)
+// Genera lista de meses descendentes (desde el último mes vencido hacia atrás 36 meses; ni el mes en curso ni el último mes facturable llevan multa)
 function generarListaMeses(): { key: string; label: string }[] {
   const lista: { key: string; label: string }[] = [];
   const now = new Date();
-  // Empezar desde el mes en curso
-  const cursor = new Date(now.getFullYear(), now.getMonth(), 1);
+  // Empezar desde 2 meses atrás (p.ej. en noviembre, septiembre es el más reciente que puede llevar multa)
+  const cursor = new Date(now.getFullYear(), now.getMonth() - 2, 1);
   for (let i = 0; i < 36; i++) {
     const y = cursor.getFullYear();
     const m = cursor.getMonth();

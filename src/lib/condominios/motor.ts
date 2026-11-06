@@ -385,8 +385,8 @@ export function periodosMultasPrevias(desde: string | null | undefined, multaMes
   if (n === 0) return [];
   if (!desde) {
     const { y, m } = mesActualCaracas(hoy);
-    const ultimoFacturado = aIndice(y, m) - 1;
-    return Array.from({ length: n }, (_, i) => deIndice(ultimoFacturado - (n - 1) + i).slice(0, 7));
+    const ultimoVencidoConMulta = aIndice(y, m) - 2;
+    return Array.from({ length: n }, (_, i) => deIndice(ultimoVencidoConMulta - (n - 1) + i).slice(0, 7));
   }
   const [y, m] = desde.split('-').map(Number);
   const indDesde = aIndice(y, m);

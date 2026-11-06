@@ -1538,10 +1538,11 @@ export default function CajaPage() {
             if (esCondoCentralizado) {
               const multaTotal = parseFloat(inm.multa_bs || '0');
               if (multaTotal > 0) {
-                const numMesesMulta = Math.max(1, parseInt(inm.meses_deuda || '0') || parseInt(inm.multa_meses || '0') || 1);
+                const rawMesesMulta = Math.max(0, parseInt(inm.multa_meses || '0') || Math.max(0, (parseInt(inm.meses_deuda || '0') || 0) - 1));
+                const numMesesMulta = Math.max(1, rawMesesMulta);
                 const baseCuotaMulta = Math.round((multaTotal / numMesesMulta) * 100) / 100;
                 for (let i = 1; i <= numMesesMulta; i++) {
-                  const targetDate = new Date(now.getFullYear(), now.getMonth() - numMesesMulta + i - 1, 1, 12, 0, 0);
+                  const targetDate = new Date(now.getFullYear(), now.getMonth() - numMesesMulta + i - 2, 1, 12, 0, 0);
                   const isUltimo = i === numMesesMulta;
                   const montoMes = isUltimo ? Math.max(0, Math.round((multaTotal - baseCuotaMulta * (numMesesMulta - 1)) * 100) / 100) : baseCuotaMulta;
                   combined.push({
@@ -1588,7 +1589,7 @@ export default function CajaPage() {
               const numMesesMulta = Math.max(1, parseInt(inm.multa_meses || '0') || 1);
               const baseCuotaMulta = Math.round((multa / numMesesMulta) * 100) / 100;
               for (let i = 1; i <= numMesesMulta; i++) {
-                const targetDate = new Date(now.getFullYear(), now.getMonth() - numMesesMulta + i - 1, 1, 12, 0, 0);
+                const targetDate = new Date(now.getFullYear(), now.getMonth() - numMesesMulta + i - 2, 1, 12, 0, 0);
                 const isUltimo = i === numMesesMulta;
                 const montoMes = isUltimo ? Math.max(0, Math.round((multa - baseCuotaMulta * (numMesesMulta - 1)) * 100) / 100) : baseCuotaMulta;
                 combined.push({
