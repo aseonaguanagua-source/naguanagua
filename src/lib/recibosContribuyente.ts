@@ -127,10 +127,11 @@ export function construirRecibosContribuyente(params: {
         !String(r.referencia).startsWith('RECIB-HIST-') && !String(r.referencia).startsWith('MULTA-')).length;
       const n = Math.max(0, (meses > 0 ? meses : (num(inm.deuda_mmv) > 0 ? 1 : 0)) - formales);
       
-      // Si NO tiene meses históricos pendientes pero sí tiene una multa administrativa específica aislada, se emite MULTA-
+      // Si NO tiene meses históricos pendientes pero sí tiene una multa administrativa específica aislada (y NO está congelada en un convenio de pago), se emite MULTA-
       if (n === 0) {
         const multa = num(inm.multa_bs), congelada = num(inm.deuda_congelada_bs);
-        if (multa > 0 || congelada > 0) {
+        const tieneConvenioNotas = /Convenio de Pago\s+CONV-/i.test(String(inm.notas || '')) && !/Anulado/i.test(String(inm.notas || ''));
+        if (multa > 0 && congelada <= 0 && !tieneConvenioNotas) {
           const f = new Date(hoy.getFullYear(), hoy.getMonth() - 2, 1, 12, 0, 0).toISOString();
           recibos.push({
             id: `multa-${inm.inmueble}`,
@@ -141,7 +142,7 @@ export function construirRecibosContribuyente(params: {
             emision: f,
             vencimiento: f,
             estado: 'Pendiente',
-            monto: (multa + congelada).toFixed(2),
+            monto: multa.toFixed(2),
             descripcion: `Multa Municipal (${inm.inmueble})`
           });
         }

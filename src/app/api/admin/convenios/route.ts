@@ -152,12 +152,13 @@ export async function POST(request: Request) {
             multa_bs: pInm.multa_bs ?? 0,
           });
         }
-        const tagPrev = pInm ? ` [PRE_CONV:${pInm.meses_deuda ?? 0}:${pInm.deuda_mmv ?? 0}]` : '';
+        const tagPrev = pInm ? ` [PRE_CONV:${pInm.meses_deuda ?? 0}:${pInm.deuda_mmv ?? 0}:${pInm.multa_bs ?? 0}]` : '';
         await supabase
           .from('inmuebles')
           .update({
             deuda_mmv: 0,
             meses_deuda: 0,
+            multa_bs: 0,
             deuda_congelada_bs: upd.deuda_congelada_bs,
             notas: `Convenio de Pago ${finalNro} (${cuotas} cuotas por Bs. ${montoTotal})${tagPrev}`
           })
@@ -295,7 +296,7 @@ export async function DELETE(request: Request) {
             if (algunoTieneTag && !String(inm.notas || '').includes(conv.numero)) continue;
           }
           const snap = prevByInmId.get(inm.id);
-          const mPrev = String(inm.notas || '').match(/\[PRE_CONV:(\d+):([\d.]+)\]/);
+          const mPrev = String(inm.notas || '').match(/\[PRE_CONV:(\d+):([\d.]+)(?::([\d.]+))?\]/);
           const restoredMeses = snap?.meses_deuda !== undefined
             ? parseInt(String(snap.meses_deuda), 10)
             : (mPrev ? parseInt(mPrev[1], 10) : Math.max(1, parseInt(String(inm.meses_deuda || 1))));
@@ -304,6 +305,9 @@ export async function DELETE(request: Request) {
             : (mPrev
               ? parseFloat(mPrev[2])
               : (parseFloat(String(inm.deuda_mmv || 0)) || parseFloat(((parseFloat(String(inm.mmv_mes || 0)) || 0) * restoredMeses).toFixed(6))));
+          const restoredMulta = snap?.multa_bs !== undefined
+            ? (parseFloat(String(snap.multa_bs)) || 0)
+            : (mPrev && mPrev[3] !== undefined ? (parseFloat(mPrev[3]) || 0) : undefined);
           const notasActuales = (inm.notas || '')
             .replace(/\[PRE_CONV:[^\]]*\]/gi, '')
             .replace(/Convenio de Pago[^\n;.]*/gi, '')
@@ -314,7 +318,7 @@ export async function DELETE(request: Request) {
               deuda_congelada_bs: 0,
               meses_deuda: restoredMeses,
               deuda_mmv: restoredMmv,
-              ...(snap?.multa_bs !== undefined ? { multa_bs: parseFloat(String(snap.multa_bs)) || 0 } : {}),
+              ...(restoredMulta !== undefined ? { multa_bs: restoredMulta } : {}),
               notas: notasActuales ? `${notasActuales} (Convenio ${conv.numero} Anulado)` : `Convenio ${conv.numero} Anulado`
             })
             .eq('id', inm.id);

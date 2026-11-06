@@ -1580,9 +1580,11 @@ export default function CajaPage() {
             const mesesBase = meses > 0 ? meses : (inm.meses_deuda !== 0 && inm.meses_deuda !== '0' && deudaMMV > 0.01 ? 1 : 0);
             const numMeses = isTerreno ? 0 : Math.max(0, mesesBase - recibosFormales);
 
-            // Si NO tiene meses de aseo pendientes pero sí tiene multa acumulada aislada, generar recibo MULTA- por meses
+            // Si NO tiene meses de aseo pendientes pero sí tiene multa acumulada aislada (y NO está congelada en un convenio de pago), generar recibo MULTA- por meses
             const multa = parseFloat(inm.multa_bs || '0');
-            if (numMeses === 0 && multa > 0) {
+            const congelada = parseFloat(inm.deuda_congelada_bs || '0');
+            const tieneConvenioNotas = /Convenio de Pago\s+CONV-/i.test(String(inm.notas || '')) && !/Anulado/i.test(String(inm.notas || ''));
+            if (numMeses === 0 && multa > 0 && congelada <= 0 && !tieneConvenioNotas) {
               const numMesesMulta = Math.max(1, parseInt(inm.multa_meses || '0') || 1);
               const baseCuotaMulta = Math.round((multa / numMesesMulta) * 100) / 100;
               for (let i = 1; i <= numMesesMulta; i++) {
