@@ -18,7 +18,7 @@ export async function GET(request: Request) {
     const [{ data, error }, { data: inmsAg }] = await Promise.all([
       supabase
         .from('pagos_reportados')
-        .select('id, identidad, monto, created_at, detalles, estado, referencia, grupo_pago')
+        .select('id, identidad, monto, created_at, detalles, estado, referencia, tipo, grupo_pago')
         .in('identidad', variantes)
         .order('created_at', { ascending: false })
         .limit(100),
@@ -34,8 +34,13 @@ export async function GET(request: Request) {
     const facturas: any[] = [];
     (data || []).forEach((p: any) => {
       if (['Rechazado', 'Anulado', 'Reversado'].includes(String(p?.estado || ''))) return;
-      if (String(p?.referencia || '').startsWith('RECH-')) return;
+      const refUpper = String(p?.referencia || '').trim().toUpperCase();
+      const tipoUpper = String(p?.tipo || '').trim().toUpperCase();
+      if (refUpper.startsWith('RECH-') || refUpper.startsWith('RET-')) return;
+      if (tipoUpper.includes('RETENCION') || tipoUpper.includes('RETENCIÓN')) return;
       const det = parseDet(p.detalles);
+      if (det?.pago_vinculado || det?.es_comprobante_retencion) return;
+      if (typeof det?.nota === 'string' && det.nota.toLowerCase().includes('retención de agente')) return;
       const esVinculoAutomaticoSinGrupo = Boolean(det?.vinculado_a_referencia) && !p.grupo_pago;
       if (!esVinculoAutomaticoSinGrupo && (det?.es_pago_adicional === true || Boolean(det?.pago_principal_id))) {
         const parentObj = det?.pago_principal_id ? (data || []).find((x: any) => x.id === det.pago_principal_id) : null;

@@ -100,21 +100,32 @@ export class TheFactoryHKA {
       throw new Error('Faltan TFHKA_USER / TFHKA_PASSWORD en las variables de entorno.');
     }
 
-    const response = await fetch(`${baseUrl}/api/Autenticacion`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ usuario, clave }),
-      signal: AbortSignal.timeout(15000),
-    });
-
-    if (!response.ok) {
-      const err = await response.text();
-      throw new Error(`Error en autenticación The Factory HKA (${response.status}): ${err}`);
+    let response: Response | null = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      response = await fetch(`${baseUrl}/api/Autenticacion`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ usuario, clave }),
+        signal: AbortSignal.timeout(15000),
+      });
+      if (![502, 503, 504, 429].includes(response.status)) break;
+      await new Promise(r => setTimeout(r, 1200 * (attempt + 1)));
     }
 
-    const data = await response.json();
+    if (!response || !response.ok) {
+      const err = response ? await response.text() : 'Sin respuesta';
+      throw new Error(`Error en autenticación The Factory HKA (${response?.status || 500}): ${err.slice(0, 200)}`);
+    }
+
+    const rawAuth = await response.text();
+    let data: any;
+    try {
+      data = JSON.parse(rawAuth);
+    } catch {
+      throw new Error(`Servidor TFHKA temporalmente no disponible (${response.status}): ${rawAuth.slice(0, 120)}`);
+    }
     if (!data.token) {
       throw new Error(`The Factory HKA no retornó token de sesión: ${JSON.stringify(data)}`);
     }
@@ -170,37 +181,42 @@ export class TheFactoryHKA {
     let token = await this.getToken();
     const baseUrl = this.getBaseUrl();
 
-    let response = await fetch(`${baseUrl}/api/Emision`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        documentoElectronico: documentoData
-      }),
-      signal: AbortSignal.timeout(25000),
-    });
-
-    // Si el token expiró prematuramente en el servidor de TFHKA (401), invalidar caché y reintentar una vez
-    if (response.status === 401 && !process.env.TFHKA_TOKEN) {
-      this.token = null;
-      this.tokenExpiration = null;
-      token = await this.getToken();
-      response = await fetch(`${baseUrl}/api/Emision`, {
+    const doRequest = (t: string) =>
+      fetch(`${baseUrl}/api/Emision`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${t}`
         },
         body: JSON.stringify({
           documentoElectronico: documentoData
         }),
         signal: AbortSignal.timeout(25000),
       });
+
+    let response = await doRequest(token);
+
+    // Si el token expiró prematuramente en el servidor de TFHKA (401), invalidar caché y reintentar una vez
+    if (response.status === 401 && !process.env.TFHKA_TOKEN) {
+      this.token = null;
+      this.tokenExpiration = null;
+      token = await this.getToken();
+      response = await doRequest(token);
     }
 
-    const data = await response.json();
+    // Reintentar automáticamente ante errores transitorios de pasarela de TFHKA (502 Bad Gateway, 503, 504)
+    for (let attempt = 0; attempt < 2 && [502, 503, 504].includes(response.status); attempt++) {
+      await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
+      response = await doRequest(token);
+    }
+
+    const rawText = await response.text();
+    let data: any;
+    try {
+      data = JSON.parse(rawText);
+    } catch {
+      throw new Error(`El servidor de The Factory HKA respondió con estado ${response.status} (${rawText.slice(0, 120) || 'Bad Gateway'}). Por favor intente nuevamente en unos segundos.`);
+    }
 
     if (!response.ok) {
       throw new Error(`Error en Emisión The Factory HKA (${response.status}): ${JSON.stringify(data)}`);
