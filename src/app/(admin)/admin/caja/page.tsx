@@ -520,7 +520,7 @@ export default function CajaPage() {
   // Set de referencias bloqueadas por pago en verificación: O(1) lookup
   const pendingRefsSet = useMemo(() => {
     const blocked = new Set<string>();
-    const allInmsList = [...(freshInmuebles || []), ...(condominioHijos || []), ...(inmuebles || [])];
+    const allInmsList = [...(freshInmuebles || []), ...(condominioHijos || []), ...getUserInmuebles(freshInmuebles, condominioHijos, inmuebles, foundUser)];
     // Referencias reportadas en pagos_reportados con estado 'Por Verificar'
     pagosPendientes.forEach((p: any) => {
       let det: any = {};
@@ -1992,7 +1992,7 @@ export default function CajaPage() {
     const cuotasMap = new Map<string, any>(cuotas.map((c: any) => [`${c.convId}:${c.cuotaId}`, c]));
     const serviciosMap = new Map<string, any>(serviciosEsp.map((s: any) => [s.referencia, s]));
     const talaPodaMap = new Map<string, any>(talaPoda.map((s: any) => [s.referencia, s]));
-    const allInms = [...(inmuebles || []), ...(freshInmuebles || [])];
+    const allInms = [...getUserInmuebles(freshInmuebles, condominioHijos, inmuebles, foundUser), ...(freshInmuebles || [])];
     const inmueblesMap = new Map<string, any>(allInms.map((i: any) => [i.inmueble, i]));
 
     let tasaActualUse = (tcmmv || 0);
@@ -2540,7 +2540,6 @@ export default function CajaPage() {
       const allInmsPool = [
         ...(freshInmuebles || []),
         ...(condominioHijos || []),
-        ...((inmuebles as any[]) || []),
         ...getUserInmuebles(freshInmuebles, condominioHijos, inmuebles, foundUser)
       ];
       const inmsByCode = new Map<string, any>();
@@ -2689,13 +2688,14 @@ export default function CajaPage() {
       const grupos = Object.values(facturasPorInmueble);
 
       if (grupos.length === 0) {
+        const esPagoConvenio = selectedCuotas.length > 0 && selectedRecibos.length === 0;
         const activeUserInms = userInmsRec.filter((i: any) => {
           if (!i.inmueble) return false;
           const isNA = (i.actividad_principal || '').trim().toUpperCase() === 'N/A';
           const hasChildren = userInmsRec.some((c: any) => c.inmueble !== i.inmueble && (c.condominio_padre_id === i.inmueble || c.padre_id === i.inmueble));
           return !isNA || !hasChildren;
         });
-        if (activeUserInms.length > 1) {
+        if (!esPagoConvenio && activeUserInms.length > 1) {
           const porcion = Math.round((montoReal / activeUserInms.length) * 100) / 100;
           return activeUserInms.map((inmItem: any, idx: number) => {
             const refNum = `${refNumBase}-${idx + 1}`;
@@ -2736,7 +2736,20 @@ export default function CajaPage() {
         const esServicioDirecto = foundUser.isServicioEspecialDirecto || foundUser.Tipo === 'SERVICIO' || (selectedServicios.length > 0 && selectedRecibos.length === 0) || (selectedTalaPoda.length > 0 && selectedRecibos.length === 0);
         const srvObj = selectedServicios.length > 0 ? serviciosEsp.find(s => selectedServicios.includes(s.referencia)) : talaPoda.find(s => selectedTalaPoda.includes(s.referencia));
         const srvDesc = srvObj?.descripcion || (selectedTalaPoda.length > 0 ? 'Servicio de Tala y Poda' : 'Servicio Especial / Tasa Administrativa');
-        const esResInm = esServicioDirecto ? true : isResidencialInm(singleInm);
+        const cuotasDetalles = esPagoConvenio
+          ? selectedCuotas.map(sc => {
+              const cq = cuotas.find(q => q.convId === sc.convId && q.cuotaId === sc.cuotaId);
+              const numConv = cq?.numeroConv || sc.convId;
+              const numCuota = cq?.numeroCuota || '';
+              const mCuota = cq ? getCuotaMonto(cq) : montoReal;
+              return {
+                descripcion: `Convenio de Pago ${numConv}${numCuota ? ` - Cuota #${numCuota}` : ''} (${singleInm?.inmueble || foundUser.CodCont || ''})`.trim(),
+                precioUnit: mCuota,
+                total: mCuota,
+              };
+            })
+          : null;
+        const esResInm = (esServicioDirecto || esPagoConvenio) ? true : isResidencialInm(singleInm);
         return [{
           reciboNo: refNum,
           controlWeb: `WEB-${refNum}`,
@@ -2747,7 +2760,7 @@ export default function CajaPage() {
           rifCi: foundUser.Identidad,
           caja: cajero_id_recibo,
           periodo: periodoDeRefs(selectedRefs),
-          conceptos: [{
+          conceptos: cuotasDetalles && cuotasDetalles.length > 0 ? cuotasDetalles : [{
             descripcion: esAbono ? `Abono Parcial a Deuda - Inmueble ${singleInm?.inmueble || ''}` : (esServicioDirecto ? srvDesc : `Servicio de Aseo Urbano y Domiciliario`),
             precioUnit: montoReal,
             total: montoReal
@@ -2760,7 +2773,7 @@ export default function CajaPage() {
           banco: bancoLabel,
           referencia: referencia || 'N/A',
           tasaBcv: currentBcvRate || tcmmv || undefined,
-          tipoContribuyente: esResInm ? 'Residencial / Tasa' : 'Comercial',
+          tipoContribuyente: esPagoConvenio ? 'Convenio de Pago' : (esResInm ? 'Residencial / Tasa' : 'Comercial'),
           esAbono: !!esAbono,
           montoCancelado: esAbono ? montoReal : undefined,
           montoPendiente: esAbono ? montoPendiente : undefined,
@@ -3208,6 +3221,14 @@ export default function CajaPage() {
           const refCondo = `CONDO-${foundUser.CodCont || foundUser.cod_cont || 'PADRE'}-${Date.now().toString().slice(-6)}`;
           digitalRecibos = [refCondo];
           digitalMontos = { [refCondo]: (realMontoRetencionIVA > 0) ? totalFacturaBruto : totalConImpuestos };
+        } else if (digitalRecibos.length === 0 && selectedCuotas.length > 0) {
+          selectedCuotas.forEach((sc, idx) => {
+            const cq = cuotas.find(q => q.convId === sc.convId && q.cuotaId === sc.cuotaId);
+            const refC = `${cq?.numeroConv || 'CONV'}-CUOTA-${cq?.numeroCuota || (idx + 1)}`;
+            const mC = cq ? getCuotaMonto(cq) : montoReal;
+            digitalRecibos.push(refC);
+            digitalMontos[refC] = mC;
+          });
         }
 
         const refNotaCredito = `NC-${Date.now().toString().slice(-6)}`;
