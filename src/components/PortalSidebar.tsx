@@ -10,6 +10,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { isResidencialInm } from '@/lib/calculos';
+import ThemeToggle from '@/components/ThemeToggle';
 
 interface PortalSidebarProps {
   isOpen?: boolean;
@@ -265,6 +266,7 @@ export default function PortalSidebar({ isOpen = false, setIsOpen }: PortalSideb
 
       {/* Footer */}
       <div className="p-4 border-t border-slate-700/50 space-y-3">
+        <ThemeToggle variant="portal-menu" />
         <button
           onClick={handleLogout}
           className="flex items-center text-sm text-slate-400 hover:text-red-400 transition-colors w-full gap-3"

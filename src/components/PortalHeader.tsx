@@ -17,6 +17,7 @@ import {
   Power,
   Menu
 } from 'lucide-react';
+import ThemeToggle from '@/components/ThemeToggle';
 
 interface PortalHeaderProps {
   onMenuClick?: () => void;
@@ -60,6 +61,7 @@ export default function PortalHeader({ onMenuClick }: PortalHeaderProps) {
       </div>
       
       <div className="flex items-center gap-4 text-sm text-slate-600">
+        <ThemeToggle variant="header" />
         <div className="flex items-center gap-2">
           <span className="text-orange-500 font-semibold text-xs">Usuario Oficial</span>
           <span className="text-xs">Última Conexión: Hoy</span>

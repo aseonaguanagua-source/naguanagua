@@ -58,7 +58,7 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
   const [clase, setClase] = useState<'RES' | 'COM'>(claseIni);
   const esGrupoUnidad = Boolean(unidad?.es_grupo || actIni.toUpperCase() === 'N/A');
   const mesesDefecto = unidad
-    ? (esGrupoUnidad ? mesesPendientes(condo.aseo_pendiente_desde) : mesesPendientes(unidad.aseo_pendiente_desde))
+    ? (unidad.aseo_pendiente_desde !== undefined ? mesesPendientes(unidad.aseo_pendiente_desde) : mesesPendientes(condo.aseo_pendiente_desde))
     : 0;
   const [f, setF] = useState<any>({
     inmueble: unidad?.inmueble || '', numero: unidad?.numero || '', propietario: unidad?.propietario || '', identidad: unidad?.identidad || '',
@@ -305,7 +305,7 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
       cambios = {};
       const antes: any = {
         ...unidad,
-        meses: esGrupoUnidad ? mesesPendientes(condo.aseo_pendiente_desde) : mesesPendientes(unidad.aseo_pendiente_desde),
+        meses: unidad.aseo_pendiente_desde !== undefined ? mesesPendientes(unidad.aseo_pendiente_desde) : mesesPendientes(condo.aseo_pendiente_desde),
         padre_unidad_id: unidad.padre_unidad_id || null,
         telefono: unidad.telefono || '',
         correo: unidad.correo || '',

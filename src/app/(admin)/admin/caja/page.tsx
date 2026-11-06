@@ -87,7 +87,7 @@ const snapshotDeudaPrevia = async (identidad: string, hijosIds: string[] = [], c
       propios = data || [];
     }
     let hijos: any[] = [];
-    if (ids.length > 0) {
+    if (ids.length > 0 && cods.length === 0) {
       const { data } = await supabase.from('inmuebles').select(cols).in('id', ids);
       hijos = data || [];
     }

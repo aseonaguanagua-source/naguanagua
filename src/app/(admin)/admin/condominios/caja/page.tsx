@@ -228,6 +228,8 @@ function Caja() {
           if (docAmbito === 'CONDOMINIO' || (docInm && docInm === condoCodUpper)) return false;
           if (docIdentClean === condoRifClean && (!docInm || (codigosUnidades.length > 0 && !codigosUnidades.includes(docInm)))) return false;
           if (docInm && codigosUnidades.length > 0 && !codigosUnidades.includes(docInm)) return false;
+          const docIdentUpper = String(d.identidad || '').trim().toUpperCase();
+          if (!docInm && codigosUnidades.length > 0 && !codigosUnidades.includes(docIdentUpper) && (!docCondo || docCondo !== condoCodUpper)) return false;
         }
         return true;
       });

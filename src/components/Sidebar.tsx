@@ -7,6 +7,7 @@ import { performLogout } from '@/lib/logout';
 import { ROUTE_PERMISSIONS_MAP } from '@/lib/permissionsMap';
 import { MENU_ASEO, MENU_RECAUDACION, MENU_ADMINISTRACION, ordenarMenu, type MenuOrden, type MenuKey } from '@/lib/menuItems';
 import SidebarMenu from '@/components/SidebarMenu';
+import ThemeToggle from '@/components/ThemeToggle';
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -190,6 +191,7 @@ export default function Sidebar() {
       </nav>
 
       <div className="p-4 bg-[#111827] border-t border-white/10 shrink-0 space-y-2">
+        <ThemeToggle variant="menu" />
         <button
           onClick={async (e) => {
             const b = e.currentTarget; b.disabled = true; const t = b.innerText; b.innerText = 'Generando manual…';

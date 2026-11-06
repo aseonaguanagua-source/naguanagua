@@ -798,7 +798,7 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
                 const multasDet = l._multasDetalle || [];
                 const deudaPagada = multasDet.filter((m: any) => m.tipo === 'DEUDA');
                 const nPagados = multasDet.filter((m: any) => m.tipo === 'PREVIA' || m.tipo === 'DEUDA').length;
-                if (l.meses >= l.mesesDeuda) {
+                if (l.meses >= l.mesesDeuda && !sol.fechaOverride) {
                     upd.multa_meses = 0;
                 } else if (nPagados > 0) {
                     upd.multa_meses = Math.max(0, (Number(u.multa_meses) || 0) - nPagados);
@@ -809,9 +809,17 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
                 }
             } else {
                 const permitirMultas = sol.incluirMultas === true;
-                if (permitirMultas && l.meses >= l.mesesDeuda) {
+                const desdeActual = u.aseo_pendiente_desde || c.aseo_pendiente_desde;
+                const mesesRealesHoy = desdeActual ? M.mesesPendientes(desdeActual, hoy) : l.mesesDeuda;
+                const liquidaHastaHoy = l.meses >= mesesRealesHoy;
+                const multasPagadasEnAseo = permitirMultas
+                    ? (cobro.estado.renglones.find(r => r.clave === l.clave)?.deuda?.porMes || []).slice(0, l.meses).filter(m => m.multaBs > 0).length
+                    : 0;
+                if (permitirMultas && liquidaHastaHoy) {
                     upd.multa_meses = 0;
-                } else if (sol.omitirMultaSeptiembre && l.periodos.includes('2026-09') && l.multaMesesQueQuedan === 0) {
+                } else if (permitirMultas && !liquidaHastaHoy && l.meses >= l.mesesDeuda) {
+                    upd.multa_meses = Math.max(0, (Number(u.multa_meses) || 0) - multasPagadasEnAseo - (sol.omitirMultaSeptiembre && l.periodos.includes('2026-09') ? 1 : 0));
+                } else if (sol.omitirMultaSeptiembre && l.periodos.includes('2026-09') && l.multaMesesQueQuedan === 0 && liquidaHastaHoy) {
                     upd.multa_meses = 0;
                 } else if (!permitirMultas && l.multaMesesQueQuedan > 0) {
                     upd.multa_meses = l.multaMesesQueQuedan;
@@ -823,32 +831,40 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
             // Sincronizar en inmuebles para evitar bloqueos de solvencia
             if (u.inmueble && l.meses > 0 && !sol.soloMultas) {
                 const { data: curInm } = await sb.from('inmuebles').select('meses_deuda, deuda_mmv, multa_bs').ilike('inmueble', u.inmueble).limit(1).maybeSingle();
-                const nMesesRest = l.meses >= l.mesesDeuda ? 0 : Math.max(0, (parseInt(curInm?.meses_deuda || 0) || 0) - l.meses);
+                const desdeActual = u.aseo_pendiente_desde || c.aseo_pendiente_desde;
+                const mesesRealesHoy = desdeActual ? M.mesesPendientes(desdeActual, hoy) : l.mesesDeuda;
+                const nMesesRest = l.meses >= mesesRealesHoy ? 0 : Math.max(0, (parseInt(curInm?.meses_deuda || 0) || 0) - l.meses);
                 const permitirMultasInm = sol.incluirMultas === true;
                 const updInmLocal: any = {
                     meses_deuda: nMesesRest,
                     deuda_mmv: nMesesRest === 0 ? 0 : (curInm?.deuda_mmv || 0),
                     deuda_congelada_bs: nMesesRest === 0 ? 0 : undefined,
                 };
-                if (permitirMultasInm) {
+                if (permitirMultasInm && nMesesRest <= 1) {
                     updInmLocal.multa_bs = 0;
                 } else if (l.multaMesesQueQuedan > 0) {
                     updInmLocal.multa_bs = Math.max(parseFloat(curInm?.multa_bs || '0') || 0, r2(l.multaBs + l.multasAparteBs));
-                } else if (sol.omitirMultaSeptiembre && l.periodos.includes('2026-09') && l.multaMesesQueQuedan === 0) {
+                } else if (sol.omitirMultaSeptiembre && l.periodos.includes('2026-09') && l.multaMesesQueQuedan === 0 && nMesesRest <= 1) {
                     updInmLocal.multa_bs = 0;
                 }
                 await sb.from('inmuebles').update(updInmLocal).ilike('inmueble', u.inmueble);
             }
         } else if (l.clave === M.SIN_REGISTRAR || l.clave === '__CONDOMINIO__') {
             const upd: any = {};
+            const mesesRealesCondoHoy = c.aseo_pendiente_desde ? M.mesesPendientes(c.aseo_pendiente_desde, hoy) : l.mesesDeuda;
+            const liquidaCondoHoy = l.meses >= mesesRealesCondoHoy;
             if (l.meses > 0 && !sol.soloMultas) upd.aseo_pendiente_desde = M.avanzarPendiente(c.aseo_pendiente_desde, l.meses, hoy);
             if (sol.soloMultas) {
-                if (l.meses >= l.mesesDeuda) upd.multa_meses = 0;
+                if (l.meses >= l.mesesDeuda && !sol.fechaOverride) upd.multa_meses = 0;
                 else upd.multa_meses = Math.max(0, (Number(c.multa_meses) || 0) - l.meses);
             } else {
                 const permitirMultas = sol.incluirMultas === true;
-                if (permitirMultas && l.meses >= l.mesesDeuda) upd.multa_meses = 0;
-                else if (sol.omitirMultaSeptiembre && l.periodos.includes('2026-09') && l.multaMesesQueQuedan === 0) upd.multa_meses = 0;
+                const multasPagadasCondo = permitirMultas
+                    ? (cobro.estado.renglones.find(r => r.clave === l.clave)?.deuda?.porMes || []).slice(0, l.meses).filter(m => m.multaBs > 0).length
+                    : 0;
+                if (permitirMultas && liquidaCondoHoy) upd.multa_meses = 0;
+                else if (permitirMultas && !liquidaCondoHoy && l.meses >= l.mesesDeuda) upd.multa_meses = Math.max(0, (Number(c.multa_meses) || 0) - multasPagadasCondo - (sol.omitirMultaSeptiembre && l.periodos.includes('2026-09') ? 1 : 0));
+                else if (sol.omitirMultaSeptiembre && l.periodos.includes('2026-09') && l.multaMesesQueQuedan === 0 && liquidaCondoHoy) upd.multa_meses = 0;
                 else if (!permitirMultas && l.multaMesesQueQuedan > 0) upd.multa_meses = l.multaMesesQueQuedan;
             }
             if (Object.keys(upd).length) { await sb.from('condominios').update(upd).eq('id', c.id); }
@@ -861,7 +877,7 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
                         meses_deuda: nMesesRest,
                         deuda_mmv: nMesesRest === 0 ? 0 : curInm.deuda_mmv,
                     };
-                    if (sol.incluirMultas && (l.clave === '__CONDOMINIO__' || l.clave === M.SIN_REGISTRAR)) {
+                    if (sol.incluirMultas && (l.clave === '__CONDOMINIO__' || l.clave === M.SIN_REGISTRAR) && nMesesRest <= 1) {
                         updCondoInm.multa_bs = 0;
                     }
                     await sb.from('inmuebles').update(updCondoInm).eq('inmueble', c.codigo);
@@ -870,12 +886,21 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
         }
         if (l.multasManualesIds.length) await sb.from('condominio_multas').update({ estado: 'Pagada', pago_id: pagoDe(l.clave) }).in('id', l.multasManualesIds).eq('estado', 'Pendiente');
     }
-    // Residencial centralizado pagado completo: el condominio también avanza
-    if (cobro.modo === 'CONDOMINIO' && !cobro.estado.porActividad && !cobro.lineas.some(l => l.clave === M.SIN_REGISTRAR) && !sol.soloMultas) {
+    // Condominio pagado completo (sin unidades sueltas omitidas): el condominio también avanza
+    const todasLasUnidadesConDeudaIncluidas = cobro.estado.renglones.filter(r => r.totalBs > 0.01).length <= cobro.lineas.length;
+    if (cobro.modo === 'CONDOMINIO' && (!cobro.estado.porActividad || todasLasUnidadesConDeudaIncluidas) && !cobro.lineas.some(l => l.clave === M.SIN_REGISTRAR) && !sol.soloMultas) {
         const nMeses = cobro.totales.meses;
         const safeCod = String(c.codigo || '').replace(/[,()]/g, '').trim();
-        if (nMeses > 0 && c.aseo_pendiente_desde) await sb.from('condominios').update({ aseo_pendiente_desde: M.avanzarPendiente(c.aseo_pendiente_desde, nMeses, hoy), multa_meses: 0 }).eq('id', c.id);
-        if (safeCod) await sb.from('inmuebles').update({ meses_deuda: 0, deuda_mmv: 0, multa_bs: 0 }).or(`inmueble.eq.${safeCod},condominio_padre_id.eq.${safeCod},padre_id.eq.${safeCod}`);
+        const nuevoDesdeCondoGlobal = nMeses > 0 && c.aseo_pendiente_desde ? M.avanzarPendiente(c.aseo_pendiente_desde, nMeses, hoy) : null;
+        const mesesRestantesCondoHoy = nuevoDesdeCondoGlobal ? M.mesesPendientes(nuevoDesdeCondoGlobal, hoy) : 0;
+        const multasRestantesCondoHoy = Math.max(0, mesesRestantesCondoHoy - 1);
+        if (nMeses > 0 && c.aseo_pendiente_desde) {
+            await sb.from('condominios').update({ aseo_pendiente_desde: nuevoDesdeCondoGlobal, multa_meses: multasRestantesCondoHoy }).eq('id', c.id);
+            if (!cobro.estado.porActividad) {
+                await sb.from('condominio_unidades').update({ aseo_pendiente_desde: nuevoDesdeCondoGlobal, multa_meses: multasRestantesCondoHoy }).eq('condominio_id', c.id).neq('estado', 'Eliminada');
+            }
+        }
+        if (!cobro.estado.porActividad && safeCod) await sb.from('inmuebles').update({ meses_deuda: mesesRestantesCondoHoy, deuda_mmv: mesesRestantesCondoHoy === 0 ? 0 : undefined, multa_bs: multasRestantesCondoHoy === 0 ? 0 : undefined }).or(`inmueble.eq.${safeCod},condominio_padre_id.eq.${safeCod},padre_id.eq.${safeCod}`);
     }
 
     // Sincronizar unidades contenedor / es_grupo / N/A con la fecha pendiente del condominio matriz

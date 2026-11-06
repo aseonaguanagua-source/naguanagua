@@ -74,6 +74,7 @@ export async function POST(req: Request) {
 
             if (esModoContribuyente) {
               // En modo Dueño Individual o Multas Separadas: NUNCA usar notas de crédito del Condominio matriz
+              // ni notas de crédito de otros inmuebles fuera del condominio que compartan el mismo RIF
               if (docAmbito === 'CONDOMINIO' || (docInm && docInm === condoCod)) {
                 return acc;
               }
@@ -81,6 +82,10 @@ export async function POST(req: Request) {
                 return acc;
               }
               if (docInm && !codigosUnidadesCobro.includes(docInm)) {
+                return acc;
+              }
+              const docIdentUpper = String(n.identidad || '').trim().toUpperCase();
+              if (!docInm && !codigosUnidadesCobro.includes(docIdentUpper) && (!docCondo || docCondo !== condoCod)) {
                 return acc;
               }
             } else {

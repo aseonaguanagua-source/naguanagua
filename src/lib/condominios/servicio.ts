@@ -19,7 +19,7 @@ export async function tasaVigente(): Promise<number> {
     if (bcv?.success && Number(bcv.tcmmv) > 10) {
       return r2(Number(bcv.tcmmv));
     }
-  } catch (_) {}
+  } catch (_) { }
   const { data } = await sb.from('sistema_config').select('id, valor').in('id', ['tasa_bcv_manual', 'tasa_bcv_diaria', 'tasa_bcv_semanal']);
   const v = (id: string) => parseFloat(String(data?.find((c: any) => c.id === id)?.valor || 0)) || 0;
   return r2(v('tasa_bcv_manual') || v('tasa_bcv_diaria') || v('tasa_bcv_semanal'));
@@ -191,6 +191,8 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasaRaw: numb
       ? (u.aseo_pendiente_desde !== undefined ? u.aseo_pendiente_desde : (padre ? padre.aseo_pendiente_desde : condoRow.aseo_pendiente_desde))
       : condoRow.aseo_pendiente_desde;
     const meses = r.montoBs > 0 ? M.mesesPendientes(desde, hoy) : 0;
+    const mesesRealesHoy = r.montoBs > 0 ? M.mesesPendientes(desde, new Date()) : 0;
+    const mesesMoraRealesHoy = Math.max(0, mesesRealesHoy - 1);
     const multaMesesRaw = Number((u && !esGrupoOuNA) ? (u.multa_meses !== undefined && u.multa_meses !== null ? u.multa_meses : (padre?.multa_meses ?? condoRow.multa_meses)) : condoRow.multa_meses) || 0;
     const notasInmCheck = String((u && !esGrupoOuNA) ? (u.notas_inmueble || padre?.notas_inmueble || '') : (condoRow.notas_inmueble || condoRow.notas || ''));
     const exoneradoTotalInm = isExoneradoTotalMultas(notasInmCheck);
@@ -202,7 +204,7 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasaRaw: numb
     const tieneMultaMesesExplicito = (u && !esGrupoOuNA)
       ? ((u.multa_meses !== null && u.multa_meses !== undefined) || (padre && padre.multa_meses !== null && padre.multa_meses !== undefined))
       : (condoRow.multa_meses !== null && condoRow.multa_meses !== undefined);
-    const exoneradosPorPagosParciales = tieneMultaMesesExplicito ? Math.max(0, (meses - 1) - multaMesesRaw) : 0;
+    const exoneradosPorPagosParciales = tieneMultaMesesExplicito ? Math.max(0, mesesMoraRealesHoy - multaMesesRaw) : 0;
     const exonerados = exoneradoTotalInm ? meses : Math.max(exoneradosPorHasta, exoneradosPorPagosParciales);
     // Se respeta la condición de Agente de Retención tanto de la unidad individual (o su local padre) como del condominio matriz
     const esAgente = Boolean((u && u.agente_retencion) || (padre && padre.agente_retencion) || c.agente_retencion);
@@ -287,7 +289,7 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasaRaw: numb
     const baseParaMultaExtra = Array.isArray(basesPorMes) ? (basesPorMes[basesPorMes.length - 1] || r.montoBs) : r.montoBs;
     // Si la unidad es un grupo contenedor (mu?.es_grupo), no genera multas directas: cobran sus actividades
     // multaExtraBs solo cobra meses de multa remanentes (previos al aseo pendiente) no cubiertos por el aseo dinámico
-    let mesesMultaRemanente = (!mu?.es_grupo && u) ? Math.max(0, multaMesesRaw - mesesMoraCubiertosPorAseo) : 0;
+    let mesesMultaRemanente = (!mu?.es_grupo && u) ? Math.max(0, multaMesesRaw - Math.max(mesesMoraCubiertosPorAseo, mesesMoraRealesHoy)) : 0;
     if (mesesMultaRemanente > 0) {
       const prevPeriodos = M.periodosMultasPrevias(desde, mesesMultaRemanente, hoy).filter(p => {
         if (exoneradoTotalInm) return false;
@@ -406,7 +408,7 @@ export async function cargarCondominio(codigo: string) {
   }
 
   const rawUnidades = await todas((a, b) => sb.from('condominio_unidades').select('*').eq('condominio_id', condo.id).neq('estado', 'Eliminada').order('inmueble').range(a, b));
-  
+
   // Fetch agente_retencion manually since there's no FK relation
   const codigosUnidades = rawUnidades.map((u: any) => String(u.inmueble || '').trim().toUpperCase()).filter(Boolean);
   const agentes = new Map<string, any>();
@@ -441,7 +443,7 @@ export async function cargarCondominio(codigo: string) {
         if (j.actividad_activa) actividad_activa = j.actividad_activa;
         if (j.periodos_custom) periodos_custom = j.periodos_custom;
       }
-    } catch (e) {}
+    } catch (e) { }
     const rawSF = parseFloat(inf.saldo_favor_bs || '0') || 0;
     const multaBsInm = parseFloat(inf.multa_bs || '0') || 0;
 
@@ -449,7 +451,9 @@ export async function cargarCondominio(codigo: string) {
     // o si la multa ya fue saldada en `inmuebles`, pero `condominio_unidades` quedó rezagada
     let aseoDesdeEfectivo = u.aseo_pendiente_desde;
     let multaMesesEfectivo = Number(u.multa_meses || 0);
-    if (esUnidadesPropias && inf.meses_deuda !== undefined && inf.meses_deuda !== null) {
+    const esResUnidad = M.unidadResidencial(aMotorCondo(condo), aMotorUnidad(u));
+    const permiteAutoReconciliarInm = esUnidadesPropias && !(esResUnidad && condo.origen === 'SIGYR_REARMADO' && Number(inf.meses_deuda) === 0);
+    if (permiteAutoReconciliarInm && inf.meses_deuda !== undefined && inf.meses_deuda !== null) {
       const mInm = Math.max(0, parseInt(String(inf.meses_deuda), 10) || 0);
       const mUnid = M.mesesPendientes(u.aseo_pendiente_desde);
       let cambioSync = false;
@@ -507,7 +511,7 @@ export async function cargarCondominio(codigo: string) {
           multa_meses: uSync.multa_meses,
         }).eq('id', uSync.id)
       )
-    ).catch(() => {});
+    ).catch(() => { });
   }
 
   const { data: movimientos } = await sb.from('condominio_movimientos').select('*').eq('condominio_id', condo.id).order('created_at', { ascending: false }).limit(1000);
@@ -543,7 +547,15 @@ export async function cargarCondominio(codigo: string) {
         .limit(100);
       (pagosUnids || []).forEach(p => {
         if (pagosMap.has(p.id)) return;
-        const detStr = JSON.stringify(p.detalles || {}).toUpperCase();
+        const det = (p.detalles && typeof p.detalles === 'object') ? (p.detalles as any) : {};
+        const { deuda_previa, ...detSinPrevia } = det;
+        const codDirecto = String(det.cod_inmueble || det.codigo_inmueble || '').trim().toUpperCase();
+        const recibosArr: string[] = Array.isArray(det.recibos) ? det.recibos.map((r: any) => String(r || '').toUpperCase()) : [];
+        if (codDirecto && codDirecto !== condo.codigo && !codigosSet.has(codDirecto)) {
+          const tieneReciboDeUnidad = recibosArr.some(r => Array.from(codigosSet).some(c => r.includes(c)));
+          if (!tieneReciboDeUnidad) return;
+        }
+        const detStr = JSON.stringify(detSinPrevia || {}).toUpperCase();
         for (const codU of codigosSet) {
           if (detStr.includes(codU)) {
             pagosMap.set(p.id, p);
@@ -588,7 +600,9 @@ export async function resumenGeneral() {
     u.padre_inmueble = inf.padre_id || null;
     u.notas_inmueble = inf.notas || '';
     const cPadre = condosMap.get(u.condominio_id);
-    if (cPadre && unidadesPropias(cPadre) && inf.meses_deuda !== undefined && inf.meses_deuda !== null) {
+    const esResU = cPadre ? M.unidadResidencial(aMotorCondo(cPadre), aMotorUnidad(u)) : false;
+    const permiteReconciliar = cPadre && unidadesPropias(cPadre) && !(esResU && cPadre.origen === 'SIGYR_REARMADO' && Number(inf.meses_deuda) === 0);
+    if (permiteReconciliar && inf.meses_deuda !== undefined && inf.meses_deuda !== null) {
       const mInm = Math.max(0, parseInt(String(inf.meses_deuda), 10) || 0);
       const mUnid = M.mesesPendientes(u.aseo_pendiente_desde);
       if (mInm < mUnid) {

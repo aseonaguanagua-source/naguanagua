@@ -118,7 +118,13 @@ export function cargoMensual(c: Condominio, unidades: Unidad[], tasa: number): C
       return { condominioBs: r2(c.tarifa_fija_bs!), unidadesCobradas: declarada, unidadesDesocupadas: desoc, tarifaUnidadBs: tUnit, tarifaDesocupadaBs: tDesoc,
         detalle: 'Tarifa fija acordada en Bs' };
     } else {
-      return { condominioBs: r2(tUnit), unidadesCobradas: declarada, unidadesDesocupadas: desoc, tarifaUnidadBs: tUnit, tarifaDesocupadaBs: tDesoc,
+      const mmvCondo = Number(c.tarifa_mmv) || 0;
+      const actCondo = c.actividad || '';
+      const resCondo = c.tipo === 'RESIDENCIAL';
+      const totalPlano = mmvCondo > 0
+        ? r2(calcularMensualidad({ tipo: resCondo ? 'RESIDENCIAL' : 'COMERCIAL', actividad_principal: actCondo, mmv_mes: mmvCondo, cant_inmuebles: mmvCondo <= 1.50 && resCondo ? declarada : 1, es_condominio: mmvCondo <= 1.50 && resCondo }, tasa))
+        : r2(tUnit);
+      return { condominioBs: totalPlano, unidadesCobradas: declarada, unidadesDesocupadas: desoc, tarifaUnidadBs: tUnit, tarifaDesocupadaBs: tDesoc,
         detalle: 'Tarifa plana acordada en MMV/UCD' };
     }
   }
@@ -165,7 +171,13 @@ export function cargosPorUnidad(c: Condominio, unidades: Unidad[], tasa: number)
     if ((c.tarifa_fija_bs || 0) > 0) {
       return [{ clave: '__CONDOMINIO__', cantidad: declarada, montoBs: r2(c.tarifa_fija_bs!) }];
     } else {
-      return [{ clave: '__CONDOMINIO__', cantidad: declarada, montoBs: r2(tUnit) }];
+      const mmvCondo = Number(c.tarifa_mmv) || 0;
+      const actCondo = c.actividad || '';
+      const resCondo = c.tipo === 'RESIDENCIAL';
+      const totalPlano = mmvCondo > 0
+        ? r2(calcularMensualidad({ tipo: resCondo ? 'RESIDENCIAL' : 'COMERCIAL', actividad_principal: actCondo, mmv_mes: mmvCondo, cant_inmuebles: mmvCondo <= 1.50 && resCondo ? declarada : 1, es_condominio: mmvCondo <= 1.50 && resCondo }, tasa))
+        : r2(tUnit);
+      return [{ clave: '__CONDOMINIO__', cantidad: declarada, montoBs: totalPlano }];
     }
   }
   if (porActividad(c)) {

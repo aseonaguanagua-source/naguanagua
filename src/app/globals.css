@@ -5,14 +5,18 @@
   --foreground: #171717;
 }
 
+html.dark {
+  --background: #0b1120;
+  --foreground: #f1f5f9;
+  color-scheme: dark;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
-
-
 
 body {
   background: var(--background);
@@ -25,4 +29,134 @@ body {
   0%   { transform: translateX(-100%); }
   50%  { transform: translateX(0%); }
   100% { transform: translateX(100%); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MODO OSCURO GLOBAL (activado con html.dark desde el menú)
+   Excluye recibos imprimibles y áreas marcadas con [data-no-dark]
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media screen {
+  html.dark body {
+    background-color: #0b1120 !important;
+    color: #f1f5f9;
+  }
+
+  /* Superficies principales y tarjetas */
+  html.dark :is(.bg-\[\#f8fafc\], .bg-slate-100, .bg-gray-100):not(.recibo-print-area, .recibo-print-area *, .recibo-preview-wrapper, .recibo-preview-wrapper *, [data-no-dark], [data-no-dark] *) {
+    background-color: #0b1120 !important;
+  }
+
+  html.dark :is(.bg-white, .bg-white\/95, .bg-white\/90, .bg-white\/80):not(.recibo-print-area, .recibo-print-area *, .recibo-preview-wrapper, .recibo-preview-wrapper *, [data-no-dark], [data-no-dark] *, .w-3.h-3.rounded-full) {
+    background-color: #1e293b !important;
+  }
+
+  html.dark :is(.bg-slate-50, .bg-gray-50, .bg-slate-50\/80, .bg-slate-50\/60, .bg-slate-50\/50):not(.recibo-print-area, .recibo-print-area *, .recibo-preview-wrapper, .recibo-preview-wrapper *, [data-no-dark], [data-no-dark] *) {
+    background-color: #131c2e !important;
+  }
+
+  html.dark :is(.bg-slate-200, .bg-gray-200, .bg-slate-200\/60, .bg-slate-200\/70):not(.recibo-print-area, .recibo-print-area *, .recibo-preview-wrapper, .recibo-preview-wrapper *, [data-no-dark], [data-no-dark] *) {
+    background-color: #334155 !important;
+  }
+
+  /* Hovers de filas y botones claros */
+  html.dark :is(.hover\:bg-slate-50:hover, .hover\:bg-gray-50:hover, .hover\:bg-slate-50\/80:hover, .hover\:bg-slate-100:hover, .hover\:bg-gray-100:hover):not(.recibo-print-area *, .recibo-preview-wrapper *, [data-no-dark] *) {
+    background-color: #26354d !important;
+  }
+
+  /* Textos oscuros -> Textos claros */
+  html.dark :is(.text-slate-900, .text-gray-900, .text-zinc-900, .text-neutral-900, .text-black):not(.recibo-print-area, .recibo-print-area *, .recibo-preview-wrapper, .recibo-preview-wrapper *, [data-no-dark], [data-no-dark] *) {
+    color: #f8fafc !important;
+  }
+
+  html.dark :is(.text-slate-800, .text-gray-800, .text-zinc-800):not(.recibo-print-area, .recibo-print-area *, .recibo-preview-wrapper, .recibo-preview-wrapper *, [data-no-dark], [data-no-dark] *) {
+    color: #f1f5f9 !important;
+  }
+
+  html.dark :is(.text-slate-700, .text-gray-700, .text-zinc-700):not(.recibo-print-area, .recibo-print-area *, .recibo-preview-wrapper, .recibo-preview-wrapper *, [data-no-dark], [data-no-dark] *) {
+    color: #e2e8f0 !important;
+  }
+
+  html.dark :is(.text-slate-600, .text-gray-600, .text-zinc-600):not(.recibo-print-area, .recibo-print-area *, .recibo-preview-wrapper, .recibo-preview-wrapper *, [data-no-dark], [data-no-dark] *) {
+    color: #cbd5e1 !important;
+  }
+
+  html.dark :is(.text-slate-500, .text-gray-500):not(.recibo-print-area, .recibo-print-area *, .recibo-preview-wrapper, .recibo-preview-wrapper *, [data-no-dark], [data-no-dark] *) {
+    color: #94a3b8 !important;
+  }
+
+  /* Bordes y divisores */
+  html.dark :is(.border-slate-100, .border-gray-100, .border-slate-200, .border-gray-200, .border-slate-200\/80, .border-slate-200\/60, .border-slate-300, .border-gray-300):not(.recibo-print-area, .recibo-print-area *, .recibo-preview-wrapper, .recibo-preview-wrapper *, [data-no-dark], [data-no-dark] *) {
+    border-color: #334155 !important;
+  }
+
+  html.dark :is(.divide-slate-100 > :not([hidden]) ~ :not([hidden]), .divide-slate-200 > :not([hidden]) ~ :not([hidden]), .divide-gray-100 > :not([hidden]) ~ :not([hidden]), .divide-gray-200 > :not([hidden]) ~ :not([hidden])):not(.recibo-print-area *, .recibo-preview-wrapper *, [data-no-dark] *) {
+    border-color: #334155 !important;
+  }
+
+  /* Fondos suaves de estados / alertas / badges */
+  html.dark :is(.bg-emerald-50, .bg-emerald-50\/50, .bg-emerald-50\/60, .bg-emerald-100, .bg-green-50, .bg-green-100):not(.recibo-print-area *, .recibo-preview-wrapper *, [data-no-dark] *) {
+    background-color: rgba(6, 78, 59, 0.35) !important;
+  }
+  html.dark :is(.text-emerald-700, .text-emerald-800, .text-emerald-900, .text-green-700, .text-green-800, .text-green-900):not(.recibo-print-area *, .recibo-preview-wrapper *, [data-no-dark] *) {
+    color: #6ee7b7 !important;
+  }
+  html.dark :is(.border-emerald-100, .border-emerald-200, .border-emerald-300, .border-green-200, .border-green-300):not(.recibo-print-area *, .recibo-preview-wrapper *, [data-no-dark] *) {
+    border-color: rgba(16, 185, 129, 0.4) !important;
+  }
+
+  html.dark :is(.bg-blue-50, .bg-blue-50\/50, .bg-blue-100, .bg-sky-50, .bg-sky-100, .bg-cyan-50, .bg-cyan-100):not(.recibo-print-area *, .recibo-preview-wrapper *, [data-no-dark] *) {
+    background-color: rgba(12, 74, 110, 0.35) !important;
+  }
+  html.dark :is(.text-blue-700, .text-blue-800, .text-blue-900, .text-sky-700, .text-sky-800, .text-sky-900, .text-cyan-700, .text-cyan-800):not(.recibo-print-area *, .recibo-preview-wrapper *, [data-no-dark] *) {
+    color: #7dd3fc !important;
+  }
+  html.dark :is(.border-blue-100, .border-blue-200, .border-blue-300, .border-sky-200, .border-sky-300, .border-cyan-200):not(.recibo-print-area *, .recibo-preview-wrapper *, [data-no-dark] *) {
+    border-color: rgba(56, 189, 248, 0.4) !important;
+  }
+
+  html.dark :is(.bg-amber-50, .bg-amber-50\/50, .bg-amber-50\/60, .bg-amber-100, .bg-yellow-50, .bg-yellow-100, .bg-orange-50, .bg-orange-100):not(.recibo-print-area *, .recibo-preview-wrapper *, [data-no-dark] *) {
+    background-color: rgba(120, 53, 15, 0.35) !important;
+  }
+  html.dark :is(.text-amber-700, .text-amber-800, .text-amber-900, .text-yellow-700, .text-yellow-800, .text-orange-700, .text-orange-800, .text-orange-900):not(.recibo-print-area *, .recibo-preview-wrapper *, [data-no-dark] *) {
+    color: #fcd34d !important;
+  }
+  html.dark :is(.border-amber-100, .border-amber-200, .border-amber-300, .border-yellow-200, .border-orange-200, .border-orange-300):not(.recibo-print-area *, .recibo-preview-wrapper *, [data-no-dark] *) {
+    border-color: rgba(245, 158, 11, 0.4) !important;
+  }
+
+  html.dark :is(.bg-red-50, .bg-red-50\/50, .bg-red-100, .bg-rose-50, .bg-rose-100):not(.recibo-print-area *, .recibo-preview-wrapper *, [data-no-dark] *) {
+    background-color: rgba(127, 29, 29, 0.35) !important;
+  }
+  html.dark :is(.text-red-700, .text-red-800, .text-red-900, .text-rose-700, .text-rose-800, .text-rose-900):not(.recibo-print-area *, .recibo-preview-wrapper *, [data-no-dark] *) {
+    color: #fca5a5 !important;
+  }
+  html.dark :is(.border-red-100, .border-red-200, .border-red-300, .border-rose-200, .border-rose-300):not(.recibo-print-area *, .recibo-preview-wrapper *, [data-no-dark] *) {
+    border-color: rgba(248, 113, 113, 0.4) !important;
+  }
+
+  html.dark :is(.bg-indigo-50, .bg-indigo-50\/50, .bg-indigo-100, .bg-purple-50, .bg-purple-100, .bg-violet-50, .bg-violet-100, .bg-fuchsia-50, .bg-fuchsia-100):not(.recibo-print-area *, .recibo-preview-wrapper *, [data-no-dark] *) {
+    background-color: rgba(76, 29, 149, 0.35) !important;
+  }
+  html.dark :is(.text-indigo-700, .text-indigo-800, .text-indigo-900, .text-purple-700, .text-purple-800, .text-purple-900, .text-violet-700, .text-violet-800, .text-fuchsia-700, .text-fuchsia-800):not(.recibo-print-area *, .recibo-preview-wrapper *, [data-no-dark] *) {
+    color: #c4b5fd !important;
+  }
+  html.dark :is(.border-indigo-100, .border-indigo-200, .border-indigo-300, .border-purple-200, .border-violet-200, .border-fuchsia-200):not(.recibo-print-area *, .recibo-preview-wrapper *, [data-no-dark] *) {
+    border-color: rgba(167, 139, 250, 0.4) !important;
+  }
+
+  /* Controles de formulario (inputs, selects, textareas) */
+  html.dark :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select, textarea):not(.recibo-print-area *, .recibo-preview-wrapper *, [data-no-dark] *) {
+    background-color: #0f172a !important;
+    color: #f1f5f9 !important;
+    border-color: #334155 !important;
+  }
+
+  html.dark :is(input, textarea)::placeholder {
+    color: #64748b !important;
+  }
+
+  /* Sombras más sutiles en modo oscuro */
+  html.dark :is(.shadow-sm, .shadow, .shadow-md, .shadow-lg):not(.recibo-print-area *, .recibo-preview-wrapper *) {
+    --tw-shadow-color: rgba(2, 6, 23, 0.6);
+  }
 }

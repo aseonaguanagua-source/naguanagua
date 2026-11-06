@@ -307,49 +307,54 @@ export async function PATCH(req: Request) {
         await sb.from('inmuebles').update(inmUpd).eq('inmueble', inmuebleAActualizar);
       }
     }
-    // Quitar lo que no cambió
+    // Capturar campos sincronizables a actividades hijas antes de filtrar los que ya estaban en el padre
+    const childSync: Record<string, any> = {};
+    if ('propietario' in upd) childSync.propietario = upd.propietario;
+    if ('identidad' in upd) childSync.identidad = upd.identidad;
+    if ('estado' in upd) childSync.estado = upd.estado;
+    if ('aseo_pendiente_desde' in upd) childSync.aseo_pendiente_desde = upd.aseo_pendiente_desde;
+    if ('multa_meses' in upd) childSync.multa_meses = upd.multa_meses;
+    if ('multa_exonerada_hasta' in upd) childSync.multa_exonerada_hasta = (upd as any).multa_exonerada_hasta;
+
+    // Quitar lo que no cambió en la fila padre
     for (const k of Object.keys(upd)) if (String(upd[k] ?? '') === String(antes[k] ?? '')) delete upd[k];
-    if (!Object.keys(upd).length && !('agente_retencion' in cambios) && _tel === undefined && _cor === undefined && _dir === undefined && _actExt === undefined && !('desocupada_desde' in cambios)) return NextResponse.json({ error: 'No hay cambios' }, { status: 400 });
+
+    // Si el padre es grupo (es_grupo = true) o tiene unidades hijas desincronizadas, permitir sincronizar hijos
+    const { data: hijas } = Object.keys(childSync).length > 0
+      ? await sb.from('condominio_unidades').select('id, inmueble, tarifa_mmv').eq('padre_unidad_id', id).neq('estado', 'Eliminada')
+      : { data: null };
+    const tieneHijasPorSincronizar = Array.isArray(hijas) && hijas.length > 0 && Object.keys(childSync).length > 0;
+
+    if (!Object.keys(upd).length && !tieneHijasPorSincronizar && !('agente_retencion' in cambios) && _tel === undefined && _cor === undefined && _dir === undefined && _actExt === undefined && !('desocupada_desde' in cambios)) return NextResponse.json({ error: 'No hay cambios' }, { status: 400 });
 
     if (Object.keys(upd).length > 0) {
       const { error } = await sb.from('condominio_unidades').update(upd).eq('id', id);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    }
 
-      // Si la unidad modificada es un contenedor padre (es_grupo = true y tiene hijos con padre_unidad_id = id),
-      // propagar propietario, identidad, estado, aseo_pendiente_desde, multa_meses y multa_exonerada_hasta a sus actividades hijas
-      const childSync: Record<string, any> = {};
-      if ('propietario' in upd) childSync.propietario = upd.propietario;
-      if ('identidad' in upd) childSync.identidad = upd.identidad;
-      if ('estado' in upd) childSync.estado = upd.estado;
-      if ('aseo_pendiente_desde' in upd) childSync.aseo_pendiente_desde = upd.aseo_pendiente_desde;
-      if ('multa_meses' in upd) childSync.multa_meses = upd.multa_meses;
-      if ('multa_exonerada_hasta' in upd) childSync.multa_exonerada_hasta = (upd as any).multa_exonerada_hasta;
-
-      if (Object.keys(childSync).length > 0) {
-        const { data: hijas } = await sb.from('condominio_unidades').select('id, inmueble, tarifa_mmv').eq('padre_unidad_id', id).neq('estado', 'Eliminada');
-        if (hijas && hijas.length > 0) {
-          await sb.from('condominio_unidades').update(childSync).eq('padre_unidad_id', id).neq('estado', 'Eliminada');
-          for (const h of hijas) {
-            if (!h.inmueble) continue;
-            const hInmUpd: Record<string, any> = {};
-            if ('propietario' in childSync && childSync.propietario) hInmUpd.contribuyente = childSync.propietario;
-            if ('identidad' in childSync && childSync.identidad) hInmUpd.identidad = childSync.identidad;
-            if ('numero' in childSync && childSync.numero) hInmUpd.numero_local = childSync.numero;
-            if ('agente_retencion' in cambios) hInmUpd.agente_retencion = esAgente;
-            if ('aseo_pendiente_desde' in childSync) {
-              const mH = mesesPendientes(childSync.aseo_pendiente_desde);
-              const mmvH = Number(h.tarifa_mmv) || 1.98;
-              hInmUpd.meses_deuda = mH;
-              hInmUpd.deuda_mmv = parseFloat((mH * mmvH).toFixed(5));
-              if (mH === 0) {
-                hInmUpd.multa_bs = 0;
-                hInmUpd.deuda_congelada_bs = 0;
-              }
-            }
-            if (Object.keys(hInmUpd).length > 0) {
-              await sb.from('inmuebles').update(hInmUpd).eq('inmueble', h.inmueble);
-            }
+    // Si la unidad modificada es un contenedor padre (tiene hijos con padre_unidad_id = id),
+    // propagar propietario, identidad, estado, aseo_pendiente_desde, multa_meses y multa_exonerada_hasta a sus actividades hijas
+    if (tieneHijasPorSincronizar && hijas) {
+      await sb.from('condominio_unidades').update(childSync).eq('padre_unidad_id', id).neq('estado', 'Eliminada');
+      for (const h of hijas) {
+        if (!h.inmueble) continue;
+        const hInmUpd: Record<string, any> = {};
+        if ('propietario' in childSync && childSync.propietario) hInmUpd.contribuyente = childSync.propietario;
+        if ('identidad' in childSync && childSync.identidad) hInmUpd.identidad = childSync.identidad;
+        if ('numero' in childSync && childSync.numero) hInmUpd.numero_local = childSync.numero;
+        if ('agente_retencion' in cambios) hInmUpd.agente_retencion = esAgente;
+        if ('aseo_pendiente_desde' in childSync) {
+          const mH = mesesPendientes(childSync.aseo_pendiente_desde);
+          const mmvH = Number(h.tarifa_mmv) || 1.98;
+          hInmUpd.meses_deuda = mH;
+          hInmUpd.deuda_mmv = parseFloat((mH * mmvH).toFixed(5));
+          if (mH === 0) {
+            hInmUpd.multa_bs = 0;
+            hInmUpd.deuda_congelada_bs = 0;
           }
+        }
+        if (Object.keys(hInmUpd).length > 0) {
+          await sb.from('inmuebles').update(hInmUpd).eq('inmueble', h.inmueble);
         }
       }
     }

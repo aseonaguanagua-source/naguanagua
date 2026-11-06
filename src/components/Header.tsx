@@ -5,6 +5,7 @@ import { logAudit } from '@/lib/audit';
 import { performLogout } from '@/lib/logout';
 import { useAppContext } from '@/store/AppContext';
 import { useState, useEffect } from 'react';
+import ThemeToggle from '@/components/ThemeToggle';
 
 export default function Header() {
   const router = useRouter();
@@ -67,6 +68,7 @@ export default function Header() {
         </div>
       </div>
       <div className="flex items-center gap-4 text-sm">
+        <ThemeToggle variant="header" />
         <div className="text-right">
           <div className="font-bold text-[#c8e64c] text-xs">{workerName}</div>
           <div className="text-[11px] text-slate-400">{workerRole}</div>

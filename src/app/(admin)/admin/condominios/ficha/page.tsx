@@ -1301,16 +1301,16 @@ function Ficha() {
                     if (unidadPorCod.has(String(cod || '').trim().toUpperCase())) addUnit(cod);
                   });
                 }
-                if (Array.isArray(det.deuda_previa)) {
-                  det.deuda_previa.forEach((dp: any) => {
-                    const cDp = String(dp?.inmueble || '').trim().toUpperCase();
-                    if (cDp && unidadPorCod.has(cDp)) addUnit(cDp);
-                  });
-                }
                 if (Array.isArray(det.recibos)) {
                   det.recibos.forEach((rec: any) => {
                     const mUrb = String(rec || '').toUpperCase().match(/URB\d+/);
                     if (mUrb && unidadPorCod.has(mUrb[0])) addUnit(mUrb[0]);
+                  });
+                }
+                if (Array.isArray(det.deuda_previa) && unidadesPagoMap.size === 0 && !codInm && (!Array.isArray(det.recibos) || det.recibos.length === 0)) {
+                  det.deuda_previa.forEach((dp: any) => {
+                    const cDp = String(dp?.inmueble || '').trim().toUpperCase();
+                    if (cDp && unidadPorCod.has(cDp)) addUnit(cDp);
                   });
                 }
 

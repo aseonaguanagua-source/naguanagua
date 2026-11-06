@@ -460,10 +460,13 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
 
         if (hijosPadre && hijosPadre.length > 0) {
           const sumHijosMmv = hijosPadre.reduce((s, h: any) => s + (parseFloat(String(h.mmv_mes || 0)) || 0), 0);
-          if (mmvMes === 0 || Math.abs(mmvMes - sumHijosMmv) < 0.25) {
+          const esMatrizNA = String(inm.actividad_principal || '').trim().toUpperCase() === 'N/A';
+          if (esMatrizNA || mmvMes === 0 || Math.abs(mmvMes - sumHijosMmv) < 0.25) {
             for (const h of hijosPadre) {
+              const hMmv = parseFloat(String(h.mmv_mes || 0)) || 0;
               await supabase.from('inmuebles').update({
                 meses_deuda: selectedCount,
+                deuda_mmv: parseFloat((selectedCount * hMmv).toFixed(5)),
                 notas: nuevaNota,
                 ...(selectedCount === 0 ? { multa_bs: 0, deuda_congelada_bs: 0, deuda_mmv: 0 } : {})
               }).eq('id', h.id);
@@ -532,6 +535,18 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
             .eq('inmueble', inm.inmueble);
 
           await supabase.from('condominio_unidades').update(updCondoFields).eq('inmueble', inm.inmueble);
+          if (uRows && uRows.length > 0) {
+            await supabase
+              .from('condominio_unidades')
+              .update(updCondoFields)
+              .in('padre_unidad_id', uRows.map((u: any) => u.id));
+          }
+          if (hijosPadre && hijosPadre.length > 0) {
+            const codsHijos = hijosPadre.map((h: any) => h.inmueble).filter(Boolean);
+            if (codsHijos.length > 0) {
+              await supabase.from('condominio_unidades').update(updCondoFields).in('inmueble', codsHijos);
+            }
+          }
 
           if (selectedCount === 0 && uRows && uRows.length > 0) {
             await supabase
