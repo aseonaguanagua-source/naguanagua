@@ -141,9 +141,47 @@ export async function getTasaBCV(sync: boolean = false) {
 
     const euroText = $('#euro strong').text();
     const usdText = $('#dolar strong').text();
+    const bcvContentDate = String($('.date-display-single').attr('content') || '').slice(0, 10);
     
     euroVal = parseBcvNum(euroText);
     usdVal = parseBcvNum(usdText);
+
+    // Si en la tarde (después de la 1:30 PM) el BCV ya publicó en su portada la tasa con fecha valor
+    // del día hábil siguiente (bcvContentDate > todayStr) y ya tenemos la tasa congelada de HOY,
+    // conservar estrictamente la tasa de HOY para no alterar los montos a mitad del día ni desfasar contra el histórico.
+    if (bcvContentDate && /^\d{4}-\d{2}-\d{2}$/.test(bcvContentDate) && bcvContentDate > todayStr) {
+      if (fechaDiariaGuardada === todayStr && tasaDiariaGuardada && !isNaN(tasaDiariaGuardada) && tasaDiariaGuardada > 10) {
+        return {
+          success: true,
+          euro: tasaDiariaGuardada,
+          usd: tasaDiariaGuardada,
+          tcmmv: tasaDiariaGuardada,
+          timestamp: `${todayStr}T00:00:00-04:00`,
+          source: 'diaria-congelada-fecha-valor'
+        };
+      }
+      // Si aún no estaba guardada en BD la de hoy, consultar en el histórico oficial la tasa con fecha valor <= todayStr
+      try {
+        const histRes = await fetch('https://ve.dolarapi.com/v1/historicos/euros/oficial', { cache: 'no-store' });
+        if (histRes.ok) {
+          const histJson = await histRes.json();
+          if (Array.isArray(histJson)) {
+            const validos = histJson
+              .filter((r: any) => r && r.fecha && String(r.fecha).slice(0, 10) <= todayStr && Number(r.promedio) > 0)
+              .sort((a: any, b: any) => String(a.fecha).localeCompare(String(b.fecha)));
+            const ultimoHoy = validos[validos.length - 1];
+            if (ultimoHoy) {
+              let prom = Number(ultimoHoy.promedio);
+              if (prom > 0 && prom < 10 && String(ultimoHoy.fecha).slice(0, 10) >= '2026-11-01') prom *= 1000;
+              if (prom > 10) {
+                euroVal = prom;
+                usdVal = prom;
+              }
+            }
+          }
+        }
+      } catch (_) {}
+    }
 
     // Sanity check de seguridad para prevenir inyección MITM o parseo corrupto del HTML del BCV
     if (isNaN(euroVal) || isNaN(usdVal) || euroVal <= 10 || euroVal > 100000 || usdVal <= 10 || usdVal > 100000) {

@@ -17,12 +17,12 @@ export async function tasaVigente(): Promise<number> {
   try {
     const bcv = await getTasaBCV(false);
     if (bcv?.success && Number(bcv.tcmmv) > 10) {
-      return r2(Number(bcv.tcmmv));
+      return Number(bcv.tcmmv);
     }
   } catch (_) {}
   const { data } = await sb.from('sistema_config').select('id, valor').in('id', ['tasa_bcv_manual', 'tasa_bcv_diaria', 'tasa_bcv_semanal']);
   const v = (id: string) => parseFloat(String(data?.find((c: any) => c.id === id)?.valor || 0)) || 0;
-  return r2(v('tasa_bcv_manual') || v('tasa_bcv_diaria') || v('tasa_bcv_semanal'));
+  return v('tasa_bcv_manual') || v('tasa_bcv_diaria') || v('tasa_bcv_semanal');
 }
 
 /** Lee todas las filas de una consulta paginando de 1000 en 1000. */
@@ -162,7 +162,7 @@ export interface EstadoCuenta {
 
 /** Monto en Bs de una multa manual. */
 export const montoMulta = (m: any, tasa: number) => {
-  const t = r2(Number(tasa) || 0);
+  const t = Number(tasa) || 0;
   if (m.monto_bs != null) return r2(Number(m.monto_bs));
   const eur = r2((Number(m.monto_mmv) || 0) * 57);
   return t > 0 ? r2(eur * t) : r2(eur * tasa);
@@ -170,7 +170,7 @@ export const montoMulta = (m: any, tasa: number) => {
 
 /** Estado de cuenta de un condominio con la tarifa vigente. */
 export function calcularEstado(condoRow: any, unidadesRows: any[], tasaRaw: number, hoy = new Date(), multasRows: any[] = [], omitirMultaSeptiembre = false): EstadoCuenta {
-  const tasa = r2(Number(tasaRaw) || 0);
+  const tasa = Number(tasaRaw) || 0;
   const c = aMotorCondo(condoRow);
   const grupos = idsGrupo(unidadesRows);
   const unidades = unidadesRows.map(u => aMotorUnidad(u, grupos));

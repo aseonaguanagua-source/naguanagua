@@ -2055,7 +2055,7 @@ export default function CajaPage() {
     }
 
     // Agrupar recibos seleccionados por inmueble para cálculo acumulado exacto idéntico al Estado de Cuenta
-    const inmSelectedMap = new Map<string, { inm: any; totalMeses: number; mesesConMora: number }>();
+    const inmSelectedMap = new Map<string, { inm: any; totalMeses: number; mesesConMora: number; mNums: number[] }>();
 
     selectedRecibos.forEach(ref => {
       if (ref.startsWith('RECIB-HIST-')) {
@@ -2065,7 +2065,7 @@ export default function CajaPage() {
         const inm = inmueblesMap.get(inmId);
         if (inm) {
           if (!inmSelectedMap.has(inmId)) {
-            inmSelectedMap.set(inmId, { inm, totalMeses: 0, mesesConMora: 0 });
+            inmSelectedMap.set(inmId, { inm, totalMeses: 0, mesesConMora: 0, mNums: [] });
           }
           const item = inmSelectedMap.get(inmId)!;
           item.totalMeses += 1;
@@ -2075,6 +2075,7 @@ export default function CajaPage() {
           const today = new Date();
           const monthsDiff = (today.getFullYear() - emision.getFullYear()) * 12 + (today.getMonth() - emision.getMonth());
           const mNum = mHist ? parseInt(mHist[2], 10) : parseInt(parts[3]?.replace('M', '') || '0');
+          if (mNum > 0) item.mNums.push(mNum);
           const totalMesesDeuda = Math.max(1, parseInt(inm.meses_deuda || '1'));
           const isUltimoMes = mNum > 0 ? (mNum >= totalMesesDeuda) : false;
           const esMesExon = isMesExoneradoMulta(inm.notas, emision, omitirMultaSeptiembre);
@@ -2093,7 +2094,7 @@ export default function CajaPage() {
         targetInms.forEach((inm: any) => {
           const inmId = inm.inmueble || 'general';
           if (!inmSelectedMap.has(inmId)) {
-            inmSelectedMap.set(inmId, { inm, totalMeses: 0, mesesConMora: 0 });
+            inmSelectedMap.set(inmId, { inm, totalMeses: 0, mesesConMora: 0, mNums: [] });
           }
           const item = inmSelectedMap.get(inmId)!;
           item.totalMeses += 1;
@@ -2153,8 +2154,51 @@ export default function CajaPage() {
       });
     }
     const padresAbonoContados = new Set<string>();
-    inmSelectedMap.forEach(({ inm, totalMeses, mesesConMora }) => {
+    inmSelectedMap.forEach(({ inm, totalMeses, mesesConMora, mNums }) => {
       const esRes = isResidencialInm(inm);
+      const esAgente = isCondominioPayer
+        ? (inm.agente_retencion === true || isAgenteGlobal)
+        : (inm.agente_retencion === true);
+
+      let jNotas: any = null;
+      try { if (inm.notas) jNotas = typeof inm.notas === 'string' ? JSON.parse(inm.notas) : inm.notas; } catch {}
+
+      if (jNotas?.periodos_custom && Object.keys(jNotas.periodos_custom).length > 0 && mNums.length > 0) {
+        const keys = Object.keys(jNotas.periodos_custom).sort();
+        const totalMesesCustom = Math.max(keys.length, parseInt(String(inm.meses_deuda || '1')));
+        let baseInm = 0;
+        let ivaInm = 0;
+        let multaInm = 0;
+        mNums.forEach(mNum => {
+          const p = keys[mNum - 1];
+          const cfg = p ? jNotas.periodos_custom[p] : null;
+          if (cfg) {
+            const mmv = cfg.tarifa_mmv !== null && cfg.tarifa_mmv !== undefined ? Number(cfg.tarifa_mmv) : (jNotas.tarifa_activa_mmv || 3.77);
+            const b = Math.round((mmv * 57 * tasaActualUse * (esRes ? 1 : 0.128) + Number.EPSILON) * 100) / 100;
+            const iv = esRes ? 0 : Math.round((b * 0.16 + Number.EPSILON) * 100) / 100;
+            const isUltimoMes = mNum >= totalMesesCustom;
+            const esMesExonCustom = isMesExoneradoMulta(inm.notas, p, omitirMultaSeptiembre);
+            const m = cfg.lleva_multa && !isUltimoMes && !esMesExonCustom ? Math.round((b * (esRes ? 0.10 : 0.12) + Number.EPSILON) * 100) / 100 : 0;
+            baseInm += b;
+            ivaInm += iv;
+            multaInm += m;
+          } else {
+            const b = Math.round(calcularMensualidad(inm, tasaActualUse) * 100) / 100;
+            const iv = esRes ? 0 : Math.round((b * 0.16) * 100) / 100;
+            baseInm += b;
+            ivaInm += iv;
+          }
+        });
+        baseInm = Math.round(baseInm * 100) / 100;
+        ivaInm = Math.round(ivaInm * 100) / 100;
+        multaInm = Math.round(multaInm * 100) / 100;
+        sb4 += baseInm;
+        siva4 += ivaInm;
+        if (!esRes && esAgente) sivaRetencionable4 += ivaInm;
+        smulta4 += multaInm;
+        return;
+      }
+
       const bMes = Math.round(calcularMensualidad(inm, tasaActualUse) * 100) / 100;
       const tasaMora = esRes ? 0.10 : 0.12;
 
@@ -2168,9 +2212,6 @@ export default function CajaPage() {
       siva4 += ivaInm;
 
       // Cada inmueble respeta su propia casilla de Agente de Retención (salvo cuando paga la matriz de condominio)
-      const esAgente = isCondominioPayer
-        ? (inm.agente_retencion === true || isAgenteGlobal)
-        : (inm.agente_retencion === true);
       if (!esRes && esAgente) {
         sivaRetencionable4 += ivaInm;
       }
