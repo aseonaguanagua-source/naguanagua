@@ -1918,24 +1918,25 @@ export async function POST(request: Request) {
       const retCalculada = r2(totalIVA * (porcRet / 100));
       const montoRet = conRetencion ? (retCalculada || parseFloat(String(detPago?.monto_retencion_iva || detPago?.retencion_iva || 0))) : 0;
       const efectivoTotal = (() => {
+        const sfDescontar = saldoFavorGeneradoRaw > 0 ? saldoFavorGeneradoRaw : 0;
         if (Array.isArray(detPago?.pagos_agregados) && detPago.pagos_agregados.length > 0) {
           const sumPagos = detPago.pagos_agregados.reduce((s: number, p: any) => s + (parseFloat(String(p?.monto || 0)) || 0), 0);
-          return Math.max(0, sumPagos - saldoFavorGenerado);
+          return Math.max(0, sumPagos - sfDescontar);
         }
         if (Array.isArray(detPago?.formasPago) && detPago.formasPago.length > 0) {
           const sumFormas = detPago.formasPago.reduce((s: number, p: any) => s + (parseFloat(String(p?.monto || 0)) || 0), 0);
-          return Math.max(0, sumFormas - saldoFavorGenerado);
+          return Math.max(0, sumFormas - sfDescontar);
         }
         if (montoFacturaGuardado > 0) {
-          return montoFacturaGuardado - (conRetencion ? montoRet : 0);
+          return Math.max(totalEfectivoPagado - sfDescontar, montoFacturaGuardado - (conRetencion ? montoRet : 0));
         }
         if (parseFloat(String(detPago?.monto_neto_factura || 0)) > 0) {
-          return parseFloat(String(detPago.monto_neto_factura));
+          return Math.max(totalEfectivoPagado - sfDescontar, parseFloat(String(detPago.monto_neto_factura)));
         }
         if (parseFloat(String(detPago?.total_seleccionado || 0)) > 0) {
-          return parseFloat(String(detPago.total_seleccionado)) - (conRetencion ? montoRet : 0);
+          return Math.max(totalEfectivoPagado - sfDescontar, parseFloat(String(detPago.total_seleccionado)) - (conRetencion ? montoRet : 0));
         }
-        return totalEfectivoPagado + saldoFavorUsado - saldoFavorGenerado;
+        return totalEfectivoPagado + saldoFavorUsado - sfDescontar;
       })();
       const montoCobradoNeto = Math.max(efectivoTotal, (montoCobrado > 0 ? (conRetencion ? montoCobrado - montoRet : montoCobrado) : 0));
       const cobradoTotal = montoCobradoNeto + montoRet;

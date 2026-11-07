@@ -114,6 +114,19 @@ export async function generarTotalPuntosVenta(pagos: any[], fechaInicio: string,
   wsDet.getCell(1, 1).alignment = { horizontal: 'center', vertical: 'middle' };
   cab(wsDet, 3, colsDet, 1);
 
+  const esCreditoPunto = (p: any, det: any): boolean => {
+    const raw = `${p?.tipo || ''} ${p?.banco || ''} ${det?.tipo_tarjeta || ''} ${det?.forma_pago || ''}`;
+    return /cr[eé]dito|tdc|tmd|tvd|master|visa/i.test(raw);
+  };
+
+  const limpiarBancoPunto = (p: any, det: any): string => {
+    const raw = String(p?.banco || det?.banco_destino || '').trim();
+    if (!raw || /^(d[eé]bito|cr[eé]dito|punto\s*cr[eé]dito|punto\s*d[eé]bito|punto\s*de\s*venta|tdd|tdc)$/i.test(raw)) {
+      return String(det?.banco_destino || det?.banco_receptor || 'Punto de Venta').trim();
+    }
+    return raw;
+  };
+
   const porCajaItems = new Map<string, any[]>();
   deb.slice().sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()).forEach(p => {
     const det = parseDet(p);
@@ -124,6 +137,7 @@ export async function generarTotalPuntosVenta(pagos: any[], fechaInicio: string,
 
   let fdRow = 4;
   let granTotalDeb = 0;
+  let granSoloDebito = 0, granSoloCredito = 0;
   let granBase = 0, granIva = 0, granExento = 0;
 
   [...porCajaItems.keys()].sort().forEach(caja => {
@@ -135,50 +149,166 @@ export async function generarTotalPuntosVenta(pagos: any[], fechaInicio: string,
     rSec.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0F2FE' } };
     wsDet.mergeCells(fdRow - 1, 1, fdRow - 1, colsDet.length);
 
-    let subCaja = 0, subBase = 0, subIva = 0, subExento = 0;
-    itemsCaja.forEach(({ p, det }) => {
-      const fPago = fechaVE(p.created_at);
-      const { cajero } = cajaDe(det);
-      const mt = montosPago(p, det, inmMap, 0);
-      const fd = det.factura_digital || {};
-      const recs = Array.isArray(det.recibos) ? det.recibos : [];
-      const nroDoc = fd.numero_documento || det.recibo_caja?.[0]?.controlWeb || det.recibo_caja?.[0]?.reciboNo || det.recibo_no || recs[0] || '';
-      const codigosList = codigosDePago(det, p);
-      const codPrincipal = codigosList[0] || det.codigo_inmueble || det.cod_inmueble || p.inmueble || '';
-      const mPagado = r2(Number(p.monto) || 0);
+    let subCaja = 0, subCajaDeb = 0, subCajaCred = 0, subBase = 0, subIva = 0, subExento = 0;
 
-      const row = wsDet.getRow(fdRow++);
-      const vals: any[] = [
-        dmy(fPago),
-        caja,
-        cajero || det.cajero || '',
-        p.banco || det.banco_destino || 'Punto de Venta',
-        p.referencia || recs[0] || '',
-        det.aprobacion || '',
-        det.lote || '',
-        p.tipo || 'Débito',
-        mPagado,
-        nroDoc,
-        codPrincipal,
-        p.identidad || '',
-        nombreDe(p.identidad, det, p),
-        mt.base,
-        mt.iva > 0 ? 16 : 0,
-        mt.iva,
-        mt.exento
-      ];
-      vals.forEach((v, i) => {
-        const c = row.getCell(i + 1);
-        c.value = v;
-        c.border = BORDE;
-        c.font = { size: 9 };
-        if ([8, 13, 15, 16].includes(i)) c.numFmt = '"Bs. "#,##0.00';
-      });
-      subCaja += mPagado;
-      subBase += mt.base;
-      subIva += mt.iva;
-      subExento += mt.exento;
+    // Agrupar las operaciones de esta caja por día
+    const porDiaCaja = new Map<string, any[]>();
+    itemsCaja.forEach(item => {
+      const fPago = fechaVE(item.p.created_at) || fechaInicio.slice(0, 10);
+      if (!porDiaCaja.has(fPago)) porDiaCaja.set(fPago, []);
+      porDiaCaja.get(fPago)!.push(item);
     });
+
+    [...porDiaCaja.keys()].sort().forEach(dia => {
+      // Ordenar dentro del día: primero Débito, luego Crédito
+      const itemsDia = porDiaCaja.get(dia)!.slice().sort((a, b) => {
+        const cA = esCreditoPunto(a.p, a.det) ? 1 : 0;
+        const cB = esCreditoPunto(b.p, b.det) ? 1 : 0;
+        if (cA !== cB) return cA - cB;
+        return new Date(a.p.created_at).getTime() - new Date(b.p.created_at).getTime();
+      });
+
+      let subDia = 0, subDiaDeb = 0, subDiaCred = 0, cntDiaDeb = 0, cntDiaCred = 0;
+      let subDiaBase = 0, subDiaIva = 0, subDiaExento = 0;
+
+      itemsDia.forEach(({ p, det }) => {
+        const fPago = fechaVE(p.created_at) || dia;
+        const { cajero } = cajaDe(det);
+        const mt = montosPago(p, det, inmMap, 0);
+        const fd = det.factura_digital || {};
+        const recs = Array.isArray(det.recibos) ? det.recibos : [];
+        const nroDoc = fd.numero_documento || det.recibo_caja?.[0]?.controlWeb || det.recibo_caja?.[0]?.reciboNo || det.recibo_no || recs[0] || '';
+        const codigosList = codigosDePago(det, p);
+        const codPrincipal = codigosList[0] || det.codigo_inmueble || det.cod_inmueble || p.inmueble || '';
+        const mPagado = r2(Number(p.monto) || 0);
+        const isCred = esCreditoPunto(p, det);
+        const formaPagoLim = isCred ? 'Crédito' : 'Débito';
+
+        const row = wsDet.getRow(fdRow++);
+        const vals: any[] = [
+          dmy(fPago),
+          caja,
+          cajero || det.cajero || '',
+          limpiarBancoPunto(p, det),
+          p.referencia || recs[0] || '',
+          det.aprobacion || '',
+          det.lote || '',
+          formaPagoLim,
+          mPagado,
+          nroDoc,
+          codPrincipal,
+          p.identidad || '',
+          nombreDe(p.identidad, det, p),
+          mt.base,
+          mt.iva > 0 ? 16 : 0,
+          mt.iva,
+          mt.exento
+        ];
+        vals.forEach((v, i) => {
+          const c = row.getCell(i + 1);
+          c.value = v;
+          c.border = BORDE;
+          c.font = { size: 9 };
+          if ([8, 13, 15, 16].includes(i)) c.numFmt = '"Bs. "#,##0.00';
+        });
+
+        subDia += mPagado;
+        if (isCred) {
+          subDiaCred += mPagado;
+          cntDiaCred++;
+          subCajaCred += mPagado;
+          granSoloCredito += mPagado;
+        } else {
+          subDiaDeb += mPagado;
+          cntDiaDeb++;
+          subCajaDeb += mPagado;
+          granSoloDebito += mPagado;
+        }
+        subDiaBase += mt.base;
+        subDiaIva += mt.iva;
+        subDiaExento += mt.exento;
+
+        subCaja += mPagado;
+        subBase += mt.base;
+        subIva += mt.iva;
+        subExento += mt.exento;
+      });
+
+      // Bloque de totalización diaria resaltado en anaranjado (según formato requerido)
+      const ORANGE_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF4B084' } } as any;
+      const startOrangeRow = fdRow;
+      const rDia1 = wsDet.getRow(fdRow++);
+      const rDia2 = wsDet.getRow(fdRow++);
+      const rDia3 = wsDet.getRow(fdRow++);
+
+      wsDet.mergeCells(startOrangeRow, 1, startOrangeRow + 2, 1);
+      const cFechaDia = rDia1.getCell(1);
+      cFechaDia.value = dmy(dia);
+      cFechaDia.font = { bold: true, size: 9 };
+      cFechaDia.alignment = { horizontal: 'center', vertical: 'middle' };
+
+      rDia1.getCell(8).value = 'TOTAL EMITIDO POR EL SISTEMA';
+      rDia1.getCell(8).font = { bold: true, size: 9 };
+      rDia1.getCell(9).value = r2(subDia);
+      rDia1.getCell(9).numFmt = '"Bs. "#,##0.00';
+      rDia1.getCell(9).font = { bold: true, size: 9 };
+      rDia1.getCell(14).value = r2(subDiaBase);
+      rDia1.getCell(14).numFmt = '"Bs. "#,##0.00';
+      rDia1.getCell(14).font = { bold: true, size: 9 };
+      rDia1.getCell(16).value = r2(subDiaIva);
+      rDia1.getCell(16).numFmt = '"Bs. "#,##0.00';
+      rDia1.getCell(16).font = { bold: true, size: 9 };
+      rDia1.getCell(17).value = r2(subDiaExento);
+      rDia1.getCell(17).numFmt = '"Bs. "#,##0.00';
+      rDia1.getCell(17).font = { bold: true, size: 9 };
+
+      // Fila intermedia del bloque naranja: desglose Débito vs Crédito del día
+      rDia2.getCell(8).value = `Débito (${cntDiaDeb}): Bs. ${r2(subDiaDeb).toLocaleString('es-VE', { minimumFractionDigits: 2 })} | Crédito (${cntDiaCred}): Bs. ${r2(subDiaCred).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`;
+      rDia2.getCell(8).font = { bold: true, size: 8 };
+
+      rDia3.getCell(8).value = 'ATENDIDAS';
+      rDia3.getCell(8).font = { bold: true, size: 9 };
+      rDia3.getCell(9).value = itemsDia.length;
+      rDia3.getCell(9).font = { bold: true, size: 9 };
+      rDia3.getCell(9).alignment = { horizontal: 'right' };
+
+      [rDia1, rDia2, rDia3].forEach(rOr => {
+        for (let colIdx = 1; colIdx <= 9; colIdx++) {
+          const cell = rOr.getCell(colIdx);
+          cell.fill = ORANGE_FILL;
+          cell.border = BORDE;
+        }
+      });
+      [14, 16, 17].forEach(colIdx => {
+        const cell = rDia1.getCell(colIdx);
+        cell.fill = ORANGE_FILL;
+        cell.border = BORDE;
+      });
+    });
+
+    if (subCajaDeb > 0 || subCajaCred > 0) {
+      const rSubDeb = wsDet.getRow(fdRow++);
+      rSubDeb.getCell(8).value = `SUBTOTAL DÉBITO ${caja}`;
+      rSubDeb.getCell(9).value = r2(subCajaDeb);
+      [8, 9].forEach(colIdx => {
+        const cell = rSubDeb.getCell(colIdx);
+        cell.font = { bold: true, size: 9 };
+        cell.border = BORDE;
+        if (colIdx === 9) cell.numFmt = '"Bs. "#,##0.00';
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+      });
+
+      const rSubCred = wsDet.getRow(fdRow++);
+      rSubCred.getCell(8).value = `SUBTOTAL CRÉDITO ${caja}`;
+      rSubCred.getCell(9).value = r2(subCajaCred);
+      [8, 9].forEach(colIdx => {
+        const cell = rSubCred.getCell(colIdx);
+        cell.font = { bold: true, size: 9 };
+        cell.border = BORDE;
+        if (colIdx === 9) cell.numFmt = '"Bs. "#,##0.00';
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+      });
+    }
 
     const rSub = wsDet.getRow(fdRow++);
     rSub.getCell(8).value = `SUBTOTAL ${caja}`;
@@ -199,6 +329,28 @@ export async function generarTotalPuntosVenta(pagos: any[], fechaInicio: string,
     granBase += subBase;
     granIva += subIva;
     granExento += subExento;
+  });
+
+  const rGranDeb = wsDet.getRow(fdRow++);
+  rGranDeb.getCell(8).value = 'TOTAL GENERAL DÉBITO';
+  rGranDeb.getCell(9).value = r2(granSoloDebito);
+  [8, 9].forEach(colIdx => {
+    const cell = rGranDeb.getCell(colIdx);
+    cell.font = { bold: true, size: 9, color: { argb: 'FF1F4E78' } };
+    cell.border = BORDE;
+    if (colIdx === 9) cell.numFmt = '"Bs. "#,##0.00';
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
+  });
+
+  const rGranCred = wsDet.getRow(fdRow++);
+  rGranCred.getCell(8).value = 'TOTAL GENERAL CRÉDITO';
+  rGranCred.getCell(9).value = r2(granSoloCredito);
+  [8, 9].forEach(colIdx => {
+    const cell = rGranCred.getCell(colIdx);
+    cell.font = { bold: true, size: 9, color: { argb: 'FF1F4E78' } };
+    cell.border = BORDE;
+    if (colIdx === 9) cell.numFmt = '"Bs. "#,##0.00';
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
   });
 
   const rGran = wsDet.getRow(fdRow++);

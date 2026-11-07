@@ -196,23 +196,73 @@ export async function generarReporteRecibosPagos(
     return true;
   }).sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
 
-  // Consolidar recibos pagados con múltiples transferencias (abono_completado + pago completador del mismo recibo)
+  // Consolidar recibos pagados con múltiples transferencias (abono_completado + pago completador del mismo recibo,
+  // o múltiples transferencias que comparten el mismo N° de recibo WEB-XXXXXXX / grupo_pago / pagos_agregados)
   // para que cada recibo salga una sola vez por el monto total del recibo y no desglosado por transferencias.
   const recibosConCompletador = new Set<string>();
+  const idsPrincipales = new Set<string>();
+  const refsSecundariasPorIdentidad = new Map<string, Set<string>>();
+
   candidatosRecibos.forEach(p => {
     const det = parseDet(p);
+    const cid = cleanId(p.identidad);
     const recs = Array.isArray(det.recibos) ? [...det.recibos].sort().join('|') : '';
     if (recs && !det.es_abono && Number(det.abono_previo_descontado || 0) > 0) {
-      recibosConCompletador.add(`${cleanId(p.identidad)}::${recs}`);
+      recibosConCompletador.add(`${cid}::${recs}`);
+    }
+    if (det.pago_principal_id) {
+      idsPrincipales.add(String(det.pago_principal_id));
+    }
+    if (Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1) {
+      const refPropia = String(p.referencia || '').trim().toUpperCase();
+      det.pagos_agregados.forEach((pa: any) => {
+        const rPa = String(pa?.referencia || '').trim().toUpperCase();
+        if (rPa && rPa !== refPropia && !/SALDO|FAVOR|CREDITO/i.test(rPa)) {
+          if (!refsSecundariasPorIdentidad.has(cid)) refsSecundariasPorIdentidad.set(cid, new Set());
+          refsSecundariasPorIdentidad.get(cid)!.add(rPa);
+        }
+      });
     }
   });
 
   const vistosAbonoCompletado = new Set<string>();
+  const vistosNroRecibo = new Set<string>();
+  const vistosGrupoPago = new Set<string>();
+
   const recibosList = candidatosRecibos.filter(p => {
     const det = parseDet(p);
+    const cid = cleanId(p.identidad);
+
+    // 1. Excluir si tiene pago_principal_id (es fila hija de un multipago)
+    if (det.pago_principal_id && String(det.pago_principal_id) !== String(p.id)) {
+      return false;
+    }
+
+    // 2. Excluir si su referencia bancaria ya figura como transferencia secundaria dentro de pagos_agregados de otro pago del mismo contribuyente
+    const refActual = String(p.referencia || '').trim().toUpperCase();
+    if (refActual && !idsPrincipales.has(String(p.id)) && refsSecundariasPorIdentidad.get(cid)?.has(refActual)) {
+      return false;
+    }
+
+    // 3. Consolidar por grupo_pago si existe
+    const grp = String(p.grupo_pago || det.grupo_pago || '').trim();
+    if (grp) {
+      if (vistosGrupoPago.has(grp)) return false;
+      vistosGrupoPago.add(grp);
+    }
+
+    // 4. Consolidar por N° de recibo explícito en recibo_caja (ej. WEB-5333008)
+    const rc0 = Array.isArray(det.recibo_caja) ? det.recibo_caja[0] : null;
+    const rcWebExplicito = String(rc0?.controlWeb || rc0?.reciboNo || det.recibo_no || '').trim().toUpperCase();
+    if (rcWebExplicito) {
+      const keyRecibo = `${cid}::${rcWebExplicito}`;
+      if (vistosNroRecibo.has(keyRecibo)) return false;
+      vistosNroRecibo.add(keyRecibo);
+    }
+
     const recs = Array.isArray(det.recibos) ? [...det.recibos].sort().join('|') : '';
     if (!recs) return true;
-    const key = `${cleanId(p.identidad)}::${recs}`;
+    const key = `${cid}::${recs}`;
     if (det.es_abono && det.abono_completado) {
       // Si en la lista ya está el recibo completador final, omitir las transferencias parciales previas
       if (recibosConCompletador.has(key)) return false;

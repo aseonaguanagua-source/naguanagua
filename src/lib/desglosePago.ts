@@ -53,7 +53,7 @@ export function desglosarPago(pago: any, inmMap: Map<string, any>): DesglosePago
   const det = parseDetalles(pago.detalles);
   const refs: string[] = Array.isArray(det.recibos) ? det.recibos : [];
   const montos: Record<string, any> = det.montos && typeof det.montos === 'object' ? det.montos : {};
-  const tasa = parseFloat(String(det.tasa_bcv_aplicada || det.tasa_bcv || 0)) || 0;
+  const tasa = parseFloat(String(det.tasa_bcv_original || det.recibo_caja?.[0]?.tasaBcv || det.tasa_bcv_aplicada || det.tasa_bcv || 0)) || 0;
   const monto = r2(parseFloat(String(pago.monto || 0)));
   const montoNeto = (det.monto_neto_factura && Number(det.monto_neto_factura) > 0)
     ? r2(Number(det.monto_neto_factura))
@@ -151,11 +151,24 @@ export function desglosarPago(pago: any, inmMap: Map<string, any>): DesglosePago
   const montoObjetivo = montoNeto > 0 ? montoNeto : monto;
   // Tolerancia: diferencias de redondeo/tasa (≤ 1% o Bs 1)
   const tol = Math.max(1, montoObjetivo * 0.01);
-  const cuadra = !esAbono && lineas.length > 0 && Math.abs(totalCalculado - montoObjetivo) <= tol;
-  if (cuadra && totalCalculado !== montoObjetivo) {
+  let cuadra = !esAbono && lineas.length > 0 && Math.abs(totalCalculado - montoObjetivo) <= tol;
+  if (!esAbono && lineas.length > 0 && totalCalculado > 0 && montoObjetivo > 0 && Math.abs(totalCalculado - montoObjetivo) > tol) {
+    // Si la tasa o tarifa actual del inmueble cambió después del pago, escalar las líneas al monto histórico realmente pagado
+    const factorHist = montoObjetivo / totalCalculado;
+    lineas.forEach(l => {
+      l.base = r2(l.base * factorHist);
+      l.iva = r2(l.iva * factorHist);
+      l.multa = r2(l.multa * factorHist);
+      l.retencion = r2(l.retencion * factorHist);
+      l.total = r2(l.base + l.iva + l.multa - l.retencion);
+    });
+    cuadra = true;
+  }
+  const sumaAjustada = r2(lineas.reduce((s, l) => s + l.total, 0));
+  if (cuadra && sumaAjustada !== montoObjetivo && lineas.length > 0) {
     // Ajustar el redondeo en la última línea para que el recibo sume exactamente lo pagado
     const last = lineas[lineas.length - 1];
-    const diff = r2(montoObjetivo - totalCalculado);
+    const diff = r2(montoObjetivo - sumaAjustada);
     last.base = r2(last.base + diff);
     last.total = r2(last.total + diff);
   }

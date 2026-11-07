@@ -622,18 +622,19 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
     (Array.isArray(det.conveniosIds) && det.conveniosIds.length > 0) ||
     (Array.isArray(det.cuotas) && det.cuotas.length > 0)
   );
-  const tasaOriginal = det.tasa_bcv ? Number(det.tasa_bcv) : 0;
+  const tasaOriginal = Number(det.tasa_bcv_original || det.recibo_caja?.[0]?.tasaBcv || det.tasa_bcv_aplicada || det.tasa_bcv || 0) || 0;
   const [tasaCustom, setTasaCustom] = useState<string>(tasaOriginal ? tasaOriginal.toFixed(2) : '');
   useEffect(() => {
+    if (tasaOriginal > 0) return;
     fetch('/api/bcv')
       .then(r => r.json())
       .then(d => {
-        if (d?.tcmmv && (!tasaOriginal || !esPagoConvenio)) {
+        if (d?.tcmmv && !tasaOriginal) {
           setTasaCustom(Number(d.tcmmv).toFixed(2));
         }
       })
       .catch(() => {});
-  }, [tasaOriginal, esPagoConvenio]);
+  }, [tasaOriginal]);
   const [facturasParaConciliar, setFacturasParaConciliar] = useState<any[]>([]);
   const [pagosVinculados, setPagosVinculados] = useState<any[]>([]);
   const [cargandoVinculados, setCargandoVinculados] = useState(false);

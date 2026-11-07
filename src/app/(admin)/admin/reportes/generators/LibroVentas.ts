@@ -319,22 +319,75 @@ export const generarLibroVentas = async (pagosFiltrados: any[], contribuyentes: 
     console.warn('No se pudo cargar auditoría/retenciones:', errAudit);
   }
 
-  const ventas = pagosFiltrados
+  const ventasBase = pagosFiltrados
     .filter(p => {
       if (esRetencion(p)) return false;
       const det = parseDet(p);
+      if (det.es_pago_adicional) return false;
       const fd = det.factura_digital;
       const infoAudit = mapaAnulacionesAudit.get(String(p.id));
-      const esAnuladaAudit = Boolean(infoAudit && infoAudit.numero_nota_credito);
+      const esAnuladaAudit = Boolean(infoAudit && (infoAudit.numero_nota_credito || infoAudit.numero_factura));
+      const tienePrevias = Array.isArray(det.facturas_digitales_previas) && det.facturas_digitales_previas.length > 0;
 
-      // Requisito: En el Libro de Ventas solo van operaciones que tengan Factura Digital emitida o anulada por NC
+      // Requisito: En el Libro de Ventas van todas las operaciones que tengan Factura Digital emitida o anulada/rechazada con número fiscal
       return Boolean(
         esAnuladaAudit ||
-        (fd && (fd.emitida || fd.numero_documento || fd.numero_control || fd.anulada || fd.nota_credito)) ||
-        (String(p.estado || '').toLowerCase().includes('anulad') && (fd?.numero_documento || fd?.numero_control || infoAudit?.numero_factura))
+        tienePrevias ||
+        det.nota_credito_digital ||
+        (fd && (fd.emitida || fd.numero_documento || fd.numero_control || fd.anulada || fd.nota_credito || (fd.rechazada && (fd.numero_documento || fd.numero_control)))) ||
+        (/anulad|rechaz/i.test(String(p.estado || '')) && (fd?.numero_documento || fd?.numero_control || infoAudit?.numero_factura))
       );
-    })
-    .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
+    });
+
+  // Expandir también las facturas anuladas previas (facturas_digitales_previas) que fueron reemplazadas por una reemisión
+  const docsYaIncluidos = new Set<string>();
+  const ventas: any[] = [];
+
+  ventasBase.forEach(p => {
+    const det = parseDet(p);
+    const fd = det.factura_digital || {};
+    const previas = Array.isArray(det.facturas_digitales_previas) ? det.facturas_digitales_previas : [];
+
+    previas.forEach((prev: any, idxPrev: number) => {
+      const docPrev = String(prev?.numero_documento || prev?.tfhka_seq || '').trim();
+      const ctrlPrev = String(prev?.numero_control || '').trim();
+      if (!docPrev && !ctrlPrev) return;
+      const keyPrev = `${docPrev}::${ctrlPrev}`;
+      if (docsYaIncluidos.has(keyPrev)) return;
+
+      const fPrevIso = fechaISO(prev?.fecha_emision || prev?.fecha_asignacion || p.created_at);
+      if (fechaInicio && fechaFin && fPrevIso && (fPrevIso < fechaInicio || fPrevIso > fechaFin)) {
+        return;
+      }
+      docsYaIncluidos.add(keyPrev);
+      ventas.push({
+        ...p,
+        id: `${p.id}_prev_${idxPrev}`,
+        _pagoOriginalId: p.id,
+        estado: 'Anulado',
+        created_at: prev?.fecha_emision || prev?.fecha_asignacion || p.created_at,
+        detalles: {
+          ...det,
+          ...(prev?.monto_total ? { monto_factura: prev.monto_total } : {}),
+          factura_digital: {
+            ...prev,
+            anulada: true,
+            nota_credito: prev?.nota_credito || det.nota_credito_digital || { numero_documento: 'ANULADA-REEMITIDA' },
+          },
+        },
+      });
+    });
+
+    const docActual = String(fd.numero_documento || '').trim();
+    const ctrlActual = String(fd.numero_control || '').trim();
+    if (docActual || ctrlActual || mapaAnulacionesAudit.has(String(p.id))) {
+      const keyActual = `${docActual}::${ctrlActual}`;
+      if (docActual || ctrlActual) docsYaIncluidos.add(keyActual);
+      ventas.push(p);
+    }
+  });
+
+  ventas.sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
 
   // Inmuebles de los pagos (para el desglose fiscal)
   const inmMap = await cargarInmMapPagos(ventas);
@@ -405,6 +458,7 @@ export const generarLibroVentas = async (pagosFiltrados: any[], contribuyentes: 
 
   const T = { total: 0, exento: 0, exon: 0, baseC: 0, ivaC: 0, baseN: 0, ivaN: 0, ret: 0, igtf: 0 };
   let facturas = 0;
+  let facturasAnuladasCount = 0;
   const usuariosRes = new Set<string>();
   const usuariosCom = new Set<string>();
   let rowIdx = 7;
@@ -412,13 +466,21 @@ export const generarLibroVentas = async (pagosFiltrados: any[], contribuyentes: 
   ventas.forEach((p, i) => {
     const det = parseDet(p);
     const contrib = esContribuyente(p.identidad);
-    const ret = retPorPago.get(String(p.id));
+    const lookupId = String(p._pagoOriginalId || p.id);
+    const ret = retPorPago.get(lookupId);
     const m = montosPago(p, det, inmMap, r2(ret?.monto ?? Number(det.monto_retencion_iva || 0)));
     const retMonto = m.ret;
     const fd = det.factura_digital || {};
-    const infoAudit = mapaAnulacionesAudit.get(String(p.id));
-    const esAnulada = Boolean(infoAudit || fd.anulada || String(p.estado || '').toLowerCase().includes('anulad'));
-    const ncInfo = fd.nota_credito;
+    const infoAudit = !p._pagoOriginalId ? mapaAnulacionesAudit.get(String(p.id)) : null;
+    const esAnulada = Boolean(
+      infoAudit ||
+      fd.anulada ||
+      fd.rechazada ||
+      fd.nota_credito ||
+      det.nota_credito_digital ||
+      /anulad|rechaz/i.test(String(p.estado || ''))
+    );
+    const ncInfo = fd.nota_credito || det.nota_credito_digital;
     
     // N° Factura / Doc (recuperando también desde retenciones_iva cuando una factura anulada perdió numero_documento)
     const ctrlStr = String(fd.numero_control || '').trim();
@@ -427,12 +489,16 @@ export const generarLibroVentas = async (pagosFiltrados: any[], contribuyentes: 
       infoAudit?.numero_factura ||
       (ctrlStr ? docByControlFromRet.get(ctrlStr) : '') ||
       '';
-    if (nroDoc && !esAnulada) facturas++;
+    if (esAnulada) {
+      facturasAnuladasCount++;
+    } else if (nroDoc) {
+      facturas++;
+    }
     (m.iva > 0 ? usuariosCom : usuariosRes).add(String(p.identidad || ''));
 
     // Requisito 2 y 6: Tipo de Transacción según SENIAT (01-REG para regulares, 03-REG para anuladas/NC)
     const tipoTransac = esAnulada ? '03-REG' : '01-REG';
-    const nroNotaCredito = esAnulada ? (ncInfo?.numero_documento || ncInfo?.tfhka_seq || infoAudit?.numero_nota_credito || 'NC-001') : '';
+    const nroNotaCredito = esAnulada ? (ncInfo?.numero_documento || ncInfo?.tfhka_seq || infoAudit?.numero_nota_credito || (fd.rechazada ? 'ANULADA-CAJA' : 'NC-001')) : '';
     const nroDocAfectado = esAnulada ? (nroDoc || infoAudit?.numero_factura || '') : '';
 
     // Si está anulada, los montos en el libro fiscal se reflejan en negativo o en 0 según la NC
@@ -583,7 +649,7 @@ export const generarLibroVentas = async (pagosFiltrados: any[], contribuyentes: 
   put(22, ['Ajuste a los Débitos Fiscales de Períodos Anteriores', 0, '', ''], { fmt: true });
   put(23, ['Total General IVA Cobrado / Facturado en el Mes', r2(T.ivaC + T.ivaN), '', ''], { fmt: true });
 
-  const anuladas = pagosFiltrados.filter(p => /anulad/i.test(String(p.estado || ''))).length;
+  const anuladas = facturasAnuladasCount;
   put(25, ['ESTADÍSTICAS DEL PERÍODO', '', '', ''], { bold: true, fill: 'FFD9E1F2' });
   put(26, ['FACTURAS EMITIDAS', facturas + anuladas, '', '']);
   put(27, ['FACTURAS ANULADAS', anuladas, '', '']);

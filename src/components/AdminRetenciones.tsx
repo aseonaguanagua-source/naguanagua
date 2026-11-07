@@ -49,6 +49,103 @@ export default function AdminRetenciones() {
   const [processing, setProcessing] = useState(false);
   const [uploadingPlanilla, setUploadingPlanilla] = useState(false);
   const [msg, setMsg] = useState('');
+  const [currentUser, setCurrentUser] = useState('');
+  const [editMode, setEditMode] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editForm, setEditForm] = useState({
+    numero_planilla: '',
+    periodo: '',
+    fecha_planilla: '',
+    monto_base: '',
+    monto_iva: '',
+    monto_retenido: '',
+  });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      let u = sessionStorage.getItem('admin_user') || localStorage.getItem('adminUser') || localStorage.getItem('admin_user') || '';
+      try {
+        const ud = JSON.parse(localStorage.getItem('admin_user_data') || '{}');
+        if (ud?.usuario) u = ud.usuario;
+        else if (ud?.nombre) u = ud.nombre;
+      } catch {}
+      setCurrentUser(String(u || '').trim());
+    }
+  }, []);
+
+  const puedeEditarPlanilla = useMemo(() => {
+    const u = (currentUser || '').toLowerCase().trim();
+    if (!u) return false;
+    return (
+      u.includes('raquel') ||
+      u.includes('isamar') ||
+      u === 'isa' ||
+      u.includes('isa ') ||
+      u.includes('dzara') ||
+      u.includes('david')
+    );
+  }, [currentUser]);
+
+  const abrirEdicion = (r: Retencion) => {
+    setEditForm({
+      numero_planilla: r.numero_planilla || '',
+      periodo: r.periodo || '',
+      fecha_planilla: r.fecha_planilla || '',
+      monto_base: String(r.monto_base ?? 0),
+      monto_iva: String(r.monto_iva ?? 0),
+      monto_retenido: String(r.monto_retenido ?? 0),
+    });
+    setEditMode(true);
+  };
+
+  const guardarEdicionPlanilla = async () => {
+    if (!selected) return;
+    if (!editForm.numero_planilla.trim()) {
+      setMsg('El número de planilla no puede estar vacío.');
+      return;
+    }
+    setSavingEdit(true);
+    setMsg('Guardando cambios de la planilla de retención...');
+    try {
+      const res = await fetch('/api/admin/retenciones/editar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          retencionId: selected.id,
+          numero_planilla: editForm.numero_planilla.trim(),
+          periodo: editForm.periodo.trim(),
+          fecha_planilla: editForm.fecha_planilla.trim(),
+          monto_base: parseFloat(String(editForm.monto_base).replace(',', '.')) || 0,
+          monto_iva: parseFloat(String(editForm.monto_iva).replace(',', '.')) || 0,
+          monto_retenido: parseFloat(String(editForm.monto_retenido).replace(',', '.')) || 0,
+          factura_control: selected.factura_control,
+          codigo_retencion: selected.codigo_retencion,
+          identidad: selected.identidad,
+          usuario: currentUser,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'No se pudo actualizar la planilla');
+      }
+      setSelected(prev => prev ? {
+        ...prev,
+        numero_planilla: data.numero_planilla,
+        periodo: data.periodo || prev.periodo,
+        fecha_planilla: data.fecha_planilla || prev.fecha_planilla,
+        monto_base: data.monto_base || prev.monto_base,
+        monto_iva: data.monto_iva || prev.monto_iva,
+        monto_retenido: data.monto_retenido || prev.monto_retenido,
+      } : null);
+      setEditMode(false);
+      setMsg('✅ Datos de la planilla de retención actualizados (sincronizados con el Libro de Ventas).');
+      await load();
+    } catch (e: any) {
+      setMsg('Error al guardar: ' + (e?.message || 'Error'));
+    } finally {
+      setSavingEdit(false);
+    }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -280,26 +377,126 @@ export default function AdminRetenciones() {
               <h2 className="text-xl font-black text-slate-800">{selected.contribuyente || selected.identidad}</h2>
               <p className="text-slate-500 text-sm">{selected.identidad} {selected.codigo_inmueble ? `· ${selected.codigo_inmueble}` : ''}</p>
             </div>
+            {puedeEditarPlanilla && !editMode && (
+              <button
+                type="button"
+                onClick={() => abrirEdicion(selected)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition-colors cursor-pointer"
+              >
+                ✏️ Editar Datos de Planilla
+              </button>
+            )}
           </div>
 
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div className="bg-slate-50 rounded-xl p-4">
-              <div className="flex items-center gap-2 text-slate-400 text-xs mb-1"><Hash className="w-3.5 h-3.5" /> Nro. Planilla</div>
-              <div className="font-bold text-slate-700 text-sm">{selected.numero_planilla}</div>
+          {puedeEditarPlanilla && editMode ? (
+            <div className="bg-indigo-50/60 border border-indigo-200 rounded-2xl p-4 mb-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-extrabold text-indigo-900 uppercase tracking-wide">
+                  Edición Autorizada de Planilla de Retención (Se refleja en Libro de Ventas)
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">Nro. Planilla / Comprobante</label>
+                  <input
+                    type="text"
+                    value={editForm.numero_planilla}
+                    onChange={e => setEditForm(f => ({ ...f, numero_planilla: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Ej. 20261000000405"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">Período</label>
+                  <input
+                    type="text"
+                    value={editForm.periodo}
+                    onChange={e => setEditForm(f => ({ ...f, periodo: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Ej. 10/2026"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">Fecha Planilla</label>
+                  <input
+                    type="date"
+                    value={editForm.fecha_planilla}
+                    onChange={e => setEditForm(f => ({ ...f, fecha_planilla: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">Base Imponible (Bs.)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={editForm.monto_base}
+                    onChange={e => setEditForm(f => ({ ...f, monto_base: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">IVA Total 16% (Bs.)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={editForm.monto_iva}
+                    onChange={e => setEditForm(f => ({ ...f, monto_iva: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">IVA Retenido 75% (Bs.)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={editForm.monto_retenido}
+                    onChange={e => setEditForm(f => ({ ...f, monto_retenido: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setEditMode(false)}
+                  disabled={savingEdit}
+                  className="px-4 py-2 rounded-lg text-xs font-bold bg-white border border-slate-300 text-slate-600 hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={guardarEdicionPlanilla}
+                  disabled={savingEdit}
+                  className="px-4 py-2 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs cursor-pointer disabled:bg-slate-300"
+                >
+                  {savingEdit ? 'Guardando...' : '💾 Guardar Cambios'}
+                </button>
+              </div>
             </div>
-            <div className="bg-slate-50 rounded-xl p-4">
-              <div className="flex items-center gap-2 text-slate-400 text-xs mb-1"><Calendar className="w-3.5 h-3.5" /> Período</div>
-              <div className="font-bold text-slate-700 text-sm">{selected.periodo}</div>
+          ) : (
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div className="bg-slate-50 rounded-xl p-4">
+                <div className="flex items-center gap-2 text-slate-400 text-xs mb-1"><Hash className="w-3.5 h-3.5" /> Nro. Planilla</div>
+                <div className="font-bold text-slate-700 text-sm">{selected.numero_planilla}</div>
+              </div>
+              <div className="bg-slate-50 rounded-xl p-4">
+                <div className="flex items-center gap-2 text-slate-400 text-xs mb-1"><Calendar className="w-3.5 h-3.5" /> Período</div>
+                <div className="font-bold text-slate-700 text-sm">{selected.periodo}</div>
+              </div>
+              <div className="bg-slate-50 rounded-xl p-4">
+                <div className="flex items-center gap-2 text-slate-400 text-xs mb-1"><Hash className="w-3.5 h-3.5" /> {selected.codigo_retencion?.startsWith('FAC-') ? 'Factura' : 'Cód. Retención'}</div>
+                <div className="font-bold text-slate-700 text-sm">{selected.codigo_retencion?.startsWith('FAC-') ? `N° ${selected.codigo_retencion.slice(4)}${selected.factura_control ? ` · Control ${selected.factura_control}` : ''}` : selected.codigo_retencion}</div>
+              </div>
+              <div className="bg-slate-50 rounded-xl p-4">
+                <div className="flex items-center gap-2 text-slate-400 text-xs mb-1"><Calendar className="w-3.5 h-3.5" /> Fecha Planilla</div>
+                <div className="font-bold text-slate-700 text-sm">{selected.fecha_planilla || '—'}</div>
+              </div>
             </div>
-            <div className="bg-slate-50 rounded-xl p-4">
-              <div className="flex items-center gap-2 text-slate-400 text-xs mb-1"><Hash className="w-3.5 h-3.5" /> {selected.codigo_retencion?.startsWith('FAC-') ? 'Factura' : 'Cód. Retención'}</div>
-              <div className="font-bold text-slate-700 text-sm">{selected.codigo_retencion?.startsWith('FAC-') ? `N° ${selected.codigo_retencion.slice(4)}${selected.factura_control ? ` · Control ${selected.factura_control}` : ''}` : selected.codigo_retencion}</div>
-            </div>
-            <div className="bg-slate-50 rounded-xl p-4">
-              <div className="flex items-center gap-2 text-slate-400 text-xs mb-1"><Calendar className="w-3.5 h-3.5" /> Fecha Planilla</div>
-              <div className="font-bold text-slate-700 text-sm">{selected.fecha_planilla || '—'}</div>
-            </div>
-          </div>
+          )}
 
           <div className="bg-slate-800 rounded-2xl p-5 text-white">
             <div className="flex justify-between items-center mb-3">
