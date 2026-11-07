@@ -531,18 +531,18 @@ export default function FacturacionElectronicaPage() {
     ? anuladasDia
     : delTipo.filter(p => {
         const esAnulada = p.facturaAnulada || p.notaCredito || p.estado === 'Anulado' || p.estado === 'Rechazado';
-        // Si hay una búsqueda activa por cédula/nombre/referencia, mostrar todos los documentos coincidentes
-        // (incluyendo tanto las facturas emitidas activas como las anuladas con Nota de Crédito)
+        // Si hay una búsqueda activa por cédula/nombre/referencia, mostrar documentos conciliados o ya emitidos/anulados
         if (searchTerm.trim()) {
-          if (filterTab === 'emitidas' || filterTab === 'pendientes') return p.procesado || esAnulada || !p.procesado;
-          return true;
+          if (filterTab === 'emitidas') return p.procesado && !esAnulada;
+          if (filterTab === 'pendientes') return !p.procesado && !esAnulada && p.estado === 'Aprobado';
+          return p.procesado || esAnulada || p.estado === 'Aprobado';
         }
-        if (filterTab === 'pendientes') return !p.procesado && !esAnulada && p.estado !== 'Rechazado';
+        if (filterTab === 'pendientes') return !p.procesado && !esAnulada && p.estado === 'Aprobado';
         if (filterTab === 'emitidas') return p.procesado && !esAnulada;
-        return true;
+        return p.procesado || esAnulada || p.estado === 'Aprobado';
       });
 
-  const totalPendientes = (docTab === 'factura' ? facturasDia : recibosDia).filter(p => !p.procesado && !p.facturaAnulada && p.estado !== 'Anulado' && p.estado !== 'Rechazado').length;
+  const totalPendientes = (docTab === 'factura' ? facturasDia : recibosDia).filter(p => !p.procesado && !p.facturaAnulada && p.estado === 'Aprobado').length;
   const totalEmitidas = (docTab === 'factura' ? facturasDia : recibosDia).filter(p => p.procesado && !p.facturaAnulada && p.estado !== 'Anulado' && p.estado !== 'Rechazado').length;
   const resumen = (lista: any[]) => ({
     total: lista.length,

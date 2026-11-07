@@ -245,7 +245,14 @@ export async function GET(request: Request) {
         const esExplicitoPorRef = Boolean(refAbonoBase && refsExplicitasSet.has(refAbonoBase));
         const esExplicitoPorId = dA?.pago_principal_id === pPrincipal.id || dA?.completado_con_pago_id === pPrincipal.id;
 
-        const esAbonoA = dA?.es_abono === true || dA?.abono === true || pAbono.tipo === 'Abono' || dA?.pago_parcial === true;
+        const esAbonoA =
+          dA?.es_abono === true ||
+          dA?.abono === true ||
+          dA?.abono_completado === true ||
+          dA?.es_pago_adicional === true ||
+          Boolean(dA?.recibo_caja?.[0]?.esAbono) ||
+          pAbono.tipo === 'Abono' ||
+          dA?.pago_parcial === true;
         if (!esAbonoA && !esExplicitoPorRef && !esExplicitoPorId) return;
 
         const montoSoloA = parseFloat(String(pAbono.monto || 0)) || 0;
@@ -316,11 +323,21 @@ export async function GET(request: Request) {
           prD?.factura_digital?.numero_documento ||
           prD?.factura_digital?.numero_control
         );
-        // El pago principal se considera activo si está Aprobado o si ya tiene factura emitida/anulada
-        const estaActivo = pr.estado === 'Aprobado' || prTeniaFactura;
+        // El pago principal se considera activo si está Aprobado, Por Verificar/Pendiente o si ya tiene factura emitida/anulada
+        const estaActivo = pr.estado === 'Aprobado' || pr.estado === 'Por Verificar' || pr.estado === 'Pendiente' || prTeniaFactura;
         pagosPrincipalesActivosMap.set(pr.id, estaActivo);
       });
     }
+
+    // Detectar si algún pago principal tiene transferencias secundarias aún sin conciliar ('Por Verificar' / 'Pendiente')
+    const principalesConSecundarioSinConciliar = new Set<string>();
+    (rawPagos || []).forEach(p => {
+      const d = parseDetalles(p.detalles);
+      const esVinculoAutoFalso = Boolean(d?.vinculado_a_referencia) && !p.grupo_pago;
+      if (!esVinculoAutoFalso && d?.pago_principal_id && (p.estado === 'Por Verificar' || p.estado === 'Pendiente')) {
+        principalesConSecundarioSinConciliar.add(String(d.pago_principal_id));
+      }
+    });
 
     const pagos = (rawPagos || []).filter(p => {
       if (p.tipo === 'Retencion de IVA') return false;
@@ -379,12 +396,23 @@ export async function GET(request: Request) {
       const yaEmitidaOAnulada = Boolean(
         d?.factura_digital?.emitida ||
         d?.factura_digital?.numero_documento ||
+        d?.factura_digital?.numero_control ||
         d?.factura_digital?.url ||
         esAnulada ||
         tienePrevias
       );
       if (yaEmitidaOAnulada) {
         return true;
+      }
+
+      // REGLA ESTRICTA: Si el pago NO está conciliado (estado !== 'Aprobado') y no tiene factura emitida/anulada,
+      // NO debe aparecer en Facturación Electrónica (ej. transferencias en 'Por Verificar' o 'Pendiente').
+      // Los pagos por Punto de Venta / Débito se registran directamente como 'Aprobado' y sí salen de inmediato.
+      if (p.estado !== 'Aprobado') {
+        return false;
+      }
+      if (principalesConSecundarioSinConciliar.has(String(p.id))) {
+        return false;
       }
 
       // Si fue absorbido por otro pago principal que completó la factura, no duplicar en facturación

@@ -27,6 +27,51 @@ export interface DatosRecibo {
 const esc = (s: any) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
 const fmtBs = (n: number) => (Number(n) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+function normalizarCorreoRecibo(rawInput: any, fallback: string, backup: string): string | null {
+  const str = String(rawInput || '').trim();
+  if (!str) return null;
+  if (/no\s*registrado|sin\s*correo|no\s*posee|ninguno|s\/c|n\/a/i.test(str)) return null;
+
+  // Separar por coma, punto y coma, barra o salto de línea (no por espacio interno porque a veces escriben "hot mail.com" o "user @gmail.com")
+  const parts = str.split(/[,;|/\n\r]+/).map(p => p.trim()).filter(Boolean);
+  for (let cand of parts) {
+    // Eliminar todos los espacios blancos (incluyendo \u00a0) y reemplazar ñ/acentos comunes en usuario
+    cand = cand
+      .replace(/[\s\u00a0]+/g, '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+
+    // Reparar falta de @ antes de dominios conocidos (ej. "haydeep155gmail.com" -> "haydeep155@gmail.com")
+    if (!cand.includes('@')) {
+      cand = cand.replace(/^([a-z0-9._+-]+?)(gmail\.com|hotmail\.com|outlook\.com|yahoo\.com|yahoo\.es|icloud\.com)$/i, '$1@$2');
+    }
+
+    // Reparar errores frecuentes de puntuación y dominio
+    cand = cand
+      .replace(/\.{2,}/g, '.')
+      .replace(/\.+@/g, '@')
+      .replace(/@\.+/g, '@')
+      .replace(/@hotmai\.com$/i, '@hotmail.com')
+      .replace(/@gmai\.com$/i, '@gmail.com')
+      .replace(/@gmail\.con$/i, '@gmail.com')
+      .replace(/@hotmail\.con$/i, '@hotmail.com')
+      .replace(/(\.(com|es|net|org|ve))\.\2$/i, '$1')
+      .replace(/\.+$/, '');
+
+    if (
+      cand.length > 5 &&
+      /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(cand) &&
+      !cand.endsWith('@test.com') &&
+      cand !== fallback &&
+      cand !== backup
+    ) {
+      return cand;
+    }
+  }
+  return null;
+}
+
 function fechaCaracas(iso: string): string {
   const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(iso) ? `${iso}T12:00:00-04:00` : iso);
   return new Intl.DateTimeFormat('es-VE', { timeZone: 'America/Caracas', day: '2-digit', month: '2-digit', year: 'numeric' }).format(d);
@@ -67,9 +112,14 @@ export async function cargarDatosRecibo(pagoId: string): Promise<DatosRecibo> {
 
   const fallback = TheFactoryHKA.getFallbackEmail().toLowerCase();
   const backup = TheFactoryHKA.getBackupEmail().toLowerCase();
-  const correoInm = codigos.map(c => inmMap.get(c)?.correo_electronico).find((e: any) => e && String(e).includes('@'));
-  const raw = String(cont?.email || det.correo || correoInm || '').trim().toLowerCase();
-  const correoCliente = raw.length > 4 && raw.includes('@') && raw !== fallback && raw !== backup ? raw : null;
+  const correoInm = codigos
+    .map(c => normalizarCorreoRecibo(inmMap.get(c)?.correo_electronico, fallback, backup))
+    .find(Boolean) || null;
+  const correoCliente =
+    normalizarCorreoRecibo(cont?.email, fallback, backup) ||
+    normalizarCorreoRecibo(det.correo, fallback, backup) ||
+    correoInm ||
+    null;
 
   const esCondo = pago.modulo === 'condominios' || det.modulo === 'condominios' || det.isCondominio || det.es_condominio;
   const esCondoGlobal = Boolean(esCondo && det.modo === 'CONDOMINIO');

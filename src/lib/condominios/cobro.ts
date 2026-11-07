@@ -594,7 +594,9 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
             codigo_inmueble: codInmuebleFila,
             correo: c.correo || undefined,
             telefono: c.telefono || undefined,
-            factura_digital: { emitida: false, pendiente: true, preparada_at: new Date().toISOString() },
+            ...(!esTransferencia ? {
+                factura_digital: { emitida: false, pendiente: true, preparada_at: new Date().toISOString() },
+            } : {}),
             formasPago,
             pagos_agregados: pago.pagosAgregados,
             ...(montoSFUsado > 0 ? {
@@ -612,7 +614,7 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
             recibo_caja: [reciboCajaItem],
             deuda_previa: antes,
             deuda_condo_aplicada: true,
-            ...(i === 0 && (pago.saldoFavorGenerado || 0) >= 1.00 ? { saldo_favor: r2(pago.saldoFavorGenerado || 0), saldo_favor_acreditado: true } : {}),
+            ...(i === 0 && (pago.saldoFavorGenerado || 0) >= 0.01 ? { saldo_favor: r2(pago.saldoFavorGenerado || 0), saldo_favor_acreditado: true } : {}),
         };
 
         const fila: any = {

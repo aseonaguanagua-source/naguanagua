@@ -229,7 +229,7 @@ export async function POST(req: Request) {
                   multa_bs: Math.max(parseFloat(String(prev.multa_bs || 0)) || 0, parseFloat(String(curInm?.multa_bs || 0)) || 0),
                   deuda_congelada_bs: Math.max(parseFloat(String(prev.deuda_congelada_bs || 0)) || 0, parseFloat(String(curInm?.deuda_congelada_bs || 0)) || 0),
                 };
-                if (usoSaldoFavorEnPago) {
+                if (usoSaldoFavorEnPago || prev.saldo_favor_bs !== undefined) {
                   updInm.saldo_favor_bs = parseFloat(String(prev.saldo_favor_bs || 0)) || 0;
                 }
                 if (prev.id) await sb.from('inmuebles').update(updInm).eq('id', prev.id);
@@ -413,15 +413,17 @@ export async function POST(req: Request) {
                 } catch {}
                 const rawM = String(dDet.monto_bs ?? dDet.monto ?? 0);
                 const mNC = (rawM.includes(',') ? parseFloat(rawM.replace(/\./g, '').replace(',', '.')) : parseFloat(rawM.replace(/[^\d.]/g, ''))) || 0;
+                const docCodInm = String(dDet.codigo_inmueble || codCondo || '').toUpperCase();
+                const inmRestauradoPorSnapshot = docCodInm ? codsInmRestaurados.has(docCodInm) : teniaSnapshotSaldo;
                 await sb.from('documentos').delete().eq('id', dNC.id);
-                if (mNC > 0 && ident && !teniaSnapshotSaldo) {
+                if (mNC > 0 && ident && !inmRestauradoPorSnapshot) {
                   try {
-                    await descontarSaldoFavor(ident, mNC, codCondo, sb);
+                    await descontarSaldoFavor(ident, mNC, docCodInm || codCondo, sb);
                     totalDescontadoDocs += mNC;
                   } catch (eDesc) {
                     console.warn('Error descontando saldo a favor en pagos/actualizar:', eDesc);
                   }
-                } else if (mNC > 0 && teniaSnapshotSaldo) {
+                } else if (mNC > 0 && inmRestauradoPorSnapshot) {
                   totalDescontadoDocs += mNC;
                 }
               }

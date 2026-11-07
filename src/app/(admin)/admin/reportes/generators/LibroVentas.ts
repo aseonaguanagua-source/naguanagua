@@ -216,8 +216,14 @@ export function montosPago(p: any, det: any, inmMap: Map<string, any>, retConoci
   const cods = codigosDePago(det);
   const inms = cods.map(c => inmMap.get(c)).filter(Boolean);
   const comercial = inms.length ? inms.some((i: any) => !isResidencialInm(i)) : esContribuyente(p.identidad);
-  if (!comercial) return { base: 0, iva: 0, exento: r2(monto), total: r2(monto), ret: 0 };
-  const bruto = monto + (retConocida || 0);
+  // Para facturas completas (no abonos ni sub-pagos), usar el monto del documento/factura sin incluir sobrepagos bancarios (saldo_favor)
+  const montoDocNeto = (!det?.es_abono && !det?.es_pago_adicional)
+    ? (Number(det?.monto_neto_factura || det?.total_seleccionado || det?.monto_factura || det?.montoTotal || monto) || monto)
+    : monto;
+  if (!comercial) return { base: 0, iva: 0, exento: r2(montoDocNeto), total: r2(montoDocNeto), ret: 0 };
+  const bruto = (det?.monto_factura && !det?.es_abono && !det?.es_pago_adicional && Number(det.monto_factura) >= montoDocNeto)
+    ? Number(det.monto_factura)
+    : montoDocNeto + (retConocida || 0);
   const base = r2(bruto / 1.16);
   return { base, iva: r2(bruto - base), exento: 0, total: r2(bruto), ret: r2(retConocida || 0) };
 }

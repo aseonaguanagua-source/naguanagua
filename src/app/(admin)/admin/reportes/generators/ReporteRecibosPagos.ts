@@ -150,13 +150,15 @@ export async function generarReporteRecibosPagos(
   };
 
   // Filtrar pagos que sean recibos residenciales / condominios residenciales
-  // (excluir pagos anulados, retenciones, facturas emitidas y contribuyentes comerciales)
-  const recibosList = pagos.filter(p => {
+  // (excluir pagos anulados, retenciones, facturas emitidas, contribuyentes comerciales y filas de transferencias secundarias)
+  const candidatosRecibos = pagos.filter(p => {
     const estado = String(p.estado || '').toLowerCase();
     if (estado.includes('anulad') || estado.includes('rechaz') || estado.includes('revers')) return false;
     if (/retenci|nota de cr[eé]dito|saldo a favor/i.test(String(p.tipo || ''))) return false;
     const det = parseDet(p);
     const fd = det.factura_digital || {};
+    // Excluir filas secundarias de pagos múltiples (el recibo sale una sola vez por su monto total en el pago principal)
+    if (det.es_pago_adicional || fd.es_pago_adicional) return false;
     // Si tiene factura digital formal o control fiscal, va al Libro de Ventas
     if (fd.emitida || fd.numero_documento || fd.numero_control || fd.anulada) {
       return false;
@@ -193,6 +195,33 @@ export async function generarReporteRecibosPagos(
     }
     return true;
   }).sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
+
+  // Consolidar recibos pagados con múltiples transferencias (abono_completado + pago completador del mismo recibo)
+  // para que cada recibo salga una sola vez por el monto total del recibo y no desglosado por transferencias.
+  const recibosConCompletador = new Set<string>();
+  candidatosRecibos.forEach(p => {
+    const det = parseDet(p);
+    const recs = Array.isArray(det.recibos) ? [...det.recibos].sort().join('|') : '';
+    if (recs && !det.es_abono && Number(det.abono_previo_descontado || 0) > 0) {
+      recibosConCompletador.add(`${cleanId(p.identidad)}::${recs}`);
+    }
+  });
+
+  const vistosAbonoCompletado = new Set<string>();
+  const recibosList = candidatosRecibos.filter(p => {
+    const det = parseDet(p);
+    const recs = Array.isArray(det.recibos) ? [...det.recibos].sort().join('|') : '';
+    if (!recs) return true;
+    const key = `${cleanId(p.identidad)}::${recs}`;
+    if (det.es_abono && det.abono_completado) {
+      // Si en la lista ya está el recibo completador final, omitir las transferencias parciales previas
+      if (recibosConCompletador.has(key)) return false;
+      // Si solo están las partes con abono_completado, dejar solo una fila con el total del recibo
+      if (vistosAbonoCompletado.has(key)) return false;
+      vistosAbonoCompletado.add(key);
+    }
+    return true;
+  });
 
   if (recibosList.length === 0) {
     alert('No se encontraron recibos de pago en el rango seleccionado.');
@@ -261,7 +290,22 @@ export async function generarReporteRecibosPagos(
 
   recibosList.forEach((p, idx) => {
     const det = parseDet(p);
-    const montoTotal = r2(Number(p.monto) || 0);
+    const sumRc = Array.isArray(det.recibo_caja) && det.recibo_caja.length > 0
+      ? r2(det.recibo_caja.reduce((s: number, rc: any) => s + (Number(rc.total || rc.subTotal || 0) || 0), 0))
+      : 0;
+    const sumLineas = Array.isArray(det.condominio?.lineas) && det.condominio.lineas.length > 0
+      ? r2(det.condominio.lineas.reduce((s: number, l: any) => s + (Number(l.totalBs || l.totalBrutoBs || 0) || 0), 0))
+      : 0;
+    const mFac = r2(Number(det.monto_factura || det.total_seleccionado || det.montoTotal || 0));
+    const esCondo = Boolean(det.modulo === 'condominios' || det.es_condominio || det.isCondominio || det.condominio);
+    const esAbonoIncompleto = Boolean(det.es_abono && !det.abono_completado && !esCondo);
+
+    // Usar siempre el monto total del recibo (sin desglosarlo por transferencias ni inflarlo con sobrepagos bancarios)
+    const montoTotal = esAbonoIncompleto
+      ? r2(Number(p.monto) || 0)
+      : esCondo
+        ? (sumRc > 0 ? sumRc : (mFac > 0 ? mFac : (sumLineas > 0 ? sumLineas : r2(Number(p.monto) || 0))))
+        : (mFac > 0 ? mFac : (sumRc > 0 ? sumRc : r2(Number(p.monto) || 0)));
 
     // Calcular desglose de multas y aseo
     let montoMultas = 0;

@@ -101,14 +101,19 @@ export function formatLocalNumberInput(val: string): string {
     decimalPart = parts.slice(1).join('').replace(/[^0-9]/g, '').substring(0, 2);
   } else if (s.includes('.')) {
     const dotCount = (s.match(/\./g) || []).length;
-    if (dotCount === 1) {
+    if (s.endsWith('.')) {
+      // El usuario acaba de presionar '.' en el teclado numérico para iniciar decimales (incluso si ya hay puntos de miles, ej: "16.468.")
+      integerPart = s.slice(0, -1).replace(/[^0-9]/g, '');
+      decimalPart = '';
+    } else if (dotCount === 1) {
       const parts = s.split('.');
-      if (s.endsWith('.')) {
-        integerPart = parts[0].replace(/[^0-9]/g, '');
-        decimalPart = '';
-      } else if (parts[1].length <= 2) {
-        integerPart = parts[0].replace(/[^0-9]/g, '');
-        decimalPart = parts[1].replace(/[^0-9]/g, '').substring(0, 2);
+      const beforeDigits = parts[0].replace(/[^0-9]/g, '');
+      const afterDigits = parts[1].replace(/[^0-9]/g, '');
+      // Si se pega un monto decimal sin formato (ej: "16468.53" o "0.50"), tratar '.' como separador decimal.
+      // Si tiene 1-3 dígitos antes del punto y no empieza en '0', es un separador de miles (ej: borrar en "1.500" -> "1.50").
+      if (afterDigits.length <= 2 && (beforeDigits.length > 3 || beforeDigits === '0')) {
+        integerPart = beforeDigits;
+        decimalPart = afterDigits.substring(0, 2);
       } else {
         integerPart = s.replace(/[^0-9]/g, '');
       }

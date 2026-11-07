@@ -15,6 +15,7 @@ import { FILTROS_MODULO, FiltroModulo, OR_CONDOMINIOS, infoCondominioPago, pasaF
 import { actualizarPago } from '@/lib/actualizarPago';
 import { acreditarSaldoFavor, descontarSaldoFavor } from '@/lib/saldoFavor';
 import { parseLocalFloat, formatLocalNumberInput, formatBs, getIdentidadVariantsExact } from '@/lib/formatters';
+import { resolverPeriodoFactura } from '@/lib/facturaPeriodoHelper';
 
 /** Fecha (YYYY-MM-DD) de la transacción tal como se registró en Caja / Caja de Condominios. */
 const fechaTransaccionDe = (det: any): string => {
@@ -576,10 +577,16 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
   const [contribInfo, setContribInfo] = useState<any>(null);
   const [loadingContrib, setLoadingContrib] = useState(true);
 
-  // Normalizar monto reportado (quitar formato venezolano)
-  const montoReportadoNum = typeof pago.monto === 'number'
+  // Normalizar monto reportado (priorizar el monto real de la transferencia en pagos_agregados cuando exista)
+  const paCoincidente = Array.isArray(det.pagos_agregados)
+    ? det.pagos_agregados.find((pa: any) => String(pa?.referencia || '').trim() === String(pago.referencia || '').trim() && Number(pa?.monto) > 0)
+    : null;
+  const montoReportadoBase = typeof pago.monto === 'number'
     ? pago.monto
     : parseLocalFloat(pago.monto);
+  const montoReportadoNum = (paCoincidente && (!Array.isArray(det.pagos_agregados) || det.pagos_agregados.length === 1) && Number(paCoincidente.monto) > montoReportadoBase)
+    ? Math.round(Number(paCoincidente.monto) * 100) / 100
+    : montoReportadoBase;
 
   const [estatus, setEstatus] = useState<string>(
     ['Aprobado','Rechazado','Con Diferencia'].includes(pago.estado || '')
@@ -587,8 +594,13 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
       : 'Aprobado'
   );
   // Monto conciliado: auto-fill segun estatus
+  const montoConciliadoInicialNum = (() => {
+    const mc = det.monto_conciliado ? parseLocalFloat(det.monto_conciliado) : 0;
+    if (mc > 0 && mc >= montoReportadoNum) return mc;
+    return montoReportadoNum;
+  })();
   const [montoConciliado, setMontoConciliado] = useState<string>(
-    String(det.monto_conciliado || montoReportadoNum.toFixed(2))
+    formatLocalNumberInput(montoConciliadoInicialNum.toFixed(2).replace('.', ','))
   );
   const [tipoPagoEdit, setTipoPagoEdit] = useState(pago.tipo || 'Transferencia');
   const [bancoEmisor, setBancoEmisor] = useState(pago.banco || '');
@@ -903,15 +915,29 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
     setEstatus(val);
     if (val === 'Aprobado') {
       // Auto-llenar con el monto reportado
-      setMontoConciliado(montoReportadoNum.toFixed(2));
+      setMontoConciliado(formatLocalNumberInput(montoReportadoNum.toFixed(2).replace('.', ',')));
     } else if (val === 'Rechazado') {
-      setMontoConciliado('0.00');
+      setMontoConciliado('0,00');
     }
     // 'Con Diferencia' → el usuario ingresa manualmente el monto de diferencia
   };
 
   const recibos: string[] = det.recibos || [];
-  const periodos = det.periodos || (recibos.length > 0 ? recibos.join(' | ') : '---');
+  const periodos = (() => {
+    const detConFallback = (!Array.isArray(det.deuda_previa) || det.deuda_previa.length === 0) && contribInfo?.inmueble
+      ? {
+          ...det,
+          deuda_previa: [{
+            inmueble: contribInfo.inmueble,
+            meses_deuda: Number(contribInfo.meses_deuda) || recibos.filter((r: string) => /RECIB-HIST-|CM-/i.test(String(r))).length || 1,
+            multa_bs: Number(contribInfo.multa_bs) || 0,
+          }]
+        }
+      : det;
+    const resuelto = resolverPeriodoFactura(pago, detConFallback);
+    if (resuelto && resuelto !== 'Servicio de Aseo Urbano Comercial') return resuelto;
+    return det.periodos || (recibos.length > 0 ? recibos.join(' | ') : '---');
+  })();
   // Vars usadas tanto en handleConciliar como en el render
   const montoConciliadoNum = parseLocalFloat(montoConciliado);
 
@@ -1039,7 +1065,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         telefono: telefonoResponsable,
         fecha_transaccion: fechaTransaccion,
         fecha_banco: fechaBanco,
-        monto_conciliado: montoConciliado,
+        monto_conciliado: montoConciliadoNum > 0 ? montoConciliadoNum.toFixed(2) : montoConciliado,
         observaciones,
         enviar_correo: enviarCorreo,
         cod_inmueble: det.cod_inmueble || pago.cod_inmueble || contribInfo?.codigo,
@@ -1593,12 +1619,12 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         const yaAcreditadoEnCaja = det.saldo_favor_acreditado
           ? (parseFloat(String(det.saldo_favor || det.saldo_a_favor_nuevo || 0)) || 0)
           : 0;
-        const excedenteBrutoConcil = (!esAbonoParcialConcil && !det.es_abono && deudaNetaBancaria > 0 && montoConciliadoNum > deudaNetaBancaria + 0.99)
+        const excedenteBrutoConcil = (!esAbonoParcialConcil && !det.es_abono && deudaNetaBancaria > 0 && montoConciliadoNum >= deudaNetaBancaria + 0.01)
           ? Math.round((montoConciliadoNum - deudaNetaBancaria) * 100) / 100
           : 0;
         const excedenteCaja = Math.max(0, Math.round((excedenteBrutoConcil - yaAcreditadoEnCaja) * 100) / 100);
 
-        if (excedenteCaja >= 1.00) {
+        if (excedenteCaja >= 0.01) {
           const esPagoModuloCondo = det.modulo === 'condominios' || (pago as any).modulo === 'condominios' || Boolean(det.condominio);
           const condoCodRef = String(det.condominio?.codigo || det.codigo_condominio || '').trim().toUpperCase();
           const lineasCondoArr = Array.isArray(det.condominio?.lineas) ? det.condominio.lineas : [];
@@ -1691,22 +1717,28 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
 
           const retDocConcil = parseFloat(String(curDet.monto_retencion_iva || curDet.retencion_iva || det.monto_retencion_iva || det.retencion_iva || montoRetencionDoc || 0)) || 0;
           const sfUsadoConcil = parseFloat(String(curDet.saldo_usado || curDet.saldo_favor_usado || curDet.descuento_saldo_favor || saldoFavorUsado || 0)) || 0;
-          const montoNetoSinExcedente = Math.max(0, Math.round((montoConciliadoNum - excedenteCaja) * 100) / 100);
+          const montoNetoSinExcedente = Math.max(0, Math.round((montoConciliadoNum - excedenteBrutoConcil) * 100) / 100);
           const montoBrutoConcil = Math.round((montoNetoSinExcedente + retDocConcil + sfUsadoConcil) * 100) / 100;
+          if (excedenteBrutoConcil >= 0.01) {
+            curDet.saldo_favor = excedenteBrutoConcil;
+            curDet.saldo_favor_acreditado = true;
+          }
           if (!esCondo && !esAbonoEnEspera) {
-            if (!curDet.monto_factura || parseFloat(String(curDet.monto_factura)) < montoBrutoConcil - 0.5) {
+            if (!curDet.monto_factura) {
               curDet.monto_factura = montoBrutoConcil;
             }
             if (!curDet.monto_neto_factura && retDocConcil > 0) {
               curDet.monto_neto_factura = montoNetoSinExcedente;
             }
           }
-          if (!esCondo && !esAbonoEnEspera && excedenteCaja <= 0.01) {
+          if (!esCondo && !esAbonoEnEspera && excedenteBrutoConcil < 0.01) {
             const hasPerReceiptMontos = curDet.montos && typeof curDet.montos === 'object' && Object.keys(curDet.montos).some((k: string) => k !== 'total');
             if (!hasPerReceiptMontos) {
               curDet.montos = { total: montoBrutoConcil };
             }
-            curDet.montoTotal = montoBrutoConcil;
+            if (!curDet.montoTotal) {
+              curDet.montoTotal = montoBrutoConcil;
+            }
           }
           if (esCondo && !esPagoUnidadFac) {
             curDet.contribuyente = curDet.condominio?.nombre || det.condominio?.nombre || curDet.contribuyente || det.contribuyente || pago.identidad;
@@ -2141,9 +2173,9 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
 
             {/* RESUMEN */}
             <div className={`border rounded-lg p-4 ${estatusColor[estatus] || 'bg-slate-50 border-slate-200'}`}>
-              <div className="flex justify-between text-sm mb-1">
-                <span className="text-slate-500">Periodo(s)</span>
-                <span className="font-mono text-slate-700 text-xs">{periodos}</span>
+              <div className="flex justify-between items-center text-sm mb-1.5 bg-white/80 border border-slate-200 rounded px-2.5 py-1.5">
+                <span className="text-slate-600 font-semibold">Período(s) a Cancelar</span>
+                <span className="font-bold text-indigo-800 text-xs">{periodos}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-blue-600 font-semibold">Total Documento</span>
@@ -2502,6 +2534,15 @@ export default function ConciliacionPage() {
               )}
             </span>
           )}
+          {(() => {
+            const pTexto = resolverPeriodoFactura(pago, det);
+            if (!pTexto || pTexto === 'Servicio de Aseo Urbano Comercial') return null;
+            return (
+              <span className="inline-flex items-center gap-1 mr-2 px-1.5 py-0.5 rounded bg-blue-100 text-blue-900 border border-blue-300 font-sans text-[10px] font-bold align-middle">
+                📅 Período: {pTexto}
+              </span>
+            );
+          })()}
           {docInfo}
         </td>
       </tr>,

@@ -366,6 +366,32 @@ export function resolverPeriodoFactura(pago: any, det?: any, matchedRet?: any): 
   if (matchedRet?.periodo) return String(matchedRet.periodo);
   if (d?.factura_digital?.periodo) return String(d.factura_digital.periodo);
   if (d?.periodos_pagados) return formatearPeriodoParaConcepto(String(d.periodos_pagados));
+  if (d?.periodos && typeof d.periodos === 'string' && !/RECIB-|dummy-|CM-|MULTA-/i.test(d.periodos)) {
+    return formatearPeriodoParaConcepto(d.periodos);
+  }
+  if (Array.isArray(d?.condominio?.lineas) && d.condominio.lineas.length > 0) {
+    const mesesNombres = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    const ymSet = new Set<string>();
+    d.condominio.lineas.forEach((l: any) => {
+      if (Array.isArray(l?.periodos)) {
+        l.periodos.forEach((p: any) => {
+          const s = String(p || '').trim();
+          if (/^\d{4}-\d{2}$/.test(s)) ymSet.add(s);
+        });
+      }
+    });
+    const sortedYm = Array.from(ymSet).sort();
+    if (sortedYm.length > 0) {
+      const fmtYm = (ym: string) => {
+        const [y, m] = ym.split('-');
+        const mIdx = (parseInt(m, 10) || 1) - 1;
+        return `${mesesNombres[mIdx] || m} ${y}`;
+      };
+      if (sortedYm.length === 1) return fmtYm(sortedYm[0]);
+      if (sortedYm.length === 2) return `${fmtYm(sortedYm[0])} y ${fmtYm(sortedYm[1])}`;
+      return `${fmtYm(sortedYm[0])} a ${fmtYm(sortedYm[sortedYm.length - 1])} (${sortedYm.length} meses)`;
+    }
+  }
   const concepto = resolverConceptoPeriodoPago({ ...pago, detalles: d });
   const limpio = concepto.replace(/^Servicio de Aseo Urbano(?: Comercial)?\s*-\s*/i, '').trim();
   return limpio || concepto;

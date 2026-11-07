@@ -116,7 +116,7 @@ function Caja() {
     return (t === 'notas' || t === 'NotasCredito') ? 'NotasCredito' : 'Pagos';
   });
   const [saldoFavorActivo, setSaldoFavorActivo] = useState(0);
-  const [useSaldoFavor, setUseSaldoFavor] = useState(true);
+  const [useSaldoFavor, setUseSaldoFavor] = useState(false);
   const [isNotaModalOpen, setIsNotaModalOpen] = useState(false);
   const [notaManualMonto, setNotaManualMonto] = useState('');
   const [notaManualRef, setNotaManualRef] = useState('');
@@ -680,7 +680,7 @@ function Caja() {
 
       const sumaRealPagos = Math.round(realPagosSubidos.reduce((a, b) => a + (Number(b.monto) || 0), 0) * 100) / 100;
       const totalAPagarCobro = Math.round((Number(cobro.totales.totalBs) || 0) * 100) / 100;
-      const excedenteGenerado = faltaPagar <= -1.00 ? Math.round(Math.abs(faltaPagar) * 100) / 100 : 0;
+      const excedenteGenerado = faltaPagar <= -0.01 ? Math.round(Math.abs(faltaPagar) * 100) / 100 : 0;
       const nuevoCobroId = crypto.randomUUID();
       pagoId.current = nuevoCobroId;
 

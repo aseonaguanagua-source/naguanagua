@@ -636,12 +636,22 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
         const paMatch = (Array.isArray(det.pagos_agregados) ? det.pagos_agregados : []).find(
           (pa: any) => String(pa?.referencia || '').trim() === String(p.referencia || '').trim()
         );
+        const parseNum = (v: any): number => {
+          if (typeof v === 'number') return isNaN(v) ? 0 : v;
+          if (!v) return 0;
+          const s = String(v).trim();
+          if (s.includes(',') && s.includes('.')) {
+            return Number(s.lastIndexOf(',') > s.lastIndexOf('.') ? s.replace(/\./g, '').replace(',', '.') : s.replace(/,/g, '')) || 0;
+          }
+          if (s.includes(',')) return Number(s.replace(',', '.')) || 0;
+          return Number(s) || 0;
+        };
         const mPagado = r2(
-          Number(
-            (esSubPago || det.es_pago_adicional || yaExistenComoFilasSeparadas)
-              ? (det.monto_conciliado || fpMatch?.monto || paMatch?.monto || p.monto)
-              : (det.monto_conciliado || fpMatch?.monto || (Array.isArray(det.formasPago) && det.formasPago.length === 1 ? det.formasPago[0]?.monto : 0) || p.monto)
-          ) || 0
+          esSubPago
+            ? (parseNum(paMatch?.monto) || parseNum(fpMatch?.monto) || parseNum(p.monto))
+            : (det.es_pago_adicional || yaExistenComoFilasSeparadas)
+              ? (parseNum(det.monto_conciliado) || parseNum(paMatch?.monto) || parseNum(fpMatch?.monto) || parseNum(p.monto))
+              : (parseNum(det.monto_conciliado) || parseNum(paMatch?.monto) || parseNum(fpMatch?.monto) || (Array.isArray(det.formasPago) && det.formasPago.length === 1 ? parseNum(det.formasPago[0]?.monto) : 0) || parseNum(p.monto))
         );
 
         const ret = retPorPago.get(String(p.id)) ?? Number(det.monto_retencion_iva || 0);
@@ -778,8 +788,17 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
     totalesMes.push([`${MESES[parseInt(m) - 1]} ${y}`, subMes, subBanesco, subBancamiga]);
   });
 
-  // Conciliación del punto: total del sistema por caja y día (cierre de lote lo completa el analista)
-  wsPto.columns = [{ width: 14 }, { width: 14 }, { width: 24 }, { width: 18 }, { width: 14 }, { width: 14 }] as any;
+  // Conciliación del punto: total del sistema por caja y día (cierre de lote, nro de lote y comisión los completa el analista)
+  wsPto.columns = [
+    { width: 18 },
+    { width: 14 },
+    { width: 26 },
+    { width: 18 },
+    { width: 16 },
+    { width: 20 },
+    { width: 16 },
+    { width: 14 },
+  ] as any;
   const pto = new Map<string, Map<string, { monto: number; usuarios: number }>>();
   deb.forEach(p => {
     const { caja } = cajaDe(parseDet(p));
@@ -791,7 +810,16 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
   });
   let fp = 1; let totalPunto = 0;
   [...pto.keys()].sort().forEach(caja => {
-    cab(wsPto, fp++, [caja, 'FECHA', 'TOTAL EMITIDO POR EL SISTEMA', 'CIERRE DE PUNTO', 'DIFERENCIA', 'PERSONAS']);
+    cab(wsPto, fp++, [
+      caja,
+      'FECHA',
+      'TOTAL EMITIDO POR EL SISTEMA',
+      'CIERRE DE PUNTO',
+      'NRO DE LOTE',
+      'COMISION DEL PUNTO',
+      'DIFERENCIA',
+      'PERSONAS',
+    ]);
     const m = pto.get(caja)!;
     let totalCaja = 0;
     let totalPersonasCaja = 0;
@@ -799,8 +827,13 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
     [...m.keys()].sort().forEach(dia => {
       const x = m.get(dia)!;
       const row = wsPto.getRow(fp);
-      ['', dmy(dia), r2(x.monto), null, null, x.usuarios].forEach((v, i) => { const c = row.getCell(i + 1); c.value = v as any; c.border = BORDE; if (i === 2 || i === 3 || i === 4) c.numFmt = '#,##0.00'; });
-      row.getCell(5).value = { formula: `IF(D${fp}="","",D${fp}-C${fp})` } as any;
+      ['', dmy(dia), r2(x.monto), null, null, null, null, x.usuarios].forEach((v, i) => {
+        const c = row.getCell(i + 1);
+        c.value = v as any;
+        c.border = BORDE;
+        if (i === 2 || i === 3 || i === 5 || i === 6) c.numFmt = '#,##0.00';
+      });
+      row.getCell(7).value = { formula: `IF(D${fp}="","",D${fp}-C${fp})` } as any;
       totalCaja += x.monto;
       totalPersonasCaja += x.usuarios;
       fp++;
@@ -813,14 +846,11 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
     rTotCaja.getCell(3).value = r2(totalCaja);
     rTotCaja.getCell(3).numFmt = '#,##0.00';
     rTotCaja.getCell(3).font = { bold: true, size: 9 };
-    rTotCaja.getCell(6).value = totalPersonasCaja;
-    rTotCaja.getCell(6).font = { bold: true, size: 9 };
-    rTotCaja.getCell(1).border = BORDE;
-    rTotCaja.getCell(2).border = BORDE;
-    rTotCaja.getCell(3).border = BORDE;
-    rTotCaja.getCell(4).border = BORDE;
-    rTotCaja.getCell(5).border = BORDE;
-    rTotCaja.getCell(6).border = BORDE;
+    rTotCaja.getCell(8).value = totalPersonasCaja;
+    rTotCaja.getCell(8).font = { bold: true, size: 9 };
+    for (let colIdx = 1; colIdx <= 8; colIdx++) {
+      rTotCaja.getCell(colIdx).border = BORDE;
+    }
     rTotCaja.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
     rTotCaja.getCell(3).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
 
@@ -835,12 +865,9 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
   rTotFinal.getCell(3).value = r2(totalPunto);
   rTotFinal.getCell(3).numFmt = '#,##0.00';
   rTotFinal.getCell(3).font = { bold: true, size: 10, color: { argb: 'FF1F4E78' } };
-  rTotFinal.getCell(1).border = BORDE;
-  rTotFinal.getCell(2).border = BORDE;
-  rTotFinal.getCell(3).border = BORDE;
-  rTotFinal.getCell(4).border = BORDE;
-  rTotFinal.getCell(5).border = BORDE;
-  rTotFinal.getCell(6).border = BORDE;
+  for (let colIdx = 1; colIdx <= 8; colIdx++) {
+    rTotFinal.getCell(colIdx).border = BORDE;
+  }
   rTotFinal.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFCBD5E1' } };
   rTotFinal.getCell(3).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFCBD5E1' } };
   fp++;

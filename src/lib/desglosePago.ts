@@ -59,7 +59,9 @@ export function desglosarPago(pago: any, inmMap: Map<string, any>): DesglosePago
     ? r2(Number(det.monto_neto_factura))
     : (det.total_seleccionado && Number(det.total_seleccionado) > 0)
       ? r2(Number(det.total_seleccionado))
-      : monto;
+      : (!det.es_abono && !det.es_pago_adicional && (det.monto_factura || det.montoTotal) && Number(det.monto_factura || det.montoTotal) > 0)
+        ? r2(Number(det.monto_factura || det.montoTotal))
+        : monto;
   const hoy = fechaPagoVE(pago, det);
   const esAbono = !!det.es_abono;
 

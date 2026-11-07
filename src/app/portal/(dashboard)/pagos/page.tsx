@@ -1078,9 +1078,25 @@ export default function DondePagarPage() {
 
     const identidad = localStorage.getItem('portal_doc') || '';
     const montosPorRecibo: Record<string, number> = {};
+    const mesesSeleccionadosLabels: string[] = [];
+    const mesesNombresPortal = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
     rawRecibos.filter(r => selectedReceiptRefs.includes(r.referencia)).forEach(r => {
       montosPorRecibo[r.referencia] = getReciboMonto(r);
+      if (r.emision) {
+        const dEmi = new Date(r.emision);
+        if (!isNaN(dEmi.getTime())) {
+          const lbl = `${mesesNombresPortal[dEmi.getMonth()]} ${dEmi.getFullYear()}`;
+          if (!mesesSeleccionadosLabels.includes(lbl)) mesesSeleccionadosLabels.push(lbl);
+        }
+      }
     });
+    const periodosPagadosTexto = mesesSeleccionadosLabels.length === 1
+      ? mesesSeleccionadosLabels[0]
+      : mesesSeleccionadosLabels.length === 2
+        ? `${mesesSeleccionadosLabels[0]} y ${mesesSeleccionadosLabels[1]}`
+        : mesesSeleccionadosLabels.length > 2
+          ? `${mesesSeleccionadosLabels[0]} a ${mesesSeleccionadosLabels[mesesSeleccionadosLabels.length - 1]} (${mesesSeleccionadosLabels.length} meses)`
+          : undefined;
     const codigosSeleccionados = Array.from(new Set(
       selectedReceiptRefs
         .map(ref => {
@@ -1115,6 +1131,7 @@ export default function DondePagarPage() {
           tasa_bcv: effectiveTcmmv,
           montos: montosPorRecibo,
           deuda_previa: deudaPreviaSnapshot,
+          periodos_pagados: periodosPagadosTexto,
           cod_inmueble: codigosSeleccionados.join(', '),
           referencia: formData.referencia,
           banco: formData.bancoOrigen,

@@ -1822,7 +1822,16 @@ export default function CajaPage() {
         if (!detObj || detObj.es_abono !== true || detObj.abono_completado === true) return false;
         if (detObj.anulado || detObj.factura_digital?.anulada || detObj.factura_anulada) return false;
         if (detObj.factura_digital?.emitida === true) return false;
-        if (p.created_at && String(p.created_at) < '2026-11-01') return false;
+        if (detObj.abono_cerrado_ciclo_octubre === true) return false;
+        const fRefAbono = String(
+          detObj.fecha_conciliado ||
+          detObj.recibo_caja_at ||
+          detObj.recibo_digital?.fecha ||
+          detObj.fecha_ingreso_caja ||
+          p.created_at ||
+          ''
+        );
+        if (fRefAbono && fRefAbono < '2026-11-01') return false;
 
         const mPagado = parseFloat(String(p.monto || detObj.monto_abonado || 0)) || 0;
         const mRet = parseFloat(String(detObj.monto_retencion_iva || detObj.retencion_iva || 0)) || 0;
@@ -1831,17 +1840,20 @@ export default function CajaPage() {
         if (mObjetivo > 0 && (mPagado + mRet + mSaldo) >= mObjetivo - 0.50) return false;
 
         // Si existe un pago completo posterior (es_abono !== true) del mismo contribuyente/inmueble, el abono ya fue liquidado
-        const pTime = p.created_at ? new Date(p.created_at).getTime() : 0;
+        const pTime = new Date(detObj.fecha_conciliado || detObj.recibo_caja_at || p.created_at || 0).getTime();
+        const recsP = Array.isArray(detObj.recibos) ? detObj.recibos.map((r: any) => String(r).toUpperCase()) : [];
         const yaLiquidadoPosterior = (allAprobados || []).some((other: any) => {
           if (other.id === p.id) return false;
-          const oTime = other.created_at ? new Date(other.created_at).getTime() : 0;
-          if (oTime <= pTime) return false;
           const oDet = typeof other.detalles === 'string' ? (() => { try { return JSON.parse(other.detalles); } catch { return {}; } })() : (other.detalles || {});
+          const oTime = new Date(oDet?.fecha_conciliado || oDet?.recibo_caja_at || other.created_at || 0).getTime();
+          if (oTime <= pTime) return false;
           if (oDet?.es_abono === true || oDet?.anulado || oDet?.factura_digital?.anulada) return false;
           if (String(other.tipo || '').toLowerCase().includes('retencion')) return false;
           const pCod = String(detObj.codigo_inmueble || detObj.cod_inmueble || '').toUpperCase();
           const oCod = String(oDet.codigo_inmueble || oDet.cod_inmueble || '').toUpperCase();
           if (pCod && oCod && pCod !== oCod) return false;
+          const recsO = Array.isArray(oDet?.recibos) ? oDet.recibos.map((r: any) => String(r).toUpperCase()) : [];
+          if (recsP.length > 0 && recsO.length > 0 && !recsP.some((r: string) => recsO.includes(r))) return false;
           return true;
         });
         if (yaLiquidadoPosterior) return false;
@@ -1861,14 +1873,24 @@ export default function CajaPage() {
       if (arrAbonosAprob.length > 0) {
         const recibosDeAbono = new Set<string>();
         let omitirSepAbono = false;
+        let tasaAbono = '';
+        let notaTasaAbono = '';
         arrAbonosAprob.forEach((p: any) => {
           const detObj = typeof p.detalles === 'string' ? (() => { try { return JSON.parse(p.detalles); } catch { return {}; } })() : (p.detalles || {});
           if (detObj.omitir_multa_septiembre) omitirSepAbono = true;
+          if (detObj.tasa_bcv_aplicada && !tasaAbono) {
+            tasaAbono = String(detObj.tasa_bcv_aplicada);
+            notaTasaAbono = String(detObj.nota_cambio_tasa || 'Tasa BCV aplicada en abono previo');
+          }
           if (Array.isArray(detObj.recibos)) {
             detObj.recibos.forEach((r: string) => { if (r) recibosDeAbono.add(r); });
           }
         });
         if (omitirSepAbono) setOmitirMultaSeptiembre(true);
+        if (tasaAbono) {
+          setCustomBcvRate(tasaAbono);
+          setJustificacionBcv(notaTasaAbono);
+        }
         if (recibosDeAbono.size > 0) {
           setSelectedRecibos(prev => prev.length > 0 ? prev : Array.from(recibosDeAbono));
         }
@@ -2469,7 +2491,7 @@ export default function CajaPage() {
       if (diffTransferido < -0.10) {
         esAbono = true;
         montoReal = transferido;
-      } else if (diffTransferido >= 1.00) {
+      } else if (diffTransferido >= 0.01) {
         saldoAFavorNuevo = diffTransferido;
         esAbono = false;
         montoReal = transferido;
@@ -2490,7 +2512,7 @@ export default function CajaPage() {
         const diffDeb = Math.round((montoReal - finalTotal) * 100) / 100;
         if (diffDeb < -0.10) {
           esAbono = true;
-        } else if (diffDeb >= 1.00) {
+        } else if (diffDeb >= 0.01) {
           saldoAFavorNuevo = diffDeb;
           esAbono = false;
         } else {
@@ -7110,7 +7132,7 @@ export default function CajaPage() {
                       const tVal = parseLocalFloat(montoTransferido);
                       if (tVal <= 0) return null;
                       const diff = Math.round((tVal - totalNetoAPagar) * 100) / 100;
-                      if (diff > 0.02) {
+                      if (diff >= 0.01) {
                         return (
                           <p className="text-[10px] text-emerald-600 mt-1 font-bold">
                             * Se generará un saldo a favor de Bs. {formatBs(diff)}

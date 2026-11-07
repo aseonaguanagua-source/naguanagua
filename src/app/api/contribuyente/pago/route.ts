@@ -211,6 +211,7 @@ export async function POST(request: Request) {
           comprobante_url: comprobanteUrl || undefined,
           ...(codInmuebleStr ? { cod_inmueble: codInmuebleStr, codigo_inmueble: codInmuebleStr.split(',')[0].trim() } : {}),
           ...(deudaPrevia ? { deuda_previa: deudaPrevia } : {}),
+          ...(body.periodos_pagados ? { periodos_pagados: String(body.periodos_pagados).trim(), periodos: String(body.periodos_pagados).trim() } : {}),
           ...(tasaBcvReportada > 0 ? { tasa_bcv: tasaBcvReportada, tasa_bcv_aplicada: tasaBcvReportada } : {}),
           ...(montosReportados ? { montos: montosReportados } : {}),
           total_seleccionado: montoBrutoTotal,
