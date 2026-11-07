@@ -47,7 +47,12 @@ export async function POST(req: Request) {
       const condoCod = String(cobro.condo?.codigo || '').trim().toUpperCase();
       const condoRifClean = String(cobro.condo?.identidad || '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
       const codigosUnidadesCobro = Array.from(
-        new Set((cobro.lineas || []).map((l: any) => String(l.inmueble || '').trim().toUpperCase()).filter(Boolean))
+        new Set(
+          (cobro.lineas || [])
+            .flatMap((l: any) => [l.inmueble, l.padreInmueble])
+            .map((x: any) => String(x || '').trim().toUpperCase())
+            .filter(Boolean)
+        )
       );
       const idVars = currId ? getIdentidadVariantsExact(currId) : [];
 

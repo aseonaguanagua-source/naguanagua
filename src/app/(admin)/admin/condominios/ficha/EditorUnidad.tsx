@@ -265,27 +265,37 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
   const resEnCondoComercial = clase === 'RES' && condo.tipo === 'COMERCIAL';
   const comEnCondoResidencial = clase === 'COM' && condo.tipo === 'RESIDENCIAL';
 
+  const conflictoPeriodoMeses = useMemo(() => {
+    const numMesesNuevos = Math.max(0, parseInt(f.meses) || 0);
+    if (numMesesNuevos <= 0) return null;
+    const desdeCalc = pendienteDesdeParaMeses(numMesesNuevos);
+    const periodosNuevos = periodosPendientes(desdeCalc);
+    const perConflicto = periodosNuevos.find(p => {
+      const info = pagosPorPeriodo[p];
+      return Boolean(info && (info.tipo === 'MES' || info.tipo === 'MES_CON_MULTA'));
+    });
+    if (!perConflicto) return null;
+    const info = pagosPorPeriodo[perConflicto];
+    return {
+      periodo: perConflicto,
+      numMeses: numMesesNuevos,
+      info,
+    };
+  }, [f.meses, pagosPorPeriodo]);
+
   const guardar = async () => {
     setErr('');
     if (motivo.trim().length < 5) { setErr('Escriba el motivo del cambio (queda en la Auditoría).'); return; }
     if (clase === 'COM' && !actCom.trim() && f.estado !== 'Desocupada' && !f.es_grupo) { setErr('Indique la actividad comercial.'); return; }
 
-    // Bloquear si los meses pendientes de aseo solicitados abarcan algún período cuyo mes ya fue cancelado en el sistema
-    const numMesesNuevos = Math.max(0, parseInt(f.meses) || 0);
-    if (numMesesNuevos > 0) {
-      const desdeCalc = pendienteDesdeParaMeses(numMesesNuevos);
-      const periodosNuevos = periodosPendientes(desdeCalc);
-      const perConflicto = periodosNuevos.find(p => {
-        const info = pagosPorPeriodo[p];
-        return Boolean(info && (info.tipo === 'MES' || info.tipo === 'MES_CON_MULTA'));
-      });
-      if (perConflicto) {
-        const info = pagosPorPeriodo[perConflicto];
-        const msg = `No se puede asignar ${numMesesNuevos} mes(es) pendientes porque incluye el período ${fmtPeriodo(perConflicto)} (${perConflicto}), el cual ya fue cancelado (${info.etiqueta} · Referencia: ${info.referencia}).`;
-        setErr(msg);
-        alert(msg);
-        return;
-      }
+    // Bloquear si los meses pendientes de aseo solicitados abarcan algún período cuyo mes ya fue facturado/cancelado en el sistema
+    if (conflictoPeriodoMeses) {
+      const { periodo: perConflicto, numMeses: numMesesNuevos, info } = conflictoPeriodoMeses;
+      const facStr = info.facturaNumero ? ` · Factura N° ${info.facturaNumero}` : '';
+      const msg = `⚠️ BLOQUEADO: No se puede colocar ${numMesesNuevos} mes(es) pendientes porque incluye el período ${fmtPeriodo(perConflicto)} (${perConflicto}), el cual ya está facturado/pagado en el sistema (${info.etiqueta} · Referencia: ${info.referencia}${facStr}).`;
+      setErr(msg);
+      alert(msg);
+      return;
     }
     const datos: any = {
       inmueble: f.inmueble, numero: f.numero, propietario: f.propietario, identidad: f.identidad, estado: f.estado,
@@ -488,6 +498,20 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
                 <option value="Activa">Activa</option><option value="Desocupada">Desocupada</option><option value="Eliminada">Eliminada (no cobra)</option>
               </select></label>
           </div>
+          {conflictoPeriodoMeses && (
+            <div className="rounded-xl border border-red-300 bg-red-50 p-3 text-xs text-red-900 flex items-start gap-2.5 shadow-2xs">
+              <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+              <div>
+                <b className="font-extrabold block text-red-800">
+                  ⚠️ BLOQUEADO: Mes ya facturado / pagado en el sistema
+                </b>
+                <span>
+                  Al colocar <b>{conflictoPeriodoMeses.numMeses} mes(es)</b> se incluye el período <b>{fmtPeriodo(conflictoPeriodoMeses.periodo)} ({conflictoPeriodoMeses.periodo})</b>, el cual ya figura como <b>{conflictoPeriodoMeses.info.etiqueta}</b> con Referencia <b>{conflictoPeriodoMeses.info.referencia}</b>
+                  {conflictoPeriodoMeses.info.facturaNumero ? <> · <b>Factura N° {conflictoPeriodoMeses.info.facturaNumero}</b></> : null}. Reduzca los meses pendientes para continuar.
+                </span>
+              </div>
+            </div>
+          )}
           {!porActividad && (
             <div className="text-[11px] text-slate-500 -mt-2">Este condominio paga centralizado: los meses que cuentan son los del condominio (botón Opciones).</div>
           )}

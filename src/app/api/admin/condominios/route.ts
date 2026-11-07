@@ -37,17 +37,38 @@ export async function GET(req: Request) {
       const { data: cs } = await sb.from('condominios').select('codigo,nombre,identidad,modalidad,tipo,cant_declarada').neq('estado', 'Eliminado').or(ors.join(',')).limit(25);
       const uors = [`inmueble.ilike.%${t}%`, `numero.ilike.%${t}%`, `propietario.ilike.%${t}%`];
       if (digitos.length >= 5) uors.push(`identidad.ilike.%${digitos}%`);
-      const { data: us } = await sb.from('condominio_unidades').select('id,inmueble,numero,propietario,identidad,actividad,tarifa_mmv,estado,condominios!inner(codigo,nombre,estado)').neq('estado', 'Eliminada').neq('condominios.estado', 'Eliminado').or(uors.join(',')).limit(25);
-      const codsUs = (us || []).map((u: any) => u.inmueble).filter(Boolean);
+      const { data: us } = await sb.from('condominio_unidades').select('id,inmueble,numero,propietario,identidad,actividad,tarifa_mmv,estado,padre_unidad_id,es_grupo,condominios!inner(codigo,nombre,estado)').neq('estado', 'Eliminada').neq('condominios.estado', 'Eliminado').or(uors.join(',')).limit(50);
+      const padresPresentes = new Set((us || []).filter((u: any) => u.es_grupo || String(u.actividad || '').trim().toUpperCase() === 'N/A').map((u: any) => u.id));
+      const usFiltradas = (us || []).filter((u: any) => {
+        if (u.padre_unidad_id && padresPresentes.has(u.padre_unidad_id)) {
+          const codMatchDirecto = String(u.inmueble || '').toUpperCase().includes(t.toUpperCase());
+          if (!codMatchDirecto) return false;
+        }
+        return true;
+      }).slice(0, 25);
+      const codsUs = usFiltradas.map((u: any) => u.inmueble).filter(Boolean);
       const sfMap = new Map<string, number>();
       if (codsUs.length > 0) {
-        const { data: inmsUs } = await sb.from('inmuebles').select('inmueble, saldo_favor_bs').in('inmueble', codsUs);
+        const { data: inmsUs } = await sb.from('inmuebles').select('inmueble, padre_id, saldo_favor_bs').in('inmueble', codsUs);
+        const padresExtra = [...new Set((inmsUs || []).map((r: any) => r.padre_id).filter(Boolean))];
+        let padresInms: any[] = [];
+        if (padresExtra.length > 0) {
+          const { data: pRows } = await sb.from('inmuebles').select('inmueble, saldo_favor_bs').in('inmueble', padresExtra);
+          padresInms = pRows || [];
+        }
+        const pSfMap = new Map<string, number>();
+        padresInms.forEach((p: any) => {
+          const v = parseFloat(p.saldo_favor_bs || '0') || 0;
+          if (v >= 1.00 && p.inmueble) pSfMap.set(String(p.inmueble).toUpperCase(), Math.round(v * 100) / 100);
+        });
         (inmsUs || []).forEach((r: any) => {
-          const val = parseFloat(r.saldo_favor_bs || '0') || 0;
+          const valPropio = parseFloat(r.saldo_favor_bs || '0') || 0;
+          const valPadre = r.padre_id ? (pSfMap.get(String(r.padre_id).toUpperCase()) || 0) : 0;
+          const val = Math.max(valPropio, valPadre);
           if (val >= 1.00 && r.inmueble) sfMap.set(String(r.inmueble).toUpperCase(), Math.round(val * 100) / 100);
         });
       }
-      const usEnriquecidas = (us || []).map((u: any) => ({
+      const usEnriquecidas = usFiltradas.map((u: any) => ({
         ...u,
         saldo_favor_bs: u.inmueble ? (sfMap.get(String(u.inmueble).toUpperCase()) || 0) : 0,
       }));
@@ -103,9 +124,8 @@ export async function PATCH(req: Request) {
     }
     if (cambios && 'meses' in cambios) {
       const nuevo = pendienteDesdeParaMeses(Math.max(0, parseInt(cambios.meses) || 0));
-      const mesesAntes = mesesPendientes(antes.aseo_pendiente_desde);
       const mesesDespues = mesesPendientes(nuevo);
-      if (mesesDespues > mesesAntes && nuevo) {
+      if (mesesDespues > 0 && nuevo) {
         const periodosNuevos = periodosPendientes(nuevo);
         const hist = await obtenerHistorialPagosMultasYPeriodos({
           inmueble: antes.codigo,
@@ -119,9 +139,10 @@ export async function PATCH(req: Request) {
         });
         if (perConflicto) {
           const info = hist.porPeriodo[perConflicto];
+          const facStr = info.facturaNumero ? ` · Factura N° ${info.facturaNumero}` : '';
           return NextResponse.json(
             {
-              error: `No se puede agregar el período ${perConflicto} (${mesesDespues} meses) al condominio ${antes.codigo}: ya fue cancelado en el sistema (${info.etiqueta}) con la Referencia: ${info.referencia}.`,
+              error: `⚠️ BLOQUEADO: No se puede colocar el período ${perConflicto} (${mesesDespues} meses) al condominio ${antes.codigo}: ya está facturado/pagado en el sistema (${info.etiqueta}) con la Referencia: ${info.referencia}${facStr}.`,
             },
             { status: 409 }
           );

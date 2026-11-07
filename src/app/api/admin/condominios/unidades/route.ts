@@ -85,6 +85,35 @@ export async function POST(req: Request) {
       fila.inmueble = `${c.codigo}-${String(nextNum).padStart(3, '0')}`;
     }
 
+    // Bloquear si al crear/reactivar la unidad se le intenta colocar un mes que ya fue facturado/pagado
+    if (fila.aseo_pendiente_desde && (fila.inmueble || yaEliminadaId)) {
+      const mesesIni = mesesPendientes(fila.aseo_pendiente_desde);
+      if (mesesIni > 0) {
+        const periodosNuevos = periodosPendientes(fila.aseo_pendiente_desde);
+        const hist = await obtenerHistorialPagosMultasYPeriodos({
+          unidad_id: yaEliminadaId || undefined,
+          inmueble: fila.inmueble,
+          condominio_id: c.id,
+          codigo_condominio: c.codigo,
+          identidad: fila.identidad,
+        });
+        const perConflicto = periodosNuevos.find(p => {
+          const info = hist.porPeriodo?.[p];
+          return Boolean(info && (info.tipo === 'MES' || info.tipo === 'MES_CON_MULTA'));
+        });
+        if (perConflicto) {
+          const info = hist.porPeriodo[perConflicto];
+          const facStr = info.facturaNumero ? ` · Factura N° ${info.facturaNumero}` : '';
+          return NextResponse.json(
+            {
+              error: `⚠️ BLOQUEADO: No se puede colocar el período ${perConflicto} (${mesesIni} mes(es)) a la unidad ${fila.inmueble || fila.numero} porque ese mes ya está facturado/pagado en el sistema (${info.etiqueta} · Referencia: ${info.referencia}${facStr}).`,
+            },
+            { status: 409 }
+          );
+        }
+      }
+    }
+
     const { data: nueva, error } = yaEliminadaId
       ? await sb.from('condominio_unidades').update({ ...fila, updated_at: new Date().toISOString() }).eq('id', yaEliminadaId).select('*').single()
       : await sb.from('condominio_unidades').insert(fila).select('*').single();
@@ -157,31 +186,50 @@ export async function PATCH(req: Request) {
       if (ya) return NextResponse.json({ error: `El inmueble ${upd.inmueble} ya está registrado en otra unidad.` }, { status: 409 });
     }
 
-    // Bloquear si se intenta aumentar o fijar meses pendientes sobre un período cuyo mes ya fue cancelado en el sistema
+    // Bloquear siempre si se intenta colocar o mantener un período cuyo mes ya fue facturado/pagado en el sistema (en la unidad o en cualquiera de sus unidades hijas)
     if ('aseo_pendiente_desde' in upd && upd.aseo_pendiente_desde) {
-      const mesesAntes = mesesPendientes(antes.aseo_pendiente_desde);
       const mesesDespues = mesesPendientes(upd.aseo_pendiente_desde);
-      if (mesesDespues > mesesAntes) {
+      if (mesesDespues > 0) {
         const periodosNuevos = periodosPendientes(upd.aseo_pendiente_desde);
-        const hist = await obtenerHistorialPagosMultasYPeriodos({
-          unidad_id: id,
-          inmueble: antes.inmueble || upd.inmueble,
-          condominio_id: antes.condominio_id,
-          codigo_condominio: (antes as any).condominios?.codigo,
-          identidad: antes.identidad || upd.identidad,
-        });
-        const perConflicto = periodosNuevos.find(p => {
-          const info = hist.porPeriodo?.[p];
-          return Boolean(info && (info.tipo === 'MES' || info.tipo === 'MES_CON_MULTA'));
-        });
-        if (perConflicto) {
-          const info = hist.porPeriodo[perConflicto];
-          return NextResponse.json(
-            {
-              error: `No se puede agregar el período ${perConflicto} (${mesesDespues} meses): ya fue cancelado en el sistema (${info.etiqueta}) con la Referencia: ${info.referencia}.`,
-            },
-            { status: 409 }
-          );
+        const { data: hijasCheck } = await sb
+          .from('condominio_unidades')
+          .select('id, inmueble, numero, identidad')
+          .eq('padre_unidad_id', id)
+          .neq('estado', 'Eliminada');
+
+        const unidadesAVerificar = [
+          {
+            id,
+            inmueble: antes.inmueble || upd.inmueble,
+            numero: antes.numero || upd.numero,
+            identidad: antes.identidad || upd.identidad,
+          },
+          ...(hijasCheck || []),
+        ];
+
+        for (const uVer of unidadesAVerificar) {
+          const hist = await obtenerHistorialPagosMultasYPeriodos({
+            unidad_id: uVer.id,
+            inmueble: uVer.inmueble,
+            condominio_id: antes.condominio_id,
+            codigo_condominio: (antes as any).condominios?.codigo,
+            identidad: uVer.identidad,
+          });
+          const perConflicto = periodosNuevos.find(p => {
+            const info = hist.porPeriodo?.[p];
+            return Boolean(info && (info.tipo === 'MES' || info.tipo === 'MES_CON_MULTA'));
+          });
+          if (perConflicto) {
+            const info = hist.porPeriodo[perConflicto];
+            const facStr = info.facturaNumero ? ` · Factura N° ${info.facturaNumero}` : '';
+            const etiquetaUnidad = uVer.inmueble || (uVer.numero ? `Local ${uVer.numero}` : 'la unidad');
+            return NextResponse.json(
+              {
+                error: `⚠️ BLOQUEADO: No se puede colocar el período ${perConflicto} (${mesesDespues} mes(es)) en ${etiquetaUnidad} porque ese mes ya está facturado/pagado en el sistema (${info.etiqueta} · Referencia: ${info.referencia}${facStr}).`,
+              },
+              { status: 409 }
+            );
+          }
         }
       }
     }

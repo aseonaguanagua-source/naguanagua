@@ -10,6 +10,7 @@ export interface PagoPeriodoDetalle {
   montoBs: number;
   estado: string;
   pagoId?: string;
+  facturaNumero?: string;
 }
 
 export interface MultaPendienteDetalle {
@@ -331,6 +332,7 @@ export async function obtenerHistorialPagosMultasYPeriodos(params: {
     montoBs: number;
     estado: string;
     pagoId?: string;
+    facturaNumero?: string;
   }) => {
     const ym = normalizarPeriodoYm(item.periodo);
     if (!ym) return;
@@ -373,23 +375,43 @@ export async function obtenerHistorialPagosMultasYPeriodos(params: {
       montoBs: Math.max(Number(item.montoBs || 0), Number(existente?.montoBs || 0)),
       estado: item.estado || existente?.estado || 'Aprobado',
       pagoId: item.pagoId || existente?.pagoId,
+      facturaNumero: item.facturaNumero || existente?.facturaNumero,
     };
   };
 
+  // Si la unidad es un contenedor padre (es_grupo o tiene hijos con padre_unidad_id = unidadId),
+  // incluir también las unidades hijas para detectar períodos ya facturados/pagados en sus hijos.
+  const unidadIdsConsulta = new Set<string>();
+  const inmCodesConsulta = new Set<string>();
+  if (unidadId) unidadIdsConsulta.add(unidadId);
+  if (inmCode) inmCodesConsulta.add(inmCode);
+
+  if (unidadId) {
+    const { data: hijasRows } = await sb
+      .from('condominio_unidades')
+      .select('id, inmueble')
+      .eq('padre_unidad_id', unidadId)
+      .neq('estado', 'Eliminada');
+    for (const h of hijasRows || []) {
+      if (h?.id) unidadIdsConsulta.add(String(h.id));
+      if (h?.inmueble) inmCodesConsulta.add(String(h.inmueble).trim().toUpperCase());
+    }
+  }
+
   // 2. Consultar condominio_multas y condominio_movimientos
   const multasRows: any[] = [];
-  if (unidadId) {
+  if (unidadIdsConsulta.size > 0) {
     const { data } = await sb
       .from('condominio_multas')
       .select('id, condominio_id, unidad_id, identidad, periodo, concepto, monto_bs, estado, pago_id, created_at')
-      .eq('unidad_id', unidadId);
+      .in('unidad_id', Array.from(unidadIdsConsulta));
     if (data) multasRows.push(...data);
   }
-  if (inmCode) {
+  for (const cod of inmCodesConsulta) {
     const { data } = await sb
       .from('condominio_multas')
       .select('id, condominio_id, unidad_id, identidad, periodo, concepto, monto_bs, estado, pago_id, created_at')
-      .ilike('concepto', `%[${inmCode}]%`);
+      .ilike('concepto', `%[${cod}]%`);
     if (data) {
       for (const r of data) {
         if (!multasRows.some((m) => m.id === r.id)) multasRows.push(r);
@@ -398,20 +420,20 @@ export async function obtenerHistorialPagosMultasYPeriodos(params: {
   }
 
   const movimientosRows: any[] = [];
-  if (unidadId) {
+  if (unidadIdsConsulta.size > 0) {
     const { data } = await sb
       .from('condominio_movimientos')
-      .select('id, condominio_id, unidad_id, tipo, concepto, monto_bs, pago_id, created_at')
-      .eq('unidad_id', unidadId)
+      .select('id, condominio_id, unidad_id, tipo, periodo, concepto, monto_bs, pago_id, created_at')
+      .in('unidad_id', Array.from(unidadIdsConsulta))
       .eq('tipo', 'PAGO');
     if (data) movimientosRows.push(...data);
   }
-  if (inmCode) {
+  for (const cod of inmCodesConsulta) {
     const { data } = await sb
       .from('condominio_movimientos')
-      .select('id, condominio_id, unidad_id, tipo, concepto, monto_bs, pago_id, created_at')
+      .select('id, condominio_id, unidad_id, tipo, periodo, concepto, monto_bs, pago_id, created_at')
       .eq('tipo', 'PAGO')
-      .ilike('concepto', `%${inmCode}%`);
+      .ilike('concepto', `%${cod}%`);
     if (data) {
       for (const r of data) {
         if (!movimientosRows.some((m) => m.id === r.id)) movimientosRows.push(r);
@@ -421,7 +443,7 @@ export async function obtenerHistorialPagosMultasYPeriodos(params: {
   if (!unidadId && condominioId) {
     const { data } = await sb
       .from('condominio_movimientos')
-      .select('id, condominio_id, unidad_id, tipo, concepto, monto_bs, pago_id, created_at')
+      .select('id, condominio_id, unidad_id, tipo, periodo, concepto, monto_bs, pago_id, created_at')
       .eq('condominio_id', condominioId)
       .is('unidad_id', null)
       .eq('tipo', 'PAGO');
@@ -523,6 +545,17 @@ export async function obtenerHistorialPagosMultasYPeriodos(params: {
     addPagos(data);
   }
 
+  const extraerFacturaDePago = (p: any): string | undefined => {
+    if (!p) return undefined;
+    const det = p.detalles && typeof p.detalles === 'object' ? p.detalles : {};
+    const fd = det?.factura_digital;
+    if (fd && !fd.anulada && !fd.rechazada && !det?.nota_credito_digital?.emitida) {
+      const doc = String(fd.numero_documento || fd.numeroDocumento || fd.numero_control || '').trim();
+      if (doc) return doc;
+    }
+    return undefined;
+  };
+
   const esPagoValido = (p: any): boolean => {
     if (!p) return false;
     const est = String(p.estado || '').trim().toUpperCase();
@@ -531,9 +564,10 @@ export async function obtenerHistorialPagosMultasYPeriodos(params: {
     }
     const tipo = String(p.tipo || '').trim().toUpperCase();
     if (tipo === 'RETENCION DE IVA') return false;
-    if (String(p.referencia || '').toUpperCase().startsWith('EXCEDENTE-')) return false;
+    if (String(p.referencia || '').toUpperCase().startsWith('EXCEDENTE-') || String(p.referencia || '').toUpperCase().startsWith('RECH-')) return false;
     const det = p.detalles && typeof p.detalles === 'object' ? p.detalles : {};
     if (det.nota_credito_fantasma_ignorada || det.nota_credito_duplicada_ignorada) return false;
+    if (det?.factura_digital?.anulada === true || det?.nota_credito_digital?.emitida === true) return false;
     return true;
   };
 
@@ -554,6 +588,7 @@ export async function obtenerHistorialPagosMultasYPeriodos(params: {
         montoBs: Number(m.monto_bs || pago?.monto || 0),
         estado: pago?.estado || 'Pagada',
         pagoId: m.pago_id ? String(m.pago_id) : undefined,
+        facturaNumero: extraerFacturaDePago(pago),
       });
     } else if (est === 'PENDIENTE') {
       multasPendientesPorPeriodo[ym] = {
@@ -571,7 +606,10 @@ export async function obtenerHistorialPagosMultasYPeriodos(params: {
     const pago = mov.pago_id ? pagosMap.get(String(mov.pago_id)) : null;
     if (pago && !esPagoValido(pago)) continue;
     const concepto = String(mov.concepto || '');
-    const periodosMov = extraerPeriodosDeTexto(concepto);
+    const periodosSet = new Set<string>(extraerPeriodosDeTexto(concepto));
+    const perCol = normalizarPeriodoYm(mov.periodo);
+    if (perCol) periodosSet.add(perCol);
+    const periodosMov = Array.from(periodosSet);
     if (periodosMov.length === 0) continue;
 
     const esSoloMulta = /PAGO DE MULTAS/i.test(concepto);
@@ -583,6 +621,7 @@ export async function obtenerHistorialPagosMultasYPeriodos(params: {
       : 'MES';
 
     const refs = pago ? extraerReferenciasDePago(pago, pagosMap) : ['S/R'];
+    const facNum = extraerFacturaDePago(pago);
     for (const ym of periodosMov) {
       registrarPeriodoPagado({
         periodo: ym,
@@ -592,6 +631,7 @@ export async function obtenerHistorialPagosMultasYPeriodos(params: {
         montoBs: Number(mov.monto_bs || pago?.monto || 0),
         estado: pago?.estado || 'Aprobado',
         pagoId: mov.pago_id ? String(mov.pago_id) : undefined,
+        facturaNumero: facNum,
       });
     }
   }
@@ -601,6 +641,7 @@ export async function obtenerHistorialPagosMultasYPeriodos(params: {
     if (!esPagoValido(pago)) continue;
     const det = pago.detalles && typeof pago.detalles === 'object' ? pago.detalles : {};
     const refs = extraerReferenciasDePago(pago, pagosMap);
+    const facNum = extraerFacturaDePago(pago);
 
     // 6a. Pagos de condominio con detalles.condominio.lineas
     const lineasCondo = Array.isArray(det?.condominio?.lineas) ? det.condominio.lineas : [];
@@ -615,7 +656,9 @@ export async function obtenerHistorialPagosMultasYPeriodos(params: {
           (lInm === codigoCondominio || lUid === '__CONDOMINIO__' || lUid === '__SIN_REGISTRAR__')
         );
         const coincideUnidad =
-          (inmCode && lInm === inmCode) || (unidadId && lUid && lUid === unidadId) || esPagoMatrizCondo;
+          (lInm && inmCodesConsulta.has(lInm)) ||
+          (lUid && unidadIdsConsulta.has(lUid)) ||
+          esPagoMatrizCondo;
         if (!coincideUnidad) continue;
 
         const aseoBs = Number(l?.aseoBs || 0);
@@ -650,6 +693,7 @@ export async function obtenerHistorialPagosMultasYPeriodos(params: {
             montoBs: Number(l?.totalBs || pago.monto || 0),
             estado: pago.estado,
             pagoId: String(pago.id),
+            facturaNumero: facNum,
           });
         }
       }
@@ -759,6 +803,7 @@ export async function obtenerHistorialPagosMultasYPeriodos(params: {
         montoBs: Number(pago.monto || 0),
         estado: pago.estado,
         pagoId: String(pago.id),
+        facturaNumero: facNum,
       });
     }
   }

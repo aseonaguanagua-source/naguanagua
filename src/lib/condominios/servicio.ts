@@ -503,6 +503,46 @@ export async function cargarCondominio(codigo: string) {
     };
   });
 
+  // Consolidar saldo a favor y sincronizar fecha pendiente en unidades padre contenedor (N/A / es_grupo)
+  const unidadMapById = new Map<string, any>(unidades.map((u: any) => [u.id, u]));
+  const hijosPorPadre = new Map<string, any[]>();
+  unidades.forEach((u: any) => {
+    if (u.padre_unidad_id && unidadMapById.has(u.padre_unidad_id)) {
+      if (!hijosPorPadre.has(u.padre_unidad_id)) hijosPorPadre.set(u.padre_unidad_id, []);
+      hijosPorPadre.get(u.padre_unidad_id)!.push(u);
+    }
+  });
+  hijosPorPadre.forEach((hijos, padreId) => {
+    const padre = unidadMapById.get(padreId);
+    if (!padre) return;
+    const esContenedorNA = Boolean(padre.es_grupo || String(padre.actividad || '').trim().toUpperCase() === 'N/A');
+    if (esContenedorNA && hijos.length > 0) {
+      // 1. La Nota de Crédito siempre le queda al principal (padre N/A)
+      let sfTotalGrupo = Number(padre.saldo_favor_bs || 0);
+      hijos.forEach(h => {
+        if (Number(h.saldo_favor_bs || 0) > 0) {
+          sfTotalGrupo = r2(sfTotalGrupo + Number(h.saldo_favor_bs));
+          h.saldo_favor_bs = 0;
+        }
+      });
+      padre.saldo_favor_bs = sfTotalGrupo >= 1.00 ? r2(sfTotalGrupo) : 0;
+
+      // 2. Sincronizar aseo_pendiente_desde y multa_meses del padre N/A con sus hijos activos
+      const desdesHijos = hijos.map(h => h.aseo_pendiente_desde).filter(Boolean).sort();
+      const targetDesdePadre = desdesHijos.length > 0 ? desdesHijos[0] : null;
+      const maxMultaHijos = Math.max(0, ...hijos.map(h => Number(h.multa_meses) || 0));
+      if (padre.aseo_pendiente_desde !== targetDesdePadre || Number(padre.multa_meses || 0) !== maxMultaHijos) {
+        padre.aseo_pendiente_desde = targetDesdePadre;
+        padre.multa_meses = maxMultaHijos;
+        unidadesASincronizarBD.push({
+          id: padre.id,
+          aseo_pendiente_desde: targetDesdePadre,
+          multa_meses: maxMultaHijos,
+        });
+      }
+    }
+  });
+
   if (unidadesASincronizarBD.length > 0) {
     Promise.all(
       unidadesASincronizarBD.map(uSync =>

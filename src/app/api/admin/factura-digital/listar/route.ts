@@ -229,6 +229,7 @@ export async function GET(request: Request) {
 
       const montoSoloP = parseFloat(String(pPrincipal.monto || 0)) || 0;
       const montoNetoReqP = parseFloat(String(dP?.monto_neto_factura || dP?.total_seleccionado || dP?.monto_factura || 0)) || 0;
+      const perPrincipal = String(dP?.periodos_pagados || dP?.recibo_caja?.[0]?.periodo || dP?.periodo || '').trim().toUpperCase();
 
       (rawPagos || []).forEach(pAbono => {
         if (pAbono.id === pPrincipal.id || pAbono.tipo === 'Retencion de IVA') return;
@@ -244,18 +245,38 @@ export async function GET(request: Request) {
         const refAbonoBase = String(pAbono.referencia || dA?.referencia || '').replace(/\s*\(\+[^)]*\)/g, '').trim();
         const esExplicitoPorRef = Boolean(refAbonoBase && refsExplicitasSet.has(refAbonoBase));
         const esExplicitoPorId = dA?.pago_principal_id === pPrincipal.id || dA?.completado_con_pago_id === pPrincipal.id;
+        const mismoGrupoPago = Boolean(pPrincipal.grupo_pago && pAbono.grupo_pago && pPrincipal.grupo_pago === pAbono.grupo_pago);
+        const esVinculoExplicito = esExplicitoPorRef || esExplicitoPorId || mismoGrupoPago;
+
+        const montoSoloA = parseFloat(String(pAbono.monto || 0)) || 0;
+        const montoNetoReqA = parseFloat(String(dA?.monto_neto_factura || dA?.total_seleccionado || dA?.monto_factura || 0)) || 0;
+
+        // Si el pago candidato a abono fue cerrado como pago de un ciclo anterior o ya cubre el 100% de su propia factura,
+        // NUNCA debe ser absorbido implícitamente por un pago de otro mes posterior
+        const abonoCerradoOCubreSuFactura =
+          dA?.abono_cerrado_ciclo_octubre === true ||
+          dA?.es_abono === false ||
+          (montoNetoReqA > 0 && montoSoloA >= montoNetoReqA - 1.00);
+        if (!esVinculoExplicito && abonoCerradoOCubreSuFactura) return;
+
+        // Si el pago principal ya cubre por sí solo el 100% de su factura y no registra abono_previo_descontado,
+        // no debe absorber pagos independientes de otros meses
+        const principalCubreSuFacturaSolo = montoNetoReqP > 0 && montoSoloP >= montoNetoReqP - 1.00 && saldoPrevio <= 0.05;
+        if (!esVinculoExplicito && principalCubreSuFacturaSolo) return;
+
+        // Si ambos pagos especifican explícitamente períodos distintos (ej. JULIO 2026 vs AGOSTO 2026), no unirlos implícitamente
+        const perAbono = String(dA?.periodos_pagados || dA?.recibo_caja?.[0]?.periodo || dA?.periodo || '').trim().toUpperCase();
+        if (!esVinculoExplicito && perPrincipal && perAbono && perPrincipal !== perAbono) return;
 
         const esAbonoA =
           dA?.es_abono === true ||
           dA?.abono === true ||
-          dA?.abono_completado === true ||
           dA?.es_pago_adicional === true ||
-          Boolean(dA?.recibo_caja?.[0]?.esAbono) ||
+          (Boolean(dA?.recibo_caja?.[0]?.esAbono) && dA?.es_abono !== false && !dA?.abono_cerrado_ciclo_octubre) ||
           pAbono.tipo === 'Abono' ||
           dA?.pago_parcial === true;
-        if (!esAbonoA && !esExplicitoPorRef && !esExplicitoPorId) return;
+        if (!esAbonoA && !esVinculoExplicito) return;
 
-        const montoSoloA = parseFloat(String(pAbono.monto || 0)) || 0;
         const recibosA = (dA?.recibos || []).map((r: any) => String(r).toUpperCase());
         const todosRecibosEnPrincipal = recibosA.length > 0 && recibosA.every((r: string) => recibosP.includes(r));
         const coincideSaldo = saldoPrevio > 0 && (Math.abs(saldoPrevio - montoSoloA) < 0.05 || saldoPrevio >= montoSoloA - 0.05);
@@ -263,12 +284,11 @@ export async function GET(request: Request) {
         // Dos transferencias para los mismos recibos donde ambas quedaron con es_abono=true porque cada una por separado era menor al total neto
         const sumaCubreFactura = todosRecibosEnPrincipal && montoNetoReqP > 0 && (montoSoloP + montoSoloA) >= (montoNetoReqP - 1.00);
         const absorcionValida =
-          esExplicitoPorRef ||
-          esExplicitoPorId ||
-          (todosRecibosEnPrincipal && (!esAbonoP || yaEmitidoP || sumaCubreFactura || saldoPrevio > 0)) ||
+          esVinculoExplicito ||
+          (todosRecibosEnPrincipal && (coincideSaldo || sumaCubreFactura)) ||
           (coincideSaldo && (recibosA.length === 0 || todosRecibosEnPrincipal));
 
-        const ordenTemporalValido = esExplicitoPorRef || esExplicitoPorId || yaEmitidoP || new Date(pAbono.created_at) <= new Date(pPrincipal.created_at);
+        const ordenTemporalValido = esVinculoExplicito || yaEmitidoP || new Date(pAbono.created_at) <= new Date(pPrincipal.created_at);
 
         if (absorcionValida && ordenTemporalValido) {
           abonosAbsorbidosIds.add(pAbono.id);

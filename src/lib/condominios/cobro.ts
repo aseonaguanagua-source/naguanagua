@@ -58,6 +58,8 @@ export interface SolicitudCobro {
 export interface LineaCobro {
     clave: string;
     inmueble: string | null;
+    padreId?: string | null;
+    padreInmueble?: string | null;
     numero: string | null;
     propietario: string | null;
     identidad: string | null;
@@ -180,7 +182,9 @@ export async function prepararCobro(sol: SolicitudCobro): Promise<Cobro & { _dat
             }
 
             // ¿Cuántas multas se van a pagar?
-            const mEsp = sol.mesesPorUnidad?.[r.clave];
+            const mEsp = sol.mesesPorUnidad?.[r.clave]
+                ?? (r.padreId ? sol.mesesPorUnidad?.[r.padreId] : undefined)
+                ?? (r.padreInmueble ? sol.mesesPorUnidad?.[r.padreInmueble] : undefined);
             const nMultasMax = itemsMulta.length;
             const nMultas = (typeof mEsp === 'number' && mEsp > 0)
                 ? Math.min(nMultasMax, Math.floor(mEsp))
@@ -191,7 +195,7 @@ export async function prepararCobro(sol: SolicitudCobro): Promise<Cobro & { _dat
             const periodosMultas = multasAPagar.map(item => item.periodo);
 
             return {
-                clave: r.clave, inmueble: r.inmueble, numero: r.numero, propietario: r.propietario, identidad: r.identidad, actividad: r.actividad, residencial: r.residencial, agenteRetencion: r.agenteRetencion,
+                clave: r.clave, inmueble: r.inmueble, padreId: r.padreId, padreInmueble: r.padreInmueble, numero: r.numero, propietario: r.propietario, identidad: r.identidad, actividad: r.actividad, residencial: r.residencial, agenteRetencion: r.agenteRetencion,
                 meses: nMultas, mesesDeuda: itemsMulta.length, periodos: periodosMultas,
                 baseBs: 0, multaBs: 0, multasAparteBs: multasBs, multasManualesIds,
                 ivaBs: 0, retencionBs: 0, totalBs: multasBs, multaMesesQueQuedan: 0,
@@ -199,7 +203,9 @@ export async function prepararCobro(sol: SolicitudCobro): Promise<Cobro & { _dat
             };
         }
 
-        const mEsp = sol.mesesPorUnidad?.[r.clave];
+        const mEsp = sol.mesesPorUnidad?.[r.clave]
+            ?? (r.padreId ? sol.mesesPorUnidad?.[r.padreId] : undefined)
+            ?? (r.padreInmueble ? sol.mesesPorUnidad?.[r.padreInmueble] : undefined);
         const nMesesMax = r.deuda.meses;
         const nMeses = (typeof mEsp === 'number' && mEsp > 0)
             ? Math.min(nMesesMax, Math.floor(mEsp))
@@ -217,7 +223,7 @@ export async function prepararCobro(sol: SolicitudCobro): Promise<Cobro & { _dat
             ? (datos.condo.agente_retencion ? (r.agenteRetencion ? s('retencionBs') : r2(iva * 0.75)) : 0)
             : s('retencionBs');
         return {
-            clave: r.clave, inmueble: r.inmueble, numero: r.numero, propietario: r.propietario, identidad: r.identidad, actividad: r.actividad, residencial: r.residencial,
+            clave: r.clave, inmueble: r.inmueble, padreId: r.padreId, padreInmueble: r.padreInmueble, numero: r.numero, propietario: r.propietario, identidad: r.identidad, actividad: r.actividad, residencial: r.residencial,
             agenteRetencion: modo === 'CONDOMINIO' ? Boolean(datos.condo.agente_retencion) : r.agenteRetencion,
             meses: nMeses, mesesDeuda: r.deuda.meses, periodos: r.periodos.slice(0, nMeses),
             baseBs: base, multaBs: multaMora, multasAparteBs: aparte, multasManualesIds: incluirAparte ? r.multasManuales.map(m => m.id) : [],
@@ -341,12 +347,71 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
     const grupo = cobro.facturas.length > 1 ? pago.pagoId : null;
     let refFinal = ref || `EFECTIVO-${Date.now()}`;
 
-    // Foto de deuda previa para permitir reversión / rechazo seguro (incluyendo estado real en tabla inmuebles)
+    // Validación estricta anti-duplicidad: bloquear si algún período de aseo a cobrar ya está facturado/pagado para esa unidad
+    if (!sol.soloMultas) {
+        const { data: movsExistentes } = await sb
+            .from('condominio_movimientos')
+            .select('unidad_id, periodo, concepto, pago_id')
+            .eq('condominio_id', c.id)
+            .eq('tipo', 'PAGO');
+        if (movsExistentes && movsExistentes.length > 0) {
+            const pagoIdsCheck = [...new Set(movsExistentes.map((m: any) => m.pago_id).filter(Boolean))];
+            const pagosRechazadosSet = new Set<string>();
+            if (pagoIdsCheck.length > 0) {
+                for (let i = 0; i < pagoIdsCheck.length; i += 200) {
+                    const { data: pCheck } = await sb
+                        .from('pagos_reportados')
+                        .select('id, estado, referencia, detalles')
+                        .in('id', pagoIdsCheck.slice(i, i + 200));
+                    (pCheck || []).forEach((pr: any) => {
+                        const est = String(pr.estado || '');
+                        const det = pr.detalles || {};
+                        if (
+                            ['Rechazado', 'Anulado', 'Reversado'].includes(est) ||
+                            String(pr.referencia || '').startsWith('RECH-') ||
+                            det?.factura_digital?.anulada === true ||
+                            det?.factura_digital?.rechazada === true ||
+                            det?.nota_credito_digital?.emitida === true
+                        ) {
+                            pagosRechazadosSet.add(pr.id);
+                        }
+                    });
+                }
+            }
+            for (const l of cobro.lineas) {
+                if (!l.periodos || l.periodos.length === 0 || !porId.has(l.clave)) continue;
+                const u = porId.get(l.clave);
+                const codU = String(u?.inmueble || l.inmueble || '').toUpperCase();
+                for (const m of movsExistentes) {
+                    if (m.pago_id && pagosRechazadosSet.has(m.pago_id)) continue;
+                    const conceptUpper = String(m.concepto || '').toUpperCase();
+                    if (conceptUpper.includes('MULTA') && !conceptUpper.includes('ASEO')) continue;
+                    const esMismaUnidad = m.unidad_id === l.clave || (codU && conceptUpper.includes(codU));
+                    if (!esMismaUnidad) continue;
+                    const persMov = new Set<string>();
+                    if (m.periodo) persMov.add(String(m.periodo).slice(0, 7));
+                    const matches = conceptUpper.match(/202\d-(?:0[1-9]|1[0-2])/g) || [];
+                    matches.forEach(pm => persMov.add(pm));
+                    for (const perCobrar of l.periodos) {
+                        if (persMov.has(perCobrar)) {
+                            throw new Error(`⛔ BLOQUEADO: La unidad ${codU || u?.numero || l.clave} ya tiene facturado/pagado el período ${fmtPeriodo(perCobrar)} en el sistema. Recargue el estado de cuenta.`);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Foto de deuda previa para permitir reversión / rechazo seguro (incluyendo estado real en tabla inmuebles y padres N/A)
     const codigosInmFoto = Array.from(
         new Set(
             [
                 c.codigo,
-                ...cobro.lineas.map(l => porId.get(l.clave)?.inmueble).filter(Boolean),
+                ...cobro.lineas.flatMap(l => {
+                    const u = porId.get(l.clave);
+                    const p = u?.padre_unidad_id ? porId.get(u.padre_unidad_id) : null;
+                    return [u?.inmueble, u?.padre_inmueble, p?.inmueble];
+                }).filter(Boolean),
             ].filter(Boolean)
         )
     );
@@ -362,6 +427,7 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
     }
 
     const antes: any[] = [];
+    const padresFotoAgregados = new Set<string>();
     for (const l of cobro.lineas) {
         const u = porId.get(l.clave);
         if (u) {
@@ -383,6 +449,28 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
                     }
                     : {}),
             });
+            const p = u.padre_unidad_id ? porId.get(u.padre_unidad_id) : null;
+            if (p && !padresFotoAgregados.has(p.id)) {
+                padresFotoAgregados.add(p.id);
+                const pSnap = p.inmueble ? inmsFotoMap.get(String(p.inmueble).toUpperCase()) : null;
+                antes.push({
+                    unidad: p.id,
+                    inmueble: p.inmueble,
+                    aseo_pendiente_desde: p.aseo_pendiente_desde,
+                    multa_meses: p.multa_meses,
+                    multa_exonerada_hasta: p.multa_exonerada_hasta,
+                    ...(pSnap
+                        ? {
+                            id: pSnap.id,
+                            meses_deuda: pSnap.meses_deuda ?? 0,
+                            deuda_mmv: pSnap.deuda_mmv ?? 0,
+                            multa_bs: pSnap.multa_bs ?? 0,
+                            deuda_congelada_bs: pSnap.deuda_congelada_bs ?? 0,
+                            saldo_favor_bs: pSnap.saldo_favor_bs ?? 0,
+                        }
+                        : {}),
+                });
+            }
         } else if (l.clave === M.SIN_REGISTRAR || l.clave === '__CONDOMINIO__') {
             const inmSnap = c.codigo ? inmsFotoMap.get(String(c.codigo).toUpperCase()) : null;
             antes.push({
@@ -444,8 +532,13 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
             }
         }
         const ls = f.lineas.map(k => lineaPor.get(k)!).filter(Boolean);
+        const uPrim = ls[0] ? porId.get(ls[0].clave) : null;
+        const pPrim = uPrim?.padre_unidad_id ? porId.get(uPrim.padre_unidad_id) : null;
+        const codPrincipalUnidad = (pPrim && (pPrim.es_grupo || String(pPrim.actividad || '').trim().toUpperCase() === 'N/A'))
+            ? (pPrim.inmueble || uPrim?.padre_inmueble || ls[0]?.inmueble)
+            : (uPrim?.padre_inmueble || ls[0]?.inmueble);
         const esIndividualUnidad = cobro.modo === 'CONTRIBUYENTE' || (cobro.modo !== 'CONDOMINIO' && (c.modalidad === 'INDIVIDUAL' || (ls.length > 0 && ls[0]?.inmueble && ls[0]?.inmueble !== c.codigo)));
-        const codInmuebleFila = esIndividualUnidad ? (ls[0]?.inmueble || c.codigo) : c.codigo;
+        const codInmuebleFila = esIndividualUnidad ? (codPrincipalUnidad || c.codigo) : c.codigo;
         const reciboRef = `CONDO-${codInmuebleFila}-${Date.now().toString().slice(-6)}${cobro.facturas.length > 1 ? `-${i + 1}` : ''}`;
         const ret = r2(ls.reduce((a, l) => a + l.retencionBs, 0));
         let formasPago = [{ descripcion: pago.metodo, fecha: new Date().toISOString(), forma: formaPagoCodigo(pago.metodo), banco: pago.banco || undefined, bancoDestino: pago.bancoDestino || undefined, referencia: ref || undefined, monto: f.totalBs }];
@@ -747,7 +840,12 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
             || c.nombre);
 
     const codigoInmuebleHijo = !esModoCondominio
-        ? ((unidadSel && unidadSel.inmueble) || cobro.lineas[0]?.inmueble || undefined)
+        ? (
+            (unidadSel && (unidadSel.padre_inmueble || (unidadSel.padre_unidad_id ? porId.get(unidadSel.padre_unidad_id)?.inmueble : null) || unidadSel.inmueble))
+            || cobro.lineas[0]?.padreInmueble
+            || cobro.lineas[0]?.inmueble
+            || undefined
+          )
         : undefined;
     const codigoTargetSF = esModoCondominio ? c?.codigo : codigoInmuebleHijo;
     const ambitoNC = esModoCondominio ? 'CONDOMINIO' : 'LOCAL';
@@ -887,6 +985,39 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
             }
         }
         if (l.multasManualesIds.length) await sb.from('condominio_multas').update({ estado: 'Pagada', pago_id: pagoDe(l.clave) }).in('id', l.multasManualesIds).eq('estado', 'Pendiente');
+    }
+
+    // Sincronizar padres N/A cuyos hijos hayan sido pagados en este cobro
+    const padresAfectadosIds = Array.from(new Set(
+        cobro.lineas.map(l => porId.get(l.clave)?.padre_unidad_id).filter(Boolean)
+    ));
+    for (const pId of padresAfectadosIds) {
+        const padreU = porId.get(pId);
+        if (!padreU) continue;
+        const { data: hijosDb } = await sb
+            .from('condominio_unidades')
+            .select('id, aseo_pendiente_desde, multa_meses, estado')
+            .eq('padre_unidad_id', pId)
+            .neq('estado', 'Eliminada');
+        const hijosAct = (hijosDb || []).filter((h: any) => h.estado === 'Activa');
+        if (hijosAct.length > 0) {
+            const fechas = hijosAct.map((h: any) => h.aseo_pendiente_desde).filter(Boolean).sort();
+            const minDesde = fechas[0] || padreU.aseo_pendiente_desde || c.aseo_pendiente_desde;
+            const maxMultas = Math.max(0, ...hijosAct.map((h: any) => Number(h.multa_meses || 0)));
+            await sb.from('condominio_unidades').update({
+                aseo_pendiente_desde: minDesde,
+                multa_meses: maxMultas,
+            }).eq('id', pId);
+            if (padreU.inmueble) {
+                const mesesRealesPadre = minDesde ? M.mesesPendientes(minDesde, hoy) : 0;
+                const updPadreInm: any = {
+                    meses_deuda: mesesRealesPadre,
+                    deuda_mmv: mesesRealesPadre === 0 ? 0 : undefined,
+                    multa_bs: maxMultas === 0 ? 0 : undefined,
+                };
+                await sb.from('inmuebles').update(updPadreInm).ilike('inmueble', padreU.inmueble);
+            }
+        }
     }
     // Condominio pagado completo (sin unidades sueltas omitidas): el condominio también avanza
     const todasLasUnidadesConDeudaIncluidas = cobro.estado.renglones.filter(r => r.totalBs > 0.01).length <= cobro.lineas.length;

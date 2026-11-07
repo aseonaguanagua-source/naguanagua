@@ -39,21 +39,42 @@ export async function getSaldoFavorTotal(identidad: string, codigoInmueble?: str
 
   let data: any[] | null = null;
   let error: any = null;
+  let effectiveCodigo = codigoInmueble ? String(codigoInmueble).trim().toUpperCase() : '';
 
-  if (codigoInmueble) {
-    const codUpper = String(codigoInmueble).trim().toUpperCase();
+  if (effectiveCodigo) {
     const resCod = await client
       .from('inmuebles')
-      .select('id, saldo_favor_bs, estado, inmueble')
-      .eq('inmueble', codUpper)
+      .select('id, saldo_favor_bs, estado, inmueble, padre_id, actividad_principal')
+      .eq('inmueble', effectiveCodigo)
       .order('id', { ascending: true });
     if (!resCod.error && resCod.data && resCod.data.length > 0) {
-      data = resCod.data;
+      const firstRow = resCod.data[0];
+      const padreCod = firstRow?.padre_id ? String(firstRow.padre_id).trim().toUpperCase() : '';
+      if (padreCod && padreCod !== effectiveCodigo) {
+        const { data: padreRows } = await client
+          .from('inmuebles')
+          .select('id, saldo_favor_bs, estado, inmueble, padre_id, actividad_principal')
+          .eq('inmueble', padreCod)
+          .order('id', { ascending: true });
+        if (padreRows && padreRows.length > 0 && String(padreRows[0]?.actividad_principal || '').trim().toUpperCase() === 'N/A') {
+          effectiveCodigo = padreCod;
+          const { data: famRows } = await client
+            .from('inmuebles')
+            .select('id, saldo_favor_bs, estado, inmueble, padre_id, actividad_principal')
+            .or(`inmueble.eq.${padreCod},padre_id.eq.${padreCod}`)
+            .order('id', { ascending: true });
+          data = famRows && famRows.length > 0 ? famRows : [...padreRows, ...resCod.data];
+        } else {
+          data = resCod.data;
+        }
+      } else {
+        data = resCod.data;
+      }
     }
   }
 
   if (!data) {
-    let query = client.from('inmuebles').select('id, saldo_favor_bs, estado, inmueble');
+    let query = client.from('inmuebles').select('id, saldo_favor_bs, estado, inmueble, padre_id, actividad_principal');
     if (/^(URB|AURI|[A-Z]{3,})\d+/i.test(id)) {
       query = query.or(`inmueble.eq.${id},identidad.in.(${variantes.join(',')})`);
     } else {
@@ -73,11 +94,12 @@ export async function getSaldoFavorTotal(identidad: string, codigoInmueble?: str
     0
   );
 
-  // Si se especificó un código de inmueble específico, ese inmueble es prioritario
-  const targetInm = codigoInmueble ? data.find((i: any) => String(i.inmueble || '').toUpperCase() === codigoInmueble.toUpperCase()) : null;
+  // Si se especificó un código de inmueble específico (o su contenedor N/A padre), ese inmueble es prioritario
+  const targetInm = effectiveCodigo ? data.find((i: any) => String(i.inmueble || '').toUpperCase() === effectiveCodigo) : null;
+  const padreNA = data.find((i: any) => String(i.actividad_principal || '').trim().toUpperCase() === 'N/A' && i.estado !== 'Eliminado');
   const conSaldo = data.find((i: any) => (parseFloat(i.saldo_favor_bs || '0') || 0) > 0.009);
   const vivo = data.find((i: any) => i.estado !== 'Eliminado');
-  return { total, inmueblePrincipalId: (targetInm || conSaldo || vivo || data[0]).id };
+  return { total, inmueblePrincipalId: (targetInm || padreNA || conSaldo || vivo || data[0]).id };
 }
 
 /**
@@ -193,11 +215,21 @@ export async function descontarSaldoFavor(
   if (codTargetUpper) {
     const resCod = await client
       .from('inmuebles')
-      .select('id, saldo_favor_bs, inmueble')
-      .eq('inmueble', codTargetUpper)
+      .select('id, saldo_favor_bs, inmueble, padre_id, actividad_principal')
+      .or(`inmueble.eq.${codTargetUpper},padre_id.eq.${codTargetUpper}`)
       .order('id', { ascending: true });
     if (!resCod.error && resCod.data && resCod.data.length > 0) {
-      inms = resCod.data;
+      const padreCod = resCod.data.find((x: any) => x.padre_id)?.padre_id;
+      if (padreCod && String(padreCod).toUpperCase() !== codTargetUpper) {
+        const { data: fam } = await client
+          .from('inmuebles')
+          .select('id, saldo_favor_bs, inmueble, padre_id, actividad_principal')
+          .or(`inmueble.eq.${String(padreCod).toUpperCase()},padre_id.eq.${String(padreCod).toUpperCase()}`)
+          .order('id', { ascending: true });
+        inms = fam && fam.length > 0 ? fam : resCod.data;
+      } else {
+        inms = resCod.data;
+      }
     }
   }
 

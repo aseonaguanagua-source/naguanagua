@@ -193,9 +193,14 @@ function Caja() {
 
       const esModoContrib = cobro?.modo === 'CONTRIBUYENTE' || soloMultas;
       const codigosUnidades = Array.from(
-        new Set((cobro?.lineas || []).map((l: any) => String(l?.inmueble || '').trim().toUpperCase()).filter(Boolean))
+        new Set(
+          (cobro?.lineas || [])
+            .flatMap((l: any) => [l?.inmueble, l?.padreInmueble])
+            .map((x: any) => String(x || '').trim().toUpperCase())
+            .filter(Boolean)
+        )
       );
-      const unidadesIdents = (cobro?.lineas || []).flatMap((l: any) => [l?.identidad, l?.inmueble]).filter(Boolean);
+      const unidadesIdents = (cobro?.lineas || []).flatMap((l: any) => [l?.identidad, l?.inmueble, l?.padreInmueble]).filter(Boolean);
       const rawIdents = esModoContrib
         ? [...unidadesIdents, identidad].filter(Boolean)
         : [condoIdent, condoCodigo, ...unidadesIdents].filter(Boolean);
@@ -467,9 +472,70 @@ function Caja() {
   const visiblesU = useMemo(() => {
     const t = filtroU.trim().toUpperCase();
     const ced = porContrib ? normId(identidad) : '';
-    return conDeuda.filter((r: any) =>
+    const filtrados = conDeuda.filter((r: any) =>
       (!ced || ced.length < 5 || normId(r.identidad) === ced) &&
       (!t || [r.inmueble, r.padreInmueble, r.numero, r.padreNumero, r.propietario, r.identidad, r.actividad].some((x: any) => String(x || '').toUpperCase().includes(t))));
+
+    // Unificar unidades hijas que comparten el mismo padre N/A (padreId) y propietario en una sola fila unificada
+    const resultado: any[] = [];
+    const gruposPadre = new Map<string, any[]>();
+    for (const r of filtrados) {
+      if (r.padreId) {
+        const keyGrupo = `${r.padreId}__${normId(r.identidad)}`;
+        if (!gruposPadre.has(keyGrupo)) {
+          const arr: any[] = [];
+          gruposPadre.set(keyGrupo, arr);
+          resultado.push({ __grupoKey: keyGrupo, arr });
+        }
+        gruposPadre.get(keyGrupo)!.push(r);
+      } else {
+        resultado.push({ ...r, _hijosClaves: [r.clave], _hijosCodigos: r.inmueble ? [r.inmueble] : [] });
+      }
+    }
+
+    return resultado.map((item: any) => {
+      if (!item.__grupoKey) return item;
+      const grp: any[] = item.arr;
+      if (grp.length === 1) {
+        const unico = grp[0];
+        return {
+          ...unico,
+          inmueble: unico.padreInmueble || unico.inmueble,
+          _hijosClaves: [unico.clave],
+          _hijosCodigos: [unico.inmueble].filter(Boolean),
+        };
+      }
+      const primero = grp[0];
+      const actividadesUnicas = Array.from(new Set(grp.map(g => g.actividad).filter(Boolean)));
+      const fechasDesde = grp.map(g => g.pendienteDesde).filter(Boolean).sort();
+      return {
+        ...primero,
+        clave: primero.padreId || primero.clave,
+        inmueble: primero.padreInmueble || primero.inmueble,
+        padreInmueble: primero.padreInmueble,
+        numero: primero.padreNumero || primero.numero,
+        actividad: actividadesUnicas.join(' + '),
+        pendienteDesde: fechasDesde[0] || primero.pendienteDesde,
+        saldoFavorBs: Math.max(0, ...grp.map(g => Number(g.saldoFavorBs || 0))),
+        multaMeses: Math.max(0, ...grp.map(g => Number(g.multaMeses || 0))),
+        multaExtraBs: grp.reduce((s, g) => s + (Number(g.multaExtraBs) || 0), 0),
+        multasManualesBs: grp.reduce((s, g) => s + (Number(g.multasManualesBs) || 0), 0),
+        multasManuales: grp.flatMap(g => g.multasManuales || []),
+        totalBs: grp.reduce((s, g) => s + (Number(g.totalBs) || 0), 0),
+        deuda: {
+          ...(primero.deuda || {}),
+          meses: Math.max(0, ...grp.map(g => Number(g.deuda?.meses || 0))),
+          baseBs: grp.reduce((s, g) => s + (Number(g.deuda?.baseBs) || 0), 0),
+          multaBs: grp.reduce((s, g) => s + (Number(g.deuda?.multaBs) || 0), 0),
+          ivaBs: grp.reduce((s, g) => s + (Number(g.deuda?.ivaBs) || 0), 0),
+          retencionBs: grp.reduce((s, g) => s + (Number(g.deuda?.retencionBs) || 0), 0),
+          totalBs: grp.reduce((s, g) => s + (Number(g.deuda?.totalBs) || 0), 0),
+        },
+        _esPadreUnificado: true,
+        _hijosClaves: grp.map(g => g.clave),
+        _hijosCodigos: grp.map(g => g.inmueble).filter(Boolean),
+      };
+    });
   }, [conDeuda, filtroU, identidad, porContrib]); // eslint-disable-line react-hooks/exhaustive-deps
   const enCobro = useMemo(() => new Set((cobro?.lineas || []).map((l: any) => l.clave)), [cobro]);
   const mapLineas = useMemo(() => new Map<string, any>((cobro?.lineas || []).map((l: any) => [l.clave, l])), [cobro]);
@@ -516,15 +582,12 @@ function Caja() {
     }
     return items;
   }, [soloMultas, unidadesParaMax]);
-  const toggle = (k: string) => setClaves(cs => {
-    const row = conDeuda.find((r: any) => r.clave === k);
-    const parentSelected = Boolean(row?.padreId && cs.includes(row.padreId));
-    if (cs.includes(k)) return cs.filter(x => x !== k);
-    if (parentSelected && row?.padreId) {
-      const siblings = conDeuda.filter((r: any) => r.padreId === row.padreId && r.clave !== k).map((r: any) => r.clave);
-      return [...cs.filter(x => x !== row.padreId), ...siblings];
+  const toggleGrupo = (clavesGrupo: string[]) => setClaves(cs => {
+    const todasMarcadas = clavesGrupo.every(k => cs.includes(k));
+    if (todasMarcadas) {
+      return cs.filter(x => !clavesGrupo.includes(x));
     }
-    return [...cs, k];
+    return Array.from(new Set([...cs, ...clavesGrupo]));
   });
   const sinSeleccion = (porContrib && !claves.length && !identidad.trim()) || (!porContrib && abonoLocales && !claves.length);
 
@@ -767,7 +830,7 @@ function Caja() {
     if (!cobro) return;
 
     const esModoContrib = cobro.modo === 'CONTRIBUYENTE' || soloMultas;
-    const codigoLocalSel = esModoContrib ? (cobro.lineas?.[0]?.inmueble || undefined) : undefined;
+    const codigoLocalSel = esModoContrib ? (cobro.lineas?.[0]?.padreInmueble || cobro.lineas?.[0]?.inmueble || undefined) : undefined;
     let targetId = esModoContrib ? (cobro.facturas[0]?.identidad || cobro.lineas?.[0]?.identidad || cobro.condo.identidad) : (cobro.condo.identidad || cobro.condo.codigo);
     let targetName = esModoContrib ? (cobro.facturas[0]?.nombre || cobro.lineas?.[0]?.propietario || cobro.condo.nombre) : cobro.condo.nombre;
     const modalidadOrigen = modo === 'CONDOMINIO'
@@ -1598,7 +1661,7 @@ function Caja() {
                       <span className="text-xs font-black text-teal-950">Abono por Locales:</span>
                       <button
                         type="button"
-                        onClick={() => setClaves(visiblesU.map((r: any) => r.clave))}
+                        onClick={() => setClaves(visiblesU.flatMap((r: any) => r._hijosClaves || [r.clave]))}
                         className="text-xs font-bold text-teal-800 bg-white border border-teal-300 px-2.5 py-1 rounded-md hover:bg-teal-100 cursor-pointer shadow-2xs"
                       >
                         Seleccionar todos los visibles
@@ -1651,12 +1714,13 @@ function Caja() {
                           ) : abonoLocales ? (
                             <input
                               type="checkbox"
-                              checked={visiblesU.length > 0 && visiblesU.every((r: any) => claves.includes(r.clave))}
+                              checked={visiblesU.length > 0 && visiblesU.every((r: any) => (r._hijosClaves || [r.clave]).every((k: string) => claves.includes(k)))}
                               onChange={e => {
+                                const todasVisibles = visiblesU.flatMap((r: any) => r._hijosClaves || [r.clave]);
                                 if (e.target.checked) {
-                                  setClaves(Array.from(new Set([...claves, ...visiblesU.map((r: any) => r.clave)])));
+                                  setClaves(Array.from(new Set([...claves, ...todasVisibles])));
                                 } else {
-                                  const visSet = new Set(visiblesU.map((r: any) => r.clave));
+                                  const visSet = new Set(todasVisibles);
                                   setClaves(claves.filter(k => !visSet.has(k)));
                                 }
                               }}
@@ -1676,19 +1740,27 @@ function Caja() {
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {visiblesU.slice(0, 400).map((r: any) => {
-                        const va = enCobro.has(r.clave);
-                        const lc = mapLineas.get(r.clave) as any;
+                        const hijosClaves: string[] = r._hijosClaves || [r.clave];
+                        const lcs = hijosClaves.map(k => mapLineas.get(k)).filter(Boolean) as any[];
+                        const lc = lcs[0] as any;
                         const mismoDueno = porContrib && identidad && normId(r.identidad) === normId(identidad);
                         const maxMesesFila = soloMultas
-                          ? (lc?.mesesDeuda ?? ((r.multaMeses || 0) + (r.multasManuales || []).length))
-                          : (lc?.mesesDeuda ?? (r.deuda?.meses || 0));
-                        const mesActualFila = typeof mesesPorUnidad[r.clave] === 'number'
+                          ? (lcs.length > 0 ? Math.max(...lcs.map(l => l.mesesDeuda || 0)) : ((r.multaMeses || 0) + (r.multasManuales || []).length))
+                          : (lcs.length > 0 ? Math.max(...lcs.map(l => l.mesesDeuda || 0)) : (r.deuda?.meses || 0));
+                        const customMes = typeof mesesPorUnidad[r.clave] === 'number'
                           ? mesesPorUnidad[r.clave]
+                          : (typeof mesesPorUnidad[hijosClaves[0]] === 'number' ? mesesPorUnidad[hijosClaves[0]] : undefined);
+                        const mesActualFila = typeof customMes === 'number'
+                          ? customMes
                           : (meses !== '' ? Math.min(Number(meses), maxMesesFila) : maxMesesFila);
-                        const dMeses = lc ? lc.meses : mesActualFila;
-                        const dMultas = lc ? (lc.multaBs + lc.multasAparteBs) : multasDe(r);
-                        const dTotal = lc ? lc.totalBs : (soloMultas ? multasDe(r) : r.totalBs);
-                        const claveMarcada = claves.includes(r.clave) || Boolean(r.padreId && claves.includes(r.padreId)) || Boolean(r.padreInmueble && claves.includes(r.padreInmueble));
+                        const dMeses = lcs.length > 0 ? Math.max(...lcs.map(l => l.meses || 0)) : mesActualFila;
+                        const dMultas = lcs.length > 0
+                          ? lcs.reduce((s, l) => s + (l.multaBs || 0) + (l.multasAparteBs || 0), 0)
+                          : multasDe(r);
+                        const dTotal = lcs.length > 0
+                          ? lcs.reduce((s, l) => s + (l.totalBs || 0), 0)
+                          : (soloMultas ? multasDe(r) : r.totalBs);
+                        const claveMarcada = hijosClaves.some(k => claves.includes(k)) || claves.includes(r.clave) || Boolean(r.padreId && claves.includes(r.padreId)) || Boolean(r.padreInmueble && claves.includes(r.padreInmueble));
                         const seleccionada = porContrib
                           ? (claveMarcada || !!mismoDueno)
                           : abonoLocales
@@ -1697,14 +1769,14 @@ function Caja() {
 
                         const handleRowClick = () => {
                           if (porContrib) {
-                            toggle(r.clave);
+                            toggleGrupo(hijosClaves);
                           } else if (abonoLocales) {
-                            toggle(r.clave);
+                            toggleGrupo(hijosClaves);
                           } else {
                             // En cobro completo: al hacer click en un local, se activa el modo abono seleccionando este local
                             setAbonoLocales(true);
                             setIncluirMultas(false);
-                            setClaves([r.clave]);
+                            setClaves(hijosClaves);
                           }
                         };
 
@@ -1748,11 +1820,18 @@ function Caja() {
                             <td className={`py-2 px-3 ${!seleccionada ? 'opacity-60' : ''}`}>
                               <div className="font-bold text-slate-900 font-mono text-xs flex items-center gap-1.5 flex-wrap">
                                 <span>
-                                  {r.padreInmueble && r.padreInmueble !== r.inmueble
-                                    ? `${r.padreInmueble} (${r.inmueble})`
-                                    : (r.inmueble || (r.clave === '__SIN_REGISTRAR__' ? 'Declaradas sin registrar' : 'Condominio'))}
+                                  {r._esPadreUnificado
+                                    ? `${r.inmueble}${r._hijosCodigos?.length ? ` (${r._hijosCodigos.join(', ')})` : ''}`
+                                    : (r.padreInmueble && r.padreInmueble !== r.inmueble
+                                      ? `${r.padreInmueble} (${r.inmueble})`
+                                      : (r.inmueble || (r.clave === '__SIN_REGISTRAR__' ? 'Declaradas sin registrar' : 'Condominio')))}
                                   {r.numero ? ` · ${r.numero}` : ''}
                                 </span>
+                                {r._esPadreUnificado && (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold font-sans bg-sky-100 text-sky-800 border border-sky-300">
+                                    🔗 {r._hijosClaves.length} actividades unificadas
+                                  </span>
+                                )}
                                 {Number(r.saldoFavorBs || 0) >= 1.00 && (
                                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold font-sans bg-emerald-100 text-emerald-800 border border-emerald-300">
                                     💳 Nota de Crédito: Bs {fmtBs(r.saldoFavorBs)}
@@ -1803,15 +1882,17 @@ function Caja() {
                                     onChange={e => {
                                       e.stopPropagation();
                                       const nuevo = Number(e.target.value);
-                                      setMesesPorUnidad(prev => ({ ...prev, [r.clave]: nuevo }));
-                                      if (abonoLocales && !claves.includes(r.clave)) {
-                                        setClaves(prev => [...prev, r.clave]);
-                                      } else if (porContrib && !claves.includes(r.clave)) {
-                                        setClaves(prev => [...prev, r.clave]);
+                                      setMesesPorUnidad(prev => {
+                                        const next: Record<string, number> = { ...prev, [r.clave]: nuevo };
+                                        hijosClaves.forEach((hk: string) => { next[hk] = nuevo; });
+                                        return next;
+                                      });
+                                      if ((abonoLocales || porContrib) && !hijosClaves.every(hk => claves.includes(hk))) {
+                                        setClaves(prev => Array.from(new Set([...prev, ...hijosClaves])));
                                       }
                                     }}
                                     className={`text-xs font-bold py-1 px-1.5 rounded-md border cursor-pointer transition-colors ${
-                                      typeof mesesPorUnidad[r.clave] === 'number'
+                                      typeof customMes === 'number'
                                         ? 'bg-amber-600 text-white border-amber-700 shadow-xs ring-1 ring-amber-400'
                                         : 'bg-amber-50 text-amber-900 border-amber-300 hover:border-amber-400'
                                     }`}
@@ -1823,14 +1904,15 @@ function Caja() {
                                       </option>
                                     ))}
                                   </select>
-                                  {typeof mesesPorUnidad[r.clave] === 'number' && (
+                                  {typeof customMes === 'number' && (
                                     <button
                                       type="button"
                                       onClick={e => {
                                         e.stopPropagation();
                                         setMesesPorUnidad(prev => {
-                                          const next = { ...prev };
+                                          const next: Record<string, number> = { ...prev };
                                           delete next[r.clave];
+                                          hijosClaves.forEach((hk: string) => { delete next[hk]; });
                                           return next;
                                         });
                                       }}
