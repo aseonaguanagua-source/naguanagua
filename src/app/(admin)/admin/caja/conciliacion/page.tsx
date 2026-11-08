@@ -1718,8 +1718,9 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
 
           const retDocConcil = parseFloat(String(curDet.monto_retencion_iva || curDet.retencion_iva || det.monto_retencion_iva || det.retencion_iva || montoRetencionDoc || 0)) || 0;
           const sfUsadoConcil = parseFloat(String(curDet.saldo_usado || curDet.saldo_favor_usado || curDet.descuento_saldo_favor || saldoFavorUsado || 0)) || 0;
+          const abonoPrevConcil = parseFloat(String(curDet.abono_previo_descontado || det.abono_previo_descontado || 0)) || 0;
           const montoNetoSinExcedente = Math.max(0, Math.round((montoConciliadoNum - excedenteBrutoConcil) * 100) / 100);
-          const montoBrutoConcil = Math.round((montoNetoSinExcedente + retDocConcil + sfUsadoConcil) * 100) / 100;
+          const montoBrutoConcil = Math.round((montoNetoSinExcedente + retDocConcil + sfUsadoConcil + abonoPrevConcil) * 100) / 100;
           if (excedenteBrutoConcil >= 0.01) {
             curDet.saldo_favor = excedenteBrutoConcil;
             curDet.saldo_favor_acreditado = true;
@@ -1729,7 +1730,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
               curDet.monto_factura = montoBrutoConcil;
             }
             if (!curDet.monto_neto_factura && retDocConcil > 0) {
-              curDet.monto_neto_factura = montoNetoSinExcedente;
+              curDet.monto_neto_factura = Math.round((montoNetoSinExcedente + sfUsadoConcil + abonoPrevConcil) * 100) / 100;
             }
           }
           if (!esCondo && !esAbonoEnEspera && excedenteBrutoConcil < 0.01) {
@@ -1737,7 +1738,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
             if (!hasPerReceiptMontos) {
               curDet.montos = { total: montoBrutoConcil };
             }
-            if (!curDet.montoTotal) {
+            if (!curDet.montoTotal || Number(curDet.montoTotal) < montoBrutoConcil) {
               curDet.montoTotal = montoBrutoConcil;
             }
           }
@@ -1748,7 +1749,8 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
           }
           curDet.identidad = pago.identidad;
           const fechaFacturaFinal = fechaBanco || fechaTransaccion;
-          if (!esCondo || !Array.isArray(curDet.formasPago) || curDet.formasPago.length === 0) {
+          const tieneMultiFormasPago = (Array.isArray(curDet.formasPago) && curDet.formasPago.length > 1) || (Array.isArray(curDet.pagos_agregados) && curDet.pagos_agregados.length > 1);
+          if (!tieneMultiFormasPago && (!esCondo || !Array.isArray(curDet.formasPago) || curDet.formasPago.length === 0)) {
             curDet.formasPago = [{
               descripcion: pago.tipo || 'Transferencia',
               fecha:       fechaFacturaFinal ? new Date(`${fechaFacturaFinal}T12:00:00-04:00`).toISOString() : new Date().toISOString(),

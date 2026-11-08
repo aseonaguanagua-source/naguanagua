@@ -191,3 +191,4 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: err?.message || 'Error interno al editar retención' }, { status: 500 });
   }
 }
+

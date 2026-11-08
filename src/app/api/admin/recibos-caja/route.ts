@@ -105,7 +105,34 @@ export async function GET(request: Request) {
       : { data: [] as any[] };
     const inmMap = new Map((inms || []).map((i: any) => [i.inmueble, i]));
 
-    const monto = r2(parseFloat(String(pago.monto || 0)));
+    const montoPagoCol = r2(parseFloat(String(pago.monto || 0)));
+    const abonoPrevio = r2(parseFloat(String(det.abono_previo_descontado || 0)));
+    const saldoUsado = r2(parseFloat(String(det.saldo_usado || det.descuento_saldo_favor || det.saldo_favor_usado || 0)));
+    const retencionIva = r2(parseFloat(String(det.monto_retencion_iva || det.retencion_iva || 0)));
+    const totalSel = r2(parseFloat(String(det.total_seleccionado || det.monto_factura || 0)));
+    const sumDesglose = desglose.cuadra && desglose.lineas.length > 0
+      ? r2(desglose.lineas.reduce((s, l) => s + l.total, 0))
+      : 0;
+    const rawFps = Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1
+      ? det.pagos_agregados
+      : (Array.isArray(det.formasPago) && det.formasPago.length > 1 ? det.formasPago : null);
+    const sumRawFps = rawFps ? r2(rawFps.reduce((s: number, fp: any) => s + (parseFloat(String(fp?.monto || 0)) || 0), 0)) : 0;
+    const cubreSoloSuFactura = totalSel > 0 && montoPagoCol >= totalSel - 1 && abonoPrevio <= 0.01 && saldoUsado <= 0.01 && sumRawFps > montoPagoCol * 1.3;
+    const formasPagoMulti = (!cubreSoloSuFactura && rawFps && rawFps.length > 1) ? rawFps : null;
+    const refsMulti = formasPagoMulti
+      ? Array.from(new Set(formasPagoMulti.map((fp: any) => String(fp?.referencia || '').trim()).filter(Boolean)))
+      : [];
+    const referenciaMulti = refsMulti.length > 1 ? refsMulti.join(' / ') : (pago.referencia || 'N/A');
+
+    const monto = det.es_abono
+      ? montoPagoCol
+      : sumDesglose > montoPagoCol
+        ? sumDesglose
+        : totalSel > montoPagoCol
+          ? r2(totalSel - retencionIva)
+          : (formasPagoMulti && sumRawFps > montoPagoCol)
+            ? sumRawFps
+            : r2(montoPagoCol + abonoPrevio + saldoUsado);
     // Mes de cada referencia: HIST usa la deuda previa guardada en el pago (meses que debía al pagar)
     const MESES = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
     const mesesPrevios = new Map<string, number>();
@@ -209,7 +236,8 @@ export async function GET(request: Request) {
           total: subMonto,
           formaPago: formaPagoTexto(pago.tipo),
           banco: pago.banco || pago.tipo || '',
-          referencia: pago.referencia || 'N/A',
+          referencia: referenciaMulti,
+          ...(formasPagoMulti ? { pagosAgregados: formasPagoMulti } : {}),
           tasaBcv: parseFloat(String(det.tasa_bcv_original || det.recibo_caja?.[0]?.tasaBcv || det.tasa_bcv_aplicada || det.tasa_bcv || 0)) || undefined,
           tipoContribuyente: esRes ? 'Residencial' : 'Comercial',
           ...(esAbono ? { esAbono: true, montoCancelado: subMonto } : {}),

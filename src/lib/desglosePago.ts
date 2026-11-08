@@ -55,13 +55,29 @@ export function desglosarPago(pago: any, inmMap: Map<string, any>): DesglosePago
   const montos: Record<string, any> = det.montos && typeof det.montos === 'object' ? det.montos : {};
   const tasa = parseFloat(String(det.tasa_bcv_original || det.recibo_caja?.[0]?.tasaBcv || det.tasa_bcv_aplicada || det.tasa_bcv || 0)) || 0;
   const monto = r2(parseFloat(String(pago.monto || 0)));
-  const montoNeto = (det.monto_neto_factura && Number(det.monto_neto_factura) > 0)
-    ? r2(Number(det.monto_neto_factura))
-    : (det.total_seleccionado && Number(det.total_seleccionado) > 0)
-      ? r2(Number(det.total_seleccionado))
-      : (!det.es_abono && !det.es_pago_adicional && (det.monto_factura || det.montoTotal) && Number(det.monto_factura || det.montoTotal) > 0)
-        ? r2(Number(det.monto_factura || det.montoTotal))
-        : monto;
+  const abonoPrevio = r2(parseFloat(String(det.abono_previo_descontado || 0)));
+  const saldoUsado = r2(parseFloat(String(det.saldo_usado || det.descuento_saldo_favor || det.saldo_favor_usado || 0)));
+  const retencionIva = r2(parseFloat(String(det.monto_retencion_iva || det.retencion_iva || 0)));
+  const totalSel = r2(parseFloat(String(det.total_seleccionado || 0)));
+  const montoFac = r2(parseFloat(String(det.monto_factura || det.montoTotal || 0)));
+  const montoNetoRaw = r2(parseFloat(String(det.monto_neto_factura || 0)));
+  const sumPagosAgr = Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1
+    ? r2(det.pagos_agregados.reduce((s: number, x: any) => s + (parseFloat(String(x?.monto || 0)) || 0), 0))
+    : 0;
+  const sumFormasPago = Array.isArray(det.formasPago) && det.formasPago.length > 1
+    ? r2(det.formasPago.reduce((s: number, x: any) => s + (parseFloat(String(x?.monto || 0)) || 0), 0))
+    : 0;
+  const montoNeto = det.es_abono
+    ? monto
+    : totalSel > 0
+      ? r2(totalSel - retencionIva)
+      : (!det.es_pago_adicional && montoFac > 0 && (montoFac >= monto || abonoPrevio > 0 || saldoUsado > 0))
+        ? r2(montoFac - retencionIva)
+        : montoNetoRaw > 0
+          ? ((abonoPrevio > 0 || saldoUsado > 0) && Math.abs(montoNetoRaw - monto) <= 1 ? r2(montoNetoRaw + abonoPrevio + saldoUsado) : montoNetoRaw)
+          : Math.max(sumPagosAgr, sumFormasPago) > monto
+            ? Math.max(sumPagosAgr, sumFormasPago)
+            : r2(monto + abonoPrevio + saldoUsado);
   const hoy = fechaPagoVE(pago, det);
   const esAbono = !!det.es_abono;
 

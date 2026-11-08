@@ -22,6 +22,9 @@ export interface DatosRecibo {
   numeroRecibo: string;
   fechaPago: string;
   desglose: DesglosePago;
+  montoTotal: number;
+  referenciaTexto: string;
+  formasPagoMulti: any[] | null;
 }
 
 const esc = (s: any) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
@@ -85,6 +88,12 @@ export async function cargarDatosRecibo(pagoId: string): Promise<DatosRecibo> {
     throw new Error(`El pago no está conciliado (estado actual: "${pago.estado || 'Pendiente'}"). No se puede emitir ni enviar recibo hasta que sea aprobado en Conciliación Bancaria.`);
   }
   const det = parseDetalles(pago.detalles);
+  if (det.abono_completado && det.completado_con_pago_id && det.completado_con_pago_id !== pagoId) {
+    const { data: pagoComp } = await supabase.from('pagos_reportados').select('id, estado').eq('id', det.completado_con_pago_id).maybeSingle();
+    if (pagoComp && pagoComp.estado === 'Aprobado') {
+      return cargarDatosRecibo(pagoComp.id);
+    }
+  }
   const recibos: string[] = det.recibos || [];
 
   const codigos = [...new Set(recibos.map(extraerCodigoInmueble).filter(Boolean) as string[])];
@@ -138,11 +147,44 @@ export async function cargarDatosRecibo(pagoId: string): Promise<DatosRecibo> {
     || cont?.nombre
     || pago.identidad;
 
+  const desglose = desglosarPago(pago, inmMap);
+  const montoPago = Math.round((parseFloat(String(pago.monto || 0)) || 0) * 100) / 100;
+  const abonoPrevio = Math.round((parseFloat(String(det.abono_previo_descontado || 0)) || 0) * 100) / 100;
+  const saldoUsado = Math.round((parseFloat(String(det.saldo_usado || det.descuento_saldo_favor || det.saldo_favor_usado || 0)) || 0) * 100) / 100;
+  const sumDesglose = desglose.cuadra && desglose.lineas.length > 0
+    ? Math.round(desglose.lineas.reduce((s, l) => s + l.total, 0) * 100) / 100
+    : 0;
+  const totalSel = Math.round((parseFloat(String(det.total_seleccionado || det.monto_factura || 0)) || 0) * 100) / 100;
+  const rawFps = Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1
+    ? det.pagos_agregados
+    : (Array.isArray(det.formasPago) && det.formasPago.length > 1 ? det.formasPago : null);
+  const sumRawFps = rawFps ? Math.round(rawFps.reduce((s: number, fp: any) => s + (parseFloat(String(fp?.monto || 0)) || 0), 0) * 100) / 100 : 0;
+  const cubreSoloSuFactura = totalSel > 0 && montoPago >= totalSel - 1 && abonoPrevio <= 0.01 && saldoUsado <= 0.01 && sumRawFps > montoPago * 1.3;
+  const formasPagoMulti = (!cubreSoloSuFactura && rawFps && rawFps.length > 1) ? rawFps : null;
+
+  const montoTotal = det.es_abono
+    ? montoPago
+    : sumDesglose > montoPago
+      ? sumDesglose
+      : totalSel > montoPago
+        ? totalSel
+        : (formasPagoMulti && sumRawFps > montoPago)
+          ? sumRawFps
+          : Math.round((montoPago + abonoPrevio + saldoUsado) * 100) / 100;
+
+  const refsMulti = formasPagoMulti
+    ? Array.from(new Set(formasPagoMulti.map((fp: any) => String(fp?.referencia || '').trim()).filter((r: string) => r && !/^desc\.?\s*saldo/i.test(r))))
+    : [];
+  const referenciaTexto = refsMulti.length > 1 ? refsMulti.join(' / ') : String(pago.referencia || 'N/A');
+
   return {
     pago, det, contribuyente, identidad: pago.identidad, correoCliente, clasif, lineas,
     numeroRecibo: `RC-${String(pago.id).replace(/-/g, '').slice(0, 8).toUpperCase()}`,
     fechaPago: fechaCaracas(det.fecha_transaccion || pago.created_at),
-    desglose: desglosarPago(pago, inmMap),
+    desglose,
+    montoTotal,
+    referenciaTexto,
+    formasPagoMulti,
   };
 }
 
@@ -194,7 +236,7 @@ export function construirReciboHtml(d: DatosRecibo, opts: { esCopiaInterna?: boo
           <tr><td style="color:#64748b;">N° de Recibo:</td><td style="text-align:right;font-family:monospace;font-weight:bold;color:#0f172a;">${d.numeroRecibo}</td></tr>
           <tr><td style="color:#64748b;">Fecha de pago:</td><td style="text-align:right;color:#0f172a;">${esc(d.fechaPago)}</td></tr>
           <tr><td style="color:#64748b;">Forma de pago:</td><td style="text-align:right;color:#0f172a;">${esc(formaPago)}</td></tr>
-          <tr><td style="color:#64748b;">Referencia:</td><td style="text-align:right;font-family:monospace;color:#0f172a;">${esc(d.pago.referencia)}</td></tr>
+          <tr><td style="color:#64748b;">Referencia:</td><td style="text-align:right;font-family:monospace;color:#0f172a;">${esc(d.referenciaTexto || d.pago.referencia)}</td></tr>
           ${d.det.cajero ? `<tr><td style="color:#64748b;">Caja:</td><td style="text-align:right;color:#0f172a;">${esc(d.det.cajero)}</td></tr>` : ''}
         </table>
         ${filas ? `<table width="100%" cellpadding="0" cellspacing="0" style="font-size:12px;margin-bottom:20px;border:1px solid #e2e8f0;border-radius:8px;">
@@ -203,9 +245,11 @@ export function construirReciboHtml(d: DatosRecibo, opts: { esCopiaInterna?: boo
         </table>` : ''}
         ${detallePeriodos}
         ${(() => {
-          const fps = Array.isArray(d.det?.formasPago) && d.det.formasPago.length > 1
-            ? d.det.formasPago
-            : (Array.isArray(d.det?.pagos_agregados) && d.det.pagos_agregados.length > 1 ? d.det.pagos_agregados : null);
+          const fps = d.formasPagoMulti || (
+            Array.isArray(d.det?.formasPago) && d.det.formasPago.length > 1
+              ? d.det.formasPago
+              : (Array.isArray(d.det?.pagos_agregados) && d.det.pagos_agregados.length > 1 ? d.det.pagos_agregados : null)
+          );
           if (!fps) return '';
           return `
             <div style="margin-bottom:20px;">
@@ -218,7 +262,8 @@ export function construirReciboHtml(d: DatosRecibo, opts: { esCopiaInterna?: boo
                   <th style="padding:7px 8px;text-align:right;color:#475569;">Monto</th>
                 </tr>
                 ${fps.map((fp: any, idx: number) => {
-                  const fFecha = fp.fecha ? fechaCaracas(fp.fecha) : d.fechaPago;
+                  const rawFechaFp = fp.fecha || fp.fechaTransaccion || fp.fecha_transaccion || fp.fecha_banco;
+                  const fFecha = rawFechaFp ? fechaCaracas(rawFechaFp) : d.fechaPago;
                   const fDesc = [fp.descripcion || fp.metodo || 'Transferencia', (fp.banco && fp.banco !== fp.descripcion) ? fp.banco.split(' - ')[0] : ''].filter(Boolean).join(' - ');
                   const fRef = fp.referencia || `Parte ${idx + 1}`;
                   const fMonto = Number(fp.monto) || 0;
@@ -236,7 +281,7 @@ export function construirReciboHtml(d: DatosRecibo, opts: { esCopiaInterna?: boo
           `;
         })()}
         <table width="100%" cellpadding="10" cellspacing="0" style="background:#ecfdf5;border-radius:8px;border:1px solid #a7f3d0;font-size:15px;">
-          <tr><td style="color:#065f46;font-weight:bold;">TOTAL PAGADO</td><td style="text-align:right;color:#166534;font-size:18px;font-weight:800;">Bs ${fmtBs(d.pago.monto)}</td></tr>
+          <tr><td style="color:#065f46;font-weight:bold;">TOTAL PAGADO</td><td style="text-align:right;color:#166534;font-size:18px;font-weight:800;">Bs ${fmtBs(d.montoTotal ?? d.pago.monto)}</td></tr>
         </table>
         <p style="margin:22px 0 0;font-size:11px;color:#94a3b8;line-height:1.5;text-align:center;">Este recibo es un comprobante de pago y no constituye factura fiscal.</p>
       </td></tr>

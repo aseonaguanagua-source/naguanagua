@@ -64,7 +64,7 @@ export function construirReciboPdf(d: DatosRecibo): Buffer {
   const datos: [string, string][] = [
     ['Fecha de pago', d.fechaPago],
     ['Forma de pago', formaPago || '-'],
-    ['Referencia', String(d.pago.referencia || '-')],
+    ['Referencia', String(d.referenciaTexto || d.pago.referencia || '-')],
   ];
   if (d.det?.cajero) datos.push(['Caja', String(d.det.cajero)]);
   doc.setDrawColor(226, 232, 240);
@@ -146,9 +146,11 @@ export function construirReciboPdf(d: DatosRecibo): Buffer {
   }
 
   // ── Desglose de múltiples pagos / transferencias (anticipo + diferencia, etc.) ──
-  const fps = Array.isArray(d.det?.formasPago) && d.det.formasPago.length > 1
-    ? d.det.formasPago
-    : (Array.isArray(d.det?.pagos_agregados) && d.det.pagos_agregados.length > 1 ? d.det.pagos_agregados : null);
+  const fps = d.formasPagoMulti || (
+    Array.isArray(d.det?.formasPago) && d.det.formasPago.length > 1
+      ? d.det.formasPago
+      : (Array.isArray(d.det?.pagos_agregados) && d.det.pagos_agregados.length > 1 ? d.det.pagos_agregados : null)
+  );
   if (fps && fps.length > 1) {
     if (y + 25 > H - 30) { doc.addPage(); y = 20; }
     doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(15, 23, 42);
@@ -159,7 +161,8 @@ export function construirReciboPdf(d: DatosRecibo): Buffer {
       wFp,
       ['left', 'left', 'left', 'right'],
       fps.map((fp: any, idx: number) => {
-        const fFecha = String(fp.fecha ? (fp.fecha.length === 10 ? fp.fecha : fp.fecha.slice(0, 10)) : d.fechaPago);
+        const rawFpFecha = fp.fecha || fp.fechaTransaccion || fp.fecha_transaccion || fp.fecha_banco;
+        const fFecha = String(rawFpFecha ? (String(rawFpFecha).length === 10 ? rawFpFecha : String(rawFpFecha).slice(0, 10)) : d.fechaPago);
         const fMetodo = [fp.descripcion || fp.metodo || 'Transferencia', (fp.banco && fp.banco !== fp.descripcion) ? fp.banco.split(' - ')[0] : ''].filter(Boolean).join(' - ');
         const fRef = String(fp.referencia || `Parte ${idx + 1}`);
         const fMonto = `Bs ${fmtBs(Number(fp.monto) || 0)}`;
@@ -176,7 +179,7 @@ export function construirReciboPdf(d: DatosRecibo): Buffer {
   doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(6, 95, 70);
   doc.text('TOTAL PAGADO', M + 4, y + 7.8);
   doc.setFontSize(13); doc.setTextColor(22, 101, 52);
-  doc.text(`Bs ${fmtBs(d.pago.monto)}`, W - M - 4, y + 8, { align: 'right' });
+  doc.text(`Bs ${fmtBs(d.montoTotal ?? d.pago.monto)}`, W - M - 4, y + 8, { align: 'right' });
   y += 20;
 
   // ── Pie ──
