@@ -110,11 +110,15 @@ export async function cargarDatosRecibo(pagoId: string): Promise<DatosRecibo> {
   const clasif = clasificarPago(recibos, inmMap, det);
   const lineas = codigos.map(codigo => {
     const inm = inmMap.get(codigo);
+    const mesesHist = recibos.filter(r => /^(RECIB-HIST|CM)-/i.test(r) && extraerCodigoInmueble(r) === codigo).length;
+    const mesesCondo = Array.isArray(det.condominio?.lineas)
+      ? new Set(det.condominio.lineas.flatMap((lc: any) => Array.isArray(lc?.periodos) ? lc.periodos : [])).size
+      : (recibos.some(r => /^CONDO-/i.test(r) && extraerCodigoInmueble(r) === codigo) ? 1 : 0);
     return {
       codigo,
       direccion: inm?.direccion || '',
       uso: inm ? (isResidencialInm(inm) ? 'Residencial' : 'Comercial') : '',
-      meses: recibos.filter(r => /^(RECIB-HIST|CM)-/i.test(r) && extraerCodigoInmueble(r) === codigo).length,
+      meses: mesesHist || mesesCondo,
       multa: recibos.some(r => /^MULTA-/i.test(r) && extraerCodigoInmueble(r) === codigo),
     };
   });

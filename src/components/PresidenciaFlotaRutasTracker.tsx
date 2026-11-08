@@ -867,8 +867,8 @@ export default function PresidenciaFlotaRutasTracker() {
         camionDirecto?.estado === 'EN_RUTA'
           ? Math.min(95, 45 + ((index * 7) % 45))
           : camionDirecto?.estado === 'EN_VERTEDERO'
-          ? 100
-          : 60 + ((index * 5) % 35);
+            ? 100
+            : 60 + ((index * 5) % 35);
 
       return {
         ...r,
@@ -973,11 +973,10 @@ export default function PresidenciaFlotaRutasTracker() {
               <button
                 key={v.id}
                 onClick={() => setVistaInterna(v.id as any)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
-                  vistaInterna === v.id
+                className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${vistaInterna === v.id
                     ? 'bg-[#B8CD29] text-slate-950 shadow'
                     : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
-                }`}
+                  }`}
               >
                 {v.label}
               </button>
@@ -994,11 +993,10 @@ export default function PresidenciaFlotaRutasTracker() {
             setFiltroEstado('TODOS');
             setCamionFiltroMapa('TODOS');
           }}
-          className={`text-left p-4 rounded-2xl border transition-all cursor-pointer ${
-            filtroEstado === 'TODOS' && camionFiltroMapa === 'TODOS'
+          className={`text-left p-4 rounded-2xl border transition-all cursor-pointer ${filtroEstado === 'TODOS' && camionFiltroMapa === 'TODOS'
               ? 'bg-slate-900 border-[#B8CD29] shadow-lg shadow-[#B8CD29]/10'
               : 'bg-slate-900/80 border-slate-800 hover:border-slate-700'
-          }`}
+            }`}
         >
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
@@ -1018,11 +1016,10 @@ export default function PresidenciaFlotaRutasTracker() {
             setFiltroEstado('OPERATIVOS');
             setCamionFiltroMapa('TODOS');
           }}
-          className={`text-left p-4 rounded-2xl border transition-all cursor-pointer ${
-            filtroEstado === 'OPERATIVOS'
+          className={`text-left p-4 rounded-2xl border transition-all cursor-pointer ${filtroEstado === 'OPERATIVOS'
               ? 'bg-emerald-950/60 border-emerald-400 shadow-lg shadow-emerald-500/10'
               : 'bg-slate-900/80 border-emerald-900/50 hover:border-emerald-600/50'
-          }`}
+            }`}
         >
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-300">
@@ -1047,11 +1044,10 @@ export default function PresidenciaFlotaRutasTracker() {
             setFiltroEstado('EN_RUTA');
             setCamionFiltroMapa('TODOS');
           }}
-          className={`text-left p-4 rounded-2xl border transition-all cursor-pointer ${
-            filtroEstado === 'EN_RUTA'
+          className={`text-left p-4 rounded-2xl border transition-all cursor-pointer ${filtroEstado === 'EN_RUTA'
               ? 'bg-emerald-950/70 border-[#B8CD29] shadow-lg shadow-[#B8CD29]/15'
               : 'bg-slate-900/80 border-slate-800 hover:border-emerald-500/50'
-          }`}
+            }`}
         >
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#B8CD29]">
@@ -1071,11 +1067,10 @@ export default function PresidenciaFlotaRutasTracker() {
             setFiltroEstado('EN_VERTEDERO');
             setCamionFiltroMapa('TODOS');
           }}
-          className={`text-left p-4 rounded-2xl border transition-all cursor-pointer ${
-            filtroEstado === 'EN_VERTEDERO'
+          className={`text-left p-4 rounded-2xl border transition-all cursor-pointer ${filtroEstado === 'EN_VERTEDERO'
               ? 'bg-sky-950/60 border-sky-400 shadow-lg shadow-sky-500/15'
               : 'bg-slate-900/80 border-slate-800 hover:border-sky-500/50'
-          }`}
+            }`}
         >
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-extrabold uppercase tracking-wider text-sky-300">
@@ -1096,11 +1091,10 @@ export default function PresidenciaFlotaRutasTracker() {
             setCamionFiltroMapa('TODOS');
             setVistaInterna('ESTATUS_FLOTA');
           }}
-          className={`text-left p-4 rounded-2xl border transition-all cursor-pointer ${
-            filtroEstado === 'MANTENIMIENTO'
+          className={`text-left p-4 rounded-2xl border transition-all cursor-pointer ${filtroEstado === 'MANTENIMIENTO'
               ? 'bg-amber-950/60 border-amber-400 shadow-lg shadow-amber-500/15'
               : 'bg-slate-900/80 border-slate-800 hover:border-amber-500/50'
-          }`}
+            }`}
         >
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-300">
@@ -1123,11 +1117,10 @@ export default function PresidenciaFlotaRutasTracker() {
             setCamionFiltroMapa('TODOS');
             setVistaInterna('ESTATUS_FLOTA');
           }}
-          className={`text-left p-4 rounded-2xl border transition-all cursor-pointer ${
-            filtroEstado === 'REPARACION'
+          className={`text-left p-4 rounded-2xl border transition-all cursor-pointer ${filtroEstado === 'REPARACION'
               ? 'bg-rose-950/60 border-rose-400 shadow-lg shadow-rose-500/15'
               : 'bg-slate-900/80 border-slate-800 hover:border-rose-500/50'
-          }`}
+            }`}
         >
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-extrabold uppercase tracking-wider text-rose-300">
@@ -1166,11 +1159,10 @@ export default function PresidenciaFlotaRutasTracker() {
                       TRACKER GPS SATELITAL EN VIVO · NAGUANAGUA
                     </h3>
                     <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
-                        simulacionActiva
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${simulacionActiva
                           ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
                           : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                      }`}
+                        }`}
                     >
                       {simulacionActiva ? '● MOVIMIENTO EN VIVO' : '⏸ PAUSADO'}
                     </span>
@@ -1197,11 +1189,10 @@ export default function PresidenciaFlotaRutasTracker() {
 
                 <button
                   onClick={() => setSimulacionActiva((prev) => !prev)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-extrabold border transition-all cursor-pointer ${
-                    simulacionActiva
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-extrabold border transition-all cursor-pointer ${simulacionActiva
                       ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/40'
                       : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 border-emerald-400'
-                  }`}
+                    }`}
                 >
                   {simulacionActiva ? (
                     <>
@@ -1219,11 +1210,10 @@ export default function PresidenciaFlotaRutasTracker() {
                     <button
                       key={vel}
                       onClick={() => setVelocidadSim(vel)}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
-                        velocidadSim === vel
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition-all cursor-pointer ${velocidadSim === vel
                           ? 'bg-[#B8CD29] text-slate-950'
                           : 'text-slate-400 hover:text-white'
-                      }`}
+                        }`}
                     >
                       {vel}x
                     </button>
@@ -1232,11 +1222,10 @@ export default function PresidenciaFlotaRutasTracker() {
 
                 <button
                   onClick={() => setMapaPantallaCompleta((prev) => !prev)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black border transition-all cursor-pointer ${
-                    mapaPantallaCompleta
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black border transition-all cursor-pointer ${mapaPantallaCompleta
                       ? 'bg-rose-600 hover:bg-rose-500 text-white border-rose-400'
                       : 'bg-[#B8CD29] hover:bg-[#c8de38] text-slate-950 border-[#B8CD29]'
-                  }`}
+                    }`}
                 >
                   {mapaPantallaCompleta ? (
                     <>
@@ -1313,11 +1302,10 @@ export default function PresidenciaFlotaRutasTracker() {
               <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
                 <button
                   onClick={() => setCamionFiltroMapa('TODOS')}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] font-black border shrink-0 cursor-pointer transition-all ${
-                    camionFiltroMapa === 'TODOS'
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-black border shrink-0 cursor-pointer transition-all ${camionFiltroMapa === 'TODOS'
                       ? 'bg-emerald-500 text-slate-950 border-emerald-400'
                       : 'bg-slate-900 text-slate-300 border-slate-700 hover:border-slate-500'
-                  }`}
+                    }`}
                 >
                   Todos ({flotaEnVivo.length})
                 </button>
@@ -1328,11 +1316,10 @@ export default function PresidenciaFlotaRutasTracker() {
                     <button
                       key={u.id}
                       onClick={() => handleSelectSingleTruck(u.id)}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-black border flex items-center gap-1 shrink-0 cursor-pointer transition-all ${
-                        isSolo
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-black border flex items-center gap-1 shrink-0 cursor-pointer transition-all ${isSolo
                           ? 'bg-[#B8CD29] text-slate-950 border-[#B8CD29] shadow'
                           : 'bg-slate-900 text-slate-300 border-slate-800 hover:border-slate-600'
-                      }`}
+                        }`}
                     >
                       <span className={`w-2 h-2 rounded-full ${b.dot}`} />
                       {u.id.replace('IAMEC-', 'U-')}
@@ -1353,9 +1340,8 @@ export default function PresidenciaFlotaRutasTracker() {
                   setMapaPantallaCompleta(true);
                 }
               }}
-              className={`lg:col-span-8 relative ${
-                mapaPantallaCompleta ? 'min-h-[62vh] lg:min-h-[78vh]' : 'min-h-[460px] sm:min-h-[540px]'
-              } bg-[#04110c] overflow-hidden select-none border-b lg:border-b-0 lg:border-r border-emerald-900/50 cursor-pointer`}
+              className={`lg:col-span-8 relative ${mapaPantallaCompleta ? 'min-h-[62vh] lg:min-h-[78vh]' : 'min-h-[460px] sm:min-h-[540px]'
+                } bg-[#04110c] overflow-hidden select-none border-b lg:border-b-0 lg:border-r border-emerald-900/50 cursor-pointer`}
             >
               {/* Banner flotante superior en el mapa */}
               <div className="absolute top-2.5 left-2.5 right-2.5 z-20 flex items-center justify-between pointer-events-none">
@@ -1531,17 +1517,15 @@ export default function PresidenciaFlotaRutasTracker() {
                       left: `${camion.pos.x}%`,
                       top: `${camion.pos.y}%`,
                     }}
-                    className={`absolute -translate-x-1/2 -translate-y-1/2 group cursor-pointer focus:outline-none ${
-                      isSelected ? 'z-30 scale-115' : 'z-20 hover:z-30 hover:scale-110'
-                    }`}
+                    className={`absolute -translate-x-1/2 -translate-y-1/2 group cursor-pointer focus:outline-none ${isSelected ? 'z-30 scale-115' : 'z-20 hover:z-30 hover:scale-110'
+                      }`}
                   >
                     {/* Pulso radar para unidades en movimiento o seleccionadas */}
                     {(isSelected || camion.velocidadActual > 0) && (
                       <span
                         style={{ borderColor: isSelected ? '#B8CD29' : badge.hex }}
-                        className={`absolute -inset-2.5 rounded-full border-2 animate-ping ${
-                          isSelected ? 'opacity-85' : 'opacity-40'
-                        }`}
+                        className={`absolute -inset-2.5 rounded-full border-2 animate-ping ${isSelected ? 'opacity-85' : 'opacity-40'
+                          }`}
                       />
                     )}
 
@@ -1554,9 +1538,8 @@ export default function PresidenciaFlotaRutasTracker() {
                     >
                       <span className="text-xs">🚛</span>
                       <span
-                        className={`text-[10px] sm:text-[11px] font-black tracking-tight ${
-                          isSelected ? 'text-[#B8CD29]' : 'text-white'
-                        }`}
+                        className={`text-[10px] sm:text-[11px] font-black tracking-tight ${isSelected ? 'text-[#B8CD29]' : 'text-white'
+                          }`}
                       >
                         {camion.id.replace('IAMEC-', 'U-')}
                       </span>
@@ -1616,9 +1599,8 @@ export default function PresidenciaFlotaRutasTracker() {
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <span
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black border ${
-                            getBadgeEstado(camionSeleccionado.estado).bg
-                          }`}
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black border ${getBadgeEstado(camionSeleccionado.estado).bg
+                            }`}
                         >
                           {getBadgeEstado(camionSeleccionado.estado).label}
                         </span>
@@ -1665,19 +1647,19 @@ export default function PresidenciaFlotaRutasTracker() {
                       </div>
                       {(camionSeleccionado.estado === 'EN_RUTA' ||
                         camionSeleccionado.estado === 'EN_VERTEDERO') && (
-                        <div className="space-y-1 pt-1">
-                          <div className="text-[11px] text-[#B8CD29] font-semibold flex items-center gap-1">
-                            <ChevronRight className="w-3.5 h-3.5" />
-                            Dirigiéndose a: {camionSeleccionado.pos.proximoSector}
+                          <div className="space-y-1 pt-1">
+                            <div className="text-[11px] text-[#B8CD29] font-semibold flex items-center gap-1">
+                              <ChevronRight className="w-3.5 h-3.5" />
+                              Dirigiéndose a: {camionSeleccionado.pos.proximoSector}
+                            </div>
+                            <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                              <div
+                                style={{ width: `${camionSeleccionado.pos.progresoTramoPct}%` }}
+                                className="h-full bg-[#B8CD29] transition-all duration-100"
+                              />
+                            </div>
                           </div>
-                          <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                            <div
-                              style={{ width: `${camionSeleccionado.pos.progresoTramoPct}%` }}
-                              className="h-full bg-[#B8CD29] transition-all duration-100"
-                            />
-                          </div>
-                        </div>
-                      )}
+                        )}
                     </div>
 
                     {/* Ruta y Cuadrilla Asignada */}
@@ -1751,13 +1733,12 @@ export default function PresidenciaFlotaRutasTracker() {
                     {/* Alerta / Detalle Especial si está en Reparación, Mantenimiento o Vertedero */}
                     {camionSeleccionado.estado !== 'EN_RUTA' && (
                       <div
-                        className={`rounded-xl p-3 border space-y-1.5 ${
-                          camionSeleccionado.estado === 'REPARACION'
+                        className={`rounded-xl p-3 border space-y-1.5 ${camionSeleccionado.estado === 'REPARACION'
                             ? 'bg-rose-950/50 border-rose-500/50'
                             : camionSeleccionado.estado === 'MANTENIMIENTO'
-                            ? 'bg-amber-950/50 border-amber-500/50'
-                            : 'bg-sky-950/50 border-sky-500/50'
-                        }`}
+                              ? 'bg-amber-950/50 border-amber-500/50'
+                              : 'bg-sky-950/50 border-sky-500/50'
+                          }`}
                       >
                         <div className="text-[10px] font-black uppercase tracking-wider flex items-center justify-between">
                           <span
@@ -1765,15 +1746,15 @@ export default function PresidenciaFlotaRutasTracker() {
                               camionSeleccionado.estado === 'REPARACION'
                                 ? 'text-rose-300'
                                 : camionSeleccionado.estado === 'MANTENIMIENTO'
-                                ? 'text-amber-300'
-                                : 'text-sky-300'
+                                  ? 'text-amber-300'
+                                  : 'text-sky-300'
                             }
                           >
                             {camionSeleccionado.estado === 'REPARACION'
                               ? '🔧 MOTIVO Y TIEMPO DE REPARACIÓN'
                               : camionSeleccionado.estado === 'MANTENIMIENTO'
-                              ? '⚙️ SERVICIO PREVENTIVO EN CURSO'
-                              : '♻️ OPERACIÓN EN VERTEDERO LA GUÁSIMA'}
+                                ? '⚙️ SERVICIO PREVENTIVO EN CURSO'
+                                : '♻️ OPERACIÓN EN VERTEDERO LA GUÁSIMA'}
                           </span>
                           <span className="text-white font-bold">
                             {camionSeleccionado.tiempoEnEstado}
@@ -1832,20 +1813,18 @@ export default function PresidenciaFlotaRutasTracker() {
                         handleSelectSingleTruck(unidad.id);
                         setVistaInterna('TRACKER');
                       }}
-                      className={`rounded-2xl p-4 border transition-all cursor-pointer ${
-                        esReparacion
+                      className={`rounded-2xl p-4 border transition-all cursor-pointer ${esReparacion
                           ? 'bg-rose-950/25 border-rose-500/40 hover:border-rose-400'
                           : 'bg-amber-950/25 border-amber-500/40 hover:border-amber-400'
-                      }`}
+                        }`}
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
                         <div className="flex items-center gap-2">
                           <span
-                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase border ${
-                              esReparacion
+                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase border ${esReparacion
                                 ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
                                 : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                            }`}
+                              }`}
                           >
                             {esReparacion ? '🔴 EN REPARACIÓN' : '🟡 EN MANTENIMIENTO'}
                           </span>
@@ -1905,9 +1884,8 @@ export default function PresidenciaFlotaRutasTracker() {
                           <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden mt-1.5">
                             <div
                               style={{ width: `${unidad.progresoTallerPct}%` }}
-                              className={`h-full ${
-                                esReparacion ? 'bg-rose-500' : 'bg-amber-400'
-                              }`}
+                              className={`h-full ${esReparacion ? 'bg-rose-500' : 'bg-amber-400'
+                                }`}
                             />
                           </div>
                           <div className="text-[10px] text-slate-400 truncate mt-1">
@@ -2068,11 +2046,10 @@ export default function PresidenciaFlotaRutasTracker() {
                 <button
                   key={f.id}
                   onClick={() => setFiltroFrecuenciaRuta(f.id)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
-                    filtroFrecuenciaRuta === f.id
+                  className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${filtroFrecuenciaRuta === f.id
                       ? 'bg-emerald-500 text-slate-950 shadow'
                       : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                  }`}
+                    }`}
                 >
                   {f.label}
                 </button>

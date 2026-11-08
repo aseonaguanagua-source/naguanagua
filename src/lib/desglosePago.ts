@@ -156,10 +156,36 @@ export function desglosarPago(pago: any, inmMap: Map<string, any>): DesglosePago
       }
     }
 
-    // Otras referencias (facturas formales CM-, E-, etc.) con monto guardado
+    // Otras referencias (facturas formales CM-, E-, CONDO-, etc.) con monto guardado
     for (const ref of refsCod.filter(r => !/^MULTA-|^RECIB-HIST-/i.test(r))) {
       const m = r2(parseFloat(String(montos[ref] ?? 0)));
-      if (m > 0) lineas.push({ codigo, periodo: ref, tipo: 'otro', esResidencial: esRes, base: m, iva: 0, multa: 0, retencion: 0, total: m });
+      if (m > 0) {
+        let lblPeriodo = ref;
+        if (/^CONDO-/i.test(ref)) {
+          const perSet = new Set<string>();
+          if (Array.isArray(det.condominio?.lineas)) {
+            det.condominio.lineas.forEach((lc: any) => {
+              (Array.isArray(lc?.periodos) ? lc.periodos : []).forEach((pStr: any) => {
+                const match = String(pStr || '').match(/^(\d{4})-(\d{2})$/);
+                if (match) {
+                  const y = Number(match[1]);
+                  const mo = Number(match[2]) - 1;
+                  if (mo >= 0 && mo < 12) {
+                    perSet.add(`${MESES[mo]} ${y}`);
+                    fechasMeses.push(new Date(y, mo, 1, 12, 0, 0));
+                  }
+                }
+              });
+            });
+          }
+          if (perSet.size > 0) {
+            lblPeriodo = Array.from(perSet).join(' - ');
+          } else if (det.periodos_pagados || det.recibo_caja?.[0]?.periodo) {
+            lblPeriodo = String(det.periodos_pagados || det.recibo_caja?.[0]?.periodo).toUpperCase();
+          }
+        }
+        lineas.push({ codigo, periodo: lblPeriodo, tipo: 'otro', esResidencial: esRes, base: m, iva: 0, multa: 0, retencion: 0, total: m });
+      }
     }
   }
 
@@ -189,7 +215,15 @@ export function desglosarPago(pago: any, inmMap: Map<string, any>): DesglosePago
     last.total = r2(last.total + diff);
   }
 
-  const orden = [...fechasMeses].sort((a, b) => a.getTime() - b.getTime());
+  const vistosMes = new Set<string>();
+  const orden = [...fechasMeses]
+    .sort((a, b) => a.getTime() - b.getTime())
+    .filter(f => {
+      const k = `${f.getFullYear()}-${f.getMonth()}`;
+      if (vistosMes.has(k)) return false;
+      vistosMes.add(k);
+      return true;
+    });
   const periodoTexto = orden.length === 0 ? undefined
     : orden.length === 1 ? etiqueta(orden[0])
     : `DESDE ${etiqueta(orden[0])} HASTA ${etiqueta(orden[orden.length - 1])} (${orden.length} MESES)`;
