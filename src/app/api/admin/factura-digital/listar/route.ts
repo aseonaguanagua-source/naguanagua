@@ -650,8 +650,14 @@ export async function GET(request: Request) {
     const detectarEsPagoPorLocal = (pago: any, det: any, condoRow: any) => {
       const c = det.condominio || {};
       const condoMod = String(c.modalidad || '').toUpperCase();
-      const modCobro = String(det.modalidad_cobro || '').toLowerCase();
+      const modCobro = String(det.modalidad_cobro || c.modalidad_cobro || '').toLowerCase();
       const tieneSoloMultas = Boolean(det.soloMultas || det.solo_multas || c.solo_multas);
+      if (tieneSoloMultas || ['individual', 'local', 'multas_separadas'].includes(modCobro)) {
+        return true;
+      }
+      if (['completo', 'total', 'abono', 'abono_locales'].includes(modCobro)) {
+        return false;
+      }
       const rifDistintoDeCondo = Boolean(
         condoRow?.identidad &&
         pago.identidad &&
@@ -660,8 +666,6 @@ export async function GET(request: Request) {
       if (det.modo === 'CONDOMINIO' && !rifDistintoDeCondo) return false;
       return Boolean(
         det.modo === 'CONTRIBUYENTE' ||
-        ['individual', 'multas_separadas'].includes(modCobro) ||
-        (tieneSoloMultas && det.modo !== 'CONDOMINIO') ||
         (!det.modo && !modCobro && condoMod === 'INDIVIDUAL') ||
         (!det.modo && !modCobro && rifDistintoDeCondo)
       );

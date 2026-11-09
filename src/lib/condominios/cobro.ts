@@ -121,7 +121,11 @@ export async function prepararCobro(sol: SolicitudCobro): Promise<Cobro & { _dat
     const estado = calcularEstado(datos.condo, datos.unidades, tasa, fecha, datos.multas, !!sol.omitirMultaSeptiembre);
     const porAct = estado.porActividad;
     const avisos: string[] = [];
-    const modo: ModoCobro = sol.modo ? sol.modo : (sol.identidad ? 'CONTRIBUYENTE' : 'CONDOMINIO');
+    const modo: ModoCobro = (sol.soloMultas || sol.modalidad === 'multas_separadas' || sol.modalidad === 'individual')
+        ? 'CONTRIBUYENTE'
+        : ((sol.modalidad === 'completo' || sol.modalidad === 'abono_locales')
+            ? 'CONDOMINIO'
+            : (sol.modo ? sol.modo : (sol.identidad ? 'CONTRIBUYENTE' : 'CONDOMINIO')));
 
     const conDeuda = estado.renglones.filter(r => r.totalBs > 0.01);
     const pedidas = new Set((sol.claves || []).filter(Boolean));
@@ -619,7 +623,7 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
             codContribuyente: f.identidad,
             razonSocial: f.nombre,
             domicilioFiscal: sanitizarDireccionFiscal(c.direccion, {
-                unidadNumero: ls[0]?.numero || null,
+                unidadNumero: (cobro.modo === 'CONDOMINIO' && !sol.soloMultas) ? null : (ls[0]?.numero || null),
                 nombreCondo: c.nombre,
             }),
             rifCi: f.identidad,
@@ -654,8 +658,11 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
         };
 
         const modalidadCobroActiva = sol.modalidad || (sol.soloMultas ? 'multas_separadas' : (cobro.modo === 'CONDOMINIO' ? 'completo' : 'individual'));
+        const modoEfectivo: ModoCobro = (sol.soloMultas || modalidadCobroActiva === 'individual' || modalidadCobroActiva === 'multas_separadas')
+            ? 'CONTRIBUYENTE'
+            : 'CONDOMINIO';
         const detalles = {
-            modulo: 'condominios', modo: cobro.modo, modalidad_cobro: modalidadCobroActiva, cajero: pago.cajero, tasa_bcv: tasa, es_condominio: true, isCondominio: true,
+            modulo: 'condominios', modo: modoEfectivo, modalidad_cobro: modalidadCobroActiva, cajero: pago.cajero, tasa_bcv: tasa, es_condominio: true, isCondominio: true,
             soloMultas: !!sol.soloMultas,
             solo_multas: !!sol.soloMultas,
             condominio: {

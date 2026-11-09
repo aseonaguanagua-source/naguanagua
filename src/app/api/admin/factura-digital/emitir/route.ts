@@ -1203,14 +1203,17 @@ export async function POST(request: Request) {
       lineasCondo
     );
     const condoModalidad = String(condoDet?.modalidad || detPago?.condominio?.modalidad || '').toUpperCase();
-    const condoModoCaja = String(detPago?.condominio_modo || detPago?.modalidad_cobro || '').toLowerCase();
-    const esModoCondominio = detPago?.modo === 'CONDOMINIO' || dm?.modo === 'CONDOMINIO' || ['total', 'abono', 'completo', 'abono_locales'].includes(condoModoCaja);
-    const esModoContribuyente = detPago?.modo === 'CONTRIBUYENTE' || dm?.modo === 'CONTRIBUYENTE' || ['local', 'individual', 'multas_separadas'].includes(condoModoCaja);
+    const condoModoCaja = String(detPago?.condominio_modo || detPago?.modalidad_cobro || detPago?.condominio?.modalidad_cobro || '').toLowerCase();
+    const tieneSoloMultasEmit = Boolean(detPago?.soloMultas || detPago?.solo_multas || detPago?.condominio?.solo_multas || condoDet?.solo_multas);
+    const esModoContribuyente = tieneSoloMultasEmit || ['local', 'individual', 'multas_separadas'].includes(condoModoCaja) || ((detPago?.modo === 'CONTRIBUYENTE' || dm?.modo === 'CONTRIBUYENTE') && !['total', 'abono', 'completo', 'abono_locales'].includes(condoModoCaja));
+    const esModoCondominio = !esModoContribuyente && (['total', 'abono', 'completo', 'abono_locales'].includes(condoModoCaja) || detPago?.modo === 'CONDOMINIO' || dm?.modo === 'CONDOMINIO');
     const esPagoPorLocal = Boolean(
-      esCondominioPago && !esModoCondominio && (
+      esCondominioPago && (
         esModoContribuyente ||
-        condoModalidad === 'INDIVIDUAL' ||
-        Boolean(detPago?.condominio_hijos_pagados?.length)
+        (!esModoCondominio && (
+          condoModalidad === 'INDIVIDUAL' ||
+          Boolean(detPago?.condominio_hijos_pagados?.length)
+        ))
       )
     );
     const esCondoGlobal = Boolean(

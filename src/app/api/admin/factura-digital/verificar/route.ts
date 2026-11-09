@@ -189,12 +189,14 @@ export async function POST(request: Request) {
 
     const esCondo = Boolean(pagoData?.modulo === 'condominios' || detPagoObj?.modulo === 'condominios' || detPagoObj?.isCondominio || detPagoObj?.es_condominio || detPagoObj?.condominio);
     const condoMod = String(detPagoObj?.condominio?.modalidad || '').toUpperCase();
-    const esModoCondominio = detPagoObj?.modo === 'CONDOMINIO' || ['total', 'abono', 'completo', 'abono_locales'].includes(String(detPagoObj?.modalidad_cobro || '').toLowerCase());
-    const esModoContribuyente = detPagoObj?.modo === 'CONTRIBUYENTE' || ['local', 'individual', 'multas_separadas'].includes(String(detPagoObj?.modalidad_cobro || '').toLowerCase());
+    const modCobroVerif = String(detPagoObj?.modalidad_cobro || detPagoObj?.condominio?.modalidad_cobro || '').toLowerCase();
+    const tieneSoloMultasVerif = Boolean(detPagoObj?.soloMultas || detPagoObj?.solo_multas || detPagoObj?.condominio?.solo_multas);
+    const esModoContribuyente = tieneSoloMultasVerif || ['local', 'individual', 'multas_separadas'].includes(modCobroVerif) || (detPagoObj?.modo === 'CONTRIBUYENTE' && !['total', 'abono', 'completo', 'abono_locales'].includes(modCobroVerif));
+    const esModoCondominio = !esModoContribuyente && (['total', 'abono', 'completo', 'abono_locales'].includes(modCobroVerif) || detPagoObj?.modo === 'CONDOMINIO');
     const esPagoPorLocal = Boolean(
-      esCondo && !esModoCondominio && (
+      esCondo && (
         esModoContribuyente ||
-        condoMod === 'INDIVIDUAL'
+        (!esModoCondominio && condoMod === 'INDIVIDUAL')
       )
     );
     const esCondoGlobal = Boolean(esCondo && !esPagoPorLocal);
