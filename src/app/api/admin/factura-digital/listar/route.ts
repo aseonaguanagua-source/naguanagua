@@ -625,7 +625,7 @@ export async function GET(request: Request) {
     const fallbackEmail = process.env.TFHKA_FALLBACK_EMAIL?.trim() || 'facturacion.comercial@globalgreenca.com';
 
     // Condominios (para reconocer pagos de condominios por su RIF o código y correo actualizado)
-    const { data: condosRows } = await supabase.from('condominios').select('codigo,identidad,nombre,tipo,agente_retencion,correo,multa_meses,multa_exonerada_hasta').limit(5000);
+    const { data: condosRows } = await supabase.from('condominios').select('codigo,identidad,nombre,tipo,agente_retencion,correo,direccion,multa_meses,multa_exonerada_hasta').limit(5000);
     const condoPorRif = new Map<string, any>();
     const condoPorCodigo = new Map<string, any>();
     (condosRows || []).forEach((c: any) => {
@@ -668,6 +668,7 @@ export async function GET(request: Request) {
         residencial: tipo ? String(tipo).toUpperCase() === 'RESIDENCIAL' : null,
         agente_retencion: Boolean(c.agente_retencion ?? condoRow?.agente_retencion),
         correo: condoRow?.correo || c.correo || null,
+        direccion: condoRow?.direccion || c.direccion || null,
         multa_meses: condoRow?.multa_meses ?? null,
         multa_exonerada_hasta: condoRow?.multa_exonerada_hasta ?? null,
         facturaA: esLocal ? 'CONTRIBUYENTE' : 'CONDOMINIO',
@@ -1121,12 +1122,16 @@ export async function GET(request: Request) {
               const s = limpiarDir(d);
               return s.length > 3 && s !== '0 0' && s !== '0' && s.toUpperCase() !== 'N/A';
             };
+            const dirCondoOficial = condo?.direccion || condoRow?.direccion || (codCondoRaw ? inmMap.get(codCondoRaw)?.direccion : null);
             const dirCont = cont?.direccion;
-            const dirInm = clasif.inmuebles.map(c => inmMap.get(c)?.direccion).find((d: any) => isValidDir(d));
+            const dirInm = esModoCondominio ? null : clasif.inmuebles.map(c => inmMap.get(c)?.direccion).find((d: any) => isValidDir(d));
             const dirRec = Array.isArray(det.recibo_caja) ? det.recibo_caja[0]?.domicilioFiscal : '';
+            if (esModoCondominio && isValidDir(dirCondoOficial)) {
+              return limpiarDir(dirCondoOficial);
+            }
             const rawInmStartsCat = /^0\s+0\b/i.test(String(dirInm || '').trim());
             const preferContDir = !esPagoPorLocal && !esModoCondominio && isValidDir(dirCont) && (clasif.inmuebles.length <= 1 || rawInmStartsCat);
-            const rawCand = det.direccion || (preferContDir ? dirCont : (dirInm || dirRec || dirCont)) || '';
+            const rawCand = (esModoCondominio ? (dirCondoOficial || dirRec || dirCont || det.direccion) : (det.direccion || (preferContDir ? dirCont : (dirInm || dirRec || dirCont)))) || '';
             return limpiarDir(rawCand);
           })(),
           detalles: det,

@@ -1149,24 +1149,26 @@ function Caja() {
                           </span>
                         </td>
                         <td className="px-4 py-3 text-center">
-                          {esVigente ? (
+                          {(esVigente || n.estado === 'Aplicada') ? (
                             <div className="flex items-center justify-center gap-1.5">
                               <button
                                 onClick={() => handleAbrirEditarNota(n)}
                                 className="text-xs font-bold text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2 py-1 rounded transition-colors cursor-pointer flex items-center gap-1"
-                                title="Editar monto y concepto de este saldo a favor"
+                                title={esVigente ? "Editar monto y concepto de este saldo a favor" : "Editar y reactivar esta Nota de Crédito a Vigente"}
                               >
                                 <span>✏️</span>
                                 <span>Editar</span>
                               </button>
-                              <button
-                                onClick={() => handleEliminarNota(n.id, rawMonto)}
-                                className="text-xs font-bold text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 border border-red-200 px-2.5 py-1 rounded transition-colors cursor-pointer flex items-center gap-1"
-                                title="Quitar / Eliminar saldo a favor"
-                              >
-                                <span>🗑️</span>
-                                <span>Quitar</span>
-                              </button>
+                              {esVigente && (
+                                <button
+                                  onClick={() => handleEliminarNota(n.id, rawMonto)}
+                                  className="text-xs font-bold text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 border border-red-200 px-2.5 py-1 rounded transition-colors cursor-pointer flex items-center gap-1"
+                                  title="Quitar / Eliminar saldo a favor"
+                                >
+                                  <span>🗑️</span>
+                                  <span>Quitar</span>
+                                </button>
+                              )}
                             </div>
                           ) : (
                             <span className="text-xs text-slate-400">---</span>

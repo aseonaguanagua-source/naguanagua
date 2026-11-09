@@ -185,7 +185,8 @@ export async function descontarSaldoFavor(
   identidad: string,
   monto: number,
   codigoCondominio?: string,
-  dbClient?: any
+  dbClient?: any,
+  skipDocumentosConsume: boolean = false
 ): Promise<SaldoUpdateResult> {
   const client = dbClient || supabase;
   const montoNum = Math.round((Number(monto) || 0) * 100) / 100;
@@ -289,6 +290,10 @@ export async function descontarSaldoFavor(
   }
 
   // 3. Consumir / actualizar Notas de Crédito vigentes en tabla documentos para que no se vuelvan a sumar
+  // IMPORTANTE: Solo consumir otras Notas de Crédito vigentes cuando el contribuyente USA su saldo en un cobro.
+  // Cuando se revierte/elimina una Nota de Crédito específica por rechazo o anulación (skipDocumentosConsume = true),
+  // NUNCA tocar ni consumir otras Notas de Crédito vigentes del mismo contribuyente o condominio.
+  if (!skipDocumentosConsume) {
   try {
     const docIdents = [...new Set([...variantes, ...(codTargetUpper ? [codTargetUpper] : [])].filter(Boolean))];
     if (docIdents.length > 0) {
@@ -369,6 +374,7 @@ export async function descontarSaldoFavor(
     }
   } catch (eDoc) {
     console.warn('Error actualizando documentos de Nota de Crédito al descontar saldo a favor:', eDoc);
+  }
   }
 
   return { ok: true, nuevoSaldo: Math.max(0, Math.round((total - (Number(monto) || 0)) * 100) / 100) };

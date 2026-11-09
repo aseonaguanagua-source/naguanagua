@@ -35,6 +35,8 @@ export async function POST(req: Request) {
     } catch (e) {}
 
     const montoAnterior = parseLocalFloat(details.monto_bs ?? details.monto ?? 0);
+    const estabaAplicada = doc.estado === 'Aplicada';
+    const montoAnteriorEfectivo = estabaAplicada ? 0 : montoAnterior;
     const montoNuevo = Math.round(parseLocalFloat(nuevoMonto) * 100) / 100;
 
     if (isNaN(montoNuevo) || montoNuevo <= 0) {
@@ -45,8 +47,8 @@ export async function POST(req: Request) {
     const codigoCondo = details.codigo_condominio || details.condominio || (/^CM-/i.test(identidad) ? identidad : undefined);
     const codigoInm = String(details.codigo_inmueble || details.inmueble_id || codigoCondo || (/^(URB|AURI)/i.test(identidad) ? identidad : '')).trim().toUpperCase();
 
-    // 3. Calcular diferencia de monto
-    const diff = Math.round((montoNuevo - montoAnterior) * 100) / 100;
+    // 3. Calcular diferencia de monto (si estaba Aplicada, vuelve a estar Vigente y suma el montoNuevo completo al saldo disponible)
+    const diff = Math.round((montoNuevo - montoAnteriorEfectivo) * 100) / 100;
 
     // 4. Primero actualizar el registro id en documentos con el nuevo monto/datos (sin tocar otras filas de documentos)
     const refFinal = nuevaReferencia !== undefined && String(nuevaReferencia).trim() !== ''
@@ -57,10 +59,18 @@ export async function POST(req: Request) {
       ? String(nuevoMotivo).trim()
       : (details.motivo || 'Nota de Crédito modificada');
 
+    const cleanDetails = { ...details };
+    if (estabaAplicada) {
+      delete cleanDetails.ultima_aplicacion;
+      delete cleanDetails.monto_aplicado;
+      delete cleanDetails.fecha_aplicacion;
+    }
+
     const updatedDetails = {
-      ...details,
+      ...cleanDetails,
       monto: montoNuevo.toFixed(2),
       monto_bs: montoNuevo,
+      monto_original: montoNuevo,
       origen_referencia: refFinal,
       motivo: motivoFinal,
       editado_el: new Date().toISOString(),
@@ -70,6 +80,7 @@ export async function POST(req: Request) {
         {
           fecha: new Date().toISOString(),
           usuario: usuario || 'Admin',
+          estado_anterior: doc.estado,
           monto_anterior: montoAnterior,
           monto_nuevo: montoNuevo,
           diferencia: diff,
@@ -84,6 +95,7 @@ export async function POST(req: Request) {
     const { data: updatedDoc, error: errUpd } = await supabase
       .from('documentos')
       .update({
+        estado: 'Vigente',
         detalles: JSON.stringify(updatedDetails)
       })
       .eq('id', id)

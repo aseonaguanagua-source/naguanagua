@@ -418,7 +418,7 @@ export async function POST(req: Request) {
                 await sb.from('documentos').delete().eq('id', dNC.id);
                 if (mNC > 0 && ident && !inmRestauradoPorSnapshot) {
                   try {
-                    await descontarSaldoFavor(ident, mNC, docCodInm || codCondo, sb);
+                    await descontarSaldoFavor(ident, mNC, docCodInm || codCondo, sb, true);
                     totalDescontadoDocs += mNC;
                   } catch (eDesc) {
                     console.warn('Error descontando saldo a favor en pagos/actualizar:', eDesc);
@@ -441,7 +441,7 @@ export async function POST(req: Request) {
             if (excedentePrevio > totalDescontadoDocs + 0.05 && ident && !teniaSnapshotSaldo && prevLista.length === 0) {
               const diffDesc = Math.round((excedentePrevio - totalDescontadoDocs) * 100) / 100;
               try {
-                await descontarSaldoFavor(ident, diffDesc, codCondo, sb);
+                await descontarSaldoFavor(ident, diffDesc, codCondo, sb, true);
               } catch (eDesc) {
                 console.warn('Error descontando excedente previo en pagos/actualizar:', eDesc);
               }
@@ -687,6 +687,46 @@ export async function POST(req: Request) {
                     await sb.from('condominio_unidades').update({ multa_meses: 0 }).ilike('inmueble', cod);
                   }
                 }
+              }
+            }
+          }
+
+          // Acreditar saldo a favor si el pago general (o con retención 75% IVA) tenía excedente no acreditado
+          if (!detP.saldo_favor_acreditado && rawId) {
+            const montoPagadoNum = parseFloat(String(actualP.monto || d.monto_conciliado || 0)) || 0;
+            const montoFacNum = parseFloat(String(d.monto_factura || d.total_seleccionado || 0)) || 0;
+            const montoRetNum = parseFloat(String(d.monto_retencion_iva || d.retencion_iva || 0)) || 0;
+            const sfExplicito = parseFloat(String(d.saldo_favor || d.saldo_a_favor_nuevo || d.saldo_favor_generado || d.monto_sobrante || 0)) || 0;
+            const sfCalculadoRet = (montoFacNum > 0 && montoPagadoNum > 0 && montoPagadoNum > (montoFacNum - montoRetNum) + 0.50)
+              ? Math.round((montoPagadoNum - (montoFacNum - montoRetNum)) * 100) / 100
+              : 0;
+            const sfGeneral = Math.max(sfExplicito, sfCalculadoRet);
+            if (sfGeneral >= 1.00) {
+              const mGen = Math.round(sfGeneral * 100) / 100;
+              const codTargetGen = String(d.codigo_inmueble || d.cod_inmueble || inmsPrev?.[0]?.inmueble || '').trim().toUpperCase() || undefined;
+              try {
+                await acreditarSaldoFavor(conG || rawId, mGen, codTargetGen, sb);
+                await sb.from('documentos').insert([{
+                  identidad: conG || rawId,
+                  contribuyente: d.contribuyente || d.contribuyente_nombre || conG || rawId,
+                  tipo: 'Nota de Credito',
+                  estado: 'Vigente',
+                  detalles: JSON.stringify({
+                    monto: mGen.toFixed(2),
+                    monto_bs: mGen,
+                    ambito: 'CONTRIBUYENTE',
+                    codigo_inmueble: codTargetGen,
+                    origen_referencia: `Excedente Pago Conciliado${codTargetGen ? ' ' + codTargetGen : ''}. Ref: ${actualP.referencia || ''}`,
+                    motivo: `Nota de crédito automática por excedente de pago conciliado${montoRetNum > 0 ? ' (tras aplicar Retención IVA)' : ''}`,
+                    fecha_emision: new Date().toISOString(),
+                    pago_id: pagoId,
+                  }),
+                }]);
+                d.saldo_favor = mGen;
+                d.saldo_favor_generado = mGen;
+                d.saldo_favor_acreditado = true;
+              } catch (eSfGen) {
+                console.warn('Error acreditando saldo a favor general al aprobar:', eSfGen);
               }
             }
           }

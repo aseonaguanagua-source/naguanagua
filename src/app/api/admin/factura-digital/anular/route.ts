@@ -275,7 +275,7 @@ async function revertirNotaCreditoYSaldoFavorGenerado(detPago: any, pagoRow?: an
         const montoNC = (rawM.includes(',') ? parseFloat(rawM.replace(/\./g, '').replace(',', '.')) : parseFloat(rawM.replace(/[^\d.]/g, ''))) || 0;
         if (montoNC > 0 && ident) {
           try {
-            await descontarSaldoFavor(ident, montoNC, codCondo, supabase);
+            await descontarSaldoFavor(ident, montoNC, codCondo, supabase, true);
             totalDescontadoDocs += montoNC;
           } catch (eDesc) {
             console.warn('Error descontando saldo a favor de NC eliminada:', eDesc);
@@ -298,7 +298,7 @@ async function revertirNotaCreditoYSaldoFavorGenerado(detPago: any, pagoRow?: an
     if (excedenteGenerado > totalDescontadoDocs + 0.05 && ident) {
       const diffDesc = Math.round((excedenteGenerado - totalDescontadoDocs) * 100) / 100;
       try {
-        await descontarSaldoFavor(ident, diffDesc, codCondo, supabase);
+        await descontarSaldoFavor(ident, diffDesc, codCondo, supabase, true);
       } catch (eDesc) {
         console.warn('Error descontando excedente en anulación:', eDesc);
       }

@@ -7,6 +7,7 @@ import { isFictitiousEmail, sanitizarDireccionFiscal } from '@/lib/formatters';
 import { pagoTieneRetencion, calcularRetencion, enviarDatosFacturaRetencion, portalRetencionesUrl } from '@/lib/retencionFlujo';
 import { extraerCodigoInmueble } from '@/lib/documentoPago';
 import { resolverConceptoPeriodoPago } from '@/lib/facturaPeriodoHelper';
+import { acreditarSaldoFavor } from '@/lib/saldoFavor';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -173,6 +174,16 @@ export async function POST(request: Request) {
     }
     if ((pm?.modulo === 'condominios' || dm?.modulo === 'condominios') && Array.isArray(dm?.condominio?.lineas)) {
       lineasCondo = dm.condominio.lineas; condoDet = dm.condominio;
+      if (condoDet && !condoDet.direccion && condoDet.codigo) {
+        const { data: cRowDir } = await supabase
+          .from('condominios')
+          .select('codigo, nombre, identidad, direccion, correo')
+          .eq('codigo', String(condoDet.codigo).trim().toUpperCase())
+          .maybeSingle();
+        if (cRowDir) {
+          condoDet = { ...cRowDir, ...condoDet, direccion: cRowDir.direccion || condoDet.direccion };
+        }
+      }
     }
 
     // --- BUSINESS RULE: Only emit invoices for Commercial properties ---
@@ -1228,8 +1239,8 @@ export async function POST(request: Request) {
       ? ((activeProps || []).find((p: any) => p.inmueble === codInmEspecifico) || (userProps || []).find((p: any) => p.inmueble === codInmEspecifico))
       : null;
 
-    // 2° Prioridad: Si no coincidió por código pero hay condoCode, buscar dentro de ese condominio padre
-    if (!matchedPropEspecifico && condoCode) {
+    // 2° Prioridad: Si no coincidió por código pero hay condoCode (y NO es factura global al condominio), buscar dentro de ese condominio padre
+    if (!matchedPropEspecifico && condoCode && !esCondoGlobal) {
       matchedPropEspecifico = (activeProps || []).find((p: any) => p.condominio_padre_id === condoCode || p.padre_id === condoCode) ||
         (userProps || []).find((p: any) => p.condominio_padre_id === condoCode || p.padre_id === condoCode);
     }
@@ -1543,7 +1554,15 @@ export async function POST(request: Request) {
               const parentDir = condoDet?.direccion || detPago?.condominio?.direccion || null;
 
               if (direccionOverride && String(direccionOverride).trim().length > 3) {
-                return sanitizarDireccionFiscal(String(direccionOverride).trim(), {
+                const rawOverride = String(direccionOverride).trim();
+                // Si es factura global al Condominio y el modal traía pre-cargada por error la dirección de un local hijo (ej. "W-43 MEZZANINA..."),
+                // usar la dirección fiscal oficial del condominio (parentDir).
+                const empiezaConLocalHijo = esCondoGlobal && parentDir && Array.isArray(lineasCondo) && lineasCondo.some((l: any) => {
+                  const numL = String(l?.numero || l?.unidadNumero || '').trim().toUpperCase();
+                  return numL && numL.length >= 2 && rawOverride.toUpperCase().startsWith(numL + ' ');
+                });
+                const baseOverride = empiezaConLocalHijo ? String(parentDir).trim() : rawOverride;
+                return sanitizarDireccionFiscal(baseOverride, {
                   unidadNumero: uNum,
                   nombreCondo,
                   parentDir
@@ -2193,6 +2212,66 @@ export async function POST(request: Request) {
     if (nuevosDetalles.es_abono === true) {
       nuevosDetalles.es_abono = false;
       nuevosDetalles.abono_completado = true;
+    }
+
+    // Si existe excedente real (p. ej. tras aplicar Retención 75% IVA o al re-emitir una factura que había sido anulada)
+    // y no existe aún la Nota de Crédito activa en `documentos`, acreditarla y registrarla automáticamente.
+    try {
+      const porcRetFinal = Number((nuevosDetalles as any)?.porcentaje_retencion || (detPago as any)?.porcentaje_retencion) === 100 ? 100 : 75;
+      const retCalcFinal = conRetencion ? r2(totalIVA * (porcRetFinal / 100)) : 0;
+      const retEfectiva = conRetencion
+        ? (retCalcFinal > 0 ? retCalcFinal : (parseFloat(String(nuevosDetalles.monto_retencion_iva || detPago?.monto_retencion_iva || 0)) || 0))
+        : 0;
+      const netoExigidoFactura = Math.max(0, r2(totalAPagar - retEfectiva - saldoFavorUsado));
+      const excedentePorFactura = totalEfectivoPagado > netoExigidoFactura + 0.50
+        ? r2(totalEfectivoPagado - netoExigidoFactura)
+        : 0;
+      const saldoFavorEfectivo = Math.max(saldoFavorGenerado, excedentePorFactura);
+
+      if (saldoFavorEfectivo >= 1.00 && docIdentParaEmision) {
+        const { data: docsExistentes } = await supabase
+          .from('documentos')
+          .select('id, estado, detalles')
+          .eq('tipo', 'Nota de Credito')
+          .in('identidad', idVariants)
+          .neq('estado', 'Anulada')
+          .neq('estado', 'Eliminada');
+
+        const refCleanCheck = String(refPago || pagoRow?.referencia || '').replace(/\s*\(\+.*$/, '').trim();
+        const yaTieneDocNC = (docsExistentes || []).some((d: any) => {
+          const raw = typeof d.detalles === 'string' ? d.detalles : JSON.stringify(d.detalles || {});
+          return (pagoId && raw.includes(pagoId)) || (refCleanCheck.length >= 6 && raw.includes(refCleanCheck));
+        });
+
+        if (!yaTieneDocNC) {
+          const codTargetNC = esCondoGlobal
+            ? (condoDet?.codigo || condoCode || undefined)
+            : (codigoContribuyente ? String(codigoContribuyente).split(',')[0].trim() : undefined);
+          await acreditarSaldoFavor(docIdentParaEmision, saldoFavorEfectivo, codTargetNC, supabase);
+          await supabase.from('documentos').insert([{
+            identidad: docIdentParaEmision,
+            contribuyente: razonSocialFinal || docIdentParaEmision,
+            tipo: 'Nota de Credito',
+            estado: 'Vigente',
+            detalles: JSON.stringify({
+              monto: saldoFavorEfectivo.toFixed(2),
+              monto_bs: saldoFavorEfectivo,
+              ambito: esCondoGlobal ? 'CONDOMINIO' : (esPagoPorLocal ? 'LOCAL' : 'CONTRIBUYENTE'),
+              codigo_inmueble: codTargetNC,
+              codigo_condominio: (condoDet?.codigo || condoCode) || undefined,
+              origen_referencia: `Excedente Factura ${nuevosDetalles.factura_digital?.numero_documento || ''}. Ref: ${refCleanCheck || ''}`.trim(),
+              motivo: `Nota de crédito automática por excedente de pago${conRetencion ? ' (tras aplicar Retención IVA)' : ''}`,
+              fecha_emision: new Date().toISOString(),
+              pago_id: pagoId,
+            }),
+          }]);
+          nuevosDetalles.saldo_favor = saldoFavorEfectivo;
+          nuevosDetalles.saldo_favor_generado = saldoFavorEfectivo;
+          nuevosDetalles.saldo_favor_acreditado = true;
+        }
+      }
+    } catch (eAutoNC: any) {
+      console.warn('Aviso verificando/creando Nota de Crédito en emitir:', eAutoNC?.message);
     }
 
     const updatePayload: any = { detalles: nuevosDetalles };
