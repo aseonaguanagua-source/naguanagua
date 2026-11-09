@@ -58,7 +58,12 @@ export default function DatosContribuyentePage() {
         setInmueblesList(inmsData as InmuebleBasic[]);
 
         const rInm = inmsData && inmsData.length > 0
-          ? (inmsData.find(i => (i.actividad_principal || '').trim().toUpperCase() !== 'N/A') || inmsData[0])
+          ? (
+              inmsData.find(i => !i.condominio_padre_id && !i.padre_id && !i.es_condominio && (i.actividad_principal || '').trim().toUpperCase() !== 'N/A') ||
+              inmsData.find(i => !i.condominio_padre_id && !i.es_condominio) ||
+              inmsData.find(i => (i.actividad_principal || '').trim().toUpperCase() !== 'N/A') ||
+              inmsData[0]
+            )
           : null;
 
         let condoData: any = null;

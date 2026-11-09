@@ -4,7 +4,7 @@ import { logos } from '@/lib/logosBase64';
 import { clasificarBancoDestino } from '@/lib/cuentasBancarias';
 import { isResidencialInm } from '@/lib/calculos';
 import { descargarPdfBlob } from './PdfReports';
-import { parseDet, montosPago, cargarInmMapPagos, codigosDePago } from './LibroVentas';
+import { parseDet, montosPago, cargarInmMapPagos, codigosDePago, resolverCodigoPrincipalInm } from './LibroVentas';
 import { obtenerNroReciboWeb } from './ReporteRecibosPagos';
 
 const r2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
@@ -712,13 +712,17 @@ export async function generarConciliacionTransferenciasPDF(
   if (!transf.length) {
     transf = pagos.filter((p) => !esAnulado(p) && !esDebito(p) && !esRetencion(p) && !esSaldoFavor(p));
   }
+  const inmMap = await cargarInmMapPagos(transf);
 
-  const nombreDe = (id: string, det: any, p: any) => {
+  const nombreDe = (id: string, det: any, p: any, cod?: string) => {
     const cid = cleanId(id);
+    const inm = cod ? inmMap.get(String(cod).trim().toUpperCase()) : null;
     const raw =
+      inm?.contribuyente ||
+      det.contribuyente_nombre ||
+      (det.contribuyente && det.contribuyente !== id ? det.contribuyente : '') ||
       (contribuyentes || []).find((x: any) => cleanId(x.Identidad || x.identidad) === cid)?.Contribuyente ||
       (contribuyentes || []).find((x: any) => cleanId(x.Identidad || x.identidad) === cid)?.contribuyente ||
-      det.contribuyente_nombre ||
       p.contribuyenteNombre ||
       p.contribuyente ||
       id;
@@ -741,7 +745,8 @@ export async function generarConciliacionTransferenciasPDF(
       else sumOtros += monto;
 
       const cods = codigosDePago(det, p);
-      const codInm = cods[0] || p.codInmueble || det.codigo_inmueble || '—';
+      const codInmRaw = cods[0] || p.codInmueble || det.codigo_inmueble || '';
+      const codInm = resolverCodigoPrincipalInm(codInmRaw, inmMap) || '—';
       const bancoOrigen = String(p.banco || det.banco_origen || 'Transferencia').slice(0, 22);
 
       return [
@@ -752,7 +757,7 @@ export async function generarConciliacionTransferenciasPDF(
         String(p.referencia || '—'),
         String(codInm),
         String(p.identidad || '—'),
-        nombreDe(p.identidad, det, p).slice(0, 38),
+        nombreDe(p.identidad, det, p, codInm !== '—' ? codInm : codInmRaw).slice(0, 38),
         String(p.estado || 'Aprobado'),
         fmtBs(monto),
       ];

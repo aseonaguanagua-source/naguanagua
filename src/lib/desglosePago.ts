@@ -233,4 +233,4 @@ export function desglosarPago(pago: any, inmMap: Map<string, any>): DesglosePago
 
 /** Columnas de inmueble necesarias para desglosarPago. */
 export const COLS_INMUEBLE_DESGLOSE =
-  'inmueble, contribuyente, direccion, tipo, clasificacion, actividad_principal, mmv_mes, cant_inmuebles, notas, agente_retencion, meses_deuda, multa_bs, deuda_congelada_bs, correo_electronico, identidad, condominio_padre_id';
+  'inmueble, contribuyente, direccion, tipo, clasificacion, actividad_principal, mmv_mes, cant_inmuebles, notas, agente_retencion, meses_deuda, multa_bs, deuda_congelada_bs, correo_electronico, identidad, condominio_padre_id, padre_id';

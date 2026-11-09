@@ -29,12 +29,20 @@ export async function POST(request: Request) {
     // Buscar en inmuebles activos primero
     let { data: records, error } = await supabase
       .from("inmuebles")
-      .select("contribuyente, cod_cont, clave_portal, identidad, correo_electronico, telefono, estado")
+      .select("inmueble, contribuyente, cod_cont, clave_portal, identidad, correo_electronico, telefono, estado, condominio_padre_id, padre_id, es_condominio")
       .or(orFilter)
       .not("estado", "ilike", "eliminado%")
       .not("estado", "ilike", "inactivo%")
       .not("estado", "ilike", "desactivado%")
-      .limit(1);
+      .limit(50);
+
+    if (records && records.length > 1) {
+      records = [...records].sort((a: any, b: any) => {
+        const aInd = !a.condominio_padre_id && !a.padre_id && !a.es_condominio ? 0 : 1;
+        const bInd = !b.condominio_padre_id && !b.padre_id && !b.es_condominio ? 0 : 1;
+        return aInd - bInd;
+      });
+    }
 
     if (error) {
       console.error("Supabase Error:", error);
@@ -54,7 +62,7 @@ export async function POST(request: Request) {
     if ((!records || records.length === 0) && !contribRec) {
       const { data: anyRecords } = await supabase
         .from("inmuebles")
-        .select("contribuyente, cod_cont, clave_portal, identidad, correo_electronico, telefono, estado")
+        .select("inmueble, contribuyente, cod_cont, clave_portal, identidad, correo_electronico, telefono, estado, condominio_padre_id, padre_id, es_condominio")
         .or(orFilter)
         .limit(1);
       if (anyRecords && anyRecords.length > 0) {
@@ -85,9 +93,10 @@ export async function POST(request: Request) {
 
     const user = (records && records.length > 0) ? {
       ...records[0],
-      clave_portal: records[0].clave_portal || contribRec?.clave_portal || null,
-      correo_electronico: records[0].correo_electronico || contribRec?.email || '',
-      telefono: records[0].telefono || contribRec?.telefono || ''
+      cod_cont: (records[0] as any).inmueble || records[0].cod_cont || records[0].identidad,
+      clave_portal: records.find((r: any) => r.clave_portal)?.clave_portal || contribRec?.clave_portal || null,
+      correo_electronico: records.find((r: any) => r.correo_electronico)?.correo_electronico || contribRec?.email || '',
+      telefono: records.find((r: any) => r.telefono)?.telefono || contribRec?.telefono || ''
     } : (contribRec ? {
       contribuyente: contribRec?.nombre,
       cod_cont: contribRec?.identidad,

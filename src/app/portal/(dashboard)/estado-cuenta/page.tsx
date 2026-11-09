@@ -8,7 +8,7 @@ import { formatBs } from '@/lib/formatCurrency';
 import { getFAR, isResidencialInm, isTerrenoInm, calcularMensualidad, cleanClasificacionActividad, isCondominioPagoIndividual, isExoneradoTotalMultas, getMesesExoneradosCount, isMesExoneradoMulta } from '@/lib/calculos';
 import { valorUCD } from '@/lib/tasaHistorica';
 import { calcularDeudaInmueble, porMesConRetencion, esUltimoMesHist, reglaCobroInmueble } from '@/lib/deudaMensual';
-import { construirRecibosContribuyente, desgloseReciboCM, ESTADOS_RECIBO_PENDIENTE } from '@/lib/recibosContribuyente';
+import { construirRecibosContribuyente, desgloseReciboCM, ESTADOS_RECIBO_PENDIENTE, isCondominioInm } from '@/lib/recibosContribuyente';
 import { getIdentidadVariants, getIdentidadVariantsExact } from '@/lib/formatters';
 import { groupInmueblesByLocal, InmuebleClusterGroup } from '@/lib/cajaHelpers';
 import jsPDF from 'jspdf';
@@ -79,11 +79,17 @@ export default function EstadoCuentaPage() {
           let allInms = [...(inmsDB || [])];
           if (condoUnits && condoUnits.length > 0) {
             const condoCodes = condoUnits.map(u => u.inmueble).filter(Boolean);
+            const condoSet = new Set(condoCodes.map((c: string) => String(c).trim().toUpperCase()));
             const missingCodes = condoCodes.filter(c => !allInms.some(i => i.inmueble === c));
             if (missingCodes.length > 0) {
               const { data: extraInms } = await supabase.from('inmuebles').select('*').in('inmueble', missingCodes);
               if (extraInms) allInms.push(...extraInms);
             }
+            allInms = allInms.map(i =>
+              condoSet.has(String(i.inmueble || '').trim().toUpperCase()) && !i.condominio_padre_id
+                ? { ...i, es_condominio: true }
+                : i
+            );
           }
 
           // Consultar también hijos asociados vía padre_id (ej: clusters/locales con múltiples actividades)
@@ -356,12 +362,7 @@ export default function EstadoCuentaPage() {
     const inmId = String(f?.inmueble || '').toUpperCase();
     // Excluir cualquier inmueble que pertenezca a régimen de condominio
     const matched = misInmuebles.find((i: any) => i.inmueble && (ref.includes(String(i.inmueble).toUpperCase()) || inmId === String(i.inmueble).toUpperCase()));
-    if (matched && (
-      matched.condominio_padre_id || 
-      matched.es_condominio || 
-      String(matched.actividad_principal || '').toLowerCase().includes('condominio') || 
-      String(matched.actividad_principal || '').toLowerCase().includes('padre en sigyr: urb')
-    )) {
+    if (matched && isCondominioInm(matched, misInmuebles)) {
       return true;
     }
     return false;

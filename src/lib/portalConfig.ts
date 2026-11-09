@@ -80,49 +80,81 @@ export async function esCondominioDoc(doc: string): Promise<boolean> {
       return true;
     }
 
-    // 2. Verificar si el usuario o documento pertenece a una unidad de condominio (condominio_unidades)
+    // 2. Consultar en paralelo unidades de condominio (condominio_unidades) e inmuebles asociados al documento
     const orUnidades = [
       ...variantes.map(v => `identidad.eq.${v}`),
       `inmueble.eq.${rawUpper}`
     ].join(',');
 
-    const { data: uMatches } = await sb
-      .from('condominio_unidades')
-      .select('id, inmueble, condominio_id, estado')
-      .or(orUnidades)
-      .neq('estado', 'Eliminada')
-      .limit(5);
-
-    if (uMatches && uMatches.length > 0) {
-      return true;
-    }
-
-    // 3. Verificar en la tabla de inmuebles si el contribuyente es un condominio o posee algún inmueble perteneciente a un condominio
     const orInm = [
       ...variantes.map(v => `identidad.eq.${v}`),
       `inmueble.eq.${rawUpper}`
     ].join(',');
 
-    const { data: inms } = await sb
-      .from('inmuebles')
-      .select('inmueble, tipo, clasificacion, actividad_principal, es_condominio, condominio_padre_id, padre_id, contribuyente, estado')
-      .or(orInm)
-      .limit(50);
+    const [{ data: uMatches }, { data: inms }] = await Promise.all([
+      sb
+        .from('condominio_unidades')
+        .select('id, inmueble, condominio_id, estado')
+        .or(orUnidades)
+        .neq('estado', 'Eliminada')
+        .limit(50),
+      sb
+        .from('inmuebles')
+        .select('inmueble, tipo, clasificacion, actividad_principal, es_condominio, condominio_padre_id, padre_id, contribuyente, estado')
+        .or(orInm)
+        .limit(100),
+    ]);
 
-    if (inms && inms.length > 0) {
-      const activos = inms.filter(i => {
-        const est = String(i.estado || 'Activo').trim().toLowerCase();
-        return est !== 'eliminado' && est !== 'inactivo' && est !== 'desactivado';
+    const activos = (inms || []).filter(i => {
+      const est = String(i.estado || 'Activo').trim().toLowerCase();
+      return est !== 'eliminado' && est !== 'inactivo' && est !== 'desactivado';
+    });
+
+    if (activos.length > 0) {
+      // Recopilar todos los códigos de inmueble y padres para cruzar con condominio_unidades y condominios
+      const inmCodes = Array.from(
+        new Set(
+          activos
+            .flatMap(i => [String(i.inmueble || '').trim().toUpperCase(), String(i.padre_id || '').trim().toUpperCase()])
+            .filter(Boolean)
+        )
+      );
+
+      const condoCodesSet = new Set<string>();
+      (uMatches || []).forEach(u => {
+        const c = String(u.inmueble || '').trim().toUpperCase();
+        if (c) condoCodesSet.add(c);
       });
-      const listaRevisar = activos.length > 0 ? activos : inms;
 
-      const isC = listaRevisar.some(i => {
+      if (inmCodes.length > 0) {
+        const [{ data: unitByInm }, { data: condoByCode }] = await Promise.all([
+          sb.from('condominio_unidades').select('inmueble').in('inmueble', inmCodes).neq('estado', 'Eliminada').limit(100),
+          sb.from('condominios').select('codigo, estado').in('codigo', inmCodes).limit(20),
+        ]);
+
+        (unitByInm || []).forEach(u => {
+          const c = String(u.inmueble || '').trim().toUpperCase();
+          if (c) condoCodesSet.add(c);
+        });
+
+        (condoByCode || []).forEach(c => {
+          const est = String(c.estado || 'Activo').trim().toLowerCase();
+          if (est !== 'eliminado' && est !== 'inactivo') {
+            const code = String(c.codigo || '').trim().toUpperCase();
+            if (code) condoCodesSet.add(code);
+          }
+        });
+      }
+
+      // Identificar cuáles inmuebles del usuario son condominios o filiales de condominio
+      activos.forEach(i => {
+        const code = String(i.inmueble || '').trim().toUpperCase();
         const clasif = String(i.clasificacion || '').toLowerCase();
         const act = String(i.actividad_principal || '').toLowerCase();
         const contrib = String(i.contribuyente || '').toLowerCase();
         const condoPadre = String(i.condominio_padre_id || '').trim();
 
-        return (
+        if (
           i.es_condominio === true ||
           Boolean(condoPadre) ||
           clasif.includes('condominio') ||
@@ -130,36 +162,41 @@ export async function esCondominioDoc(doc: string): Promise<boolean> {
           act.includes('padre en sigyr: urb') ||
           contrib.includes('condominio') ||
           contrib.includes('junta de cond')
-        );
+        ) {
+          if (code) condoCodesSet.add(code);
+        }
       });
 
-      if (isC) return true;
+      const esInmDeCondominio = (i: any): boolean => {
+        const code = String(i.inmueble || '').trim().toUpperCase();
+        const padre = String(i.padre_id || '').trim().toUpperCase();
+        if (code && condoCodesSet.has(code)) return true;
+        if (padre && (condoCodesSet.has(padre) || padre.startsWith('CONDO-'))) return true;
+        return false;
+      };
 
-      // Verificar si alguno de los códigos de inmueble del usuario figura en condominio_unidades o condominios
-      const inmCodes = Array.from(
-        new Set(
-          listaRevisar
-            .flatMap(i => [String(i.inmueble || '').trim().toUpperCase(), String(i.padre_id || '').trim().toUpperCase()])
-            .filter(Boolean)
-        )
-      );
-
-      if (inmCodes.length > 0) {
-        const [{ data: unitByInm }, { data: condoByCode }] = await Promise.all([
-          sb.from('condominio_unidades').select('id').in('inmueble', inmCodes).neq('estado', 'Eliminada').limit(1),
-          sb.from('condominios').select('id, estado').in('codigo', inmCodes).limit(5),
-        ]);
-
-        if (unitByInm && unitByInm.length > 0) {
-          return true;
+      // Si el contribuyente tiene al menos un inmueble individual independiente (que NO pertenece a condominio)
+      // y además tiene algún inmueble de condominio: permitir el acceso al portal para que gestione su inmueble individual.
+      const tieneInmuebleIndividualIndependiente = activos.some(i => {
+        if (esInmDeCondominio(i)) return false;
+        const code = String(i.inmueble || '').trim().toUpperCase();
+        const isNA = String(i.actividad_principal || '').trim().toUpperCase() === 'N/A';
+        if (isNA && code) {
+          const hijos = activos.filter(h => String(h.padre_id || '').trim().toUpperCase() === code);
+          if (hijos.length > 0 && hijos.every(esInmDeCondominio)) return false;
         }
-        if (condoByCode && condoByCode.some(c => {
-          const est = String(c.estado || 'Activo').trim().toLowerCase();
-          return est !== 'eliminado' && est !== 'inactivo';
-        })) {
-          return true;
-        }
+        return true;
+      });
+
+      const tieneAlgunCondominio = activos.some(esInmDeCondominio) || (uMatches && uMatches.length > 0);
+      if (tieneAlgunCondominio && !tieneInmuebleIndividualIndependiente) {
+        return true;
       }
+      return false;
+    }
+
+    if (uMatches && uMatches.length > 0) {
+      return true;
     }
   } catch (err) {
     console.error('Error en esCondominioDoc:', err);

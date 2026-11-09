@@ -177,11 +177,17 @@ export default function DondePagarPage() {
         let allInms = [...(inmsDB || [])];
         if (condoUnits && condoUnits.length > 0) {
           const condoCodes = condoUnits.map(u => u.inmueble).filter(Boolean);
+          const condoSet = new Set(condoCodes.map((c: string) => String(c).trim().toUpperCase()));
           const missingCodes = condoCodes.filter(c => !allInms.some(i => i.inmueble === c));
           if (missingCodes.length > 0) {
             const { data: extraInms } = await supabase.from('inmuebles').select('*').in('inmueble', missingCodes);
             if (extraInms) allInms.push(...extraInms);
           }
+          allInms = allInms.map(i =>
+            condoSet.has(String(i.inmueble || '').trim().toUpperCase()) && !i.condominio_padre_id
+              ? { ...i, es_condominio: true }
+              : i
+          );
         }
 
         // Consultar también hijos asociados vía padre_id (ej: clusters/locales con múltiples actividades)

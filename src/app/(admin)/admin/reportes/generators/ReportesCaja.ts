@@ -1,7 +1,7 @@
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import { supabase } from '@/lib/supabase';
-import { parseDet, montosPago, cargarInmMapPagos, codigosDePago } from './LibroVentas';
+import { parseDet, montosPago, cargarInmMapPagos, codigosDePago, resolverCodigoPrincipalInm } from './LibroVentas';
 import { obtenerNroReciboWeb } from './ReporteRecibosPagos';
 import { clasificarBancoDestino } from '@/lib/cuentasBancarias';
 
@@ -179,7 +179,8 @@ export async function generarTotalPuntosVenta(pagos: any[], fechaInicio: string,
         const recs = Array.isArray(det.recibos) ? det.recibos : [];
         const nroDoc = fd.numero_documento || det.recibo_caja?.[0]?.controlWeb || det.recibo_caja?.[0]?.reciboNo || det.recibo_no || recs[0] || '';
         const codigosList = codigosDePago(det, p);
-        const codPrincipal = codigosList[0] || det.codigo_inmueble || det.cod_inmueble || p.inmueble || '';
+        const codPrincipalRaw = codigosList[0] || det.codigo_inmueble || det.cod_inmueble || p.inmueble || '';
+        const codPrincipal = resolverCodigoPrincipalInm(codPrincipalRaw, inmMap);
         const mPagado = r2(Number(p.monto) || 0);
         const isCred = esCreditoPunto(p, det);
         const formaPagoLim = isCred ? 'Crédito' : 'Débito';
@@ -613,18 +614,21 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
     console.warn('No se pudo cargar datos auxiliares en conciliación:', errAudit);
   }
 
-  const nombreDe = (id: string, det: any) => {
+  const nombreDe = (id: string, det: any, cod?: string) => {
     const cid = cleanId(id);
     const c = contribuyentes.find((x: any) => cleanId(x.Identidad || x.identidad) === cid);
     const cnd = condoByIdentidad.get(cid);
-    const inm = inmByIdentidad.get(cid);
+    const inm = (cod ? inmMap.get(String(cod).trim().toUpperCase()) : null) || inmByIdentidad.get(cid);
+    const detNombre =
+      (det.contribuyente_nombre && det.contribuyente_nombre !== id ? det.contribuyente_nombre : '') ||
+      (det.contribuyente && det.contribuyente !== id ? det.contribuyente : '');
     const raw =
+      inm?.contribuyente ||
+      detNombre ||
       c?.Contribuyente ||
       cnd?.nombre ||
-      inm?.contribuyente ||
       det.condominio?.nombre ||
       det.recibo_caja?.[0]?.razonSocial ||
-      (det.contribuyente && det.contribuyente !== id ? det.contribuyente : '') ||
       id;
     return String(raw || '').replace(/^\d+\s*-\s*(?=[A-Za-z])/, '').trim();
   };
@@ -891,10 +895,10 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
           nroDoc = ctrlStr || obtenerNroReciboWeb(p, det);
         }
 
-        // Requisito 3: En condominios residenciales sale el código principal; en locales hijos su código propio
+        // Requisito 3: En condominios residenciales sale el código principal; en locales hijos su código propio (y si es actividad hija de un N/A individual, sale el código principal N/A)
         const codigosList = codigosDePago(det, p);
         const cid = cleanId(p.identidad);
-        const codPrincipal =
+        const codPrincipalRaw =
           codigosList[0] ||
           det.codigo_inmueble ||
           det.cod_inmueble ||
@@ -903,10 +907,11 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
           contribuyentes.find((x: any) => cleanId(x.Identidad || x.identidad) === cid)?.CodCont ||
           inmByIdentidad.get(cid)?.inmueble ||
           '';
+        const codPrincipal = resolverCodigoPrincipalInm(codPrincipalRaw, inmMap);
 
         const vals: any[] = [
           dmy(fPago), p.banco || '', bDestLabel, refTexto, p.tipo || 'Transferencia', mPagado, dmy(fFactura || fechaVE(p.created_at)),
-          nroDoc, codPrincipal, nombreDe(p.identidad, det),
+          nroDoc, codPrincipal, nombreDe(p.identidad, det, codPrincipal || codPrincipalRaw),
           cajero,
           mt.base, mt.iva > 0 ? 16 : 0, mt.iva, mt.ret, r2(nc), mt.exento,
         ];

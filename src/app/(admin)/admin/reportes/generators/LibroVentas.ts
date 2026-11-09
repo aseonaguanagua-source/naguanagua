@@ -143,12 +143,40 @@ export const codigosDePago = (det: any, p?: any): string[] => {
 /** Inmuebles (columnas de desglose) de los códigos que aparecen en los pagos. */
 export async function cargarInmMapPagos(pagos: any[]): Promise<Map<string, any>> {
   const inmMap = new Map<string, any>();
-  const todosCods = [...new Set(pagos.flatMap(p => codigosDePago(parseDet(p))))];
+  const todosCods = [...new Set(pagos.flatMap(p => codigosDePago(parseDet(p), p)))];
   for (let i = 0; i < todosCods.length; i += 200) {
     const { data } = await supabase.from('inmuebles').select(COLS_INMUEBLE_DESGLOSE).in('inmueble', todosCods.slice(i, i + 200));
     (data || []).forEach((r: any) => inmMap.set(String(r.inmueble).toUpperCase(), r));
   }
+  const padresFaltantes = [...new Set(
+    [...inmMap.values()]
+      .map((r: any) => String(r?.padre_id || '').trim().toUpperCase())
+      .filter((pid: string) => pid && !pid.startsWith('CONDO-') && !inmMap.has(pid))
+  )];
+  for (let i = 0; i < padresFaltantes.length; i += 200) {
+    const { data } = await supabase.from('inmuebles').select(COLS_INMUEBLE_DESGLOSE).in('inmueble', padresFaltantes.slice(i, i + 200));
+    (data || []).forEach((r: any) => inmMap.set(String(r.inmueble).toUpperCase(), r));
+  }
   return inmMap;
+}
+
+/**
+ * Si el código de inmueble corresponde a una actividad hija dentro de un contenedor N/A
+ * individual (no condominio), devuelve el código principal de la matriz N/A (`padre_id`).
+ */
+export function resolverCodigoPrincipalInm(cod: string, inmMap: Map<string, any>): string {
+  const cleanCod = String(cod || '').trim().toUpperCase();
+  if (!cleanCod) return '';
+  const r = inmMap.get(cleanCod);
+  if (!r) return cleanCod;
+  const pid = String(r.padre_id || '').trim().toUpperCase();
+  if (pid && !pid.startsWith('CONDO-') && !r.condominio_padre_id) {
+    const parent = inmMap.get(pid);
+    if (!parent || !parent.condominio_padre_id) {
+      return pid;
+    }
+  }
+  return cleanCod;
 }
 
 /**
