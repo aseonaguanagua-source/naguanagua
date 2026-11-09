@@ -1077,6 +1077,15 @@ export default function FacturacionElectronicaPage() {
       let usuarioActual = '';
       try { const u = JSON.parse(localStorage.getItem('admin_user_data') || 'null'); usuarioActual = u ? `${u.nombre || u.usuario} (${u.usuario})` : ''; } catch {}
 
+      const fixYMD = (raw: string) => {
+        const s = String(raw || '').trim().slice(0, 10);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+        const yr = parseInt(s.slice(0, 4), 10);
+        return yr < 2020 || yr > 2035 ? `2026${s.slice(4)}` : s;
+      };
+      const fEmisFinal = fixYMD(emitFechaEmision);
+      const fPagoFinal = fixYMD(emitFechaPago);
+
       const res = await fetch('/api/admin/factura-digital/emitir', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1100,9 +1109,9 @@ export default function FacturacionElectronicaPage() {
           referencia: emitReferencia.trim(),
           modulo: emitModulo,
           esRetencion: emitEsRetencion,
-          fechaEmisionOverride: emitFechaEmision ? emitFechaEmision : undefined,
-          fechaPagoOverride: emitFechaPago ? emitFechaPago : undefined,
-          fecha: emitFechaEmision ? `${emitFechaEmision}T12:00:00-04:00` : (selectedPagoForEmit.fechaPago || selectedPagoForEmit.created_at || new Date().toISOString()),
+          fechaEmisionOverride: fEmisFinal ? fEmisFinal : undefined,
+          fechaPagoOverride: fPagoFinal ? fPagoFinal : undefined,
+          fecha: fEmisFinal ? `${fEmisFinal}T12:00:00-04:00` : (selectedPagoForEmit.fechaPago || selectedPagoForEmit.created_at || new Date().toISOString()),
           formasPago: emitFormasPagoMultiples.length > 1
             ? emitFormasPagoMultiples
                 .map(fp => ({
@@ -1111,7 +1120,7 @@ export default function FacturacionElectronicaPage() {
                   metodo: fp.formaPago || 'Transferencia',
                   banco: (fp.banco || '').trim(),
                   referencia: (fp.referencia || '').trim(),
-                  fecha: fp.fecha ? `${fp.fecha}T12:00:00-04:00` : (emitFechaPago ? `${emitFechaPago}T12:00:00-04:00` : new Date().toISOString()),
+                  fecha: fp.fecha ? `${fixYMD(fp.fecha)}T12:00:00-04:00` : (fPagoFinal ? `${fPagoFinal}T12:00:00-04:00` : new Date().toISOString()),
                   monto: parseFloat(String(fp.monto || '0').replace(',', '.')) || 0,
                 }))
                 .filter(fp => fp.monto > 0)
@@ -1119,7 +1128,7 @@ export default function FacturacionElectronicaPage() {
                 descripcion: emitFormaPago || selectedPagoForEmit.tipo || 'Transferencia',
                 banco: emitBanco || selectedPagoForEmit.banco || '',
                 referencia: emitReferencia.trim(),
-                fecha: emitFechaPago ? `${emitFechaPago}T12:00:00-04:00` : (emitFechaEmision ? `${emitFechaEmision}T12:00:00-04:00` : (selectedPagoForEmit.fechaPago || selectedPagoForEmit.created_at || new Date().toISOString())),
+                fecha: fPagoFinal ? `${fPagoFinal}T12:00:00-04:00` : (fEmisFinal ? `${fEmisFinal}T12:00:00-04:00` : (selectedPagoForEmit.fechaPago || selectedPagoForEmit.created_at || new Date().toISOString())),
                 forma: '05',
                 monto: total
               }],
@@ -2689,10 +2698,23 @@ export default function FacturacionElectronicaPage() {
                       </label>
                       <input
                         type="date"
+                        min="2020-01-01"
+                        max="2030-12-31"
                         value={emitFechaEmision}
                         onChange={e => {
                           setEmitFechaEmision(e.target.value);
                           setEmitFechaAsignacion(e.target.value);
+                        }}
+                        onBlur={e => {
+                          const s = String(e.target.value || '').trim().slice(0, 10);
+                          if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+                            const yr = parseInt(s.slice(0, 4), 10);
+                            if (yr < 2020 || yr > 2035) {
+                              const fixed = `2026${s.slice(4)}`;
+                              setEmitFechaEmision(fixed);
+                              setEmitFechaAsignacion(fixed);
+                            }
+                          }
                         }}
                         className="w-full border border-emerald-400 bg-emerald-50/40 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500"
                       />
@@ -2704,10 +2726,23 @@ export default function FacturacionElectronicaPage() {
                       </label>
                       <input
                         type="date"
+                        min="2020-01-01"
+                        max="2030-12-31"
                         value={emitFechaAsignacion || emitFechaEmision}
                         onChange={e => {
                           setEmitFechaAsignacion(e.target.value);
                           setEmitFechaEmision(e.target.value);
+                        }}
+                        onBlur={e => {
+                          const s = String(e.target.value || '').trim().slice(0, 10);
+                          if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+                            const yr = parseInt(s.slice(0, 4), 10);
+                            if (yr < 2020 || yr > 2035) {
+                              const fixed = `2026${s.slice(4)}`;
+                              setEmitFechaAsignacion(fixed);
+                              setEmitFechaEmision(fixed);
+                            }
+                          }
                         }}
                         className="w-full border border-emerald-400 bg-emerald-50/40 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500"
                       />
@@ -2719,8 +2754,19 @@ export default function FacturacionElectronicaPage() {
                       </label>
                       <input
                         type="date"
+                        min="2020-01-01"
+                        max="2030-12-31"
                         value={emitFechaPago}
                         onChange={e => setEmitFechaPago(e.target.value)}
+                        onBlur={e => {
+                          const s = String(e.target.value || '').trim().slice(0, 10);
+                          if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+                            const yr = parseInt(s.slice(0, 4), 10);
+                            if (yr < 2020 || yr > 2035) {
+                              setEmitFechaPago(`2026${s.slice(4)}`);
+                            }
+                          }
+                        }}
                         className="w-full border border-indigo-400 bg-indigo-50/40 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500"
                       />
                       <p className="text-[9px] text-slate-500 mt-0.5">Fecha del movimiento bancario</p>

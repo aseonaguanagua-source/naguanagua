@@ -2057,11 +2057,24 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
                 </select>
               </div>
               <div><label className={lc}>Fecha Transacción</label>
-                <input type="date" value={fechaTransaccion} onChange={e=>setFechaTransaccion(e.target.value)} className={ic}/>
+                <input
+                  type="date"
+                  min="2020-01-01"
+                  max="2030-12-31"
+                  value={fechaTransaccion}
+                  onChange={e => setFechaTransaccion(e.target.value)}
+                  onBlur={e => {
+                    const fixed = normalizarFechaYMD(e.target.value);
+                    if (fixed && fixed !== e.target.value) setFechaTransaccion(fixed);
+                  }}
+                  className={ic}
+                />
               </div>
               <div><label className={lc}>Fecha en Banco</label>
                 <input
                   type="date"
+                  min="2020-01-01"
+                  max="2030-12-31"
                   value={fechaBanco}
                   onChange={e => {
                     const val = e.target.value;
@@ -2069,6 +2082,16 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
                     const fCreacion = pago.created_at ? String(pago.created_at).slice(0, 10) : '';
                     if (val && (!fechaTransaccion || fechaTransaccion === hoyCaracasStr || fechaTransaccion === fCreacion)) {
                       setFechaTransaccion(val);
+                    }
+                  }}
+                  onBlur={e => {
+                    const fixed = normalizarFechaYMD(e.target.value);
+                    if (fixed && fixed !== e.target.value) {
+                      setFechaBanco(fixed);
+                      const fCreacion = pago.created_at ? String(pago.created_at).slice(0, 10) : '';
+                      if (!fechaTransaccion || fechaTransaccion === hoyCaracasStr || fechaTransaccion === fCreacion || fechaTransaccion === e.target.value) {
+                        setFechaTransaccion(fixed);
+                      }
                     }
                   }}
                   className={ic}
