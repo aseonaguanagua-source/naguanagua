@@ -1261,11 +1261,9 @@ export async function POST(request: Request) {
     }
 
     // Campos de la plantilla TFHKA (Guía de Mapeo §7): Campo/Valor en PascalCase
-    // Si el contribuyente es un N/A multi-actividad (ej. ASOCIACION CARABOBEÑA DE TIRO URB030879 con actividades hijas),
-    // en el renglón de Código (CodigoContribuyente) debe salir SIEMPRE el código principal N/A y NO la lista de códigos hijos.
-    const naPrincipalProp = (activeProps || []).find(
-      (p: any) => String(p.actividad_principal || '').trim().toUpperCase() === 'N/A' && !p.padre_id
-    );
+    // Si el inmueble facturado tiene padre_id (ej. actividad hija de ASOCIACION CARABOBEÑA DE TIRO URB030879
+    // o de T.M.C.A URB034385), se resuelve a su padre_id; si es un local independiente (padre_id: null),
+    // conserva su propio código sin ser reemplazado por otro inmueble N/A del mismo RIF.
     const resolverCodigoPrincipal = (cod: string | null | undefined): string => {
       const c = String(cod || '').trim().toUpperCase();
       if (!c) return '';
@@ -1274,13 +1272,10 @@ export async function POST(request: Request) {
       if (prop?.padre_id) {
         return String(prop.padre_id).trim().toUpperCase();
       }
-      if (naPrincipalProp && !esPagoPorLocal && !esCondoGlobal && prop && !prop.condominio_padre_id) {
-        return String(naPrincipalProp.inmueble || '').trim().toUpperCase();
-      }
       return c;
     };
 
-    const comRef: any = naPrincipalProp || matchedPropEspecifico || activeProps.find((p: any) => !isResidencialInm(p)) || propRef;
+    const comRef: any = matchedPropEspecifico || activeProps.find((p: any) => !isResidencialInm(p)) || propRef;
     const codsComercialesPago = Array.from(new Set(
       (recibos || [])
         .map((r: string) => extraerCodigoInmueble(r))
@@ -1293,11 +1288,9 @@ export async function POST(request: Request) {
     );
     const codigoContribuyente = esCondoGlobal
       ? ((condoDet?.codigo) || (condoCode) || singleCodigoPrincipal || '')
-      : (naPrincipalProp && !esPagoPorLocal
-          ? String(naPrincipalProp.inmueble).trim().toUpperCase()
-          : (codsComercialesPago.length > 1
-              ? codsComercialesPago.join(', ')
-              : singleCodigoPrincipal));
+      : (codsComercialesPago.length > 1
+          ? codsComercialesPago.join(', ')
+          : (codsComercialesPago[0] || singleCodigoPrincipal));
     // N° de Licencia de Actividades Económicas: el NÚMERO registrado en el inmueble (nunca el nombre de la actividad).
     // Si el sistema no lo tiene, el campo no se envía.
     let licenciaAE = '';

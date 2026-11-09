@@ -1053,13 +1053,11 @@ export async function POST(request: Request) {
     }
 
     // Campos de la plantilla TFHKA (Guía de Mapeo §7): Campo/Valor en PascalCase
-    const naPrincipalProp = (activeProps || []).find(
-      (p: any) => String(p.actividad_principal || '').trim().toUpperCase() === 'N/A' && !p.padre_id
-    );
-    const comRef: any = naPrincipalProp || activeProps.find((p: any) => !isResidencialInm(p)) || propRef;
-    const codHistRaw = histRecibos.length > 0 ? histRecibos[0].split('-').slice(2, -1).join('-') : '';
+    const comRef: any = activeProps.find((p: any) => !isResidencialInm(p)) || propRef;
+    const codHistRaw = (histRecibos.length > 0 ? histRecibos[0].split('-').slice(2, -1).join('-') : '')
+      || String(detPago?.cod_inmueble || detPago?.codigo_inmueble || '').trim().toUpperCase();
     const propHist = codHistRaw ? (userProps || []).find((p: any) => String(p.inmueble || '').trim().toUpperCase() === codHistRaw.toUpperCase()) : null;
-    const codHist = propHist?.padre_id ? String(propHist.padre_id).trim().toUpperCase() : (naPrincipalProp ? String(naPrincipalProp.inmueble).trim().toUpperCase() : codHistRaw);
+    const codHist = propHist?.padre_id ? String(propHist.padre_id).trim().toUpperCase() : codHistRaw;
     const lineaCom = lineasCondo?.find((l: any) => !l.residencial);
     const codigoContribuyente = lineasCondo ? (lineaCom?.inmueble || condoDet?.codigo || '') : (codHist || comRef?.inmueble || '');
     // N° de Licencia de Actividades Económicas: el NÚMERO registrado en el inmueble (nunca el nombre de la actividad).
