@@ -609,7 +609,11 @@ export async function POST(req: Request) {
 
           // Acreditar saldo a favor si la transferencia de condominio tenía excedente pendiente
           const sfCondo = parseFloat(String(d.saldo_favor || d.saldo_a_favor_nuevo || d.saldo_favor_generado || 0)) || 0;
-          if (sfCondo >= 1.00 && !detP.saldo_favor_acreditado && rawId) {
+          if (sfCondo > 0 && sfCondo < 5.00) {
+            d.saldo_favor = 0;
+            d.saldo_favor_generado = 0;
+          }
+          if (sfCondo >= 5.00 && !detP.saldo_favor_acreditado && !d.es_pago_adicional && !d.pago_vinculado && actualP.tipo !== 'Retencion de IVA' && rawId) {
             const mGen = Math.round(sfCondo * 100) / 100;
             const codigoTargetSF = esModoCondo ? (condoCod || undefined) : (String(lineasCondo[0]?.inmueble || condoCod || '').trim().toUpperCase() || undefined);
             try {
@@ -628,6 +632,7 @@ export async function POST(req: Request) {
                   origen_referencia: `Excedente Caja de Condominios ${condoCod || ''}. Ref: ${actualP.referencia || ''}`,
                   motivo: `Nota de crédito automática por excedente de pago (${condoCod || 'Condominio'})`,
                   fecha_emision: new Date().toISOString(),
+                  pago_id: pagoId,
                 }),
               }]);
               d.saldo_favor_acreditado = true;
@@ -697,11 +702,15 @@ export async function POST(req: Request) {
             const montoFacNum = parseFloat(String(d.monto_factura || d.total_seleccionado || 0)) || 0;
             const montoRetNum = parseFloat(String(d.monto_retencion_iva || d.retencion_iva || 0)) || 0;
             const sfExplicito = parseFloat(String(d.saldo_favor || d.saldo_a_favor_nuevo || d.saldo_favor_generado || d.monto_sobrante || 0)) || 0;
-            const sfCalculadoRet = (montoFacNum > 0 && montoPagadoNum > 0 && montoPagadoNum > (montoFacNum - montoRetNum) + 0.50)
+            const sfCalculadoRet = (montoFacNum > 0 && montoPagadoNum > 0 && montoPagadoNum > (montoFacNum - montoRetNum) + 5.00)
               ? Math.round((montoPagadoNum - (montoFacNum - montoRetNum)) * 100) / 100
               : 0;
-            const sfGeneral = Math.max(sfExplicito, sfCalculadoRet);
-            if (sfGeneral >= 1.00) {
+            const sfGeneral = Math.max(sfExplicito >= 5.00 ? sfExplicito : 0, sfCalculadoRet);
+            if (sfGeneral < 5.00 && sfExplicito > 0 && sfExplicito < 5.00) {
+              d.saldo_favor = 0;
+              d.saldo_favor_generado = 0;
+            }
+            if (sfGeneral >= 5.00 && !d.es_pago_adicional && !d.pago_vinculado && actualP.tipo !== 'Retencion de IVA') {
               const mGen = Math.round(sfGeneral * 100) / 100;
               const codTargetGen = String(d.codigo_inmueble || d.cod_inmueble || inmsPrev?.[0]?.inmueble || '').trim().toUpperCase() || undefined;
               try {

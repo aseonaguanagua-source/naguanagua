@@ -3034,10 +3034,10 @@ export default function CajaPage() {
         }
       }
 
-      // Si hay saldo a favor nuevo (>= Bs 1.00), generar Nota de Crédito automática
+      // Si hay saldo a favor nuevo (>= Bs 5.00), generar Nota de Crédito automática
       // Para pagos inmediatos (punto auto-aprobado) se emite aquí;
       // para transferencias/depósitos por conciliar, se emite al conciliarse para evitar duplicación
-      if (saldoAFavorNuevo >= 1.00 && (!reqRef || isAutoAprobado)) {
+      if (saldoAFavorNuevo >= 5.00 && (!reqRef || isAutoAprobado)) {
         const refParaNC = (reqRef ? referencia : referenciaDebito || '').trim() || `CAJA-${Date.now()}`;
         const codInmNC = foundUser.CodCont || foundUser.cod_cont || (freshInmuebles?.[0]?.inmueble) || undefined;
         const mRedondeado = Math.round(saldoAFavorNuevo * 100) / 100;

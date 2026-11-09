@@ -1658,12 +1658,13 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         const yaAcreditadoEnCaja = det.saldo_favor_acreditado
           ? (parseFloat(String(det.saldo_favor || det.saldo_a_favor_nuevo || 0)) || 0)
           : 0;
-        const excedenteBrutoConcil = (!esAbonoParcialConcil && !det.es_abono && deudaNetaBancaria > 0 && montoConciliadoNum >= deudaNetaBancaria + 0.01)
+        const esFilaRetencionPura = Boolean(det.pago_vinculado) || (pago as any).tipo === 'Retencion de IVA' || String(pago.referencia || '').startsWith('RET-');
+        const excedenteBrutoConcil = (!esAbonoParcialConcil && !det.es_abono && !det.es_pago_adicional && !esFilaRetencionPura && deudaNetaBancaria > 0 && montoConciliadoNum >= deudaNetaBancaria + 5.00)
           ? Math.round((montoConciliadoNum - deudaNetaBancaria) * 100) / 100
           : 0;
         const excedenteCaja = Math.max(0, Math.round((excedenteBrutoConcil - yaAcreditadoEnCaja) * 100) / 100);
 
-        if (excedenteCaja >= 0.01) {
+        if (excedenteCaja >= 5.00 && !det.es_pago_adicional && !esFilaRetencionPura) {
           const esPagoModuloCondo = det.modulo === 'condominios' || (pago as any).modulo === 'condominios' || Boolean(det.condominio);
           const condoCodRef = String(det.condominio?.codigo || det.codigo_condominio || '').trim().toUpperCase();
           const lineasCondoArr = Array.isArray(det.condominio?.lineas) ? det.condominio.lineas : [];
@@ -1719,6 +1720,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
                   : `Nota de crédito automática por excedente de pago del local ${targetInmNC || identNC}`,
                 fecha_emision: new Date().toISOString(),
                 analista: updatedDet.analista,
+                pago_id: pago.id,
               })
             }]);
           }

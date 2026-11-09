@@ -707,7 +707,7 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
             recibo_caja: [reciboCajaItem],
             deuda_previa: antes,
             deuda_condo_aplicada: true,
-            ...(i === 0 && (pago.saldoFavorGenerado || 0) >= 0.01 ? { saldo_favor: r2(pago.saldoFavorGenerado || 0), saldo_favor_acreditado: true } : {}),
+            ...(i === 0 && (pago.saldoFavorGenerado || 0) >= 5.00 ? { saldo_favor: r2(pago.saldoFavorGenerado || 0), saldo_favor_acreditado: true } : {}),
         };
 
         const fila: any = {
@@ -776,6 +776,11 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
                         comprobante_nombre: paExtra.comprobante_nombre,
                         pago_principal_id: fila.id,
                         es_pago_adicional: true,
+                        saldo_favor: 0,
+                        saldo_favor_generado: 0,
+                        saldo_usado: 0,
+                        saldo_favor_usado: 0,
+                        descuento_saldo_favor: 0,
                         factura_digital: { emitida: false, pendiente: false, es_pago_adicional: true }
                     }
                 });
@@ -800,6 +805,11 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
                     cajero: pago.cajero,
                     es_retencion: true,
                     pago_vinculado: id,
+                    saldo_favor: 0,
+                    saldo_favor_generado: 0,
+                    saldo_usado: 0,
+                    saldo_favor_usado: 0,
+                    descuento_saldo_favor: 0,
                     nota: 'Comprobante de retención de IVA 75% deducido en Caja.',
                     factura_digital: { emitida: false, pendiente: false, es_retencion: true }
                 }
@@ -858,7 +868,7 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
         if (!resSF.ok) throw new Error('Error al descontar Saldo a Favor: ' + resSF.error);
     }
 
-    if (pago.saldoFavorGenerado && pago.saldoFavorGenerado >= 1.00 && pagadorIdentidad) {
+    if (pago.saldoFavorGenerado && pago.saldoFavorGenerado >= 5.00 && pagadorIdentidad) {
         const mGen = Math.round(pago.saldoFavorGenerado * 100) / 100;
         const resAc = await acreditarSaldoFavor(pagadorIdentidad, mGen, codigoTargetSF, sb);
         if (!resAc.ok) throw new Error('Error al acreditar Saldo a Favor: ' + resAc.error);
@@ -883,7 +893,8 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
                     ? `Nota de crédito automática por excedente de pago del condominio (${modalidadOrigenNC === 'abono_locales' ? 'Abono por Locales' : 'Pago Completo'})`
                     : `Nota de crédito automática por excedente de pago del local ${codigoInmuebleHijo || ''}`,
                 fecha_emision: hoy.toISOString(),
-                cajero: pago.cajero
+                cajero: pago.cajero,
+                pago_id: pagos[0]?.id
             })
         }]);
     }

@@ -2229,12 +2229,17 @@ export async function POST(request: Request) {
         ? (retCalcFinal > 0 ? retCalcFinal : (parseFloat(String(nuevosDetalles.monto_retencion_iva || detPago?.monto_retencion_iva || 0)) || 0))
         : 0;
       const netoExigidoFactura = Math.max(0, r2(totalAPagar - retEfectiva - saldoFavorUsado));
-      const excedentePorFactura = totalEfectivoPagado > netoExigidoFactura + 0.50
+      const excedentePorFactura = totalEfectivoPagado > netoExigidoFactura + 5.00
         ? r2(totalEfectivoPagado - netoExigidoFactura)
         : 0;
-      const saldoFavorEfectivo = Math.max(saldoFavorGenerado, excedentePorFactura);
+      const saldoFavorEfectivo = Math.max(saldoFavorGenerado >= 5.00 ? saldoFavorGenerado : 0, excedentePorFactura);
 
-      if (saldoFavorEfectivo >= 1.00 && docIdentParaEmision) {
+      if (saldoFavorEfectivo < 5.00 && saldoFavorGenerado > 0 && saldoFavorGenerado < 5.00) {
+        nuevosDetalles.saldo_favor = 0;
+        nuevosDetalles.saldo_favor_generado = 0;
+      }
+
+      if (saldoFavorEfectivo >= 5.00 && docIdentParaEmision) {
         const { data: docsExistentes } = await supabase
           .from('documentos')
           .select('id, estado, detalles')
@@ -2326,10 +2331,14 @@ export async function POST(request: Request) {
       if (finalIdentidad) {
         const { data: abonosCand } = await supabase
           .from('pagos_reportados')
-          .select('id, referencia, estado, created_at, detalles')
+          .select('id, monto, referencia, estado, created_at, detalles')
           .in('identidad', idVariants)
           .eq('estado', 'Aprobado')
           .neq('id', pagoId);
+
+        const idsIntegrados: string[] = Array.isArray(nuevosDetalles.pagos_integrados_ids)
+          ? [...nuevosDetalles.pagos_integrados_ids]
+          : [];
 
         for (const cand of abonosCand || []) {
           let dCand: any = cand.detalles || {};
@@ -2340,15 +2349,35 @@ export async function POST(request: Request) {
           const esExplicito = Boolean(refCandClean && refsAbsorbidas.includes(refCandClean)) || dCand?.completado_con_pago_id === pagoId || dCand?.pago_principal_id === pagoId;
           const esAbonoCand = dCand?.es_abono === true || dCand?.abono === true || dCand?.pago_parcial === true;
           const recibosCand = Array.isArray(dCand?.recibos) ? dCand.recibos.map((r: any) => String(r).toUpperCase()) : [];
-          const comparteRecibos = esAbonoCand && recibosCand.length > 0 && recibosCand.every((r: string) => recibosPrin.includes(r)) && new Date(cand.created_at) <= new Date(pagoRow?.created_at || new Date());
+          const mismosRecibos = recibosCand.length > 0 && recibosCand.every((r: string) => recibosPrin.includes(r));
+          const montoCandNum = parseFloat(String(cand.monto || 0)) || 0;
+          const montoPrinNum = parseFloat(String(pagoRow?.monto || 0)) || 0;
+          const esComplementoParcial = mismosRecibos && recibosCand.length === recibosPrin.length && montoCandNum > 0 && montoPrinNum > 0 && (montoCandNum + montoPrinNum) <= totalAPagar * 1.15 && Math.abs(new Date(cand.created_at).getTime() - new Date(pagoRow?.created_at || new Date()).getTime()) <= 15 * 86400 * 1000;
+          const comparteRecibos = (esAbonoCand && mismosRecibos && new Date(cand.created_at) <= new Date(pagoRow?.created_at || new Date())) || esComplementoParcial;
 
           if (esExplicito || comparteRecibos) {
             dCand.pago_principal_id = pagoId;
+            dCand.pago_integrador_id = pagoId;
             dCand.completado_con_pago_id = pagoId;
             dCand.abono_completado = true;
+            dCand.es_abono_integrado = true;
             dCand.es_pago_adicional = true;
+            dCand.factura_digital = {
+              ...(nuevosDetalles.factura_digital || {}),
+              emitida: true,
+              es_pago_adicional: true,
+              es_abono_integrado: true,
+              pago_principal_id: pagoId,
+              pago_integrador_id: pagoId,
+            };
+            delete dCand.factura_digital_error;
             await supabase.from('pagos_reportados').update({ detalles: dCand }).eq('id', cand.id);
+            if (!idsIntegrados.includes(cand.id)) idsIntegrados.push(cand.id);
           }
+        }
+        if (idsIntegrados.length > 0) {
+          nuevosDetalles.pagos_integrados_ids = idsIntegrados;
+          await supabase.from('pagos_reportados').update({ detalles: nuevosDetalles }).eq('id', pagoId);
         }
       }
 
