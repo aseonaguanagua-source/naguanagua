@@ -86,7 +86,7 @@ const BANCOS_DESTINO = [
   'BANCO PROVINCIAL - 0108',
 ];
 
-const FORMAS_PAGO = ['Todos', 'Transferencia', 'Punto de Venta', 'Debito', 'TMD (Master)', 'TVD (Visa)', 'Efectivo'];
+const FORMAS_PAGO = ['Todos', 'Transferencia', 'Punto de Venta', 'Debito', 'TMD (Master)', 'TVD (Visa)', 'Efectivo', 'Saldo a Favor / Nota de Crédito'];
 const ESTATUS_LIST = ['Todos', 'Pendiente', 'Por Verificar', 'Aprobado', 'Rechazado'];
 const ESTATUS_CONCILIAR = ['Aprobado', 'Rechazado', 'Con Diferencia'];
 
@@ -2035,7 +2035,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
             <div className="grid grid-cols-4 gap-4">
               <div><label className={lc}>Forma de Pago</label>
                 <select value={tipoPagoEdit} onChange={e=>setTipoPagoEdit(e.target.value)} className={ic}>
-                  {Array.from(new Set([pago.tipo || 'Transferencia', 'Transferencia', 'Transferencia (Web)', 'Debito', 'Pago Móvil'])).filter(Boolean).map(tp => (
+                  {Array.from(new Set([pago.tipo || 'Transferencia', 'Transferencia', 'Transferencia (Web)', 'Debito', 'Pago Móvil', 'Saldo a Favor', 'Nota de Crédito'])).filter(Boolean).map(tp => (
                     <option key={tp} value={tp}>{tp}</option>
                   ))}
                 </select>
@@ -2450,6 +2450,8 @@ export default function ConciliacionPage() {
             q = q.in('tipo', ['TVD', 'TVD (Visa)']);
           } else if (filtros.formaPago === 'Transferencia') {
             q = q.in('tipo', ['Transferencia', 'Transferencia (Web)']);
+          } else if (filtros.formaPago === 'Saldo a Favor / Nota de Crédito') {
+            q = q.in('tipo', ['Saldo a Favor', 'Nota de Crédito', 'Nota de Credito']);
           } else {
             q = q.eq('tipo', filtros.formaPago);
           }
@@ -2776,6 +2778,10 @@ export default function ConciliacionPage() {
           {pago.tipo === 'Retencion de IVA' ? (
             <span className="bg-purple-100 text-purple-800 text-[10px] font-black px-2 py-0.5 rounded border border-purple-200 inline-block">
               Retención IVA
+            </span>
+          ) : (pago.tipo === 'Saldo a Favor' || pago.tipo === 'Nota de Crédito' || pago.tipo === 'Nota de Credito' || det.es_nota_credito || det.es_saldo_a_favor) ? (
+            <span className="bg-blue-100 text-blue-800 text-[10px] font-black px-2 py-0.5 rounded border border-blue-200 inline-block">
+              Nota de Crédito / Saldo a Favor
             </span>
           ) : (
             pago.tipo || '---'

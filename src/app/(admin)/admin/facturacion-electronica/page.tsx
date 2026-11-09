@@ -1692,7 +1692,9 @@ export default function FacturacionElectronicaPage() {
                         })()}
                         {pago.montoPagado !== undefined && Math.abs(pago.montoPagado - pago.monto) > 0.05 && (!pago.detalles?.formasPago || pago.detalles.formasPago.length <= 1) && (
                           <div className="text-[10px] text-slate-500 font-semibold mt-0.5">
-                            Transferido: Bs {fmtBs(pago.montoPagado)}
+                            {(String(pago.tipo || '').toLowerCase().includes('saldo') || String(pago.tipo || '').toLowerCase().includes('nota') || pago.detalles?.es_nota_credito || pago.detalles?.es_saldo_a_favor)
+                              ? `Nota de Crédito: Bs ${fmtBs(pago.montoPagado)}`
+                              : `Transferido: Bs ${fmtBs(pago.montoPagado)}`}
                           </div>
                         )}
                         {(() => {
