@@ -60,10 +60,16 @@ export async function GET(request: Request) {
       directPagos?.forEach(p => {
         if (p.identidad) queryInmIdents.add(p.identidad);
         const d = parseDetalles(p.detalles);
-        const c1 = d?.condominio?.codigo || d?.codigo_inmueble || d?.cod_inmueble;
-        if (c1) queryRelatedInmuebleCodes.add(c1);
+        const esPagoLocalIndiv =
+          d?.modo === 'CONTRIBUYENTE' ||
+          String(d?.modalidad_cobro || '').toLowerCase() === 'individual' ||
+          String(d?.condominio?.modalidad || '').toUpperCase() === 'INDIVIDUAL';
+        const c1 = esPagoLocalIndiv
+          ? (d?.codigo_inmueble || d?.cod_inmueble)
+          : (d?.codigo_inmueble || d?.cod_inmueble || d?.condominio?.codigo);
+        if (c1 && !String(c1).startsWith('CONDO-')) queryRelatedInmuebleCodes.add(String(c1).toUpperCase());
         (d?.condominio?.lineas || []).forEach((l: any) => {
-          if (l.inmueble) queryRelatedInmuebleCodes.add(l.inmueble);
+          if (l.inmueble) queryRelatedInmuebleCodes.add(String(l.inmueble).toUpperCase());
         });
         (d?.recibos || []).forEach((r: any) => {
           const match = String(r).match(/(URB\d+|AURI\d+|RES\d+)/i);
@@ -187,13 +193,16 @@ export async function GET(request: Request) {
     const abonosAbsorbidosIds = new Set<string>();
     const abonosInfoPorPagoPrincipal = new Map<string, { montoTotal: number; referencias: string[]; formasPago: any[]; ids: string[] }>();
 
-    // Ordenar para evaluar primero los pagos ya emitidos y luego los más recientes como principales
+    // Ordenar para evaluar primero los pagos ya emitidos, luego los pagos principales reales (no adicionales) y luego los más recientes
     const candidatosPrincipales = [...(rawPagos || [])].sort((a, b) => {
       const dA = parseDetalles(a.detalles);
       const dB = parseDetalles(b.detalles);
       const emA = Boolean(dA?.factura_digital?.emitida || dA?.factura_digital?.numero_control || dA?.factura_digital?.numero_documento) ? 1 : 0;
       const emB = Boolean(dB?.factura_digital?.emitida || dB?.factura_digital?.numero_control || dB?.factura_digital?.numero_documento) ? 1 : 0;
       if (emB !== emA) return emB - emA;
+      const esSecA = Boolean(dA?.es_pago_adicional || (dA?.pago_principal_id && dA.pago_principal_id !== a.id) || (a.grupo_pago && a.grupo_pago !== a.id)) ? 1 : 0;
+      const esSecB = Boolean(dB?.es_pago_adicional || (dB?.pago_principal_id && dB.pago_principal_id !== b.id) || (b.grupo_pago && b.grupo_pago !== b.id)) ? 1 : 0;
+      if (esSecA !== esSecB) return esSecA - esSecB;
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
 
@@ -205,6 +214,8 @@ export async function GET(request: Request) {
 
       const dP = parseDetalles(pPrincipal.detalles);
       if (dP?.factura_digital?.anulada || dP?.factura_digital?.nota_credito || dP?.factura_digital?.rechazada) return;
+      // Un pago secundario / adicional nunca debe actuar como principal absorbiendo al verdadero principal
+      if (dP?.es_pago_adicional === true || (dP?.pago_principal_id && dP.pago_principal_id !== pPrincipal.id)) return;
 
       const sumSfDeudaPrevia = Array.isArray(dP?.deuda_previa)
         ? dP.deuda_previa.reduce((acc: number, x: any) => acc + (parseFloat(String(x?.saldo_favor_bs || 0)) || 0), 0)
@@ -1007,8 +1018,8 @@ export async function GET(request: Request) {
             .filter((fp: any) => !String(fp?.descripcion || fp?.tipo || fp?.metodo || '').toLowerCase().includes('saldo a favor') && !String(fp?.descripcion || fp?.tipo || fp?.metodo || '').toLowerCase().includes('nota de credito'))
             .reduce((s: number, fp: any) => s + (parseFloat(String(fp?.monto || 0)) || 0), 0)
         : 0;
-      const baseMontoPago = Math.max(parseFloat(pago.monto || '0') || 0, sumFormasPagoBancarias);
-      const montoPagadoEfectivo = Math.round((baseMontoPago + (infoAbonos?.montoTotal || 0)) * 100) / 100;
+      const sumaDirectaConAbonos = (parseFloat(pago.monto || '0') || 0) + (infoAbonos?.montoTotal || 0);
+      const montoPagadoEfectivo = Math.round(Math.max(sumaDirectaConAbonos, sumFormasPagoBancarias) * 100) / 100;
       const refRawStr = String(pago.referencia || 'N/A');
       const refBaseClean = refRawStr.replace(/\s*\(\+[^)]*\)/g, '').trim() || 'N/A';
       const existingPlusMatch = refRawStr.match(/\(\+\s*([^)]+)\)/);

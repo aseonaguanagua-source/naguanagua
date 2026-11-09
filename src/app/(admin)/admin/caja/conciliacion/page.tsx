@@ -1259,6 +1259,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         const otrosPagos = pagosVinculados.filter((p: any) => p.id !== pago.id && p.estado !== estatus);
         for (const op of otrosPagos) {
           const opDet = parseDetalles(op.detalles);
+          const opTxFecha = opDet.fecha_transaccion || fechaTxConciliada;
           const opUpdatedDet = {
             ...opDet,
             analista: updatedDet.analista,
@@ -1266,6 +1267,9 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
             observaciones: observaciones ? `${opDet.observaciones || ''} [Conciliado en grupo con ${pago.referencia || pago.id}] ${observaciones}`.trim() : opDet.observaciones,
             tasa_bcv: tasaParaGuardar,
             tasa_bcv_conciliacion: tasaParaGuardar,
+            ...(opTxFecha && Array.isArray(opDet.recibo_caja) && !opDet.factura_digital?.emitida
+              ? { recibo_caja: opDet.recibo_caja.map((rc: any) => ({ ...rc, fechaEmision: opTxFecha })) }
+              : {}),
           };
           const opPayload: any = {
             estado: estatus,

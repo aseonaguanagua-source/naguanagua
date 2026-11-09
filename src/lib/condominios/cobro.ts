@@ -613,7 +613,7 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
         const reciboCajaItem = {
             reciboNo: refFinal.slice(-7).padStart(7, '0'),
             controlWeb: `WEB-${refFinal.slice(-7).padStart(7, '0')}`,
-            fechaEmision: new Date().toISOString().slice(0, 10),
+            fechaEmision: fechaTransaccion || new Date().toISOString().slice(0, 10),
             fechaTransaccion: fechaTransaccion,
             fechaIngresoCaja: new Date().toISOString().slice(0, 10),
             codContribuyente: f.identidad,
