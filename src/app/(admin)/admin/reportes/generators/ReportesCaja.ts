@@ -662,11 +662,25 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
     }
   });
 
+  // Mapa rápido por ID para resolver factura_digital del pago padre en pagos adicionales
+  const pagoPorId = new Map<string, any>();
+  transf.forEach(p => {
+    if (p?.id) pagoPorId.set(String(p.id), p);
+  });
+
+  const normalizarFechaYMD = (raw: any): string => {
+    const s = String(raw || '').trim().slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return '';
+    const yr = parseInt(s.slice(0, 4), 10);
+    if (yr < 2020 || yr > 2035) return `2026${s.slice(4)}`;
+    return s;
+  };
+
   // Mes del PAGO (fecha de la transferencia), no del registro
   const porMes = new Map<string, any[]>();
   transf.forEach(p => {
     const det = parseDet(p);
-    const fRegistro = String(fechaVE(p.created_at) || '').slice(0, 10);
+    const fRegistro = normalizarFechaYMD(fechaVE(p.created_at));
     // Si la lista de pagos ya contiene las filas individuales de cada pago adicional,
     // NO debemos re-expandir pagos_agregados en el padre porque duplicaría las filas y sumaría varias veces el mismo pago.
     const pagsAgregados = Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1
@@ -681,15 +695,26 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
     }));
 
     const fd = det.factura_digital || {};
+    const pagoPadre = det.pago_principal_id ? pagoPorId.get(String(det.pago_principal_id)) : null;
+    const detPadre = pagoPadre ? parseDet(pagoPadre) : null;
+    const fdPadre = detPadre?.factura_digital || {};
     const rc0 = Array.isArray(det.recibo_caja) ? det.recibo_caja[0] : det.recibo_caja;
+    const fTx = normalizarFechaYMD(det.fecha_transaccion);
+    const fRc = normalizarFechaYMD(rc0?.fechaEmision);
     const fFacturaRaw =
-      det.fecha_emision_override ||
-      det.fecha_asignacion_override ||
-      (fd.fecha_emision ? String(fd.fecha_emision).slice(0, 10) : '') ||
-      (fd.fecha_asignacion ? String(fd.fecha_asignacion).slice(0, 10) : '') ||
-      (rc0?.fechaEmision && fRegistro && String(rc0.fechaEmision).slice(0, 7) < fRegistro.slice(0, 7) ? String(rc0.fechaEmision).slice(0, 10) : '') ||
+      normalizarFechaYMD(det.fecha_emision_override) ||
+      normalizarFechaYMD(det.fecha_asignacion_override) ||
+      normalizarFechaYMD(fd.fecha_emision) ||
+      normalizarFechaYMD(fd.fecha_asignacion) ||
+      normalizarFechaYMD(detPadre?.fecha_emision_override) ||
+      normalizarFechaYMD(fdPadre.fecha_emision) ||
+      normalizarFechaYMD(fdPadre.fecha_asignacion) ||
+      (fTx && fRegistro && fTx < fRegistro ? fTx : '') ||
+      (fRc && fRegistro && fRc < fRegistro ? fRc : '') ||
+      fTx ||
+      fRc ||
       fRegistro;
-    const fFactura = /^\d{4}-\d{2}-\d{2}$/.test(String(fFacturaRaw)) ? String(fFacturaRaw) : fRegistro;
+    const fFactura = fFacturaRaw || fRegistro;
 
     if (pagsAgregados && pagsAgregados.length > 1 && !yaExistenComoFilasSeparadas) {
       const totalBase = pagsAgregados.reduce((acc: number, x: any) => acc + (Number(x.monto) || 0), 0) || Number(p.monto) || 1;

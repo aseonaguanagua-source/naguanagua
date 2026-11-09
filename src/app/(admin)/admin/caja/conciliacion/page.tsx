@@ -17,26 +17,34 @@ import { acreditarSaldoFavor, descontarSaldoFavor } from '@/lib/saldoFavor';
 import { parseLocalFloat, formatLocalNumberInput, formatBs, getIdentidadVariantsExact } from '@/lib/formatters';
 import { resolverPeriodoFactura } from '@/lib/facturaPeriodoHelper';
 
+const normalizarFechaYMD = (raw: any): string => {
+  const s = String(raw || '').trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const yr = parseInt(s.slice(0, 4), 10);
+  if (yr < 2020 || yr > 2035) return `2026${s.slice(4)}`;
+  return s;
+};
+
 /** Fecha (YYYY-MM-DD) de la transacción tal como se registró en Caja / Caja de Condominios o se concilió en banco. */
 const fechaTransaccionDe = (det: any, createdAt?: string): string => {
-  const fCreacion = createdAt ? String(createdAt).slice(0, 10) : '';
-  const fBanco = det?.fecha_banco ? String(det.fecha_banco).slice(0, 10) : '';
-  const fTx = det?.fecha_transaccion ? String(det.fecha_transaccion).slice(0, 10) : '';
-  if (fBanco && (!fTx || (fCreacion && fTx === fCreacion && fBanco !== fCreacion))) {
-    return fBanco;
-  }
+  const fCreacion = createdAt ? normalizarFechaYMD(createdAt) : '';
+  const fBanco = det?.fecha_banco ? normalizarFechaYMD(det.fecha_banco) : '';
+  const fTx = det?.fecha_transaccion ? normalizarFechaYMD(det.fecha_transaccion) : '';
   if (fTx && (!fCreacion || fTx !== fCreacion) && !det?.nota_cambio_tasa) {
     return fTx;
   }
+  if (fBanco && (!fTx || (fCreacion && fTx === fCreacion && fBanco !== fCreacion))) {
+    return fBanco;
+  }
   const mNota = String(det?.nota_cambio_tasa || '').match(/(\d{2})\/(\d{2})\/(\d{4})/);
   if (mNota && (!fTx || (fCreacion && fTx === fCreacion))) {
-    return `${mNota[3]}-${mNota[2]}-${mNota[1]}`;
+    return normalizarFechaYMD(`${mNota[3]}-${mNota[2]}-${mNota[1]}`);
   }
   const f = fTx
     || fBanco
     || (det?.pagos_agregados || []).find((p: any) => p?.fecha && p?.metodo !== 'Saldo a Favor')?.fecha
     || (det?.formasPago || []).find((p: any) => p?.fecha && p?.descripcion !== 'Saldo a Favor')?.fecha;
-  return f ? String(f).slice(0, 10) : '';
+  return f ? normalizarFechaYMD(f) : '';
 };
 
 type Pago = {
@@ -1179,15 +1187,23 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         updatedDet.banco_destino = bancoReceptor;
         updatedDet.banco_receptor = bancoReceptor;
       }
-      const fCreacionPago = pago.created_at ? String(pago.created_at).slice(0, 10) : '';
-      const fechaTxConciliada = (fechaBanco && (fechaTransaccion === hoyCaracasStr || fechaTransaccion === fCreacionPago))
-        ? fechaBanco
-        : (fechaTransaccion || fechaBanco);
+      const fCreacionPago = pago.created_at ? normalizarFechaYMD(pago.created_at) : '';
+      const fBancoNorm = normalizarFechaYMD(fechaBanco);
+      const fTxNorm = normalizarFechaYMD(fechaTransaccion);
+      const fechaTxConciliada = (fBancoNorm && (fTxNorm === hoyCaracasStr || fTxNorm === fCreacionPago))
+        ? fBancoNorm
+        : (fTxNorm || fBancoNorm);
       if (fechaTxConciliada) {
         updatedDet.fecha_transaccion = fechaTxConciliada;
+        if (Array.isArray(updatedDet.recibo_caja) && updatedDet.recibo_caja.length > 0 && !updatedDet.factura_digital?.emitida) {
+          updatedDet.recibo_caja = updatedDet.recibo_caja.map((rc: any) => ({
+            ...rc,
+            fechaEmision: fechaTxConciliada,
+          }));
+        }
       }
-      if (fechaBanco) {
-        updatedDet.fecha_banco = fechaBanco;
+      if (fBancoNorm) {
+        updatedDet.fecha_banco = fBancoNorm;
       }
 
       if (Array.isArray(updatedDet.formasPago) && updatedDet.formasPago.length === 1) {

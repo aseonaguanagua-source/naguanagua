@@ -891,17 +891,24 @@ export default function FacturacionElectronicaPage() {
     setAjusteConcepto(conceptoPeriodo);
     setCorreoDestinoEmision(pago.correo || tfhkaConfig?.config?.fallbackEmail || 'facturacion.naguanagua@gmail.com');
     setEnviarCorreoAlEmitir(true);
-    const fp0Fecha = (Array.isArray(pago.detalles?.formasPago) && pago.detalles.formasPago[0]?.fecha ? String(pago.detalles.formasPago[0].fecha).slice(0, 10) : '');
-    const fBanco = (pago.detalles?.fecha_banco || '').slice(0, 10);
-    const fTx = (pago.detalles?.fecha_transaccion || '').slice(0, 10);
-    const fCreacion = (pago.created_at || '').slice(0, 10);
+    const normYMD = (raw: any): string => {
+      const s = String(raw || '').trim().slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return '';
+      const yr = parseInt(s.slice(0, 4), 10);
+      if (yr < 2020 || yr > 2035) return `2026${s.slice(4)}`;
+      return s;
+    };
+    const fp0Fecha = normYMD(Array.isArray(pago.detalles?.formasPago) && pago.detalles.formasPago[0]?.fecha ? pago.detalles.formasPago[0].fecha : '');
+    const fBanco = normYMD(pago.detalles?.fecha_banco);
+    const fTx = normYMD(pago.detalles?.fecha_transaccion);
+    const fCreacion = normYMD(pago.created_at);
     const fechaPagoOrig = (
       (fBanco && fTx === fCreacion && fBanco !== fCreacion ? fBanco : '') ||
       (fp0Fecha && fTx === fCreacion && fp0Fecha !== fCreacion ? fp0Fecha : '') ||
       fTx ||
       fBanco ||
       fp0Fecha ||
-      (pago.fechaPago || '').slice(0, 10) ||
+      normYMD(pago.fechaPago) ||
       fCreacion
     );
     const hoyYMD = hoyCaracas();
@@ -911,7 +918,7 @@ export default function FacturacionElectronicaPage() {
       fechaPagoOrig.slice(0, 7) < hoyYMD.slice(0, 7)
         ? fechaPagoOrig
         : '';
-    const fechaEmisionGuardada = (
+    const fechaEmisionGuardada = normYMD(
       pago.fechaEmisionOverride ||
       pago.detalles?.fecha_emision_override ||
       pago.detalles?.fecha_asignacion_override ||
@@ -919,7 +926,7 @@ export default function FacturacionElectronicaPage() {
       pago.detalles?.factura_digital?.fecha_emision ||
       txEnMesAnterior ||
       ''
-    ).slice(0, 10) || hoyYMD;
+    ) || hoyYMD;
     setEmitFechaEmision(fechaEmisionGuardada);
     setEmitFechaAsignacion(fechaEmisionGuardada);
     setEmitFechaPago(fechaPagoOrig || hoyYMD);
