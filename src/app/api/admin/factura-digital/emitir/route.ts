@@ -653,6 +653,9 @@ export async function POST(request: Request) {
           ValorTotalItem: (base + iva).toFixed(2), InfoAdicionalItem: [], ListaItemOTI: null,
         };
       };
+      const totalAseoLineas = lineasCondo.reduce((s: number, l: any) => s + (Number(l?.aseoBs) || 0), 0);
+      const totalMultaLineas = lineasCondo.reduce((s: number, l: any) => s + (Number(l?.multaBs) || 0), 0);
+      const esExclusivoMultaCondo = totalAseoLineas <= 0 && totalMultaLineas > 0;
       for (const l of lineasCondo) {
         if (l.residencial) { excluidosResidenciales++; continue; }
         const donde = [l.inmueble, l.numero].filter(Boolean).join(' ') || condoDet?.codigo || '';
@@ -664,14 +667,14 @@ export async function POST(request: Request) {
           const descAseo = (lineasCondo.length === 1 && descCustom && multa === 0) ? descCustom : `Servicio de Aseo Urbano - ${condoDet?.nombre || 'Condominio'} ${donde}${l.actividad ? ` - ${l.actividad}` : ''}${per}`;
           itemsCondoMod.push(it(descAseo, 'ASEO001', aseo, true));
         }
-        const sinMultas = llevaMulta === false || detPago?.llevaMulta === false || detPago?.solo_aseo === true || detPago?.sin_multas === true || detPago?.incluir_multas === false || detPago?.modo_cobro === 'SOLO_ASEO';
+        const sinMultas = !esExclusivoMultaCondo && (llevaMulta === false || detPago?.llevaMulta === false || detPago?.solo_aseo === true || detPago?.sin_multas === true || detPago?.incluir_multas === false || detPago?.modo_cobro === 'SOLO_ASEO');
         if (multa > 0 && !sinMultas) {
           const descMulta = (lineasCondo.length === 1 && descCustom && aseo === 0) ? descCustom : `Multa por Mora - Aseo Urbano ${donde}`;
           itemsCondoMod.push(it(descMulta, 'MULT001', multa, false));
         }
       }
     }
-    if (!lineasCondo && (isCondominio || condoRecibos.length > 0) && itemsFacturas.length === 0 && itemsHist.length === 0 && itemsMulta.length === 0 && excluidosResidenciales === 0) {
+    if ((!lineasCondo || itemsCondoMod.length === 0) && (isCondominio || condoRecibos.length > 0) && itemsFacturas.length === 0 && itemsHist.length === 0 && itemsMulta.length === 0 && excluidosResidenciales === 0) {
       lineaNum++;
       const totalNum = parseFloat(String(montoTotal || 0));
       const base = r2(totalNum / 1.16);
@@ -705,7 +708,7 @@ export async function POST(request: Request) {
     }
 
     const itemsGeneral: any[] = [];
-    if (!lineasCondo && itemsFacturas.length === 0 && itemsHist.length === 0 && itemsMulta.length === 0 && itemsCondo.length === 0 && excluidosResidenciales === 0 && (parseFloat(String(montoTotal || 0)) > 0 || parseFloat(String(montoServicio || 0)) > 0)) {
+    if ((!lineasCondo || itemsCondoMod.length === 0) && itemsFacturas.length === 0 && itemsHist.length === 0 && itemsMulta.length === 0 && itemsCondo.length === 0 && excluidosResidenciales === 0 && (parseFloat(String(montoTotal || 0)) > 0 || parseFloat(String(montoServicio || 0)) > 0)) {
       lineaNum++;
       const totalNum = parseFloat(String(montoTotal || 0));
       const multaNum = parseFloat(String(montoMulta || montos?.multa || 0));
@@ -925,14 +928,17 @@ export async function POST(request: Request) {
     // 1. DETERMINAR MONTO DE MULTA (BASE EXENTA)
     let baseExenta = 0;
     let multaCondoDirecta = 0;
+    let aseoCondoDirecto = 0;
     if (Array.isArray(detPago.condominio?.lineas)) {
       multaCondoDirecta = r2(detPago.condominio.lineas.reduce((acc: number, l: any) => acc + (parseFloat(String(l?.multaBs || 0)) || 0), 0));
+      aseoCondoDirecto = r2(detPago.condominio.lineas.reduce((acc: number, l: any) => acc + (parseFloat(String(l?.aseoBs || 0)) || 0), 0));
     }
+    const esPagoExclusivoMulta = multaCondoDirecta > 0 && aseoCondoDirecto <= 0;
 
-    const inmActiveExonerado = activeProps.length > 0 && activeProps.every((p: any) =>
+    const inmActiveExonerado = !esPagoExclusivoMulta && activeProps.length > 0 && activeProps.every((p: any) =>
       isExoneradoTotalMultas(p?.notas) || (Number(p?.multa_bs || 0) <= 0 && String(p?.notas || '').includes('EXONERACIÓN DE MULTAS'))
     );
-    const esSoloAseoDet = Boolean(
+    const esSoloAseoDet = !esPagoExclusivoMulta && Boolean(
       llevaMulta === false ||
       detPago?.llevaMulta === false ||
       detPago?.solo_aseo ||
@@ -940,9 +946,9 @@ export async function POST(request: Request) {
       detPago?.incluir_multas === false ||
       inmActiveExonerado
     );
-    if (llevaMulta === false || detPago?.llevaMulta === false || detPago?.sin_multas === true || inmActiveExonerado || (esSoloAseoDet && multaCondoDirecta === 0 && !tieneMontoMultaExplicito)) {
+    if (!esPagoExclusivoMulta && (llevaMulta === false || detPago?.llevaMulta === false || detPago?.sin_multas === true || inmActiveExonerado || (esSoloAseoDet && multaCondoDirecta === 0 && !tieneMontoMultaExplicito))) {
       baseExenta = 0;
-    } else if (tieneMontoMultaExplicito) {
+    } else if (tieneMontoMultaExplicito && (!esPagoExclusivoMulta || explicitMulta > 0)) {
       // Si el operador o payload indicó explícitamente el monto de multa (incluso 0)
       baseExenta = explicitMulta > 0 ? r2(explicitMulta) : 0;
     } else if (multaCondoDirecta > 0) {

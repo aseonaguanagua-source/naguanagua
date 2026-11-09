@@ -715,14 +715,24 @@ export async function GET(request: Request) {
         return tieneTagExo;
       });
       const condoExonerado = Boolean(condo && (condo as any).multa_meses === 0 && (condo as any).multa_exonerada_hasta);
-      const sinMultaExplicito =
-        det.llevaMulta === false ||
-        det.sin_multas === true ||
-        det.solo_aseo === true ||
-        det.incluir_multas === false ||
-        (det.montoMulta !== undefined && det.montoMulta !== null && String(det.montoMulta).trim() !== '' && parseFloat(String(det.montoMulta)) <= 0);
+      const lineasCondoDet = Array.isArray(det.condominio?.lineas) ? det.condominio.lineas : [];
+      const aseoLineasTotal = lineasCondoDet.reduce((s: number, l: any) => s + (Number(l?.aseoBs) || 0), 0);
+      const multaLineasTotal = lineasCondoDet.reduce((s: number, l: any) => s + (Number(l?.multaBs) || 0), 0);
+      const esPagoExclusivoMulta =
+        clasif.subtipo === 'factura_multa_comercial' ||
+        (lineasCondoDet.length > 0 && aseoLineasTotal <= 0 && multaLineasTotal > 0) ||
+        (Number(det.base_bs || det.montoServicio || 0) <= 0 && Number(det.multa_bs || det.montoMulta || det.monto_multa || 0) > 0 && String(det.concepto || '').toLowerCase().includes('multa'));
 
-      if (sinMultaExplicito || (!emitida && (inmExoneradoTotal || condoExonerado))) {
+      const sinMultaExplicito =
+        !esPagoExclusivoMulta && (
+          det.llevaMulta === false ||
+          det.sin_multas === true ||
+          det.solo_aseo === true ||
+          det.incluir_multas === false ||
+          (det.montoMulta !== undefined && det.montoMulta !== null && String(det.montoMulta).trim() !== '' && parseFloat(String(det.montoMulta)) <= 0)
+        );
+
+      if (!esPagoExclusivoMulta && (sinMultaExplicito || (!emitida && (inmExoneradoTotal || condoExonerado)))) {
         det.sin_multas = true;
         det.llevaMulta = false;
         det.incluir_multas = false;
