@@ -55,14 +55,15 @@ function calcRowDeudaCanonical(r: any, rate: number): number {
   const mesesConMora = Math.max(0, totalMeses - 1);
   const tasaMora = esRes ? 0.10 : 0.12;
 
-  const base4 = Math.round((bMes * totalMeses) * 10000) / 10000;
-  const iva4 = esRes ? 0 : Math.round((base4 * 0.16) * 10000) / 10000;
-  const multa4 = Math.round((bMes * tasaMora * mesesConMora) * 10000) / 10000;
-  const ret4 = (!esRes && r.agente_retencion === true) ? Math.round((iva4 * 0.75) * 10000) / 10000 : 0;
+  const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+  const base2 = r2(bMes * totalMeses);
+  const iva2 = esRes ? 0 : r2(base2 * 0.16);
+  const multa2 = r2(bMes * tasaMora * mesesConMora);
+  const ret2 = (!esRes && r.agente_retencion === true) ? r2(iva2 * 0.75) : 0;
   const multaBs = parseFloat(String(r.multa_bs || 0)) || 0;
   const saldoFavor = parseFloat(String(r.saldo_favor_bs || 0)) || 0;
 
-  return Math.round(Math.max(0, base4 + iva4 + multa4 + multaBs - ret4 - saldoFavor) * 100) / 100;
+  return r2(Math.max(0, base2 + iva2 + multa2 + multaBs - ret2 - saldoFavor));
 }
 
 function ContribuyentesPageContent() {

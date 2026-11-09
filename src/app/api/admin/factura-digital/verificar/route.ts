@@ -187,18 +187,49 @@ export async function POST(request: Request) {
     let detPagoObj: any = pagoData?.detalles || {};
     if (typeof detPagoObj === 'string') { try { detPagoObj = JSON.parse(detPagoObj); } catch { detPagoObj = {}; } }
 
-    const codInmEspecifico = 
-      detPagoObj.condominio?.lineas?.[0]?.inmueble ||
-      detPagoObj.lineas?.[0]?.inmueble ||
-      detPagoObj.condominio_hijos_pagados?.[0]?.inmueble ||
-      detPagoObj.inmueble ||
-      (detPagoObj.codigo_inmueble && !String(detPagoObj.codigo_inmueble).startsWith('CONDO-') ? detPagoObj.codigo_inmueble : null) ||
-      (detPagoObj.cod_inmueble && !String(detPagoObj.cod_inmueble).startsWith('CONDO-') ? detPagoObj.cod_inmueble : null) ||
-      detPagoObj.recibo_caja?.[0]?.inmueble ||
-      (() => {
-        const rec = (detPagoObj.recibos || []).find((r: string) => /^RECIB-HIST-/i.test(r));
-        return rec ? rec.split('-')[2] : null;
-      })();
+    const esCondo = Boolean(pagoData?.modulo === 'condominios' || detPagoObj?.modulo === 'condominios' || detPagoObj?.isCondominio || detPagoObj?.es_condominio || detPagoObj?.condominio);
+    const condoMod = String(detPagoObj?.condominio?.modalidad || '').toUpperCase();
+    const esModoCondominio = detPagoObj?.modo === 'CONDOMINIO' || ['total', 'abono', 'completo', 'abono_locales'].includes(String(detPagoObj?.modalidad_cobro || '').toLowerCase());
+    const esModoContribuyente = detPagoObj?.modo === 'CONTRIBUYENTE' || ['local', 'individual', 'multas_separadas'].includes(String(detPagoObj?.modalidad_cobro || '').toLowerCase());
+    const esPagoPorLocal = Boolean(
+      esCondo && !esModoCondominio && (
+        esModoContribuyente ||
+        condoMod === 'INDIVIDUAL'
+      )
+    );
+    const esCondoGlobal = Boolean(esCondo && !esPagoPorLocal);
+
+    let condoOficialRow: any = null;
+    if (esCondoGlobal && detPagoObj?.condominio?.codigo) {
+      const { data: cRow } = await supabase
+        .from('condominios')
+        .select('codigo, nombre, identidad, direccion, correo')
+        .eq('codigo', String(detPagoObj.condominio.codigo).trim().toUpperCase())
+        .maybeSingle();
+      if (cRow) condoOficialRow = cRow;
+    }
+
+    const codInmEspecifico = esCondoGlobal
+      ? (
+          detPagoObj.condominio?.codigo ||
+          (detPagoObj.codigo_inmueble && !String(detPagoObj.codigo_inmueble).startsWith('CONDO-') ? detPagoObj.codigo_inmueble : null) ||
+          (detPagoObj.cod_inmueble && !String(detPagoObj.cod_inmueble).startsWith('CONDO-') ? detPagoObj.cod_inmueble : null) ||
+          detPagoObj.inmueble ||
+          null
+        )
+      : (
+          detPagoObj.condominio?.lineas?.[0]?.inmueble ||
+          detPagoObj.lineas?.[0]?.inmueble ||
+          detPagoObj.condominio_hijos_pagados?.[0]?.inmueble ||
+          detPagoObj.inmueble ||
+          (detPagoObj.codigo_inmueble && !String(detPagoObj.codigo_inmueble).startsWith('CONDO-') ? detPagoObj.codigo_inmueble : null) ||
+          (detPagoObj.cod_inmueble && !String(detPagoObj.cod_inmueble).startsWith('CONDO-') ? detPagoObj.cod_inmueble : null) ||
+          detPagoObj.recibo_caja?.[0]?.inmueble ||
+          (() => {
+            const rec = (detPagoObj.recibos || []).find((r: string) => /^RECIB-HIST-/i.test(r));
+            return rec ? rec.split('-')[2] : null;
+          })()
+        );
 
     let prop: any = null;
     if (codInmEspecifico) {
@@ -224,7 +255,9 @@ export async function POST(request: Request) {
 
       const condoCode = detPagoObj.condominio?.codigo || detPagoObj.cod_inmueble;
       if (condoCode && inmuebleDb && inmuebleDb.length > 0) {
-        prop = inmuebleDb.find((p: any) => p.condominio_padre_id === condoCode) || inmuebleDb[0];
+        prop = esCondoGlobal
+          ? (inmuebleDb.find((p: any) => p.inmueble === condoCode) || inmuebleDb[0])
+          : (inmuebleDb.find((p: any) => p.condominio_padre_id === condoCode) || inmuebleDb[0]);
       } else {
         prop = inmuebleDb && inmuebleDb.length > 0 ? inmuebleDb[0] : null;
       }
@@ -236,17 +269,6 @@ export async function POST(request: Request) {
       .in('identidad', idVariants)
       .limit(1)
       .maybeSingle();
-
-    const esCondo = Boolean(pagoData?.modulo === 'condominios' || detPagoObj?.modulo === 'condominios' || detPagoObj?.isCondominio || detPagoObj?.es_condominio);
-    const condoMod = String(detPagoObj?.condominio?.modalidad || '').toUpperCase();
-    const esModoCondominio = detPagoObj?.modo === 'CONDOMINIO';
-    const esModoContribuyente = detPagoObj?.modo === 'CONTRIBUYENTE';
-    const esPagoPorLocal = Boolean(
-      esCondo && !esModoCondominio && (
-        esModoContribuyente ||
-        condoMod === 'INDIVIDUAL'
-      )
-    );
 
     const rcRazon = detPagoObj?.recibo_caja?.[0]?.razonSocial ? String(detPagoObj.recibo_caja[0].razonSocial).trim() : null;
 
@@ -362,11 +384,11 @@ export async function POST(request: Request) {
         numero: numId,
         razonSocial: nombreContribFinal,
         direccion: simPayload?.payload?.documentoElectronico?.Encabezado?.Comprador?.Direccion || simPayload?.documentoElectronico?.Encabezado?.Comprador?.Direccion || sanitizarDireccionFiscal(
-          prop?.direccion || detPagoObj?.recibo_caja?.[0]?.domicilioFiscal || contribuyenteDb?.direccion,
+          (esCondoGlobal ? (condoOficialRow?.direccion || detPagoObj?.condominio?.direccion || detPagoObj?.recibo_caja?.[0]?.domicilioFiscal || prop?.direccion || contribuyenteDb?.direccion) : (prop?.direccion || detPagoObj?.recibo_caja?.[0]?.domicilioFiscal || contribuyenteDb?.direccion)),
           {
-            unidadNumero: detPagoObj?.modo === 'CONDOMINIO' ? null : (detPagoObj?.condominio?.lineas?.[0]?.numero || (prop as any)?.numero_local),
-            nombreCondo: detPagoObj?.condominio?.nombre,
-            parentDir: detPagoObj?.condominio?.direccion
+            unidadNumero: esCondoGlobal ? null : (detPagoObj?.condominio?.lineas?.[0]?.numero || (prop as any)?.numero_local),
+            nombreCondo: condoOficialRow?.nombre || detPagoObj?.condominio?.nombre,
+            parentDir: condoOficialRow?.direccion || detPagoObj?.condominio?.direccion
           }
         ),
         correo: emailFinal,

@@ -657,10 +657,11 @@ export async function GET(request: Request) {
         pago.identidad &&
         normId(pago.identidad) !== normId(condoRow.identidad)
       );
+      if (det.modo === 'CONDOMINIO' && !rifDistintoDeCondo) return false;
       return Boolean(
         det.modo === 'CONTRIBUYENTE' ||
         ['individual', 'multas_separadas'].includes(modCobro) ||
-        tieneSoloMultas ||
+        (tieneSoloMultas && det.modo !== 'CONDOMINIO') ||
         (!det.modo && !modCobro && condoMod === 'INDIVIDUAL') ||
         (!det.modo && !modCobro && rifDistintoDeCondo)
       );

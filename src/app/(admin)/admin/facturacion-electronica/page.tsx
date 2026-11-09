@@ -868,12 +868,30 @@ export default function FacturacionElectronicaPage() {
 
     // Dirección fiscal editable inicial
     const dirInicial = (() => {
+      const esCondoGlobal = Boolean(
+        (pago.condominio && pago.condominio.facturaA === 'CONDOMINIO') ||
+        pago.detalles?.modo === 'CONDOMINIO'
+      );
+      const startsWithChildLocal = (cand: any) => {
+        const s = String(cand || '').trim().toUpperCase();
+        if (!s || !esCondoGlobal) return false;
+        const lineas = pago.detalles?.condominio?.lineas;
+        if (!Array.isArray(lineas)) return false;
+        return lineas.some((l: any) => {
+          const numL = String(l?.numero || l?.unidadNumero || '').trim().toUpperCase();
+          return numL && numL.length >= 2 && s.startsWith(numL + ' ');
+        });
+      };
       let d = '';
-      if (pago.direccion && String(pago.direccion).trim().length > 3 && String(pago.direccion).trim() !== '0 0') {
+      if (esCondoGlobal && pago.condominio?.direccion && String(pago.condominio.direccion).trim().length > 3 && !startsWithChildLocal(pago.condominio.direccion)) {
+        d = pago.condominio.direccion;
+      } else if (esCondoGlobal && pago.detalles?.condominio?.direccion && String(pago.detalles.condominio.direccion).trim().length > 3 && !startsWithChildLocal(pago.detalles.condominio.direccion)) {
+        d = pago.detalles.condominio.direccion;
+      } else if (pago.direccion && String(pago.direccion).trim().length > 3 && String(pago.direccion).trim() !== '0 0' && !startsWithChildLocal(pago.direccion)) {
         d = pago.direccion;
-      } else if (pago.detalles?.direccion && String(pago.detalles.direccion).trim().length > 3 && String(pago.detalles.direccion).trim() !== '0 0') {
+      } else if (pago.detalles?.direccion && String(pago.detalles.direccion).trim().length > 3 && String(pago.detalles.direccion).trim() !== '0 0' && !startsWithChildLocal(pago.detalles.direccion)) {
         d = pago.detalles.direccion;
-      } else if (Array.isArray(pago.detalles?.recibo_caja) && pago.detalles.recibo_caja[0]?.domicilioFiscal) {
+      } else if (Array.isArray(pago.detalles?.recibo_caja) && pago.detalles.recibo_caja[0]?.domicilioFiscal && !startsWithChildLocal(pago.detalles.recibo_caja[0].domicilioFiscal)) {
         d = pago.detalles.recibo_caja[0].domicilioFiscal;
       }
       return d || '';
