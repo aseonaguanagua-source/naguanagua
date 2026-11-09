@@ -174,6 +174,30 @@ export async function PATCH(req: Request) {
     if ('multa_meses' in upd && Number(upd.multa_meses) > 0) {
       (upd as any).multa_exonerada_hasta = null;
     }
+    const esSinAct = (a: any) => !a || /^(N\/?A|NA|NINGUNA|SIN ACTIVIDAD|-)$/i.test(String(a).trim());
+    if (upd.estado === 'Desocupada') {
+      if (!('actividad' in upd) && esSinAct(antes.actividad)) {
+        upd.actividad = 'INMUEBLES DESOCUPADOS';
+      }
+      if (!('tarifa_mmv' in upd)) {
+        upd.tarifa_mmv = 1.98;
+      }
+    }
+    // Si la unidad tenía es_grupo=true pero no tiene hijas activas y ahora está Desocupada o con actividad propia, desactivar es_grupo
+    if (antes.es_grupo || upd.es_grupo) {
+      const estadoEfectivo = upd.estado ?? antes.estado;
+      const actEfectiva = 'actividad' in upd ? upd.actividad : antes.actividad;
+      if (estadoEfectivo === 'Desocupada' || !esSinAct(actEfectiva)) {
+        const { count: cantHijasActivas } = await sb
+          .from('condominio_unidades')
+          .select('id', { count: 'exact', head: true })
+          .eq('padre_unidad_id', id)
+          .neq('estado', 'Eliminada');
+        if (!cantHijasActivas) {
+          upd.es_grupo = false;
+        }
+      }
+    }
     const esAgente = cambios.agente_retencion === true;
     
     const _tel = upd._telefono; const _cor = upd._correo; const _dir = upd._direccion; const _actExt = upd._actividades_extra;
@@ -277,7 +301,13 @@ export async function PATCH(req: Request) {
         inmUpd.notas = Object.keys(existingNotes).length > 0 ? JSON.stringify(existingNotes) : null;
       }
       if ('actividad' in upd) inmUpd.actividad_principal = upd.actividad;
-      if ('tarifa_mmv' in upd && upd.tarifa_mmv != null) inmUpd.mmv_mes = upd.tarifa_mmv;
+      if ('tarifa_mmv' in upd && upd.tarifa_mmv != null) {
+        inmUpd.mmv_mes = upd.tarifa_mmv;
+        if (!('aseo_pendiente_desde' in upd)) {
+          const mActual = mesesPendientes(antes.aseo_pendiente_desde);
+          inmUpd.deuda_mmv = parseFloat((mActual * Number(upd.tarifa_mmv)).toFixed(5));
+        }
+      }
       if ('aseo_pendiente_desde' in upd) {
         const m = mesesPendientes(upd.aseo_pendiente_desde);
         inmUpd.meses_deuda = m;
@@ -378,6 +408,25 @@ export async function PATCH(req: Request) {
     if (Object.keys(upd).length > 0) {
       const { error } = await sb.from('condominio_unidades').update(upd).eq('id', id);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Si se eliminó o desvinculó una unidad hija, verificar si su antiguo padre quedó sin hijas activas
+    if (antes.padre_unidad_id && (upd.estado === 'Eliminada' || ('padre_unidad_id' in upd && !upd.padre_unidad_id))) {
+      const { count: remHijas } = await sb
+        .from('condominio_unidades')
+        .select('id', { count: 'exact', head: true })
+        .eq('padre_unidad_id', antes.padre_unidad_id)
+        .neq('estado', 'Eliminada');
+      if (!remHijas) {
+        const { data: padreRow } = await sb
+          .from('condominio_unidades')
+          .select('id, es_grupo, estado, actividad')
+          .eq('id', antes.padre_unidad_id)
+          .maybeSingle();
+        if (padreRow?.es_grupo && (padreRow.estado === 'Desocupada' || !esSinAct(padreRow.actividad))) {
+          await sb.from('condominio_unidades').update({ es_grupo: false }).eq('id', padreRow.id);
+        }
+      }
     }
 
     // Si la unidad modificada es un contenedor padre (tiene hijos con padre_unidad_id = id),

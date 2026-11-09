@@ -106,7 +106,9 @@ export const aMotorCondo = (c: any): M.Condominio => ({
 export const aMotorUnidad = (u: any, grupos?: Set<string>): M.Unidad => ({
   id: u.id, inmueble: u.inmueble, identidad: u.identidad, actividad: u.actividad,
   tarifa_mmv: u.tarifa_mmv != null ? Number(u.tarifa_mmv) : null, estado: u.estado,
-  es_grupo: !!u.es_grupo || !!grupos?.has(u.id),
+  es_grupo: grupos
+    ? (grupos.has(u.id) || (!!u.es_grupo && u.estado !== 'Desocupada' && M.esSinActividad(u.actividad)))
+    : (!!u.es_grupo && u.estado !== 'Desocupada'),
 });
 
 /**
@@ -542,6 +544,19 @@ export async function cargarCondominio(codigo: string) {
       }
     }
   });
+
+  // Si una unidad tenía es_grupo=true (antiguo contenedor N/A) pero ya no tiene actividades hijas activas
+  // y ahora está Desocupada o tiene actividad propia, quitarle es_grupo para que cobre su tarifa propia.
+  const idsQuitarEsGrupo: string[] = [];
+  unidades.forEach((u: any) => {
+    if (u.es_grupo && !hijosPorPadre.has(u.id) && (u.estado === 'Desocupada' || !M.esSinActividad(u.actividad))) {
+      u.es_grupo = false;
+      idsQuitarEsGrupo.push(u.id);
+    }
+  });
+  if (idsQuitarEsGrupo.length > 0) {
+    sb.from('condominio_unidades').update({ es_grupo: false }).in('id', idsQuitarEsGrupo).then(() => {});
+  }
 
   if (unidadesASincronizarBD.length > 0) {
     Promise.all(

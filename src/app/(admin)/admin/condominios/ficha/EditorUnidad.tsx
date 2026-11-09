@@ -297,11 +297,13 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
       alert(msg);
       return;
     }
+    const tieneHijasActivas = Boolean(unidad?.id && unidades.some(h => h.padre_unidad_id === unidad.id && h.estado !== 'Eliminada'));
+    const esGrupoEfectivo = (f.estado === 'Desocupada' || (!esNA && !tieneHijasActivas)) ? false : f.es_grupo;
     const datos: any = {
       inmueble: f.inmueble, numero: f.numero, propietario: f.propietario, identidad: f.identidad, estado: f.estado,
-      padre_unidad_id: f.padre_unidad_id || null, es_grupo: f.es_grupo, meses: f.meses, multa_meses: f.multa_meses,
-      actividad: f.estado === 'Desocupada' && clase === 'COM' && !actCom.trim() ? 'INMUEBLES DESOCUPADOS' : actividad,
-      tarifa_mmv: tarifa === '' ? null : tarifa,
+      padre_unidad_id: f.padre_unidad_id || null, es_grupo: esGrupoEfectivo, meses: f.meses, multa_meses: f.multa_meses,
+      actividad: f.estado === 'Desocupada' && clase === 'COM' && (!actCom.trim() || esNA) ? 'INMUEBLES DESOCUPADOS' : actividad,
+      tarifa_mmv: f.estado === 'Desocupada' && !tarifaManual ? 1.98 : (tarifa === '' ? null : tarifa),
       agente_retencion: f.agente_retencion === true,
       telefono: f.telefono, correo: f.correo, direccion: f.direccion, actividades_extra: actividadesExtra,
       desocupada_desde: tieneDesocupado ? (desocupadaDesde || null) : null,
