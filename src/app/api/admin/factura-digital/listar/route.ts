@@ -261,6 +261,22 @@ export async function GET(request: Request) {
 
         const montoSoloA = parseFloat(String(pAbono.monto || 0)) || 0;
         const montoNetoReqA = parseFloat(String(dA?.monto_neto_factura || dA?.total_seleccionado || dA?.monto_factura || 0)) || 0;
+        const recibosA = (dA?.recibos || []).map((r: any) => String(r).toUpperCase());
+        const todosRecibosEnPrincipal = recibosA.length > 0 && recibosA.every((r: string) => recibosP.includes(r));
+
+        // Detectar si ambos pagos son transferencias parciales de la MISMA factura registradas en el mismo ciclo (ninguno cubre el neto por sí solo, pero juntos sí)
+        const montoFacP = parseFloat(String(dP?.monto_factura || dP?.total_seleccionado || 0)) || 0;
+        const montoFacA = parseFloat(String(dA?.monto_factura || dA?.total_seleccionado || 0)) || 0;
+        const diffDiasCreacion = Math.abs(new Date(pPrincipal.created_at).getTime() - new Date(pAbono.created_at).getTime()) / (1000 * 3600 * 24);
+        const esParcialMismaFactura =
+          todosRecibosEnPrincipal &&
+          diffDiasCreacion <= 7 &&
+          montoFacP > 0 &&
+          Math.abs(montoFacP - montoFacA) < 1.00 &&
+          montoNetoReqP > 0 &&
+          montoSoloP < montoNetoReqP - 1.00 &&
+          montoSoloA < montoNetoReqP - 1.00 &&
+          (montoSoloP + montoSoloA) >= (montoNetoReqP - 1.00);
 
         // Si el pago candidato a abono fue cerrado como pago de un ciclo anterior o ya cubre el 100% de su propia factura,
         // NUNCA debe ser absorbido implícitamente por un pago de otro mes posterior
@@ -268,18 +284,19 @@ export async function GET(request: Request) {
           dA?.abono_cerrado_ciclo_octubre === true ||
           dA?.es_abono === false ||
           (montoNetoReqA > 0 && montoSoloA >= montoNetoReqA - 1.00);
-        if (!esVinculoExplicito && abonoCerradoOCubreSuFactura) return;
+        if (!esVinculoExplicito && !esParcialMismaFactura && abonoCerradoOCubreSuFactura) return;
 
         // Si el pago principal ya cubre por sí solo el 100% de su factura y no registra abono_previo_descontado,
         // no debe absorber pagos independientes de otros meses
         const principalCubreSuFacturaSolo = montoNetoReqP > 0 && montoSoloP >= montoNetoReqP - 1.00 && saldoPrevio <= 0.05;
-        if (!esVinculoExplicito && principalCubreSuFacturaSolo) return;
+        if (!esVinculoExplicito && !esParcialMismaFactura && principalCubreSuFacturaSolo) return;
 
         // Si ambos pagos especifican explícitamente períodos distintos (ej. JULIO 2026 vs AGOSTO 2026), no unirlos implícitamente
         const perAbono = String(dA?.periodos_pagados || dA?.recibo_caja?.[0]?.periodo || dA?.periodo || '').trim().toUpperCase();
-        if (!esVinculoExplicito && perPrincipal && perAbono && perPrincipal !== perAbono) return;
+        if (!esVinculoExplicito && !esParcialMismaFactura && perPrincipal && perAbono && perPrincipal !== perAbono) return;
 
         const esAbonoA =
+          esParcialMismaFactura ||
           dA?.es_abono === true ||
           dA?.abono === true ||
           dA?.es_pago_adicional === true ||
@@ -288,8 +305,6 @@ export async function GET(request: Request) {
           dA?.pago_parcial === true;
         if (!esAbonoA && !esVinculoExplicito) return;
 
-        const recibosA = (dA?.recibos || []).map((r: any) => String(r).toUpperCase());
-        const todosRecibosEnPrincipal = recibosA.length > 0 && recibosA.every((r: string) => recibosP.includes(r));
         const coincideSaldo = saldoPrevio > 0 && (Math.abs(saldoPrevio - montoSoloA) < 0.05 || saldoPrevio >= montoSoloA - 0.05);
 
         // Dos transferencias para los mismos recibos donde ambas quedaron con es_abono=true porque cada una por separado era menor al total neto
