@@ -224,7 +224,22 @@ export function desglosarPago(pago: any, inmMap: Map<string, any>): DesglosePago
       vistosMes.add(k);
       return true;
     });
-  const periodoTexto = orden.length === 0 ? undefined
+
+  const perExplicitoRaw = String(det.periodos_pagados || det.periodo || det.recibo_caja?.[0]?.periodo || '').trim().toUpperCase();
+  const matchUnicoMes = perExplicitoRaw.match(/^(ENERO|FEBRERO|MARZO|ABRIL|MAYO|JUNIO|JULIO|AGOSTO|SEPTIEMBRE|OCTUBRE|NOVIEMBRE|DICIEMBRE)\s+(\d{4})$/);
+  if (matchUnicoMes) {
+    const etiquetaExplicita = `${matchUnicoMes[1]} ${matchUnicoMes[2]}`;
+    const lineasMes = lineas.filter(l => l.tipo === 'mes');
+    const codigosUnicos = new Set(lineasMes.map(l => l.codigo));
+    if (lineasMes.length === codigosUnicos.size && lineasMes.length > 0) {
+      lineas.forEach(l => {
+        if (l.tipo === 'mes') l.periodo = etiquetaExplicita;
+      });
+      return { lineas, periodoTexto: etiquetaExplicita, cuadra, totalCalculado, esAbono };
+    }
+  }
+
+  const periodoTexto = orden.length === 0 ? (perExplicitoRaw || undefined)
     : orden.length === 1 ? etiqueta(orden[0])
     : `DESDE ${etiqueta(orden[0])} HASTA ${etiqueta(orden[orden.length - 1])} (${orden.length} MESES)`;
 
