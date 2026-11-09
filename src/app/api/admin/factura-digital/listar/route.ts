@@ -1104,7 +1104,20 @@ export async function GET(request: Request) {
           pagoRetencionId: vincRet?.id || det.pago_retencion_id || null,
           modulo: pago.modulo || (infoCondo(pago, det) ? 'condominios' : 'caja'),
           grupo_pago: pago.grupo_pago || null,
-          direccion: det.direccion || (Array.isArray(det.recibo_caja) && det.recibo_caja[0]?.domicilioFiscal) || clasif.inmuebles.map(c => inmMap.get(c)?.direccion).find((d: any) => d && String(d).trim().length > 3 && String(d).trim() !== '0 0') || cont?.direccion || '',
+          direccion: (() => {
+            const limpiarDir = (d: any) => String(d || '').replace(/^\s*(?:0\s+0|1\s+0|SN\s+0|\d+\s+\d+\s+[A-Z0-9-]+\s+\d+)\s+/i, '').trim();
+            const isValidDir = (d: any) => {
+              const s = limpiarDir(d);
+              return s.length > 3 && s !== '0 0' && s !== '0' && s.toUpperCase() !== 'N/A';
+            };
+            const dirCont = cont?.direccion;
+            const dirInm = clasif.inmuebles.map(c => inmMap.get(c)?.direccion).find((d: any) => isValidDir(d));
+            const dirRec = Array.isArray(det.recibo_caja) ? det.recibo_caja[0]?.domicilioFiscal : '';
+            const rawInmStartsCat = /^0\s+0\b/i.test(String(dirInm || '').trim());
+            const preferContDir = !esPagoPorLocal && !esModoCondominio && isValidDir(dirCont) && (clasif.inmuebles.length <= 1 || rawInmStartsCat);
+            const rawCand = det.direccion || (preferContDir ? dirCont : (dirInm || dirRec || dirCont)) || '';
+            return limpiarDir(rawCand);
+          })(),
           detalles: det,
           retencionEstado: stRet,
           retencionDatosEnviados: fd?.retencion?.datos_enviados_at || null,

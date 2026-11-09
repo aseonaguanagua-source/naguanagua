@@ -2672,8 +2672,12 @@ function ContribuyentesPageContent() {
         .maybeSingle();
 
       if (cRow) {
-        if ((!direccionEfectiva || direccionEfectiva === '0 0' || direccionEfectiva.trim() === '0') && cRow.direccion) {
+        const dirContValida = cRow.direccion && cRow.direccion.trim().length > 3 && cRow.direccion.trim() !== '0 0' && cRow.direccion.trim() !== '0';
+        if (dirContValida && (!direccionEfectiva || direccionEfectiva === '0 0' || direccionEfectiva.trim() === '0' || /^0\s+0\b/.test(direccionEfectiva.trim()) || locales.length <= 1)) {
           direccionEfectiva = cRow.direccion;
+          if (locales.length === 1) {
+            locales[0].direccion = cRow.direccion;
+          }
         }
 
         const obs = cRow.observaciones || '';
@@ -3485,7 +3489,13 @@ function ContribuyentesPageContent() {
               <label className="block text-[10px] font-medium text-slate-500 mb-1">Dirección Exacta <span className="text-red-500">*</span></label>
               <textarea 
                 value={formData.Direccion} 
-                onChange={e => setFormData({...formData, Direccion: e.target.value})}
+                onChange={e => {
+                  const val = e.target.value;
+                  const nextLocales = Array.isArray(formData.locales) && formData.locales.length === 1
+                    ? [{ ...formData.locales[0], direccion: val }]
+                    : formData.locales;
+                  setFormData({ ...formData, Direccion: val, locales: nextLocales });
+                }}
                 rows={2} 
                 className="w-full border border-slate-300 rounded px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500" 
                 required
@@ -3524,7 +3534,18 @@ function ContribuyentesPageContent() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-[10px] font-medium text-slate-500 mb-1">Domicilio fiscal (como aparece en el RIF)</label>
-                <input type="text" value={formData.Direccion || ''} onChange={e => setFormData({...formData, Direccion: e.target.value})} className="w-full border border-slate-300 rounded px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500" />
+                <input
+                  type="text"
+                  value={formData.Direccion || ''}
+                  onChange={e => {
+                    const val = e.target.value;
+                    const nextLocales = Array.isArray(formData.locales) && formData.locales.length === 1
+                      ? [{ ...formData.locales[0], direccion: val }]
+                      : formData.locales;
+                    setFormData({ ...formData, Direccion: val, locales: nextLocales });
+                  }}
+                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500"
+                />
               </div>
               <div>
                 <label className="block text-[10px] font-medium text-slate-500 mb-1">Dirección Exacta (Punto en el Mapa)</label>

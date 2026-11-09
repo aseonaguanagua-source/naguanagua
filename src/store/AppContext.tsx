@@ -1392,10 +1392,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
               }], { onConflict: 'identidad' });
               cambios.push(`${local.codigo}: RIF/Cédula → ${nuevaIdLocal}`);
             }
-            if (local.direccion && String(local.direccion).trim() !== '') {
+            const dirTopCambio = Boolean(
+              data.Direccion &&
+              String(data.Direccion).trim() !== '' &&
+              String(data.Direccion).trim() !== String(orig.Direccion || '').trim()
+            );
+            const dirLocalCambio = Boolean(
+              local.direccion &&
+              String(local.direccion).trim() !== '' &&
+              String(local.direccion).trim() !== String(o.direccion || '').trim()
+            );
+            if (dirLocalCambio) {
               updatePayload.direccion = local.direccion;
-            } else if (data.locales.length === 1 && data.Direccion) {
+            } else if ((data.locales.length === 1 || dirTopCambio) && data.Direccion && String(data.Direccion).trim() !== '') {
               updatePayload.direccion = data.Direccion;
+            } else if (local.direccion && String(local.direccion).trim() !== '') {
+              updatePayload.direccion = local.direccion;
             }
             if (local.telefono) {
               updatePayload.telefono = local.telefono;

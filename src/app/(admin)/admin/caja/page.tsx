@@ -2366,6 +2366,7 @@ export default function CajaPage() {
     try {
       const { euro, fechaValor } = await obtenerTasaEuroFecha(fecha);
       setCustomBcvRate(String(euro));
+      setFechaTransaccion(fecha);
       setJustificacionBcv(`Tasa BCV Euro del ${fechaDMY(fecha)}${fechaValor !== fecha ? ` (publicada con fecha valor ${fechaDMY(fechaValor)})` : ''}`);
     } catch (e: any) {
       alert(e?.message || 'No se pudo obtener la tasa de esa fecha');

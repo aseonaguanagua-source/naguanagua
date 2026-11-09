@@ -891,13 +891,25 @@ export default function FacturacionElectronicaPage() {
     setAjusteConcepto(conceptoPeriodo);
     setCorreoDestinoEmision(pago.correo || tfhkaConfig?.config?.fallbackEmail || 'facturacion.naguanagua@gmail.com');
     setEnviarCorreoAlEmitir(true);
-    const fechaPagoOrig = (pago.detalles?.fecha_transaccion || pago.detalles?.fecha_banco || pago.fechaPago || pago.created_at || '').slice(0, 10);
+    const fp0Fecha = (Array.isArray(pago.detalles?.formasPago) && pago.detalles.formasPago[0]?.fecha ? String(pago.detalles.formasPago[0].fecha).slice(0, 10) : '');
+    const fBanco = (pago.detalles?.fecha_banco || '').slice(0, 10);
+    const fTx = (pago.detalles?.fecha_transaccion || '').slice(0, 10);
+    const fCreacion = (pago.created_at || '').slice(0, 10);
+    const fechaPagoOrig = (
+      (fBanco && fTx === fCreacion && fBanco !== fCreacion ? fBanco : '') ||
+      (fp0Fecha && fTx === fCreacion && fp0Fecha !== fCreacion ? fp0Fecha : '') ||
+      fTx ||
+      fBanco ||
+      fp0Fecha ||
+      (pago.fechaPago || '').slice(0, 10) ||
+      fCreacion
+    );
     const hoyYMD = hoyCaracas();
     const txEnMesAnterior =
-      pago.detalles?.fecha_transaccion &&
-      /^\d{4}-\d{2}-\d{2}$/.test(String(pago.detalles.fecha_transaccion).slice(0, 10)) &&
-      String(pago.detalles.fecha_transaccion).slice(0, 7) < hoyYMD.slice(0, 7)
-        ? String(pago.detalles.fecha_transaccion).slice(0, 10)
+      fechaPagoOrig &&
+      /^\d{4}-\d{2}-\d{2}$/.test(fechaPagoOrig) &&
+      fechaPagoOrig.slice(0, 7) < hoyYMD.slice(0, 7)
+        ? fechaPagoOrig
         : '';
     const fechaEmisionGuardada = (
       pago.fechaEmisionOverride ||

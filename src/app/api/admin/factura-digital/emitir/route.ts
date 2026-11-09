@@ -1307,9 +1307,15 @@ export async function POST(request: Request) {
     const bancoRaw = String(bancoOverride || pagoRow?.banco || fp0.banco || '').trim();
     const bancoPago = bancoRaw.toLowerCase() === tipoPago.toLowerCase() ? '' : bancoRaw;
     const refPago = String(referencia || pagoRow?.referencia || fp0.referencia || '').trim();
+    const fBancoPago = String(detPago.fecha_banco || '').slice(0, 10);
+    const fTxPago = String(detPago.fecha_transaccion || '').slice(0, 10);
+    const fCreacionPago = String(pagoRow?.created_at || '').slice(0, 10);
+    const fechaTxResuelta = (fBancoPago && fTxPago === fCreacionPago && fBancoPago !== fCreacionPago)
+      ? fBancoPago
+      : (detPago.fecha_transaccion || detPago.fecha_banco || fp0.fecha || pagoRow?.created_at || fechaActual.toISOString());
     const fechaPago = fechaPagoOverride 
       ? `${fechaPagoOverride}T12:00:00-04:00`
-      : (detPago.fecha_transaccion || fp0.fecha || pagoRow?.created_at || fechaActual.toISOString());
+      : (/^\d{4}-\d{2}-\d{2}$/.test(String(fechaTxResuelta).trim()) ? `${String(fechaTxResuelta).trim()}T12:00:00-04:00` : fechaTxResuelta);
 
     let docIdentParaEmision = (identidad && String(identidad).trim()) ? String(identidad).trim().toUpperCase() : finalIdentidad;
     if (!identidad || !String(identidad).trim()) {
@@ -1556,21 +1562,25 @@ export async function POST(request: Request) {
               // y no la dirección general de otro establecimiento del mismo contribuyente (ej. Local 01 vs Local 1A).
               const dirAnyProp = activeProps.find((p: any) => isValidDir(p.direccion))?.direccion || userProps.find((p: any) => isValidDir(p.direccion))?.direccion;
               const tieneInmuebleEspecifico = Boolean(matchedPropEspecifico || esPagoPorLocal || codInmEspecifico);
+              const rawDirEspStartsCat = /^0\s+0\b/i.test(String(dirEspecifica || '').trim());
+              const preferDirFiscalContrib = !esPagoPorLocal && !esCondoGlobal && isValidDir(dirFiscal) && (activeProps.length <= 1 || rawDirEspStartsCat);
               const cand = esCondoGlobal
                 ? (isValidDir(parentDir) ? parentDir : (isValidDir(dirFiscal) ? dirFiscal : (isValidDir(dirEspecifica) ? dirEspecifica : dirAnyProp)))
-                : (tieneInmuebleEspecifico && isValidDir(dirEspecifica)
-                  ? dirEspecifica
-                  : (isValidDir(dirRecibo)
-                    ? dirRecibo
-                    : (isValidDir(dirEspecifica)
-                      ? dirEspecifica
-                      : (isValidDir(dirFiscal)
-                        ? dirFiscal
-                        : (isValidDir(dirSrv)
-                          ? dirSrv
-                          : (isValidDir(propRef?.direccion)
-                            ? propRef?.direccion
-                            : (isValidDir(dirAnyProp) ? dirAnyProp : parentDir)))))));
+                : (preferDirFiscalContrib
+                  ? dirFiscal
+                  : (tieneInmuebleEspecifico && isValidDir(dirEspecifica)
+                    ? dirEspecifica
+                    : (isValidDir(dirRecibo)
+                      ? dirRecibo
+                      : (isValidDir(dirEspecifica)
+                        ? dirEspecifica
+                        : (isValidDir(dirFiscal)
+                          ? dirFiscal
+                          : (isValidDir(dirSrv)
+                            ? dirSrv
+                            : (isValidDir(propRef?.direccion)
+                              ? propRef?.direccion
+                              : (isValidDir(dirAnyProp) ? dirAnyProp : parentDir))))))));
               
               return sanitizarDireccionFiscal(cand, {
                 unidadNumero: uNum,

@@ -17,9 +17,23 @@ import { acreditarSaldoFavor, descontarSaldoFavor } from '@/lib/saldoFavor';
 import { parseLocalFloat, formatLocalNumberInput, formatBs, getIdentidadVariantsExact } from '@/lib/formatters';
 import { resolverPeriodoFactura } from '@/lib/facturaPeriodoHelper';
 
-/** Fecha (YYYY-MM-DD) de la transacción tal como se registró en Caja / Caja de Condominios. */
-const fechaTransaccionDe = (det: any): string => {
-  const f = det?.fecha_transaccion
+/** Fecha (YYYY-MM-DD) de la transacción tal como se registró en Caja / Caja de Condominios o se concilió en banco. */
+const fechaTransaccionDe = (det: any, createdAt?: string): string => {
+  const fCreacion = createdAt ? String(createdAt).slice(0, 10) : '';
+  const fBanco = det?.fecha_banco ? String(det.fecha_banco).slice(0, 10) : '';
+  const fTx = det?.fecha_transaccion ? String(det.fecha_transaccion).slice(0, 10) : '';
+  if (fBanco && (!fTx || (fCreacion && fTx === fCreacion && fBanco !== fCreacion))) {
+    return fBanco;
+  }
+  if (fTx && (!fCreacion || fTx !== fCreacion) && !det?.nota_cambio_tasa) {
+    return fTx;
+  }
+  const mNota = String(det?.nota_cambio_tasa || '').match(/(\d{2})\/(\d{2})\/(\d{4})/);
+  if (mNota && (!fTx || (fCreacion && fTx === fCreacion))) {
+    return `${mNota[3]}-${mNota[2]}-${mNota[1]}`;
+  }
+  const f = fTx
+    || fBanco
     || (det?.pagos_agregados || []).find((p: any) => p?.fecha && p?.metodo !== 'Saldo a Favor')?.fecha
     || (det?.formasPago || []).find((p: any) => p?.fecha && p?.descripcion !== 'Saldo a Favor')?.fecha;
   return f ? String(f).slice(0, 10) : '';
@@ -609,8 +623,8 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
   const [correoResponsable, setCorreoResponsable] = useState(det.correo || '');
   const [telefonoResponsable, setTelefonoResponsable] = useState(det.telefono || '');
   const hoyCaracasStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' }).format(new Date());
-  const [fechaTransaccion, setFechaTransaccion] = useState(fechaTransaccionDe(det) || hoyCaracasStr);
-  const [fechaBanco, setFechaBanco] = useState(det.fecha_banco || fechaTransaccionDe(det) || hoyCaracasStr);
+  const [fechaTransaccion, setFechaTransaccion] = useState(fechaTransaccionDe(det, pago.created_at) || hoyCaracasStr);
+  const [fechaBanco, setFechaBanco] = useState(det.fecha_banco || fechaTransaccionDe(det, pago.created_at) || hoyCaracasStr);
   const [enviarCorreo, setEnviarCorreo] = useState(false);
   const [observaciones, setObservaciones] = useState(det.observaciones || '');
   const [cajeroOperador, setCajeroOperador] = useState(det.cajero || det.caja || det.usuario || '');
@@ -1165,8 +1179,12 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         updatedDet.banco_destino = bancoReceptor;
         updatedDet.banco_receptor = bancoReceptor;
       }
-      if (fechaTransaccion) {
-        updatedDet.fecha_transaccion = fechaTransaccion;
+      const fCreacionPago = pago.created_at ? String(pago.created_at).slice(0, 10) : '';
+      const fechaTxConciliada = (fechaBanco && (fechaTransaccion === hoyCaracasStr || fechaTransaccion === fCreacionPago))
+        ? fechaBanco
+        : (fechaTransaccion || fechaBanco);
+      if (fechaTxConciliada) {
+        updatedDet.fecha_transaccion = fechaTxConciliada;
       }
       if (fechaBanco) {
         updatedDet.fecha_banco = fechaBanco;
@@ -2026,7 +2044,19 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
                 <input type="date" value={fechaTransaccion} onChange={e=>setFechaTransaccion(e.target.value)} className={ic}/>
               </div>
               <div><label className={lc}>Fecha en Banco</label>
-                <input type="date" value={fechaBanco} onChange={e=>setFechaBanco(e.target.value)} className={ic}/>
+                <input
+                  type="date"
+                  value={fechaBanco}
+                  onChange={e => {
+                    const val = e.target.value;
+                    setFechaBanco(val);
+                    const fCreacion = pago.created_at ? String(pago.created_at).slice(0, 10) : '';
+                    if (val && (!fechaTransaccion || fechaTransaccion === hoyCaracasStr || fechaTransaccion === fCreacion)) {
+                      setFechaTransaccion(val);
+                    }
+                  }}
+                  className={ic}
+                />
               </div>
             </div>
 
