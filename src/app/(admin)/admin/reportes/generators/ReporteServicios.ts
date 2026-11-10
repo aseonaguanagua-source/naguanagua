@@ -379,7 +379,7 @@ export async function generarReporteServiciosExcel(opts: GenerarReporteServicios
         cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
       }
       if (colNumber === 7) {
-        cell.numFmt = '[$Bs.-46B] #,##0.00';
+        cell.numFmt = '"Bs. "#,##0.00';
       }
     });
   });
@@ -398,7 +398,7 @@ export async function generarReporteServiciosExcel(opts: GenerarReporteServicios
   const cellTotalVal = totalRow.getCell(7);
   cellTotalVal.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } };
   cellTotalVal.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FF000000' } };
-  cellTotalVal.numFmt = '[$Bs.-46B] #,##0.00';
+  cellTotalVal.numFmt = '"Bs. "#,##0.00';
   cellTotalVal.alignment = { horizontal: 'center', vertical: 'middle' };
   cellTotalVal.border = BORDE;
 
