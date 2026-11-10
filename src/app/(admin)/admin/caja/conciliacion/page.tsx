@@ -1226,6 +1226,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         updatedDet.formasPago = [{
           ...updatedDet.formasPago[0],
           ...(fForma ? { fecha: `${fForma}T12:00:00.000Z` } : {}),
+          ...(bancoReceptor ? { bancoDestino: bancoReceptor } : {}),
           forma: esDeb ? '05' : '03',
           tipo: esDeb ? 'Debito' : 'Transferencia',
           metodo: esDeb ? 'Debito' : 'Transferencia',
@@ -1236,13 +1237,11 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
       }
       if (Array.isArray(updatedDet.pagos_agregados) && updatedDet.pagos_agregados.length === 1) {
         const fPa = fechaTxConciliada || fechaBancoConciliada;
-        if (fPa) {
-          updatedDet.pagos_agregados = [{
-            ...updatedDet.pagos_agregados[0],
-            fecha: fPa,
-            fechaTransaccion: fPa,
-          }];
-        }
+        updatedDet.pagos_agregados = [{
+          ...updatedDet.pagos_agregados[0],
+          ...(fPa ? { fecha: fPa, fechaTransaccion: fPa } : {}),
+          ...(bancoReceptor ? { bancoDestino: bancoReceptor } : {}),
+        }];
       }
 
       // Si el pago ya estaba aprobado y se confirma en Aprobado, es una edición de datos / corrección de referencia
@@ -1255,6 +1254,24 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
           detalles: updatedDet
         };
         await actualizarPago(pago.id, payloadEdicion);
+        await logAudit(
+          `Pago Editado en Conciliación Bancaria`,
+          {
+            pago_id: pago.id,
+            estatus,
+            identidad: pago.identidad,
+            contribuyente: contribInfo?.nombre || pago.contribuyente,
+            monto_conciliado: montoConciliado,
+            referencia_bancaria: refFinal,
+            banco_emisor: bancoEmisor,
+            banco_receptor: bancoReceptor,
+            fecha_transaccion: fechaTxConciliada,
+            fecha_banco: fechaBancoConciliada,
+            observaciones
+          },
+          'CONCILIACION',
+          'ALTA'
+        );
         alert('¡Datos y referencia del pago actualizados exitosamente!');
         onSuccess();
         return;

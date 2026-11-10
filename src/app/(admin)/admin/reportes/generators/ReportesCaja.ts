@@ -545,7 +545,32 @@ export async function generarTotalPuntosVenta(pagos: any[], fechaInicio: string,
 
 // ─────────────────────────── CONCILIACIÓN DE TRANSFERENCIAS ───────────────────────────
 export async function generarConciliacionTransferencias(pagos: any[], contribuyentes: any[], fechaInicio: string, fechaFin: string) {
-  const vivos = pagos.filter(p => !esAnulado(p));
+  // Recargar pagos_reportados en vivo desde Supabase para reflejar cualquier cambio de fecha o banco receptor hecho hoy sin requerir F5
+  let sourcePagos = pagos;
+  try {
+    const fresh: any[] = [];
+    let from = 0;
+    const PAGE = 1000;
+    while (true) {
+      const { data, error } = await supabase
+        .from('pagos_reportados')
+        .select('*')
+        .not('estado', 'in', '(Reversado,Condonado)')
+        .order('created_at', { ascending: false })
+        .range(from, from + PAGE - 1);
+      if (error || !data || data.length === 0) break;
+      fresh.push(...data);
+      if (data.length < PAGE) break;
+      from += PAGE;
+    }
+    if (fresh.length > 0) {
+      sourcePagos = fresh;
+    }
+  } catch (eFresh) {
+    console.warn('Usando pagos en memoria para Conciliación de Transferencias:', eFresh);
+  }
+
+  const vivos = sourcePagos.filter(p => !esAnulado(p));
   const transf = vivos.filter(p => esTransferencia(p) && String(p.estado) === 'Aprobado');
   const deb = vivos.filter(p => esDebito(p));
   if (!transf.length && !deb.length) { alert('No hay pagos en el rango.'); return; }
@@ -728,6 +753,9 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
         if ((fechaInicio && fPagoSub < fechaInicio) || (fechaFin && fPagoSub > fechaFin)) return;
         const keySub = fPagoSub.slice(0, 7);
         if (!porMes.has(keySub)) porMes.set(keySub, []);
+        const subDet = pa.bancoDestino && !det.banco_receptor
+          ? { ...det, banco_destino: pa.bancoDestino }
+          : det;
         porMes.get(keySub)!.push({
           p: {
             ...p,
@@ -735,8 +763,9 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
             banco: pa.banco || p.banco,
             referencia: pa.referencia || p.referencia,
             tipo: pa.metodo || p.tipo,
+            detalles: subDet,
           },
-          det,
+          det: subDet,
           fPago: fPagoSub,
           fFactura,
           esSubPago: true,
