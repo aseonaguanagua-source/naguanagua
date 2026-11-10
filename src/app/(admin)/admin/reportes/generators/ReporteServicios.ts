@@ -53,7 +53,7 @@ export async function generarReporteServiciosExcel(opts: GenerarReporteServicios
     estadoFiltro = 'Todos',
   } = opts;
 
-  // 1. Obtener registros frescos de servicios_especiales desde Supabase si no se pasaron o para garantizar datos al día
+  // 1. Obtener registros frescos de servicios_especiales desde Supabase si no se pasaron
   let listaServicios: any[] = Array.isArray(opts.servicios) && opts.servicios.length > 0 ? opts.servicios : [];
   if (listaServicios.length === 0) {
     const { data, error } = await supabase
@@ -185,8 +185,8 @@ export async function generarReporteServiciosExcel(opts: GenerarReporteServicios
     { key: 'tipo', width: 20 },
     { key: 'fecha', width: 13 },
     { key: 'codigo', width: 15 },
-    { key: 'nombre', width: 54 },
-    { key: 'direccion', width: 30 },
+    { key: 'nombre', width: 52 },
+    { key: 'direccion', width: 42 },
     { key: 'fecha_realizar', width: 20 },
     { key: 'monto', width: 16 },
     { key: 'pagado', width: 14 },
@@ -206,17 +206,18 @@ export async function generarReporteServiciosExcel(opts: GenerarReporteServicios
     }
   };
 
-  // Logos superiores (Instituto a la izquierda, IAMEC a la derecha)
-  addLogo((logos as any).instituto || logos.alcaldia, 0.18, 1.05, 151, 54);
-  addLogo(logos.iamec, 7.0, 1.05, 140, 43);
-
-  // Filas 1 a 8 de encabezado (con merges A2:F2 .. A6:F6 igual al formato original)
+  // Filas 1 a 8 de encabezado con altura explícita (15pt) para que el anclaje de imágenes sea exacto en Excel, Numbers y QuickLook
   for (let r = 1; r <= 8; r++) {
-    ws.addRow([]);
+    const emptyRow = ws.addRow([]);
+    emptyRow.height = 15;
   }
   ['A2:F2', 'A3:F3', 'A4:F4', 'A5:F5', 'A6:F6'].forEach(range => {
     try { ws.mergeCells(range); } catch {}
   });
+
+  // Logos superiores (Instituto a la izquierda, IAMEC a la derecha dentro del ancho de la tabla)
+  addLogo((logos as any).instituto || logos.alcaldia, 0.18, 1.05, 151, 54);
+  addLogo(logos.iamec, 6.3, 1.05, 140, 43);
 
   // Fila 9: Cinta verde "SERVICIOS ESPECIALES Y EXTRAORDINARIOS"
   const tituloCinta =
@@ -262,7 +263,8 @@ export async function generarReporteServiciosExcel(opts: GenerarReporteServicios
   let sumaMonto = 0;
 
   filtrados.forEach((s: any) => {
-    const tipoLabel = TIPO_LABEL[String(s.tipo || '').toLowerCase()] || String(s.tipo || 'Servicio Especial');
+    const tipoKey = String(s.tipo || '').toLowerCase();
+    const tipoLabel = TIPO_LABEL[tipoKey] || String(s.tipo || 'Servicio Especial');
 
     // Fecha de emisión
     const fCreacion = s.created_at ? fechaVE(s.created_at) : '';
@@ -278,25 +280,20 @@ export async function generarReporteServiciosExcel(opts: GenerarReporteServicios
     const codContrib = String(cnt?.CodCont || cnt?.cod_cont || '').split(/\s+/).filter(Boolean)[0] || '';
     const codigoFinal = String(s.inmueble || inmInfo?.codigo || codContrib || s.referencia || 'S/C').trim().toUpperCase();
 
-    // Nombre (Contribuyente + Nombre del evento si aplica)
+    // Nombre (Contribuyente; y únicamente si es Servicio Especial con nombre_evento corto, agregarlo entre paréntesis)
     const contribNombre = String(s.contribuyente || cnt?.Contribuyente || s.identidad || '').trim();
-    const notasLimpiasEvento = String(s.notas || '')
-      .replace(/\[ORIGEN:[^\]]*\]/g, '')
-      .replace(/\[FECHA_HASTA:[^\]]*\]/g, '')
-      .replace(/\[SIN_REGISTRO_PREVIO\]/g, '')
-      .replace(/\[CONTACTO:[^\]]*\]/g, '')
-      .trim();
-    const eventoRaw = String(s.nombre_evento || notasLimpiasEvento || '').trim();
-    const esDescGenerica = /^(Servicio Especial|Servicio Extraordinario|Inspecci[oó]n|Visto Bueno|Permiso|Tala|Poda)/i.test(eventoRaw);
+    const eventoRaw = tipoKey === 'especial' ? String(s.nombre_evento || '').trim() : '';
+    const esDescGenerica = /^(Servicio Especial|Servicio Extraordinario|Inspecci[oó]n|Visto Bueno|Permiso|Tala|Poda|Verificaci[oó]n|Material)/i.test(eventoRaw);
     const mostrarEvento =
       eventoRaw &&
+      eventoRaw.length <= 50 &&
       !esDescGenerica &&
       eventoRaw.toUpperCase() !== contribNombre.toUpperCase() &&
       !contribNombre.toUpperCase().includes(eventoRaw.toUpperCase());
     const nombreFinal = mostrarEvento ? `${contribNombre} (${eventoRaw})` : contribNombre;
 
     // Dirección
-    const direccionFinal = String(
+    let direccionRaw = String(
       s.direccion_evento ||
       s.lugar ||
       s.direccion ||
@@ -304,6 +301,11 @@ export async function generarReporteServiciosExcel(opts: GenerarReporteServicios
       cnt?.Direccion ||
       ''
     ).trim();
+    if (!direccionRaw && s.descripcion) {
+      const mDir = String(s.descripcion).match(/Dir:\s*([^(]+)/i);
+      if (mDir && mDir[1]) direccionRaw = mDir[1].trim();
+    }
+    const direccionFinal = direccionRaw;
 
     // Fecha a Realizar
     const fDesde = fechaVE(s.fecha_evento || s.fecha || '');
@@ -356,6 +358,13 @@ export async function generarReporteServiciosExcel(opts: GenerarReporteServicios
       pagadoTexto,
     ]);
 
+    // Calcular altura explícita de la fila considerando texto en mayúsculas (Nombre ancho 52, Dirección ancho 42)
+    // para que los visores de Excel/Numbers/QuickLook posicionen los logos inferiores siempre debajo del TOTAL.
+    const linesNombre = Math.max(1, Math.ceil(nombreFinal.length / 36));
+    const linesDir = Math.max(1, Math.ceil(direccionFinal.length / 28));
+    const maxLines = Math.max(linesNombre, linesDir);
+    r.height = maxLines === 1 ? 22 : maxLines === 2 ? 36 : maxLines * 17 + 6;
+
     r.eachCell({ includeEmpty: true }, (cell, colNumber) => {
       cell.border = BORDE;
       cell.font = {
@@ -379,6 +388,7 @@ export async function generarReporteServiciosExcel(opts: GenerarReporteServicios
 
   // Fila de TOTAL (amarilla en columnas F y G)
   const totalRow = ws.addRow(['', '', '', '', '', 'TOTAL', { formula: `SUM(G${startDataRow}:G${endDataRow})`, result: sumaMonto }, '']);
+  totalRow.height = 22;
   const cellTotalLabel = totalRow.getCell(6);
   cellTotalLabel.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } };
   cellTotalLabel.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FF000000' } };
@@ -392,14 +402,15 @@ export async function generarReporteServiciosExcel(opts: GenerarReporteServicios
   cellTotalVal.alignment = { horizontal: 'center', vertical: 'middle' };
   cellTotalVal.border = BORDE;
 
-  // Espacio e incrustación de los 3 logos institucionales inferiores (Naguanagua Te Quiero, Lacava, Elizabeth Niño)
-  const footerStartRow = totalRow.number;
-  ws.addRow([]);
-  ws.addRow([]);
-  ws.addRow([]);
-  addLogo((logos as any).naguanaguaTeQuiero, 0.30, footerStartRow + 0.95, 113, 45);
-  addLogo((logos as any).lacava, 4.0, footerStartRow + 1.69, 93, 24);
-  addLogo((logos as any).elizabeth, 7.0, footerStartRow + 1.76, 120, 23);
+  // Filas inferiores explícitas e incrustación de los 3 logos institucionales debajo de la tabla
+  for (let i = 0; i < 5; i++) {
+    const fr = ws.addRow([]);
+    fr.height = 18;
+  }
+  const footerStartRow = totalRow.number + 1;
+  addLogo((logos as any).naguanaguaTeQuiero, 0.30, footerStartRow + 0.2, 113, 45);
+  addLogo((logos as any).lacava, 3.8, footerStartRow + 0.8, 93, 24);
+  addLogo((logos as any).elizabeth, 6.3, footerStartRow + 0.8, 120, 23);
 
   const buffer = await wb.xlsx.writeBuffer();
   const rangoNombre = fechaInicio && fechaFin ? `_${fechaInicio}_al_${fechaFin}` : '';
