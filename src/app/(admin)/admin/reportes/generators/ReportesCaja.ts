@@ -747,8 +747,15 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
       const fpExacto = (Array.isArray(det.formasPago) ? det.formasPago : []).find((f: any) => String(f?.referencia || '').trim() === String(p.referencia || '').trim());
       const paExacto = (Array.isArray(det.pagos_agregados) ? det.pagos_agregados : []).find((a: any) => String(a?.referencia || '').trim() === String(p.referencia || '').trim());
       const fPagoPropia = String(fpExacto?.fecha || paExacto?.fecha || paExacto?.fechaTransaccion || '').slice(0, 10);
-      const fPagoBancaria = det.fecha_banco || (Array.isArray(det.formasPago) && det.formasPago[0]?.fecha ? String(det.formasPago[0].fecha).slice(0, 10) : '');
-      let fPago = fPagoPropia || String(fPagoBancaria || det.fecha_transaccion || fFactura || fRegistro).slice(0, 10);
+      const fBancoDirecta = String(det.fecha_banco || '').slice(0, 10);
+      const fTxDirecta = String(det.fecha_transaccion || '').slice(0, 10);
+      const esPagoUnico = (!Array.isArray(det.formasPago) || det.formasPago.length <= 1) && (!Array.isArray(det.pagos_agregados) || det.pagos_agregados.length <= 1);
+      // Si el pago es único y el analista editó fecha_banco o fecha_transaccion en Conciliación, priorizar la fecha editada (menor/real) sobre formasPago[0].fecha
+      const fEditadaPreferida = esPagoUnico && (fBancoDirecta || fTxDirecta)
+        ? (fBancoDirecta && fTxDirecta ? (fBancoDirecta < fTxDirecta ? fBancoDirecta : fTxDirecta) : (fBancoDirecta || fTxDirecta))
+        : '';
+      const fPagoBancaria = fBancoDirecta || (Array.isArray(det.formasPago) && det.formasPago[0]?.fecha ? String(det.formasPago[0].fecha).slice(0, 10) : '');
+      let fPago = fEditadaPreferida || fPagoPropia || String(fPagoBancaria || fTxDirecta || fFactura || fRegistro).slice(0, 10);
       // Si por error de tipeo la fecha del pago fue guardada en un mes futuro respecto al registro o factura, usar la fecha de factura/registro
       const limiteFecha = fFactura && fFactura < fRegistro ? fFactura : fRegistro;
       if (limiteFecha && fPago > limiteFecha) {

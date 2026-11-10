@@ -1188,9 +1188,14 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         updatedDet.banco_receptor = bancoReceptor;
       }
       const fCreacionPago = pago.created_at ? normalizarFechaYMD(pago.created_at) : '';
+      const fTxOriginal = det?.fecha_transaccion ? normalizarFechaYMD(det.fecha_transaccion) : '';
+      const fBancoOriginal = det?.fecha_banco ? normalizarFechaYMD(det.fecha_banco) : '';
       const fBancoNorm = normalizarFechaYMD(fechaBanco);
       const fTxNorm = normalizarFechaYMD(fechaTransaccion);
-      const fechaTxConciliada = (fBancoNorm && (fTxNorm === hoyCaracasStr || fTxNorm === fCreacionPago))
+      // Si el operador cambió Fecha en Banco pero no tocó Fecha Transacción, sincronizar ambas a la nueva Fecha en Banco
+      const fechaTxConciliada = (fBancoNorm && fBancoNorm !== fBancoOriginal && fTxNorm === fTxOriginal)
+        ? fBancoNorm
+        : (fBancoNorm && (fTxNorm === hoyCaracasStr || fTxNorm === fCreacionPago))
         ? fBancoNorm
         : (fTxNorm || fBancoNorm);
       if (fechaTxConciliada) {
@@ -1199,6 +1204,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
           updatedDet.recibo_caja = updatedDet.recibo_caja.map((rc: any) => ({
             ...rc,
             fechaEmision: fechaTxConciliada,
+            fechaTransaccion: fechaTxConciliada,
           }));
         }
       }
@@ -1208,8 +1214,10 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
 
       if (Array.isArray(updatedDet.formasPago) && updatedDet.formasPago.length === 1) {
         const esDeb = /d[eé]bito|punto/i.test(String(tipoPagoEdit || ''));
+        const fForma = fBancoNorm || fechaTxConciliada;
         updatedDet.formasPago = [{
           ...updatedDet.formasPago[0],
+          ...(fForma ? { fecha: `${fForma}T12:00:00.000Z` } : {}),
           forma: esDeb ? '05' : '03',
           tipo: esDeb ? 'Debito' : 'Transferencia',
           metodo: esDeb ? 'Debito' : 'Transferencia',
@@ -1217,6 +1225,16 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
           banco: bancoEmisor || updatedDet.formasPago[0]?.banco || '',
           referencia: refFinal || updatedDet.formasPago[0]?.referencia || '',
         }];
+      }
+      if (Array.isArray(updatedDet.pagos_agregados) && updatedDet.pagos_agregados.length === 1) {
+        const fPa = fBancoNorm || fechaTxConciliada;
+        if (fPa) {
+          updatedDet.pagos_agregados = [{
+            ...updatedDet.pagos_agregados[0],
+            fecha: fPa,
+            fechaTransaccion: fPa,
+          }];
+        }
       }
 
       // Si el pago ya estaba aprobado y se confirma en Aprobado, es una edición de datos / corrección de referencia

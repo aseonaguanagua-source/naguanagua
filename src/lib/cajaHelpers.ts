@@ -122,6 +122,10 @@ export function sanitizeNAParentLinks<T extends InmuebleBasic>(inms: T[]): T[] {
     if (bestMask !== -1) {
       for (let b = 0; b < n; b++) {
         if (!(bestMask & (1 << b))) {
+          const kDir = String(kids[b].direccion || '').trim();
+          // Nunca desvincular una actividad hija que comparte la misma dirección física con las actividades que sí quedan en el padre
+          const comparteDireccionConHijoEnGrupo = kDir && kids.some((other, ob) => (bestMask & (1 << ob)) && String(other.direccion || '').trim() === kDir);
+          if (comparteDireccionConHijoEnGrupo) continue;
           const kCode = String(kids[b].inmueble || '').trim().toUpperCase();
           if (kCode) detachCodes.add(kCode);
         }
