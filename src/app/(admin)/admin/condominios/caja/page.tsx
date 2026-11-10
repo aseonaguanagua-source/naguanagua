@@ -73,8 +73,6 @@ function Caja() {
     if (!fecha) return;
     const hoy = hoyCaracas();
     if (fecha > hoy) { alert('No se puede usar una fecha futura.'); return; }
-    setFechaTransaccionAct(fecha);
-    setFechaAct(fecha);
     if (fecha === hoy) { setTasaOverrideStr(''); setTasaFechaInfo(''); return; }
     setCargandoTasaFecha(true);
     try {
