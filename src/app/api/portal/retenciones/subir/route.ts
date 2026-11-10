@@ -41,12 +41,13 @@ export async function POST(request: Request) {
     if (ret.estado === 'planilla_recibida' || ret.estado === 'por_verificar') return NextResponse.json({ error: 'Ya hay un comprobante en revisión para este pago.' }, { status: 409 });
 
     const pctRet = Number(porcentajeRetencionReq || ret.porcentaje_retencion || det.porcentaje_retencion || 75) || 75;
-    const baseCalc = ret.base || (det.total_seleccionado ? Math.round((det.total_seleccionado / 1.16) * 100) / 100 : Math.round((retMonto / (0.16 * (pctRet / 100))) * 100) / 100);
-    const ivaCalc = ret.iva || (baseCalc ? Math.round((baseCalc * 0.16) * 100) / 100 : Math.round((retMonto / (pctRet / 100)) * 100) / 100);
-    const totalCalc = ret.total || (baseCalc + ivaCalc);
+    const montoFacturaBase = Number(ret.total || fd.monto_total || det.monto_factura || det.montoTotal || det.total_seleccionado || pago.monto || 0);
+    const baseCalc = ret.base || (montoFacturaBase > 0 ? Math.round((montoFacturaBase / 1.16) * 100) / 100 : Math.round((retMonto / (0.16 * (pctRet / 100))) * 100) / 100);
+    const ivaCalc = ret.iva || (baseCalc ? Math.round(((montoFacturaBase > 0 ? montoFacturaBase - baseCalc : baseCalc * 0.16)) * 100) / 100 : Math.round((retMonto / (pctRet / 100)) * 100) / 100);
+    const totalCalc = ret.total || (montoFacturaBase > 0 ? Math.round(montoFacturaBase * 100) / 100 : Math.round((baseCalc + ivaCalc) * 100) / 100);
     const retenidoCalc = (montoRetenidoReq !== undefined && montoRetenidoReq !== null && Number(montoRetenidoReq) > 0)
       ? Number(montoRetenidoReq)
-      : (ret.retenido || retMonto);
+      : (ret.retenido || retMonto || Math.round((ivaCalc * (pctRet / 100)) * 100) / 100);
 
     const { data: inmLink } = await supabase.from('inmuebles').select('inmueble, contribuyente').eq('identidad', pago.identidad).eq('agente_retencion', true).limit(1).maybeSingle();
     const fechaEmi = fd.fecha_emision ? new Date(fd.fecha_emision) : new Date();

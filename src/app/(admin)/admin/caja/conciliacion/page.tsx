@@ -1696,11 +1696,14 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         const montoNetoFacNum = usaTotalGrupoRepartido ? totalGrupoRepartido : (parseFloat(String(det.monto_neto_factura || 0)) || 0);
         const montoBrutoFacNum = usaTotalGrupoRepartido ? totalGrupoRepartido : (parseFloat(String(det.monto_factura || det.montoTotal || 0)) || 0);
 
-        if (totalSelNum > 0) {
-          deudaNetaBancaria = Math.max(0, Math.round((totalSelNum - retencionDocCalc - sfUsadoDocCalc - abonoPrevDocCalc) * 100) / 100);
-        } else if (montoNetoFacNum > 0 && det.modulo !== 'condominios') {
-          // En Caja regular, monto_neto_factura (finalTotal) YA tiene descontados retención, abono previo y saldo_usado
+        if (!usaTotalGrupoRepartido && det.modulo !== 'condominios' && montoNetoFacNum > 0) {
+          // En Caja regular, monto_neto_factura (finalTotal) YA tiene la tasa de la fecha de transacción y descontados retención, abono previo y saldo_usado
           deudaNetaBancaria = Math.round(montoNetoFacNum * 100) / 100;
+        } else if (!usaTotalGrupoRepartido && det.modulo !== 'condominios' && montoBrutoFacNum > 0) {
+          // Si hay monto_factura / montoTotal a la tasa de la transacción, priorizarlo sobre total_seleccionado (que en cobros antiguos podía tener tasa del día)
+          deudaNetaBancaria = Math.max(0, Math.round((montoBrutoFacNum - retencionDocCalc - sfUsadoDocCalc - abonoPrevDocCalc) * 100) / 100);
+        } else if (totalSelNum > 0) {
+          deudaNetaBancaria = Math.max(0, Math.round((totalSelNum - retencionDocCalc - sfUsadoDocCalc - abonoPrevDocCalc) * 100) / 100);
         } else if (montoBrutoFacNum > 0) {
           deudaNetaBancaria = Math.max(0, Math.round((montoBrutoFacNum - retencionDocCalc - sfUsadoDocCalc - abonoPrevDocCalc) * 100) / 100);
         }
