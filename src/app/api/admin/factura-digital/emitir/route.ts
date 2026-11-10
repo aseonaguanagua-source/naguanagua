@@ -260,7 +260,7 @@ export async function POST(request: Request) {
     // Datos reales del pago registrado en caja (leídos temprano para fechas y snapshots de deuda)
     const { data: pagoRow } = await supabase
       .from('pagos_reportados')
-      .select('monto, banco, referencia, tipo, detalles, created_at, modulo, grupo_pago')
+      .select('identidad, monto, banco, referencia, tipo, detalles, created_at, modulo, grupo_pago')
       .eq('id', pagoId)
       .maybeSingle();
     let detPago: any = pagoRow?.detalles || {};
@@ -2420,11 +2420,15 @@ export async function POST(request: Request) {
       }
 
       if (idsHijos.size > 0) {
+        const cleanId = (s: any) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
         for (const hId of idsHijos) {
-          const { data: rowHijo } = await supabase.from('pagos_reportados').select('grupo_pago, detalles').eq('id', hId).maybeSingle();
+          const { data: rowHijo } = await supabase.from('pagos_reportados').select('identidad, grupo_pago, detalles').eq('id', hId).maybeSingle();
           const dHijo = rowHijo?.detalles || {};
-          // Salvaguarda: nunca propagar factura_digital a un pago independiente sin el mismo grupo_pago
-          if (!pagoRow?.grupo_pago || rowHijo?.grupo_pago !== pagoRow.grupo_pago || Boolean(dHijo?.vinculado_a_referencia)) {
+          // Salvaguarda: nunca propagar factura_digital a un pago independiente sin el mismo grupo_pago,
+          // ni a otra parte de un cobro repartido entre distintos dueños en Caja de Condominios
+          const esPagoRepartidoOtraFactura = Boolean(dHijo?.grupo_pago?.partes > 1 && dHijo?.grupo_pago?.parte !== detPago?.grupo_pago?.parte);
+          const distintaIdentidad = Boolean(pagoRow?.identidad && rowHijo?.identidad && cleanId(pagoRow.identidad) !== cleanId(rowHijo.identidad));
+          if (!pagoRow?.grupo_pago || rowHijo?.grupo_pago !== pagoRow.grupo_pago || Boolean(dHijo?.vinculado_a_referencia) || esPagoRepartidoOtraFactura || distintaIdentidad) {
             continue;
           }
           dHijo.pago_principal_id = pagoId;

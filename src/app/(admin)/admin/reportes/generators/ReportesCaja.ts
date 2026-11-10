@@ -863,13 +863,21 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
           if (s.includes(',')) return Number(s.replace(',', '.')) || 0;
           return Number(s) || 0;
         };
-        const mPagado = r2(
+        let mPagado = r2(
           esSubPago
             ? (parseNum(paMatch?.monto) || parseNum(fpMatch?.monto) || parseNum(p.monto))
             : (det.es_pago_adicional || yaExistenComoFilasSeparadas)
               ? (parseNum(det.monto_conciliado) || parseNum(paMatch?.monto) || parseNum(fpMatch?.monto) || parseNum(p.monto))
               : (parseNum(det.monto_conciliado) || parseNum(paMatch?.monto) || parseNum(fpMatch?.monto) || (Array.isArray(det.formasPago) && det.formasPago.length === 1 ? parseNum(det.formasPago[0]?.monto) : 0) || parseNum(p.monto))
         );
+        if (
+          yaExistenComoFilasSeparadas &&
+          Number(det.monto_abonado) > 0 &&
+          Number(det.abono_previo_descontado) > 0 &&
+          Math.abs(mPagado - (Number(det.monto_abonado) + Number(det.abono_previo_descontado))) < 1
+        ) {
+          mPagado = r2(Number(det.monto_abonado));
+        }
 
         const ret = retPorPago.get(String(p.id)) ?? Number(det.monto_retencion_iva || 0);
         const mtTotal = montosPago(p, det, inmMap, ret);
@@ -891,6 +899,9 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
         const bDestLabel = bClass === 'Banesco' ? 'Banesco' : bClass === 'Bancamiga' ? 'Bancamiga' : (det.banco_destino || det.banco_receptor || 'Otro');
         
         let refTexto = String(p.referencia || '').trim();
+        if (yaExistenComoFilasSeparadas && /\(\+/.test(refTexto)) {
+          refTexto = refTexto.replace(/\s*\(\+[^)]*\)/g, '').trim();
+        }
         if (!esSubPago && !yaExistenComoFilasSeparadas && Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1) {
           const todasRefs = [
             ...new Set(

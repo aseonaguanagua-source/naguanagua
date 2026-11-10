@@ -655,9 +655,12 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
         const bancoFila = (primerReal && (!pago.banco || pago.banco === 'Saldo a Favor')) ? (primerReal.banco || primerReal.metodo) : (pago.banco || pago.metodo);
 
         const pagoAgregadoCoincidente = pagosReales.find((pa: any) => pa.referencia === refFinal) || primerReal;
-        const montoReportadoReal = (pagoAgregadoCoincidente && Number(pagoAgregadoCoincidente.monto) > 0)
-            ? r2(Number(pagoAgregadoCoincidente.monto))
-            : r2(pago.montoRecibido && cobro.facturas.length === 1 ? pago.montoRecibido : f.totalBs);
+        const excedenteFila = (i === 0 && (pago.saldoFavorGenerado || 0) >= 5.00) ? r2(pago.saldoFavorGenerado || 0) : 0;
+        const montoReportadoReal = cobro.facturas.length > 1
+            ? r2(f.totalBs + excedenteFila)
+            : ((pagoAgregadoCoincidente && Number(pagoAgregadoCoincidente.monto) > 0)
+                ? r2(Number(pagoAgregadoCoincidente.monto))
+                : r2(pago.montoRecibido ? pago.montoRecibido : f.totalBs));
 
         const esMultiPago = cobro.facturas.length > 1 || pagosReales.length > 1;
         const grupoId = grupo || (esMultiPago ? (pago.pagoId || id) : null);
@@ -765,12 +768,13 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
             ...(i === 0 && (pago.saldoFavorGenerado || 0) >= 5.00 ? { saldo_favor: r2(pago.saldoFavorGenerado || 0), saldo_favor_acreditado: true } : {}),
         };
 
+        const refFila = i > 0 ? `${refFinal}-${i + 1}` : refFinal;
         const fila: any = {
             id,
             identidad: f.identidad,
             monto: montoReportadoReal,
             banco: bancoFila,
-            referencia: refFinal,
+            referencia: refFila,
             tipo: metodoFila,
             estado: esTransferencia ? 'Por Verificar' : 'Aprobado',
             modulo: 'condominios',
@@ -782,8 +786,8 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
         let { error } = await sb.from('pagos_reportados').insert(fila);
         if (error && (error.code === '23505' || error.message.includes('duplicate'))) {
             if (error.message.includes('referencia_key') || error.message.includes('referencia')) {
-                if (esMetodoSinRefUnica) {
-                    fila.referencia = `${refFinal}-${Date.now().toString().slice(-4)}`;
+                if (esMetodoSinRefUnica || i > 0) {
+                    fila.referencia = `${refFila}-${Date.now().toString().slice(-4)}`;
                     const reintento = await sb.from('pagos_reportados').insert(fila);
                     error = reintento.error;
                 } else {

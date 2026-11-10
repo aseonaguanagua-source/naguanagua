@@ -958,8 +958,15 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
   const montoRetencionDoc = parseFloat(String(det.monto_retencion_iva || det.retencion_iva || dRet || 0)) || 0;
   const tieneRetencion = Boolean(det.es_retencion || det.agente_retencion || det.es_agente_retencion || montoRetencionDoc > 0);
 
+  // Si es un pago repartido (grupo_pago con partes > 1) y el monto en pantalla es el total del depósito grupal, usar monto_total del grupo
+  const totalGrupoRepartido = (det.grupo_pago?.partes > 1 && Number(det.grupo_pago?.monto_total) > 0)
+    ? Number(det.grupo_pago.monto_total)
+    : 0;
+  const usaTotalGrupoRepartido = totalGrupoRepartido > 0 && Math.max(montoReportadoNum, montoConciliadoNum) >= totalGrupoRepartido - 1;
+
   // Total Documento (monto bruto de la deuda/factura seleccionada en Caja)
   const totalDocumentoCalc = (() => {
+    if (usaTotalGrupoRepartido) return totalGrupoRepartido;
     if (det.monto_factura && Number(det.monto_factura) > 0) return Number(det.monto_factura);
     if (det.total_seleccionado && Number(det.total_seleccionado) > 0) return Number(det.total_seleccionado);
     if (tieneRetencion && montoRetencionDoc > 0) return Math.round((montoReportadoNum + montoRetencionDoc) * 100) / 100;
@@ -983,6 +990,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
     Number(det.abono_previo_descontado) > 0
   );
   const totalAPagarCalc = (() => {
+    if (usaTotalGrupoRepartido) return totalGrupoRepartido;
     if (esAbonoOCompletado) return montoReportadoNum;
     if (det.monto_neto_factura && Number(det.monto_neto_factura) > 0) return Number(det.monto_neto_factura);
     if (det.total_seleccionado && Number(det.total_seleccionado) > 0) {
@@ -1285,10 +1293,15 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         for (const op of otrosPagos) {
           const opDet = parseDetalles(op.detalles);
           const opTxFecha = opDet.fecha_transaccion || fechaTxConciliada;
+          const opMontoNum = parseFloat(String(op.monto || 0)) || 0;
           const opUpdatedDet = {
             ...opDet,
             analista: updatedDet.analista,
             fecha_conciliado: new Date().toISOString(),
+            ...(opMontoNum > 0 ? { monto_conciliado: opMontoNum.toFixed(2) } : {}),
+            ...(!opDet.factura_digital?.emitida && !opDet.es_pago_adicional
+              ? { factura_digital: opDet.factura_digital || { emitida: false, pendiente: true, preparada_at: new Date().toISOString() } }
+              : {}),
             observaciones: observaciones ? `${opDet.observaciones || ''} [Conciliado en grupo con ${pago.referencia || pago.id}] ${observaciones}`.trim() : opDet.observaciones,
             tasa_bcv: tasaParaGuardar,
             tasa_bcv_conciliacion: tasaParaGuardar,
@@ -1628,7 +1641,19 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         // ── SINCRONIZAR DEUDA PARA PAGOS DE CONDOMINIO ──
         if (det.modulo === 'condominios' || (pago as any).modulo === 'condominios') {
           const condoData = det.condominio || {};
-          const lineasCondo: any[] = Array.isArray(condoData.lineas) ? condoData.lineas : [];
+          const lineasCondo: any[] = Array.isArray(condoData.lineas) ? [...condoData.lineas] : [];
+          if (conciliarTodoElGrupo && pagosVinculados.length > 1) {
+            for (const op of pagosVinculados) {
+              if (op.id === pago.id) continue;
+              const opDet = parseDetalles(op.detalles);
+              const opLineas = Array.isArray(opDet?.condominio?.lineas) ? opDet.condominio.lineas : [];
+              for (const ol of opLineas) {
+                if (ol?.inmueble && !lineasCondo.some(x => x.inmueble === ol.inmueble)) {
+                  lineasCondo.push(ol);
+                }
+              }
+            }
+          }
           const { avanzarPendiente, mesesPendientes } = await import('@/lib/condominios/motor');
           for (const lc of lineasCondo) {
             if (lc.inmueble) {
@@ -1667,9 +1692,9 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         const abonoPrevDocCalc = parseFloat(String(det.abono_previo_descontado || 0)) || 0;
 
         let deudaNetaBancaria = 0;
-        const totalSelNum = parseFloat(String(det.total_seleccionado || 0)) || 0;
-        const montoNetoFacNum = parseFloat(String(det.monto_neto_factura || 0)) || 0;
-        const montoBrutoFacNum = parseFloat(String(det.monto_factura || det.montoTotal || 0)) || 0;
+        const totalSelNum = usaTotalGrupoRepartido ? totalGrupoRepartido : (parseFloat(String(det.total_seleccionado || 0)) || 0);
+        const montoNetoFacNum = usaTotalGrupoRepartido ? totalGrupoRepartido : (parseFloat(String(det.monto_neto_factura || 0)) || 0);
+        const montoBrutoFacNum = usaTotalGrupoRepartido ? totalGrupoRepartido : (parseFloat(String(det.monto_factura || det.montoTotal || 0)) || 0);
 
         if (totalSelNum > 0) {
           deudaNetaBancaria = Math.max(0, Math.round((totalSelNum - retencionDocCalc - sfUsadoDocCalc - abonoPrevDocCalc) * 100) / 100);
