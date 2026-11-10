@@ -143,6 +143,10 @@ export async function POST(req: Request) {
           }
         }
 
+        const codsInmRestaurados = new Set<string>();
+        let teniaSnapshotSaldo = false;
+        let prevListaRestauradaCount = 0;
+
         if (habiaDescontadoDeuda) {
           // Extraer primero los códigos de inmueble explícitamente afectados por ESTE pago
           const propCodesPago = new Set<string>();
@@ -184,8 +188,9 @@ export async function POST(req: Request) {
               })
             : prevListaRaw;
 
+          prevListaRestauradaCount = prevLista.length;
+          teniaSnapshotSaldo = prevLista.some((p: any) => p && (p.saldo_favor_bs !== undefined || p.abono_bs !== undefined));
           const usoSaldoFavorEnPago = (parseFloat(String(detMerged.saldo_usado || detMerged.descuentoSaldoFavor || 0)) || 0) > 0.01;
-          const codsInmRestaurados = new Set<string>();
           const padresNAAfectados = new Set<string>();
 
           if (prevLista.length > 0) {
@@ -335,11 +340,13 @@ export async function POST(req: Request) {
               }
             }
           }
+        }
 
+        if (!yaReversado) {
           // Limpiar movimientos de condominio
           await sb.from('condominio_movimientos').delete().in('pago_id', [pagoId, detMerged.pago_principal_id, detMerged.pago_vinculado].filter(Boolean));
 
-          // Revertir y borrar/anular notas de crédito creadas por exceso o saldo a favor
+          // Revertir y borrar/anular notas de crédito creadas por exceso o saldo a favor (incluso si el pago seguía en 'Por Verificar')
           try {
             const rawIdent = String(actualP.identidad || detMerged.identidad || '').trim().toUpperCase();
             const sinG = rawIdent.replace(/-/g, '');
@@ -386,7 +393,6 @@ export async function POST(req: Request) {
               detMerged.pagos_agregados.forEach((pa: any) => addRefTokens(refsToCheck, pa?.referencia));
             }
 
-            const teniaSnapshotSaldo = prevLista.some((p: any) => p && (p.saldo_favor_bs !== undefined || p.abono_bs !== undefined));
             let totalDescontadoDocs = 0;
             if (identVariants.length > 0) {
               const { data: docsNC } = await sb
@@ -438,7 +444,7 @@ export async function POST(req: Request) {
               detP?.monto_saldo_favor ||
               0
             )) || 0;
-            if (excedentePrevio > totalDescontadoDocs + 0.05 && ident && !teniaSnapshotSaldo && prevLista.length === 0) {
+            if (excedentePrevio > totalDescontadoDocs + 0.05 && ident && !teniaSnapshotSaldo && (!habiaDescontadoDeuda || prevListaRestauradaCount === 0)) {
               const diffDesc = Math.round((excedentePrevio - totalDescontadoDocs) * 100) / 100;
               try {
                 await descontarSaldoFavor(ident, diffDesc, codCondo, sb, true);
