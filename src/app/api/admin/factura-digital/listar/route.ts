@@ -25,37 +25,62 @@ export async function GET(request: Request) {
     const queryRelatedInmuebleCodes = new Set<string>();
 
     if (query) {
-      // 1. Buscar inmuebles que coincidan por código de inmueble, cédula/RIF o nombre de contribuyente
-      const { data: matchedInms } = await supabase
-        .from('inmuebles')
-        .select('identidad, inmueble, contribuyente')
-        .or(`inmueble.ilike.%${query}%,identidad.ilike.%${query}%,contribuyente.ilike.%${query}%`)
-        .limit(30);
+      // Generar variantes con y sin guión para búsquedas por RIF/Cédula (ej. J309335758 <-> J-309335758, 309335758)
+      const qClean = query.replace(/[^a-z0-9]/gi, '');
+      const rifMatch = qClean.match(/^([vejpgc])(\d{4,12})$/i);
+      const qWithDash = rifMatch ? `${rifMatch[1].toUpperCase()}-${rifMatch[2]}` : query;
+      const qWithoutDash = rifMatch ? `${rifMatch[1].toUpperCase()}${rifMatch[2]}` : query;
+      const qDigitsOnly = rifMatch ? rifMatch[2] : (/^\d{5,12}$/.test(qClean) ? qClean : '');
+      const idOrClauses = Array.from(new Set([
+        `identidad.ilike.%${query}%`,
+        `identidad.ilike.%${qWithDash}%`,
+        `identidad.ilike.%${qWithoutDash}%`,
+        ...(qDigitsOnly ? [`identidad.ilike.%${qDigitsOnly}%`] : []),
+      ])).join(',');
+
+      // 1. Buscar en paralelo en inmuebles, condominio_unidades, condominios y pagos_reportados
+      const [
+        { data: matchedInms },
+        { data: cuByQuery },
+        { data: condosByQuery },
+        { data: directPagos }
+      ] = await Promise.all([
+        supabase
+          .from('inmuebles')
+          .select('identidad, inmueble, contribuyente')
+          .or(`inmueble.ilike.%${query}%,contribuyente.ilike.%${query}%,${idOrClauses}`)
+          .limit(40),
+        supabase
+          .from('condominio_unidades')
+          .select('identidad, inmueble')
+          .or(`inmueble.ilike.%${query}%,propietario.ilike.%${query}%,${idOrClauses}`)
+          .limit(50),
+        supabase
+          .from('condominios')
+          .select('identidad, codigo, nombre')
+          .or(`codigo.ilike.%${query}%,nombre.ilike.%${query}%,${idOrClauses}`)
+          .limit(30),
+        supabase
+          .from('pagos_reportados')
+          .select('identidad, detalles')
+          .or(`${idOrClauses},referencia.ilike.%${query}%,detalles->>codigo_inmueble.ilike.%${query}%,detalles->>cod_inmueble.ilike.%${query}%,detalles->>contribuyente.ilike.%${query}%`)
+          .limit(40)
+      ]);
 
       matchedInms?.forEach(i => {
         if (i.identidad) queryInmIdents.add(i.identidad);
         if (i.inmueble) queryRelatedInmuebleCodes.add(i.inmueble);
       });
 
-      // 1b. También buscar en condominio_unidades por inmueble, identidad o propietario
-      const { data: cuByQuery } = await supabase
-        .from('condominio_unidades')
-        .select('identidad, inmueble')
-        .or(`inmueble.ilike.%${query}%,identidad.ilike.%${query}%,propietario.ilike.%${query}%`)
-        .limit(50);
-
       cuByQuery?.forEach(cu => {
         if (cu.identidad) queryInmIdents.add(cu.identidad);
         if (cu.inmueble) queryRelatedInmuebleCodes.add(cu.inmueble);
       });
 
-      // 2. Si el query es un número de cédula o referencia, buscar pagos iniciales directos para extraer inmuebles asociados
-      // (por ejemplo: si pagan local URB015179 con cédula V-7112190 pero el inmueble está registrado a V-19866756)
-      const { data: directPagos } = await supabase
-        .from('pagos_reportados')
-        .select('identidad, detalles')
-        .or(`identidad.ilike.%${query}%,referencia.ilike.%${query}%,detalles->>codigo_inmueble.ilike.%${query}%,detalles->>cod_inmueble.ilike.%${query}%`)
-        .limit(30);
+      condosByQuery?.forEach(c => {
+        if (c.identidad) queryInmIdents.add(c.identidad);
+        if (c.codigo) queryRelatedInmuebleCodes.add(c.codigo);
+      });
 
       directPagos?.forEach(p => {
         if (p.identidad) queryInmIdents.add(p.identidad);
@@ -77,52 +102,38 @@ export async function GET(request: Request) {
         });
       });
 
-      // 3. Buscar propietarios de los inmuebles vinculados (excluyendo condominios genéricos)
+      // 3. Buscar propietarios de los inmuebles vinculados (en lote y en paralelo, sin bucles secuenciales lentos)
       if (queryRelatedInmuebleCodes.size > 0) {
-        const specificCodes = Array.from(queryRelatedInmuebleCodes).filter(c => !c.startsWith('URB014903') && c.length >= 6).slice(0, 30);
-        const { data: inmsFromCodes } = await supabase
-          .from('inmuebles')
-          .select('identidad, contribuyente')
-          .in('inmueble', Array.from(queryRelatedInmuebleCodes).slice(0, 30));
+        const codesBatch = Array.from(queryRelatedInmuebleCodes).slice(0, 30);
+        const specificCodes = codesBatch.filter(c => !c.startsWith('URB014903') && c.length >= 6).slice(0, 12);
+        const codeOrParts: string[] = [];
+        specificCodes.forEach(rawSCod => {
+          const sCod = String(rawSCod || '').replace(/[,()]/g, '').trim();
+          if (sCod) {
+            codeOrParts.push(`detalles->>codigo_inmueble.eq.${sCod}`);
+            codeOrParts.push(`detalles->>cod_inmueble.eq.${sCod}`);
+          }
+        });
+
+        const [{ data: inmsFromCodes }, { data: cuFromCodes }, { data: pLineas }] = await Promise.all([
+          supabase.from('inmuebles').select('identidad, contribuyente').in('inmueble', codesBatch),
+          supabase.from('condominio_unidades').select('identidad, propietario').in('inmueble', codesBatch),
+          codeOrParts.length > 0
+            ? supabase.from('pagos_reportados').select('identidad').or(codeOrParts.join(',')).limit(30)
+            : Promise.resolve({ data: [] as any[] })
+        ]);
+
         inmsFromCodes?.forEach(i => {
           if (i.identidad && !String(i.contribuyente || '').toUpperCase().includes('CONDOMINIO')) {
             queryInmIdents.add(i.identidad);
           }
         });
-
-        const { data: cuFromCodes } = await supabase
-          .from('condominio_unidades')
-          .select('identidad, propietario')
-          .in('inmueble', Array.from(queryRelatedInmuebleCodes).slice(0, 30));
         cuFromCodes?.forEach(cu => {
           if (cu.identidad && !String(cu.propietario || '').toUpperCase().includes('CONDOMINIO')) {
             queryInmIdents.add(cu.identidad);
           }
         });
-
-        // También buscar otros pagos cruzados sobre los mismos inmuebles específicos
-        if (specificCodes.length > 0) {
-          for (const rawSCod of specificCodes) {
-            const sCod = String(rawSCod || '').replace(/[,()]/g, '').trim();
-            if (!sCod) continue;
-            try {
-              const { data: pLineas } = await supabase
-                .from('pagos_reportados')
-                .select('identidad')
-                .or(`detalles->>codigo_inmueble.eq.${sCod},detalles->>cod_inmueble.eq.${sCod},detalles->>recibos.ilike.%${sCod}%`)
-                .limit(20);
-              pLineas?.forEach(pl => pl.identidad && queryInmIdents.add(pl.identidad));
-            } catch (_) {}
-            try {
-              const { data: pCondoLineas } = await supabase
-                .from('pagos_reportados')
-                .select('identidad')
-                .filter('detalles', 'cs', JSON.stringify({ condominio: { lineas: [{ inmueble: sCod }] } }))
-                .limit(10);
-              pCondoLineas?.forEach(pl => pl.identidad && queryInmIdents.add(pl.identidad));
-            } catch (_) {}
-          }
-        }
+        pLineas?.forEach((pl: any) => pl.identidad && queryInmIdents.add(pl.identidad));
       }
     }
 
@@ -134,11 +145,20 @@ export async function GET(request: Request) {
 
     if (query) {
       // Al buscar por RIF, referencia o código, NO excluir Rechazado/Anulado para permitir ver el historial y facturas anuladas
+      const qClean = query.replace(/[^a-z0-9]/gi, '');
+      const rifMatch = qClean.match(/^([vejpgc])(\d{4,12})$/i);
+      const qWithDash = rifMatch ? `${rifMatch[1].toUpperCase()}-${rifMatch[2]}` : query;
+      const qWithoutDash = rifMatch ? `${rifMatch[1].toUpperCase()}${rifMatch[2]}` : query;
+      const qDigitsOnly = rifMatch ? rifMatch[2] : (/^\d{5,12}$/.test(qClean) ? qClean : '');
       const orParts = [
         `identidad.ilike.%${query}%`,
+        `identidad.ilike.%${qWithDash}%`,
+        `identidad.ilike.%${qWithoutDash}%`,
+        ...(qDigitsOnly ? [`identidad.ilike.%${qDigitsOnly}%`] : []),
         `referencia.ilike.%${query}%`,
         `detalles->>codigo_inmueble.ilike.%${query}%`,
-        `detalles->>cod_inmueble.ilike.%${query}%`
+        `detalles->>cod_inmueble.ilike.%${query}%`,
+        `detalles->>contribuyente.ilike.%${query}%`
       ];
       Array.from(queryInmIdents).forEach(id => {
         const safeId = String(id || '').replace(/[,()]/g, '').trim();
@@ -255,8 +275,12 @@ export async function GET(request: Request) {
 
         const refAbonoBase = String(pAbono.referencia || dA?.referencia || '').replace(/\s*\(\+[^)]*\)/g, '').trim();
         const esExplicitoPorRef = Boolean(refAbonoBase && refsExplicitasSet.has(refAbonoBase));
-        const esExplicitoPorId = dA?.pago_principal_id === pPrincipal.id || dA?.completado_con_pago_id === pPrincipal.id;
-        const mismoGrupoPago = Boolean(pPrincipal.grupo_pago && pAbono.grupo_pago && pPrincipal.grupo_pago === pAbono.grupo_pago);
+        const esExplicitoPorId = dA?.pago_principal_id === pPrincipal.id || dA?.completado_con_pago_id === pPrincipal.id || dA?.factura_digital?.unificada_en_pago_id === pPrincipal.id;
+        const mismoGrupoPago = Boolean(
+          (pPrincipal.grupo_pago && pAbono.grupo_pago && pPrincipal.grupo_pago === pAbono.grupo_pago) ||
+          (pAbono.grupo_pago && pAbono.grupo_pago === pPrincipal.id) ||
+          (pPrincipal.grupo_pago && pPrincipal.grupo_pago === pAbono.id)
+        );
         const esVinculoExplicito = esExplicitoPorRef || esExplicitoPorId || mismoGrupoPago;
 
         const montoSoloA = parseFloat(String(pAbono.monto || 0)) || 0;
@@ -1312,16 +1336,24 @@ export async function GET(request: Request) {
 
     if (query) {
       const qLower = query.toLowerCase();
-      filtered = filtered.filter(i => 
-        i.identidad.toLowerCase().includes(qLower) ||
-        i.contribuyente.toLowerCase().includes(qLower) ||
-        i.referencia.toLowerCase().includes(qLower) ||
-        (i.numeroControl && i.numeroControl.toLowerCase().includes(qLower)) ||
-        (i.numeroDocumento && String(i.numeroDocumento).toLowerCase().includes(qLower)) ||
-        (i.inmuebles && i.inmuebles.some((inm: string) => inm.toLowerCase().includes(qLower) || queryRelatedInmuebleCodes.has(inm.toUpperCase()))) ||
-        (i.recibos && i.recibos.some((r: string) => r.toLowerCase().includes(qLower))) ||
-        (queryInmIdents.size > 0 && queryInmIdents.has(i.identidad))
-      );
+      const qNorm = normId(query);
+      const normInmIdents = new Set(Array.from(queryInmIdents).map(id => normId(id)));
+      filtered = filtered.filter(i => {
+        const iIdNorm = normId(i.identidad);
+        return (
+          i.identidad.toLowerCase().includes(qLower) ||
+          (qNorm.length >= 3 && iIdNorm.includes(qNorm)) ||
+          i.contribuyente.toLowerCase().includes(qLower) ||
+          (i.condominio?.nombre && String(i.condominio.nombre).toLowerCase().includes(qLower)) ||
+          (i.condominio?.codigo && String(i.condominio.codigo).toLowerCase().includes(qLower)) ||
+          i.referencia.toLowerCase().includes(qLower) ||
+          (i.numeroControl && i.numeroControl.toLowerCase().includes(qLower)) ||
+          (i.numeroDocumento && String(i.numeroDocumento).toLowerCase().includes(qLower)) ||
+          (i.inmuebles && i.inmuebles.some((inm: string) => inm.toLowerCase().includes(qLower) || queryRelatedInmuebleCodes.has(inm.toUpperCase()))) ||
+          (i.recibos && i.recibos.some((r: string) => r.toLowerCase().includes(qLower))) ||
+          (queryInmIdents.size > 0 && (queryInmIdents.has(i.identidad) || normInmIdents.has(iIdNorm)))
+        );
+      });
     }
 
     return NextResponse.json({

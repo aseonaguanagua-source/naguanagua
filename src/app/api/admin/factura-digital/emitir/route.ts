@@ -880,6 +880,10 @@ export async function POST(request: Request) {
     const saldoFavorGeneradoRaw = parseFloat(String(detPago.saldo_a_favor_nuevo || detPago.monto_sobrante || detPago.saldo_favor || detPago.saldo_favor_generado || 0)) || 0;
     const saldoFavorGenerado = (() => {
       if (saldoFavorGeneradoRaw > 0) return saldoFavorGeneradoRaw;
+      const tieneSaldoFavorCeroExplicito = detPago.saldo_favor === 0 || detPago.saldo_favor_generado === 0;
+      if (tieneSaldoFavorCeroExplicito && Array.isArray(detPago.condominio?.lineas) && detPago.condominio.lineas.length > 5) {
+        return 0;
+      }
       if (montoFacturaGuardadoRaw > 0 && totalEfectivoPagado > 0) {
         const netoExigido = r2(montoFacturaGuardadoRaw - (conRetencion ? montoRetencionGuardada : 0));
         if (totalEfectivoPagado > netoExigido + 0.50) {
@@ -1188,6 +1192,37 @@ export async function POST(request: Request) {
           it.PrecioUnitario = base.toFixed(2); it.PrecioItem = base.toFixed(2); it.PrecioAntesDescuento = base.toFixed(2);
           it.ValorTotalItem = base.toFixed(2);
           totalExento = r2(totalExento + dif);
+        }
+      }
+    }
+
+    // Cuadre exacto SENIAT/TFHKA para condominios comerciales con retención de IVA (75% o 100%) sin saldo a favor:
+    // garantiza que Base * 16% = IVA, Ret = IVA * porcRet, y (Base + IVA + Exento - Ret) === totalEfectivoPagado
+    if (conRetencion && sfReal === 0 && saldoFavorUsado === 0 && totalEfectivoPagado > 0 && detallesItems.length === 1 && detallesItems[0].CodigoImpuesto === 'G' && totalExento === 0) {
+      const porcRetCuadre = Number((detPago as any)?.porcentaje_retencion) === 100 ? 100 : 75;
+      const factorNeto = 1 + 0.16 * (1 - porcRetCuadre / 100);
+      const netoActual = r2(totalGravado + totalIVA - r2(totalIVA * (porcRetCuadre / 100)));
+      if (Math.abs(netoActual - totalEfectivoPagado) > 0 && Math.abs(netoActual - totalEfectivoPagado) <= 1000) {
+        const baseIdealCents = Math.round((totalEfectivoPagado / factorNeto) * 100);
+        for (let delta = 0; delta <= 50; delta++) {
+          for (const sign of delta === 0 ? [1] : [-1, 1]) {
+            const bTry = (baseIdealCents + sign * delta) / 100;
+            const iTry = r2(bTry * 0.16);
+            const rTry = r2(iTry * (porcRetCuadre / 100));
+            const totTry = r2(bTry + iTry);
+            if (r2(totTry - rTry) === totalEfectivoPagado) {
+              const it0: any = detallesItems[0];
+              it0.PrecioUnitario = bTry.toFixed(2);
+              it0.PrecioItem = bTry.toFixed(2);
+              it0.PrecioAntesDescuento = bTry.toFixed(2);
+              it0.ValorIVA = iTry.toFixed(2);
+              it0.ValorTotalItem = totTry.toFixed(2);
+              totalGravado = bTry;
+              totalIVA = iTry;
+              delta = 999;
+              break;
+            }
+          }
         }
       }
     }

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   FileText, Send, CheckCircle, AlertTriangle, ExternalLink, 
   RefreshCw, Receipt, Search, Mail, Filter, Eye, ShieldCheck, 
@@ -41,6 +41,8 @@ export default function FacturacionElectronicaPage() {
   const [pagosList, setPagosList] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const abortControllerRef = useRef<AbortController | null>(null);
   const [filterTab, setFilterTab] = useState<'todos' | 'pendientes' | 'emitidas' | 'retenciones' | 'anuladas'>('pendientes');
   const [moduloFiltro, setModuloFiltro] = useState<string>('Todos');
 
@@ -454,14 +456,30 @@ export default function FacturacionElectronicaPage() {
     }
   }, []);
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm.trim());
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
   // Carga de pagos desde la API
   const loadPagos = useCallback(async () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setIsLoading(true);
     try {
       // Se cargan los pagos según el tab; si es 'anuladas' y no hay búsqueda, se consulta filter=anuladas
-      const filterParam = filterTab === 'anuladas' && !searchTerm ? 'anuladas' : 'todos';
-      const fechaParam = filterTab === 'anuladas' && !searchTerm ? '' : fecha;
-      const res = await fetch(`/api/admin/factura-digital/listar?filter=${filterParam}&fecha=${fechaParam}&q=${encodeURIComponent(searchTerm)}&_t=${Date.now()}`, { cache: 'no-store' });
+      const filterParam = filterTab === 'anuladas' && !debouncedSearchTerm ? 'anuladas' : 'todos';
+      const fechaParam = filterTab === 'anuladas' && !debouncedSearchTerm ? '' : fecha;
+      const res = await fetch(`/api/admin/factura-digital/listar?filter=${filterParam}&fecha=${fechaParam}&q=${encodeURIComponent(debouncedSearchTerm)}&_t=${Date.now()}`, {
+        cache: 'no-store',
+        signal: controller.signal
+      });
       const data = await res.json();
       if (data.success) {
         const items = data.items || [];
@@ -484,11 +502,14 @@ export default function FacturacionElectronicaPage() {
         }
       }
     } catch (e: any) {
+      if (e?.name === 'AbortError') return;
       console.error('Error cargando pagos para facturación digital:', e);
     } finally {
-      setIsLoading(false);
+      if (abortControllerRef.current === controller) {
+        setIsLoading(false);
+      }
     }
-  }, [fecha, searchTerm, filterTab]);
+  }, [fecha, debouncedSearchTerm, filterTab]);
 
   useEffect(() => {
     loadConfig();
@@ -525,7 +546,27 @@ export default function FacturacionElectronicaPage() {
     ? anuladasDia
     : (docTab === 'factura' ? facturasDia : recibosDia);
 
-  const visibles = filterTab === 'retenciones'
+  const pasaBusquedaLocal = (p: any) => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return true;
+    // Si ya se consultó este mismo término al servidor, no excluir resultados traídos por cruce de inmueble/unidad
+    if (q === debouncedSearchTerm.toLowerCase()) return true;
+    const qNorm = q.replace(/[^a-z0-9]/gi, '').toUpperCase();
+    const idNorm = String(p.identidad || '').replace(/[^a-z0-9]/gi, '').toUpperCase();
+    return (
+      String(p.identidad || '').toLowerCase().includes(q) ||
+      (qNorm.length >= 2 && idNorm.includes(qNorm)) ||
+      String(p.contribuyente || '').toLowerCase().includes(q) ||
+      String(p.condominio?.nombre || '').toLowerCase().includes(q) ||
+      String(p.condominio?.codigo || '').toLowerCase().includes(q) ||
+      String(p.referencia || '').toLowerCase().includes(q) ||
+      String(p.numeroControl || '').toLowerCase().includes(q) ||
+      String(p.numeroDocumento || '').toLowerCase().includes(q) ||
+      (Array.isArray(p.inmuebles) && p.inmuebles.some((inm: string) => String(inm).toLowerCase().includes(q)))
+    );
+  };
+
+  const visibles = (filterTab === 'retenciones'
     ? retencionesDia
     : filterTab === 'anuladas'
     ? anuladasDia
@@ -540,7 +581,8 @@ export default function FacturacionElectronicaPage() {
         if (filterTab === 'pendientes') return !p.procesado && !esAnulada && p.estado === 'Aprobado';
         if (filterTab === 'emitidas') return p.procesado && !esAnulada;
         return p.procesado || esAnulada || p.estado === 'Aprobado';
-      });
+      })
+  ).filter(pasaBusquedaLocal);
 
   const totalPendientes = (docTab === 'factura' ? facturasDia : recibosDia).filter(p => !p.procesado && !p.facturaAnulada && p.estado === 'Aprobado').length;
   const totalEmitidas = (docTab === 'factura' ? facturasDia : recibosDia).filter(p => p.procesado && !p.facturaAnulada && p.estado !== 'Anulado' && p.estado !== 'Rechazado').length;
@@ -763,7 +805,16 @@ export default function FacturacionElectronicaPage() {
       multaCondo = pago.detalles.condominio.lineas.reduce((acc: number, l: any) => acc + (parseFloat(String(l?.multaBs || 0)) || 0), 0);
     }
 
-    const sinMultaEliminada = Boolean(
+    const recibosArr = Array.isArray(pago.detalles?.recibos) ? pago.detalles.recibos : (Array.isArray(pago.recibos) ? pago.recibos : []);
+    const esExclusivoMulta = Boolean(
+      (recibosArr.length > 0 && recibosArr.every((r: any) => /^MULTA-/i.test(String(r)))) ||
+      (Array.isArray(pago.detalles?.condominio?.lineas) && pago.detalles.condominio.lineas.length > 0 &&
+        pago.detalles.condominio.lineas.every((l: any) => (parseFloat(String(l?.aseoBs || 0)) || 0) <= 0) &&
+        pago.detalles.condominio.lineas.some((l: any) => (parseFloat(String(l?.multaBs || 0)) || 0) > 0)) ||
+      (/multa/i.test(String(pago.detalles?.concepto || pago.concepto || '')) && !/aseo|servicio|recolecci[oó]n/i.test(String(pago.detalles?.concepto || pago.concepto || '').replace(/multa[^-–·]*[-–·]?\s*aseo\s*urbano/gi, 'multa')))
+    );
+
+    const sinMultaEliminada = !esExclusivoMulta && Boolean(
       pago.tieneMulta === false ||
       pago.llevaMulta === false ||
       pago.detalles?.llevaMulta === false ||

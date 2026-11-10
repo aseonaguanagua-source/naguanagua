@@ -172,8 +172,14 @@ export function resolverCodigoPrincipalInm(cod: string, inmMap: Map<string, any>
   const pid = String(r.padre_id || '').trim().toUpperCase();
   if (pid && !pid.startsWith('CONDO-') && !r.condominio_padre_id) {
     const parent = inmMap.get(pid);
-    if (!parent || !parent.condominio_padre_id) {
-      return pid;
+    if (!parent) return pid;
+    if (!parent.condominio_padre_id) {
+      const normRif = (v: any) => String(v || '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
+      const rifHijo = normRif(r.identidad);
+      const rifPadre = normRif(parent.identidad);
+      if (!rifHijo || !rifPadre || rifHijo === rifPadre) {
+        return pid;
+      }
     }
   }
   return cleanCod;

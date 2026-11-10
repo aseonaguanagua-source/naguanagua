@@ -242,11 +242,31 @@ export async function prepararCobro(sol: SolicitudCobro): Promise<Cobro & { _dat
     const facturas: Factura[] = [];
     if (modo === 'CONDOMINIO') {
         const totalBs = r2(lineas.reduce((a, l) => a + l.totalBs, 0));
-        const baseBs = r2(lineas.reduce((a, l) => a + l.baseBs, 0));
+        let baseBs = r2(lineas.reduce((a, l) => a + l.baseBs, 0));
         const multaBs = r2(lineas.reduce((a, l) => a + l.multaBs + l.multasAparteBs, 0));
-        const ivaBs = r2(lineas.reduce((a, l) => a + l.ivaBs, 0));
-        const retencionBs = r2(lineas.reduce((a, l) => a + l.retencionBs, 0));
-        const totalBrutoBs = r2(baseBs + multaBs + ivaBs);
+        let ivaBs = r2(lineas.reduce((a, l) => a + l.ivaBs, 0));
+        let retencionBs = r2(lineas.reduce((a, l) => a + l.retencionBs, 0));
+        let totalBrutoBs = r2(baseBs + multaBs + ivaBs);
+        // Asegurar cuadre exacto SENIAT/TFHKA cuando es factura global de condominio comercial con retención 75%
+        if (multaBs === 0 && ivaBs > 0 && retencionBs > 0) {
+            const baseIdeal = Math.round((totalBs / 1.04) * 100);
+            for (let delta = 0; delta <= 50; delta++) {
+                for (const sign of delta === 0 ? [1] : [-1, 1]) {
+                    const bTry = (baseIdeal + sign * delta) / 100;
+                    const iTry = r2(bTry * 0.16);
+                    const rTry = r2(iTry * 0.75);
+                    const totTry = r2(bTry + iTry);
+                    if (r2(totTry - rTry) === totalBs) {
+                        baseBs = bTry;
+                        ivaBs = iTry;
+                        retencionBs = rTry;
+                        totalBrutoBs = totTry;
+                        delta = 999;
+                        break;
+                    }
+                }
+            }
+        }
         facturas.push({
             identidad: datos.condo.identidad,
             nombre: datos.condo.nombre,
@@ -319,19 +339,47 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
     const totalDeudaCobro = cobro.totales.totalBs;
 
     // Ignorar diferencias de redondeo menores a Bs. 1,00 para no generar notas de crédito de céntimos
-    if (pago.saldoFavorGenerado && pago.saldoFavorGenerado < 1.00) {
+    // En condominios multi-unidad (modo CONDOMINIO), absorber también pequeñas diferencias de redondeo Euro/Bs (<= 2.50 Bs)
+    const tolSinNota = cobro.modo === 'CONDOMINIO' && cobro.lineas.length > 10 ? 2.50 : 1.00;
+    if (pago.saldoFavorGenerado && pago.saldoFavorGenerado < tolSinNota) {
         pago.saldoFavorGenerado = 0;
     }
-    // Si no se definió saldo a favor generado pero lo recibido supera la deuda en al menos Bs. 1,00, asignar el excedente
-    if (!pago.saldoFavorGenerado && montoRecibidoTotal >= totalDeudaCobro + 1.00) {
+    // Si no se definió saldo a favor generado pero lo recibido supera la deuda por encima de la tolerancia, asignar el excedente
+    if (!pago.saldoFavorGenerado && montoRecibidoTotal >= totalDeudaCobro + tolSinNota) {
         pago.saldoFavorGenerado = r2(montoRecibidoTotal - totalDeudaCobro);
     }
 
     const montoAplicadoADeuda = r2(montoRecibidoTotal - (pago.saldoFavorGenerado || 0));
 
-    // Si el monto destinado a cancelar la deuda es menor al total requerido (tolerancia de 0.10 Bs por redondeo)
-    if (montoAplicadoADeuda < totalDeudaCobro - 0.10) {
+    // Si el monto destinado a cancelar la deuda es menor al total requerido (tolerancia de redondeo)
+    const tolFaltante = cobro.modo === 'CONDOMINIO' && cobro.lineas.length > 10 ? 2.50 : 0.50;
+    if (montoAplicadoADeuda < totalDeudaCobro - tolFaltante) {
         throw new Error(`El monto cambió (ahora Bs ${totalDeudaCobro.toFixed(2)}). Vuelva a calcular antes de cobrar.`);
+    }
+    // Si en pago global de condominio la transferencia tiene diferencia de céntimos dentro de la tolerancia sin saldo a favor, alinear la factura al monto exacto transferido
+    if (cobro.modo === 'CONDOMINIO' && cobro.facturas.length === 1 && !pago.saldoFavorGenerado && montoRecibidoTotal > 0 && Math.abs(montoRecibidoTotal - totalDeudaCobro) > 0 && Math.abs(montoRecibidoTotal - totalDeudaCobro) < tolSinNota) {
+        const f0 = cobro.facturas[0];
+        f0.totalBs = montoRecibidoTotal;
+        cobro.totales.totalBs = montoRecibidoTotal;
+        if ((f0.multaBs || 0) === 0 && (f0.ivaBs || 0) > 0 && (f0.retencionBs || 0) > 0) {
+            const baseIdeal = Math.round((montoRecibidoTotal / 1.04) * 100);
+            for (let delta = 0; delta <= 50; delta++) {
+                for (const sign of delta === 0 ? [1] : [-1, 1]) {
+                    const bTry = (baseIdeal + sign * delta) / 100;
+                    const iTry = r2(bTry * 0.16);
+                    const rTry = r2(iTry * 0.75);
+                    const totTry = r2(bTry + iTry);
+                    if (r2(totTry - rTry) === montoRecibidoTotal) {
+                        f0.baseBs = bTry;
+                        f0.ivaBs = iTry;
+                        f0.retencionBs = rTry;
+                        f0.totalBrutoBs = totTry;
+                        delta = 999;
+                        break;
+                    }
+                }
+            }
+        }
     }
 
     const ref = String(pago.referencia || '').trim();
@@ -561,7 +609,7 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
         let fSubtotal = r2(fBase + fMulta);
         const fTotalBruto = f.totalBrutoBs !== undefined ? f.totalBrutoBs : r2(fSubtotal + fIva);
 
-        if (fMulta === 0 && fIva > 0 && fTotalBruto > 0) {
+        if (fMulta === 0 && fIva > 0 && fTotalBruto > 0 && fRet === 0) {
             const baseRec = r2(fTotalBruto / 1.16);
             const ivaRec = r2(fTotalBruto - baseRec);
             if (Math.abs(ivaRec - r2(baseRec * 0.16)) <= 0.01 && Math.abs(baseRec - fBase) <= 1.0) {
