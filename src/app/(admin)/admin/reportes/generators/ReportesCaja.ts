@@ -720,10 +720,10 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
       const totalBase = pagsAgregados.reduce((acc: number, x: any) => acc + (Number(x.monto) || 0), 0) || Number(p.monto) || 1;
       pagsAgregados.forEach((pa: any) => {
         let fPagoSub = String(pa.fecha || pa.fechaTransaccion || det.fecha_transaccion || det.fecha_banco || fFactura || fRegistro).slice(0, 10);
-        // Si por error de tipeo la fecha del pago fue guardada en un mes futuro respecto al registro o factura, usar la fecha de factura/registro
-        const limiteFecha = fFactura && fFactura < fRegistro ? fFactura : fRegistro;
-        if (limiteFecha && fPagoSub > limiteFecha) {
-          fPagoSub = limiteFecha;
+        // Solo acotar si por error de tipeo la fecha del pago fue guardada en un año futuro (ej. 2027)
+        if (fPagoSub > '2026-12-31' && (fFactura || fRegistro)) {
+          const limiteFecha = fFactura && fFactura < fRegistro ? fFactura : fRegistro;
+          if (limiteFecha) fPagoSub = limiteFecha;
         }
         if ((fechaInicio && fPagoSub < fechaInicio) || (fechaFin && fPagoSub > fechaFin)) return;
         const keySub = fPagoSub.slice(0, 7);
@@ -750,22 +750,21 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
       const fBancoDirecta = String(det.fecha_banco || '').slice(0, 10);
       const fTxDirecta = String(det.fecha_transaccion || '').slice(0, 10);
       const esPagoUnico = (!Array.isArray(det.formasPago) || det.formasPago.length <= 1) && (!Array.isArray(det.pagos_agregados) || det.pagos_agregados.length <= 1);
-      // Si el pago es único y el analista editó fecha_banco o fecha_transaccion en Conciliación, priorizar la fecha editada (menor/real) sobre formasPago[0].fecha
+      // Si el pago es único y el analista editó fecha_banco o fecha_transaccion en Conciliación, priorizar la fecha editada sobre formasPago[0].fecha
       const fEditadaPreferida = esPagoUnico && (fBancoDirecta || fTxDirecta)
-        ? (fBancoDirecta && fTxDirecta ? (fBancoDirecta < fTxDirecta ? fBancoDirecta : fTxDirecta) : (fBancoDirecta || fTxDirecta))
+        ? (fBancoDirecta || fTxDirecta)
         : '';
       const fPagoBancaria = fBancoDirecta || (Array.isArray(det.formasPago) && det.formasPago[0]?.fecha ? String(det.formasPago[0].fecha).slice(0, 10) : '');
       let fPago = fEditadaPreferida || fPagoPropia || String(fPagoBancaria || fTxDirecta || fFactura || fRegistro).slice(0, 10);
-      const fPagoDisplay = fPago;
-      // Si por error de tipeo la fecha del pago fue guardada en un mes futuro respecto al registro o factura, agrupar en el mes del registro/factura pero mantener la fecha mostrada si fue conciliada en el mismo período
-      const limiteFecha = fFactura && fFactura < fRegistro ? fFactura : fRegistro;
-      if (limiteFecha && fPago > limiteFecha) {
-        fPago = limiteFecha;
+      // Solo acotar si por error de tipeo la fecha del pago fue guardada en un año futuro (ej. 2027)
+      if (fPago > '2026-12-31' && (fFactura || fRegistro)) {
+        const limiteFecha = fFactura && fFactura < fRegistro ? fFactura : fRegistro;
+        if (limiteFecha) fPago = limiteFecha;
       }
       if ((fechaInicio && fPago < fechaInicio) || (fechaFin && fPago > fechaFin)) return;
       const key = fPago.slice(0, 7);
       if (!porMes.has(key)) porMes.set(key, []);
-      porMes.get(key)!.push({ p, det, fPago, fPagoDisplay: det.fecha_pago_excel || (String(p.referencia || '').trim() === '54312300' ? '2026-11-02' : fPago), fFactura, esSubPago: false, montoTotalReportado: Number(p.monto) || 1, yaExistenComoFilasSeparadas: !!yaExistenComoFilasSeparadas });
+      porMes.get(key)!.push({ p, det, fPago, fPagoDisplay: det.fecha_pago_excel || fPago, fFactura, esSubPago: false, montoTotalReportado: Number(p.monto) || 1, yaExistenComoFilasSeparadas: !!yaExistenComoFilasSeparadas });
     }
   });
 

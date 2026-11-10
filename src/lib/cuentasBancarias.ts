@@ -62,10 +62,10 @@ export type BancoDestinoTipo = 'Banesco' | 'Bancamiga' | 'Otros';
 export function clasificarBancoDestino(p: any): BancoDestinoTipo {
   const det = typeof p?.detalles === 'object' ? p.detalles : (() => { try { return JSON.parse(p?.detalles || '{}'); } catch { return {}; } })();
   
-  // 1. Revisar campos específicos de banco destino / receptor
+  // 1. Revisar campos específicos de banco destino / receptor (priorizar banco_receptor editado en Conciliación)
   const strDest = String(
-    det?.banco_destino || 
     det?.banco_receptor || 
+    det?.banco_destino || 
     det?.bancoDestino || 
     det?.cuenta_receptora || 
     det?.cuentaDestino || 
