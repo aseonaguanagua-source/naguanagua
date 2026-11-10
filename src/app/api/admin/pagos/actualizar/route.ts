@@ -265,10 +265,18 @@ export async function POST(req: Request) {
           }
 
           // Fallback adicional: restaurar cualquier inmueble referenciado en recibos que no haya estado en prevLista
-          {
+          // Si prevLista ya restauró los hijos del pago, NO incrementar por separado la matriz padre N/A en el fallback
+          const esAbonoIncompletoSinDescuento = Boolean(
+            detMerged.abono_completado &&
+            detMerged.completado_con_pago_id &&
+            !(Number(detMerged.abono_previo_descontado) > 0) &&
+            !Array.isArray(detMerged.pagos_agregados)
+          );
+          if (prevLista.length === 0 && !esAbonoIncompletoSinDescuento) {
             const propCodes = new Set<string>(propCodesPago);
-            // Excluir códigos ya restaurados mediante prevLista
+            // Excluir códigos ya restaurados mediante prevLista o que sean padres N/A ya cubiertos
             codsInmRestaurados.forEach(c => propCodes.delete(c));
+            padresNAAfectados.forEach(c => propCodes.delete(c));
 
             if (prevLista.length === 0 || propCodes.size > 0) {
               const rawId = String(actualP.identidad || '').replace(/[,()]/g, '').trim().toUpperCase();
@@ -330,7 +338,7 @@ export async function POST(req: Request) {
                 const maxMesesH = hermanosNA.reduce((m, h: any) => Math.max(m, parseInt(String(h.meses_deuda || 0), 10) || 0), 0);
                 const { data: parentRow } = await sb.from('inmuebles').select('id, meses_deuda, mmv_mes').eq('inmueble', pCod).maybeSingle();
                 if (parentRow) {
-                  const finalParentMeses = Math.max(maxMesesH, parseInt(String(parentRow.meses_deuda || 0), 10) || 0);
+                  const finalParentMeses = maxMesesH;
                   const pMmvMes = parseFloat(String(parentRow.mmv_mes || 0)) || 0;
                   await sb.from('inmuebles').update({
                     meses_deuda: finalParentMeses,

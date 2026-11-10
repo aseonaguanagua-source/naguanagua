@@ -1787,6 +1787,22 @@ export default function CajaPage() {
         const detObj = typeof p.detalles === 'string' ? (() => { try { return JSON.parse(p.detalles); } catch { return {}; } })() : (p.detalles || {});
         if (detObj.anulado || detObj.factura_digital?.anulada || detObj.factura_anulada) return false;
 
+        const pagoCodes = new Set<string>();
+        [detObj.cod_inmueble, detObj.codigo_inmueble, detObj.inmueble, detObj.cod_inmueble_hijo_original, p.cod_inmueble].forEach((c: any) => {
+          if (c) pagoCodes.add(String(c).trim().toLowerCase());
+        });
+        if (Array.isArray(detObj.recibos)) {
+          detObj.recibos.forEach((r: any) => {
+            const m = String(r || '').match(/(urb\d+|auri\d+)/i);
+            if (m && m[1]) pagoCodes.add(m[1].toLowerCase());
+          });
+        }
+
+        // Si se buscó un código específico (isCodeFormat) y el pago pertenece a otro inmueble distinto del mismo RIF, no mostrarlo aquí
+        if (isCodeFormat && userInmCodes.length > 0 && pagoCodes.size > 0) {
+          return userInmCodes.some(code => pagoCodes.has(code));
+        }
+
         const pIdentClean = String(p.identidad || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
         const pIdentNums = String(p.identidad || '').replace(/\D/g, '');
         if (pIdentClean && cleanIdents.has(pIdentClean)) return true;

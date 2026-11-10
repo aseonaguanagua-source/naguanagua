@@ -975,8 +975,15 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
   })();
 
   // Total a Pagar / Cobrado en Caja: exactamente igual a lo cobrado en Caja
+  const esAbonoOCompletado = Boolean(
+    det.es_abono ||
+    det.abono_completado ||
+    det.completado_con_pago_id ||
+    (Number(det.monto_abonado) > 0 && Number(det.monto_abonado) < Number(det.monto_factura || det.total_seleccionado || 0)) ||
+    Number(det.abono_previo_descontado) > 0
+  );
   const totalAPagarCalc = (() => {
-    if (det.es_abono) return montoReportadoNum;
+    if (esAbonoOCompletado) return montoReportadoNum;
     if (det.monto_neto_factura && Number(det.monto_neto_factura) > 0) return Number(det.monto_neto_factura);
     if (det.total_seleccionado && Number(det.total_seleccionado) > 0) {
       return Math.max(0, Math.round((Number(det.total_seleccionado) - montoRetencionDoc) * 100) / 100);
@@ -1035,7 +1042,8 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
   // - O si no es multi-pago: el monto digitado no cubre la deuda neta bancaria (totalBancosRequerido - montoConciliadoNum > 0.05)
   // - O en conciliarTodoElGrupo: la suma de todas las transferencias no cubre la deuda neta bancaria (faltaPorPagarGrupo > 0.05)
   const esMontoInsuficiente = (() => {
-    if (det.es_abono) return false;
+    if (pago.estado === 'Aprobado' && montoConciliadoNum > 0) return false;
+    if (esAbonoOCompletado) return faltaPorPagarIndividual > 0.05;
     if (esMultiPago) {
       if (conciliarTodoElGrupo && pagosVinculados.length > 1) {
         return faltaPorPagarGrupo > 0.05;

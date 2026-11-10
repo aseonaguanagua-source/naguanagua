@@ -613,11 +613,32 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
           .limit(200);
         if (isMounted && data) {
           const idClean = ident.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+          const codesLower = codes.map(c => String(c || '').trim().toLowerCase()).filter(Boolean);
           const match = data.filter((p: any) => {
+            const detObj = typeof p.detalles === 'string' ? (() => { try { return JSON.parse(p.detalles); } catch { return {}; } })() : (p.detalles || {});
+            if (detObj.anulado || detObj.factura_digital?.anulada || detObj.factura_anulada) return false;
+            const detStr = (typeof p.detalles === 'string' ? p.detalles : JSON.stringify(p.detalles || '')).toLowerCase();
+
+            // Extraer códigos URB/AURI específicos asociados al pago
+            const pagoCodes = new Set<string>();
+            [detObj.cod_inmueble, detObj.codigo_inmueble, detObj.inmueble, detObj.cod_inmueble_hijo_original, p.cod_inmueble].forEach((c: any) => {
+              if (c) pagoCodes.add(String(c).trim().toLowerCase());
+            });
+            if (Array.isArray(detObj.recibos)) {
+              detObj.recibos.forEach((r: any) => {
+                const m = String(r || '').match(/(urb\d+|auri\d+)/i);
+                if (m && m[1]) pagoCodes.add(m[1].toLowerCase());
+              });
+            }
+
+            // Si el modal se abrió para códigos específicos y el pago tiene códigos específicos de otro inmueble del mismo RIF, no mezclarlo
+            if (codesLower.length > 0 && pagoCodes.size > 0) {
+              return codesLower.some(c => pagoCodes.has(c));
+            }
+            if (codesLower.some(c => c && detStr.includes(c))) return true;
             const pId = String(p.identidad || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
             if (idClean && (pId === idClean || pId.includes(idClean) || idClean.includes(pId))) return true;
-            const detStr = (typeof p.detalles === 'string' ? p.detalles : JSON.stringify(p.detalles || '')).toLowerCase();
-            return codes.some(c => c && detStr.includes(c.toLowerCase()));
+            return false;
           });
           setPagosConciliacionPendientes(match);
         }
