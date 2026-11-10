@@ -19,11 +19,12 @@ import { aplicarMontoReporte } from './montoReporte';
 import { generarTotalPuntosVenta, generarConciliacionTransferencias } from './generators/ReportesCaja';
 import { generarReporteRecibosPagos } from './generators/ReporteRecibosPagos';
 import { generarMontoDiarioRecaudado } from './generators/MontoDiarioRecaudado';
+import { generarReporteServiciosExcel } from './generators/ReporteServicios';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-type ActiveView = null | 'ingresos' | 'corte' | 'libro-ventas' | 'recibos-pagos' | 'conciliacion-bancaria' | 'puntos-venta' | 'monto-diario' | 'fiscalizacion' | 'empleados' | 'saldos' | 'ingreso-bancario' | 'morosos' | 'transferencias';
+type ActiveView = null | 'ingresos' | 'corte' | 'libro-ventas' | 'recibos-pagos' | 'conciliacion-bancaria' | 'puntos-venta' | 'monto-diario' | 'servicios' | 'fiscalizacion' | 'empleados' | 'saldos' | 'ingreso-bancario' | 'morosos' | 'transferencias';
 
 const CARDS = [
   { id: 'ingresos' as ActiveView,              label: 'Caja - Ingresos',                emoji: '🖨️',  desc: 'Vista interactiva de ingresos, corte y conciliación', adminOnly: false },
@@ -32,6 +33,7 @@ const CARDS = [
   { id: 'recibos-pagos' as ActiveView,         label: 'Reporte de Recibos de Pagos',    emoji: '🧾',  desc: 'Excel de recibos de pago emitidos',                    adminOnly: false },
   { id: 'conciliacion-bancaria' as ActiveView, label: 'Conciliación Bancaria',          emoji: '🏦',  desc: 'Transferencias por mes y banco (Banesco / Bancamiga)', adminOnly: false },
   { id: 'puntos-venta' as ActiveView,          label: 'Total Puntos de Venta',          emoji: '💳',  desc: 'Débitos por caja, totales por caja y general',         adminOnly: false },
+  { id: 'servicios' as ActiveView,             label: 'Servicios Esp. y Ext.',          emoji: '🛠️',  desc: 'Reporte oficial de Servicios Especiales y Extraordinarios', adminOnly: false },
   { id: 'corte' as ActiveView,                 label: 'Cuadre de Caja',                 emoji: '🗂️',  desc: 'Cuadre diario por cajero y forma de pago',            adminOnly: false },
   { id: 'transferencias' as ActiveView,        label: 'Monitoreo Transferencias',       emoji: '🔍',  desc: 'Por Verificar, Pendiente, Débito y Aprobadas',         adminOnly: true  },
   { id: 'morosos' as ActiveView,               label: 'Reporte Morosos',                emoji: '🔴',  desc: 'Contribuyentes con deuda pendiente',                  adminOnly: false },
@@ -55,6 +57,8 @@ export default function ReportesPage() {
   const [tfecha, setTfecha] = useState(hoyStr);
   const [tfechaFin, setTfechaFin] = useState(hoyStr);
   const [testado, setTestado] = useState('Todos');
+  const [servTipoFiltro, setServTipoFiltro] = useState('Todos');
+  const [servEstadoFiltro, setServEstadoFiltro] = useState('Todos');
 
   useEffect(() => {
     let activeUser = (typeof window !== 'undefined' ? localStorage.getItem('adminUser') : null) || '';
@@ -355,6 +359,84 @@ export default function ReportesPage() {
             className="w-full flex items-center justify-between px-4 py-3 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg text-sm font-semibold text-indigo-900 transition-colors"
           >
             Descargar Monto Diario Recaudado (Excel) <Download className="w-4 h-4 text-indigo-700" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (activeView === 'servicios') {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <button onClick={() => setActiveView(null)} className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 font-medium">← Regresar</button>
+          <span className="text-slate-300">|</span>
+          <h1 className="text-lg font-bold text-slate-800">🛠️ Reporte de Servicios Especiales y Extraordinarios</h1>
+        </div>
+        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4 max-w-lg">
+          <p className="text-xs text-slate-600">
+            Genera la planilla oficial en Excel de <b>SERVICIOS ESPECIALES Y EXTRAORDINARIOS</b> con columnas de Tipo de Servicio, Fecha, Código, Nombre, Dirección, Fecha a Realizar, Monto a Pagar, Pagado, totalización y logos oficiales del IAMEC.
+          </p>
+          <div className="flex gap-3">
+            <div className="flex flex-col flex-1">
+              <label className="text-xs text-slate-500 mb-1">Desde</label>
+              <input type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)} className="border rounded-lg px-3 py-2 text-sm" />
+            </div>
+            <div className="flex flex-col flex-1">
+              <label className="text-xs text-slate-500 mb-1">Hasta</label>
+              <input type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)} className="border rounded-lg px-3 py-2 text-sm" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col">
+              <label className="text-xs text-slate-500 mb-1">Tipo de Servicio</label>
+              <select value={servTipoFiltro} onChange={e => setServTipoFiltro(e.target.value)} className="border rounded-lg px-3 py-2 text-sm bg-white">
+                <option value="Todos">Todos los Servicios</option>
+                <option value="esp_ext">Solo Especiales y Extraordinarios</option>
+                <option value="especial">Servicio Especial</option>
+                <option value="extraordinario">Servicio Extraordinario</option>
+                <option value="inspeccion">Inspección</option>
+                <option value="visto_bueno">Visto Bueno Ambiental</option>
+                <option value="tala_poda">Permisos (Tala/Poda)</option>
+              </select>
+            </div>
+            <div className="flex flex-col">
+              <label className="text-xs text-slate-500 mb-1">Estado</label>
+              <select value={servEstadoFiltro} onChange={e => setServEstadoFiltro(e.target.value)} className="border rounded-lg px-3 py-2 text-sm bg-white">
+                <option value="Todos">Todos</option>
+                <option value="Pagado">Pagado</option>
+                <option value="Pendiente">Pendiente</option>
+                <option value="Por Verificar">Por Verificar</option>
+              </select>
+            </div>
+          </div>
+          <button
+            onClick={() =>
+              generarReporteServiciosExcel({
+                pagos,
+                contribuyentes,
+                fechaInicio,
+                fechaFin,
+                tipoFiltro: servTipoFiltro,
+                estadoFiltro: servEstadoFiltro,
+              })
+            }
+            className="w-full flex items-center justify-between px-4 py-3 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg text-sm font-semibold text-emerald-900 transition-colors"
+          >
+            Descargar Reporte con Rango de Fechas (Excel) <Download className="w-4 h-4 text-emerald-700" />
+          </button>
+          <button
+            onClick={() =>
+              generarReporteServiciosExcel({
+                pagos,
+                contribuyentes,
+                tipoFiltro: servTipoFiltro,
+                estadoFiltro: servEstadoFiltro,
+              })
+            }
+            className="w-full flex items-center justify-between px-4 py-3 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg text-sm font-semibold text-purple-900 transition-colors"
+          >
+            Descargar Histórico Completo (Sin Límite de Fecha) <Download className="w-4 h-4 text-purple-700" />
           </button>
         </div>
       </div>

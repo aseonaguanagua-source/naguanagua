@@ -4,6 +4,7 @@ import { Wrench, Search, Plus, Trash2, CheckCircle2, AlertCircle, FlaskConical, 
 import { exportToExcelWithLogos } from '@/lib/excelExport';
 import { useAppContext } from '@/store/AppContext';
 import { TARIFAS_ESPECIAL, TARIFAS_EXTRAORDINARIO, CONCEPTOS_IAMEC, generarPlanillaServicio } from '@/lib/planillaServicio';
+import { generarReporteServiciosExcel } from '../reportes/generators/ReporteServicios';
 
 type TipoServicio = 'especial' | 'extraordinario' | 'inspeccion' | 'visto_bueno' | 'tala_poda';
 
@@ -507,19 +508,14 @@ export default function ServiciosEspecialesPage() {
 
   const iconMap: Record<TipoServicio, any> = { especial: Wrench, extraordinario: FlaskConical, inspeccion: ClipboardCheck, visto_bueno: ShieldCheck, tala_poda: TreePine };
 
-  const exportarServicios = () => {
-    if (serviciosFiltrados.length === 0) return alert('No hay registros para exportar.');
-    const data = serviciosFiltrados.map(s => ({
-      'Referencia': s.referencia || '---',
-      'Tipo': TIPO_INFO[s.tipo].label,
-      'Contribuyente': s.contribuyente,
-      'Identidad': s.identidad,
-      'Descripcion': s.descripcion,
-      'Fecha': s.fecha,
-      'Monto (Bs)': Number(s.monto || 0).toFixed(2),
-      'Estado': s.estado,
-    }));
-    exportToExcelWithLogos(data, `Servicios_${tab}_${new Date().toISOString().split('T')[0]}.xlsx`, TIPO_INFO[tab].label);
+  const exportarServicios = (todosLosTipos = false) => {
+    const lista = todosLosTipos ? servicios : serviciosFiltrados;
+    if (lista.length === 0) return alert('No hay registros para exportar.');
+    generarReporteServiciosExcel({
+      servicios: lista,
+      contribuyentes,
+      tipoFiltro: todosLosTipos ? 'Todos' : tab,
+    });
   };
 
   return (
@@ -533,9 +529,23 @@ export default function ServiciosEspecialesPage() {
           </h1>
           <p className="text-sm text-slate-500 mt-1">Solo servicios oficiales de la Ordenanza / IAMEC; monto = UCD × Tasa Euro BCV. Se sincronizan automáticamente al portal del ciudadano.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button onClick={loadServicios} className="flex items-center gap-1 px-3 py-2 border border-slate-200 rounded text-sm text-slate-600 hover:bg-slate-50">
             <RefreshCw className="w-4 h-4" /> Actualizar
+          </button>
+          <button
+            onClick={() => exportarServicios(false)}
+            className="flex items-center gap-1.5 px-3 py-2 border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 rounded text-sm font-semibold text-emerald-800"
+            title={`Descargar Reporte Excel de ${TIPO_INFO[tab].label}`}
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-700" /> Reporte Excel ({TIPO_INFO[tab].label})
+          </button>
+          <button
+            onClick={() => exportarServicios(true)}
+            className="flex items-center gap-1.5 px-3 py-2 border border-teal-300 bg-teal-50 hover:bg-teal-100 rounded text-sm font-semibold text-teal-800"
+            title="Descargar Reporte General de Todos los Servicios en Excel"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-teal-700" /> Reporte General (Excel)
           </button>
           {(tab === 'especial' || tab === 'extraordinario' || tab === 'inspeccion') && (
             <button
