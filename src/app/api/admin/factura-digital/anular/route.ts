@@ -1434,23 +1434,39 @@ export async function POST(request: Request) {
 
         let seq = await siguienteNumeroNotaCredito(supabase);
         let tfhkaResponse: any = null;
-        for (let intento = 0; intento < 3; intento++) {
+        for (let intento = 0; intento < 25; intento++) {
           jsonTFHKA.documentoElectronico.Encabezado.IdentificacionDocumento.NumeroDocumento = String(seq);
           tfhkaResponse = await TheFactoryHKA.emitirDocumento(jsonTFHKA.documentoElectronico);
-          if (tfhkaResponse?.resultado?.numeroControl) break;
+          const respCode = String(tfhkaResponse?.codigo || '').trim();
           const val = JSON.stringify(tfhkaResponse?.validaciones || tfhkaResponse?.mensaje || '').toLowerCase();
-          // Número de documento repetido → probar el siguiente
-          if (/(existe|duplic|registrad|utilizad)/.test(val) && /n[uú]mero/.test(val)) { seq++; continue; }
+          const esDuplicadoTfhka =
+            respCode === '201' ||
+            /documento duplicado/i.test(String(tfhkaResponse?.mensaje || '')) ||
+            (/(existe|duplic|registrad|utilizad)/.test(val) && /n[uú]mero/.test(val)) ||
+            /enviado previamente/i.test(val);
+
+          if (tfhkaResponse?.resultado?.numeroControl && !esDuplicadoTfhka && respCode === '200') {
+            ultimoNcAsignadoMemoria = Math.max(ultimoNcAsignadoMemoria, seq);
+            break;
+          }
+          if (esDuplicadoTfhka || respCode === '99') {
+            const ultRemoto = await TheFactoryHKA.ultimoDocumento('', '03');
+            seq = Math.max(seq + 1, (ultRemoto ?? 0) + 1, ultimoNcAsignadoMemoria + 1);
+            ultimoNcAsignadoMemoria = seq;
+            continue;
+          }
           break;
         }
 
-        const finalUrl = tfhkaResponse?.resultado?.urlConsulta;
-        const finalControl = tfhkaResponse?.resultado?.numeroControl;
-        const finalDoc = tfhkaResponse?.resultado?.numeroDocumento || String(seq);
+        const respCodeFinal = String(tfhkaResponse?.codigo || '').trim();
+        const esDuplicadoFinal = respCodeFinal === '201' || /documento duplicado/i.test(String(tfhkaResponse?.mensaje || ''));
+        const finalUrl = !esDuplicadoFinal ? tfhkaResponse?.resultado?.urlConsulta : null;
+        const finalControl = !esDuplicadoFinal ? tfhkaResponse?.resultado?.numeroControl : null;
+        const finalDoc = !esDuplicadoFinal ? (tfhkaResponse?.resultado?.numeroDocumento || String(seq)) : String(seq);
 
-        // TFHKA rechazó el documento (p.ej. 203 sin rango): NO marcar como emitida
-        if (!finalControl) {
-          const msg = `TFHKA ${tfhkaResponse?.codigo || ''}: ${(tfhkaResponse?.validaciones || []).join('; ') || tfhkaResponse?.mensaje || 'respuesta sin número de control'}`;
+        // TFHKA rechazó el documento (p.ej. 203 sin rango o 201 duplicado): NO marcar como emitida
+        if (!finalControl || esDuplicadoFinal) {
+          const msg = `TFHKA ${tfhkaResponse?.codigo || ''}: ${(tfhkaResponse?.validaciones || []).join('; ') || tfhkaResponse?.mensaje || 'respuesta sin número de control único'}`;
           throw new Error(msg);
         }
 

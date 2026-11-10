@@ -22,18 +22,33 @@ async function siguienteNumeroDocumento(sb: any): Promise<number> {
     const ultTfhka = await TheFactoryHKA.ultimoDocumento('', '01');
     let ultDb = 0;
     try {
-      const { data } = await sb
-        .from('pagos_reportados')
-        .select('detalles')
-        .not('detalles->factura_digital->tfhka_seq', 'is', null)
-        .order('created_at', { ascending: false })
-        .limit(100);
+      const [{ data: recentRows }, { data: maxDocRows }] = await Promise.all([
+        sb
+          .from('pagos_reportados')
+          .select('detalles')
+          .not('detalles->factura_digital->tfhka_seq', 'is', null)
+          .order('created_at', { ascending: false })
+          .limit(300),
+        sb
+          .from('pagos_reportados')
+          .select('detalles')
+          .like('detalles->factura_digital->>numero_documento', '9000%')
+          .order('detalles->factura_digital->>numero_documento', { ascending: false })
+          .limit(100),
+      ]);
 
-      for (const row of data || []) {
+      const combined = [...(recentRows || []), ...(maxDocRows || [])];
+      for (const row of combined) {
         const d = row?.detalles;
         const parsed = typeof d === 'string' ? JSON.parse(d) : d;
-        const seq = parseInt(String(parsed?.factura_digital?.tfhka_seq ?? parsed?.factura_digital?.numeroDocumento ?? 0), 10) || 0;
+        const seq = parseInt(String(parsed?.factura_digital?.tfhka_seq ?? parsed?.factura_digital?.numero_documento ?? parsed?.factura_digital?.numeroDocumento ?? 0), 10) || 0;
         if (seq > ultDb) ultDb = seq;
+        if (Array.isArray(parsed?.facturas_digitales_previas)) {
+          for (const prev of parsed.facturas_digitales_previas) {
+            const pSeq = parseInt(String(prev?.tfhka_seq ?? prev?.numero_documento ?? 0), 10) || 0;
+            if (pSeq > ultDb) ultDb = pSeq;
+          }
+        }
       }
     } catch { /* sin registros */ }
 
@@ -2030,38 +2045,51 @@ export async function POST(request: Request) {
     if (isTfhkaEnabled) {
       console.log(`[TFHKA] Enviando Factura Real para pago ${pagoId}`);
       try {
-        // Evitar doble emisión real del mismo pago (si está anulada, si proviene de demo o se solicita reemitir, sí se permite emitir nueva factura oficial)
+        // Evitar doble emisión real del mismo pago (si está anulada, si proviene de demo/201 duplicado o se solicita reemitir, sí se permite emitir nueva factura oficial)
         const esDemoPrevio = String(nuevosDetalles.factura_digital?.url || '').includes('demo');
-        if (!reemitir && !esDemoPrevio && nuevosDetalles.factura_digital?.emitida && nuevosDetalles.factura_digital?.tfhka_seq && !nuevosDetalles.factura_digital?.simulated && !nuevosDetalles.factura_digital?.anulada) {
+        const esDuplicadoPrevio = String(nuevosDetalles.factura_digital?.raw_response?.codigo || '') === '201';
+        if (!reemitir && !esDemoPrevio && !esDuplicadoPrevio && nuevosDetalles.factura_digital?.emitida && nuevosDetalles.factura_digital?.tfhka_seq && !nuevosDetalles.factura_digital?.simulated && !nuevosDetalles.factura_digital?.anulada) {
           return NextResponse.json({ success: true, yaEmitida: true, url: nuevosDetalles.factura_digital.url, numeroControl: nuevosDetalles.factura_digital.numero_control });
         }
 
         let seq = await siguienteNumeroDocumento(supabase);
         let tfhkaResponse: any = null;
-        for (let intento = 0; intento < 25; intento++) {
+        for (let intento = 0; intento < 35; intento++) {
           jsonTFHKA.documentoElectronico.Encabezado.IdentificacionDocumento.NumeroDocumento = String(seq);
           tfhkaResponse = await TheFactoryHKA.emitirDocumento(jsonTFHKA.documentoElectronico);
-          if (tfhkaResponse?.resultado?.numeroControl) break;
+          const respCode = String(tfhkaResponse?.codigo || '').trim();
           const val = JSON.stringify(tfhkaResponse?.validaciones || tfhkaResponse?.mensaje || '').toLowerCase();
-          // Número de documento repetido o enviado previamente → probar el siguiente
-          if (
+          const esDuplicadoTfhka =
+            respCode === '201' ||
+            /documento duplicado/i.test(String(tfhkaResponse?.mensaje || '')) ||
             (/(existe|duplic|registrad|utilizad)/.test(val) && /n[uú]mero/.test(val)) ||
-            /enviado previamente/i.test(val) ||
-            String(tfhkaResponse?.codigo) === '99'
-          ) {
-            seq++;
+            /enviado previamente/i.test(val);
+
+          // IMPORTANTE: Si TFHKA devuelve 201 (Documento duplicado), el resultado contiene el numeroControl y urlConsulta
+          // de OTRO contribuyente que usó ese correlativo antes. ¡NUNCA aceptar 201 como emisión válida!
+          if (tfhkaResponse?.resultado?.numeroControl && !esDuplicadoTfhka && respCode === '200') {
+            ultimoAsignadoMemoria = Math.max(ultimoAsignadoMemoria, seq);
+            break;
+          }
+
+          if (esDuplicadoTfhka || respCode === '99') {
+            const ultRemoto = await TheFactoryHKA.ultimoDocumento('', '01');
+            seq = Math.max(seq + 1, (ultRemoto ?? 0) + 1, ultimoAsignadoMemoria + 1);
+            ultimoAsignadoMemoria = seq;
             continue;
           }
           break;
         }
 
-        const finalUrl = tfhkaResponse?.resultado?.urlConsulta;
-        const finalControl = tfhkaResponse?.resultado?.numeroControl;
-        const finalDoc = tfhkaResponse?.resultado?.numeroDocumento || String(seq);
+        const respCodeFinal = String(tfhkaResponse?.codigo || '').trim();
+        const esDuplicadoFinal = respCodeFinal === '201' || /documento duplicado/i.test(String(tfhkaResponse?.mensaje || ''));
+        const finalUrl = !esDuplicadoFinal ? tfhkaResponse?.resultado?.urlConsulta : null;
+        const finalControl = !esDuplicadoFinal ? tfhkaResponse?.resultado?.numeroControl : null;
+        const finalDoc = !esDuplicadoFinal ? (tfhkaResponse?.resultado?.numeroDocumento || String(seq)) : String(seq);
 
-        // TFHKA rechazó el documento (p.ej. 203 sin rango): NO marcar como emitida
-        if (!finalControl) {
-          const msg = `TFHKA ${tfhkaResponse?.codigo || ''}: ${(tfhkaResponse?.validaciones || []).join('; ') || tfhkaResponse?.mensaje || 'respuesta sin número de control'}`;
+        // TFHKA rechazó el documento o devolvió duplicado (201) tras todos los intentos: NO marcar como emitida ni asociar factura ajena
+        if (!finalControl || esDuplicadoFinal) {
+          const msg = `TFHKA ${tfhkaResponse?.codigo || ''}: ${(tfhkaResponse?.validaciones || []).join('; ') || tfhkaResponse?.mensaje || 'respuesta sin número de control único'}`;
           throw new Error(msg);
         }
 
