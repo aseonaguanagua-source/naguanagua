@@ -689,6 +689,12 @@ function Ficha() {
               <div className="flex justify-between"><span>Multas {e.quienPaga.multa === 'UNIDAD' ? '(las paga cada unidad)' : ''}</span><b className="tabular-nums">Bs {fmtBs(e.totales.multaBs)}</b></div>
               {e.totales.ivaBs > 0 && <div className="flex justify-between text-blue-700"><span>IVA 16%</span><b className="tabular-nums">Bs {fmtBs(e.totales.ivaBs)}</b></div>}
               {e.totales.retencionBs > 0 && <div className="flex justify-between text-violet-700"><span>Retención IVA</span><b className="tabular-nums">− Bs {fmtBs(e.totales.retencionBs)}</b></div>}
+              {Number(c.abono_bs || 0) >= 1 && (
+                <div className="flex justify-between text-emerald-700 font-bold border-t border-slate-100 pt-1 mt-1">
+                  <span>💳 Notas de Crédito</span>
+                  <b className="tabular-nums">Bs {fmtBs(c.abono_bs)}</b>
+                </div>
+              )}
               <div className="text-[10px] text-slate-400 pt-1">Tasa BCV: Bs {fmtBs(e.tasa)}</div>
             </div>
           </div>
@@ -1216,6 +1222,11 @@ function Ficha() {
                                         </span>
                                       )
                                     )}
+                                    {!m._esAnulado && Number(p?.detalles?.saldo_favor || p?.detalles?.saldo_favor_generado || p?.detalles?.saldo_a_favor_nuevo || 0) >= 1 && (
+                                      <span className="inline-block font-mono font-bold text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                        💳 Nota de Crédito: Bs {fmtBs(Number(p?.detalles?.saldo_favor || p?.detalles?.saldo_favor_generado || p?.detalles?.saldo_a_favor_nuevo || 0))}
+                                      </span>
+                                    )}
                                     {m._esAnulado && (
                                       <span className="inline-block text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-300">
                                         Factura / Pago Anulado
@@ -1507,6 +1518,13 @@ function Ficha() {
                                                 Fact. N° {facturaDoc}
                                               </span>
                                             )}
+                                          </div>
+                                        )}
+                                        {!facturaAnulada && !esRechazado && Number(det.saldo_favor || det.saldo_favor_generado || det.saldo_a_favor_nuevo || 0) >= 1 && (
+                                          <div className="mt-1">
+                                            <span className="inline-block font-mono font-bold text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                              💳 Nota de Crédito: Bs {fmtBs(Number(det.saldo_favor || det.saldo_favor_generado || det.saldo_a_favor_nuevo || 0))}
+                                            </span>
                                           </div>
                                         )}
                                       </div>
