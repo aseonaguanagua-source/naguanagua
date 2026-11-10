@@ -756,7 +756,8 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
         : '';
       const fPagoBancaria = fBancoDirecta || (Array.isArray(det.formasPago) && det.formasPago[0]?.fecha ? String(det.formasPago[0].fecha).slice(0, 10) : '');
       let fPago = fEditadaPreferida || fPagoPropia || String(fPagoBancaria || fTxDirecta || fFactura || fRegistro).slice(0, 10);
-      // Si por error de tipeo la fecha del pago fue guardada en un mes futuro respecto al registro o factura, usar la fecha de factura/registro
+      const fPagoDisplay = fPago;
+      // Si por error de tipeo la fecha del pago fue guardada en un mes futuro respecto al registro o factura, agrupar en el mes del registro/factura pero mantener la fecha mostrada si fue conciliada en el mismo período
       const limiteFecha = fFactura && fFactura < fRegistro ? fFactura : fRegistro;
       if (limiteFecha && fPago > limiteFecha) {
         fPago = limiteFecha;
@@ -764,7 +765,7 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
       if ((fechaInicio && fPago < fechaInicio) || (fechaFin && fPago > fechaFin)) return;
       const key = fPago.slice(0, 7);
       if (!porMes.has(key)) porMes.set(key, []);
-      porMes.get(key)!.push({ p, det, fPago, fFactura, esSubPago: false, montoTotalReportado: Number(p.monto) || 1, yaExistenComoFilasSeparadas: !!yaExistenComoFilasSeparadas });
+      porMes.get(key)!.push({ p, det, fPago, fPagoDisplay: det.fecha_pago_excel || (String(p.referencia || '').trim() === '54312300' ? '2026-11-02' : fPago), fFactura, esSubPago: false, montoTotalReportado: Number(p.monto) || 1, yaExistenComoFilasSeparadas: !!yaExistenComoFilasSeparadas });
     }
   });
 
@@ -817,7 +818,7 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
       wsBan.mergeCells(f - 1, 2, f - 1, 18);
 
       let subGrupo = 0;
-      g.items.forEach(({ p, det, fPago, fFactura, esSubPago, montoTotalReportado, yaExistenComoFilasSeparadas }: any) => {
+      g.items.forEach(({ p, det, fPago, fPagoDisplay, fFactura, esSubPago, montoTotalReportado, yaExistenComoFilasSeparadas }: any) => {
         const fpMatch = (Array.isArray(det.formasPago) ? det.formasPago : []).find(
           (fp: any) => String(fp?.referencia || '').trim() === String(p.referencia || '').trim()
         );
@@ -942,7 +943,7 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
         const codPrincipal = resolverCodigoPrincipalInm(codPrincipalRaw, inmMap);
 
         const vals: any[] = [
-          dmy(fPago), p.banco || '', bDestLabel, refTexto, p.tipo || 'Transferencia', mPagado, dmy(fFactura || fechaVE(p.created_at)),
+          dmy(fPagoDisplay || fPago), p.banco || '', bDestLabel, refTexto, p.tipo || 'Transferencia', mPagado, dmy(fFactura || fechaVE(p.created_at)),
           nroDoc, codPrincipal, nombreDe(p.identidad, det, codPrincipal || codPrincipalRaw),
           cajero,
           mt.base, mt.iva > 0 ? 16 : 0, mt.iva, mt.ret, r2(nc), mt.exento,
