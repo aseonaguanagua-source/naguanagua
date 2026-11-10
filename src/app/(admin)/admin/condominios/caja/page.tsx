@@ -73,6 +73,8 @@ function Caja() {
     if (!fecha) return;
     const hoy = hoyCaracas();
     if (fecha > hoy) { alert('No se puede usar una fecha futura.'); return; }
+    setFechaTransaccionAct(fecha);
+    setFechaAct(fecha);
     if (fecha === hoy) { setTasaOverrideStr(''); setTasaFechaInfo(''); return; }
     setCargandoTasaFecha(true);
     try {
@@ -101,9 +103,9 @@ function Caja() {
   const [referenciaAct, setReferenciaAct] = useState('');
   const [montoAct, setMontoAct] = useState('');
   const [comprobanteAct, setComprobanteAct] = useState<File | null>(null);
-  const [fechaAct, setFechaAct] = useState(new Date().toISOString().slice(0, 10));
-  const [fechaTransaccionAct, setFechaTransaccionAct] = useState(new Date().toISOString().slice(0, 10));
-  const [fechaIngresoCajaAct, setFechaIngresoCajaAct] = useState(new Date().toISOString().slice(0, 10));
+  const [fechaAct, setFechaAct] = useState(hoyCaracas);
+  const [fechaTransaccionAct, setFechaTransaccionAct] = useState(hoyCaracas);
+  const [fechaIngresoCajaAct, setFechaIngresoCajaAct] = useState(hoyCaracas);
   // interruptor
   const [modalInt, setModalInt] = useState(false);
   const [motivoInt, setMotivoInt] = useState('');

@@ -1188,16 +1188,24 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         updatedDet.banco_receptor = bancoReceptor;
       }
       const fCreacionPago = pago.created_at ? normalizarFechaYMD(pago.created_at) : '';
-      const fTxOriginal = det?.fecha_transaccion ? normalizarFechaYMD(det.fecha_transaccion) : '';
-      const fBancoOriginal = det?.fecha_banco ? normalizarFechaYMD(det.fecha_banco) : '';
+      const fTxInicial = normalizarFechaYMD(fechaTransaccionDe(det, pago.created_at) || hoyCaracasStr);
+      const fBancoInicial = normalizarFechaYMD(det?.fecha_banco || fechaTransaccionDe(det, pago.created_at) || hoyCaracasStr);
       const fBancoNorm = normalizarFechaYMD(fechaBanco);
       const fTxNorm = normalizarFechaYMD(fechaTransaccion);
-      // Si el operador cambió Fecha en Banco pero no tocó Fecha Transacción, sincronizar ambas a la nueva Fecha en Banco
-      const fechaTxConciliada = (fBancoNorm && fBancoNorm !== fBancoOriginal && fTxNorm === fTxOriginal)
+      const txCambio = Boolean(fTxNorm && fTxNorm !== fTxInicial);
+      const bancoCambio = Boolean(fBancoNorm && fBancoNorm !== fBancoInicial);
+      // Si el operador cambió Fecha Transacción pero no tocó Fecha en Banco, sincronizar ambas a Fecha Transacción.
+      // Si el operador cambió Fecha en Banco pero no tocó Fecha Transacción, sincronizar ambas a Fecha en Banco.
+      const fechaTxConciliada = (txCambio && !bancoCambio)
+        ? fTxNorm
+        : (bancoCambio && !txCambio)
         ? fBancoNorm
-        : (fBancoNorm && (fTxNorm === hoyCaracasStr || fTxNorm === fCreacionPago))
+        : (!txCambio && fBancoNorm && (fTxNorm === hoyCaracasStr || fTxNorm === fCreacionPago))
         ? fBancoNorm
         : (fTxNorm || fBancoNorm);
+      const fechaBancoConciliada = (txCambio && !bancoCambio)
+        ? fTxNorm
+        : (fBancoNorm || fechaTxConciliada);
       if (fechaTxConciliada) {
         updatedDet.fecha_transaccion = fechaTxConciliada;
         if (Array.isArray(updatedDet.recibo_caja) && updatedDet.recibo_caja.length > 0 && !updatedDet.factura_digital?.emitida) {
@@ -1208,13 +1216,13 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
           }));
         }
       }
-      if (fBancoNorm) {
-        updatedDet.fecha_banco = fBancoNorm;
+      if (fechaBancoConciliada) {
+        updatedDet.fecha_banco = fechaBancoConciliada;
       }
 
       if (Array.isArray(updatedDet.formasPago) && updatedDet.formasPago.length === 1) {
         const esDeb = /d[eé]bito|punto/i.test(String(tipoPagoEdit || ''));
-        const fForma = fBancoNorm || fechaTxConciliada;
+        const fForma = fechaTxConciliada || fechaBancoConciliada;
         updatedDet.formasPago = [{
           ...updatedDet.formasPago[0],
           ...(fForma ? { fecha: `${fForma}T12:00:00.000Z` } : {}),
@@ -1227,7 +1235,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         }];
       }
       if (Array.isArray(updatedDet.pagos_agregados) && updatedDet.pagos_agregados.length === 1) {
-        const fPa = fBancoNorm || fechaTxConciliada;
+        const fPa = fechaTxConciliada || fechaBancoConciliada;
         if (fPa) {
           updatedDet.pagos_agregados = [{
             ...updatedDet.pagos_agregados[0],
@@ -1248,7 +1256,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         };
         await actualizarPago(pago.id, payloadEdicion);
         alert('¡Datos y referencia del pago actualizados exitosamente!');
-        onClose();
+        onSuccess();
         return;
       }
 
@@ -2086,10 +2094,24 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
                   min="2020-01-01"
                   max="2030-12-31"
                   value={fechaTransaccion}
-                  onChange={e => setFechaTransaccion(e.target.value)}
+                  onChange={e => {
+                    const val = e.target.value;
+                    const prevTx = fechaTransaccion;
+                    setFechaTransaccion(val);
+                    const fCreacion = pago.created_at ? String(pago.created_at).slice(0, 10) : '';
+                    if (val && (!fechaBanco || fechaBanco === prevTx || fechaBanco === hoyCaracasStr || fechaBanco === fCreacion)) {
+                      setFechaBanco(val);
+                    }
+                  }}
                   onBlur={e => {
                     const fixed = normalizarFechaYMD(e.target.value);
-                    if (fixed && fixed !== e.target.value) setFechaTransaccion(fixed);
+                    if (fixed && fixed !== e.target.value) {
+                      setFechaTransaccion(fixed);
+                      const fCreacion = pago.created_at ? String(pago.created_at).slice(0, 10) : '';
+                      if (!fechaBanco || fechaBanco === hoyCaracasStr || fechaBanco === fCreacion || fechaBanco === e.target.value) {
+                        setFechaBanco(fixed);
+                      }
+                    }
                   }}
                   className={ic}
                 />
@@ -2102,9 +2124,10 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
                   value={fechaBanco}
                   onChange={e => {
                     const val = e.target.value;
+                    const prevBanco = fechaBanco;
                     setFechaBanco(val);
                     const fCreacion = pago.created_at ? String(pago.created_at).slice(0, 10) : '';
-                    if (val && (!fechaTransaccion || fechaTransaccion === hoyCaracasStr || fechaTransaccion === fCreacion)) {
+                    if (val && (!fechaTransaccion || fechaTransaccion === prevBanco || fechaTransaccion === hoyCaracasStr || fechaTransaccion === fCreacion)) {
                       setFechaTransaccion(val);
                     }
                   }}
