@@ -219,12 +219,24 @@ export async function POST(req: Request) {
                 }
                 const prevMeses = Math.max(0, parseInt(String(prev.meses_deuda ?? 0), 10) || 0);
                 const curMeses = Math.max(0, parseInt(String(curInm?.meses_deuda ?? 0), 10) || 0);
-                // NUNCA rebajar meses_deuda por debajo de lo que el inmueble ya tiene actualmente en BD
-                const nMeses = Math.max(prevMeses, curMeses);
+
+                // Determinar cuántos meses cancelaba este pago específico para este inmueble
+                const targetCod = String(prev.inmueble || curInm?.inmueble || '').toUpperCase();
+                const mesesPagadosEnEstePago = recibos.filter((r: string) => {
+                  const m = String(r).match(/(?:RECIB-HIST|CM)-([A-Z0-9_-]+?)(?:-M\d+)?$/i);
+                  const cod = m?.[1]?.toUpperCase();
+                  return cod && cod === targetCod;
+                }).length || prevMeses || 1;
+
+                // Si curMeses > 0 (e.g. ya se generó o registró un nuevo mes posterior como octubre),
+                // al rechazar el pago anterior (septiembre) deben acumularse ambos meses
+                const nMeses = curMeses > 0 && curMeses !== prevMeses
+                  ? curMeses + mesesPagadosEnEstePago
+                  : Math.max(prevMeses, curMeses, mesesPagadosEnEstePago);
                 const mmvMes = parseFloat(String(curInm?.mmv_mes || 0)) || 0;
                 const prevDeudaMmv = parseFloat(String(prev.deuda_mmv || 0)) || 0;
                 const curDeudaMmv = parseFloat(String(curInm?.deuda_mmv || 0)) || 0;
-                const nDeudaMmv = nMeses > prevMeses && mmvMes > 0
+                const nDeudaMmv = mmvMes > 0
                   ? parseFloat((nMeses * mmvMes).toFixed(6))
                   : Math.max(prevDeudaMmv, curDeudaMmv);
 

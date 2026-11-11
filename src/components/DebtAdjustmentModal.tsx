@@ -100,7 +100,15 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
   }, [inmsBD, inmuebles, rowIdentidad, row]);
 
   // Selección de inmueble objetivo ('ALL' para todos, o código de inmueble específico)
-  const [targetInmCode, setTargetInmCode] = useState<string>('ALL');
+  const initialInm = row?.inmueble || row?.codigo_inmueble || row?.cod_inmueble || 'ALL';
+  const [targetInmCode, setTargetInmCode] = useState<string>(initialInm);
+
+  useEffect(() => {
+    const rInm = row?.inmueble || row?.codigo_inmueble || row?.cod_inmueble;
+    if (rInm && rInm !== targetInmCode && targetInmCode === 'ALL') {
+      setTargetInmCode(rInm);
+    }
+  }, [row]);
 
   // Inmueble representativo para calcular la tarifa mensual
   const activeInm = useMemo(() => {
@@ -395,8 +403,11 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
               const pExistente = mapaSrv[perYaPagado];
               const mLabel = allMonths.find(m => m.key === perYaPagado)?.label || perYaPagado;
               setPagosPorPeriodo(mapaSrv);
+              const extraHint = targetInmCode === 'ALL' && misInmuebles.length > 1
+                ? ` Este contribuyente posee múltiples inmuebles/locales. Si desea aplicar la deuda únicamente al inmueble deseado, selecciónelo arriba en "Aplicar Deuda a:".`
+                : '';
               throw new Error(
-                `No se puede agregar el período ${mLabel} (${perYaPagado}) al inmueble ${inm.inmueble}: ya fue cancelado en el sistema (${pExistente.etiqueta}) · Referencia: ${pExistente.referencia}.`
+                `No se puede agregar el período ${mLabel} (${perYaPagado}) al inmueble ${inm.inmueble}: ya fue cancelado en el sistema (${pExistente.etiqueta}) · Referencia: ${pExistente.referencia}.${extraHint}`
               );
             }
           }
@@ -657,22 +668,33 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
         <div className="p-4 sm:p-6 space-y-5 overflow-y-auto flex-1">
           {/* Selector de Inmueble si tiene varios */}
           {misInmuebles.length > 1 && (
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 sm:p-3.5">
-              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
-                <Building className="w-3.5 h-3.5 text-slate-500" />
-                <span>Aplicar Deuda a:</span>
+            <div className="bg-amber-50/70 border border-amber-300 rounded-xl p-3 sm:p-3.5 shadow-sm">
+              <label className="block text-[11px] font-bold text-amber-950 uppercase tracking-wide mb-1.5 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Building className="w-3.5 h-3.5 text-amber-700" />
+                  <span>Aplicar Deuda a:</span>
+                </span>
+                {targetInmCode === 'ALL' ? (
+                  <span className="text-[10px] text-amber-800 font-bold bg-amber-200/80 px-2 py-0.5 rounded">
+                    ⚠️ Afectará a TODOS los {misInmuebles.length} inmuebles
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-emerald-800 font-bold bg-emerald-100 px-2 py-0.5 rounded">
+                    ✓ Inmueble individual: {targetInmCode}
+                  </span>
+                )}
               </label>
               <select
                 value={targetInmCode}
                 onChange={e => setTargetInmCode(e.target.value)}
-                className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs font-semibold text-slate-800 focus:border-orange-500 outline-none"
+                className="w-full bg-white border border-amber-300 rounded-lg px-3 py-2 text-xs font-semibold text-slate-800 focus:border-amber-500 outline-none"
               >
-                <option value="ALL">✓ Todos los Inmuebles ({misInmuebles.length} registros)</option>
                 {misInmuebles.map((inm: any) => (
                   <option key={inm.id} value={inm.inmueble}>
-                    {inm.inmueble} — {inm.actividad_principal || inm.tipo || 'Inmueble'} ({inm.meses_deuda || 0} meses actuales)
+                    📍 Inmueble {inm.inmueble} — {inm.actividad_principal || inm.tipo || 'Inmueble'} ({inm.meses_deuda || 0} meses actuales)
                   </option>
                 ))}
+                <option value="ALL">⚠️ Todos los Inmuebles a la vez ({misInmuebles.length} registros)</option>
               </select>
             </div>
           )}
