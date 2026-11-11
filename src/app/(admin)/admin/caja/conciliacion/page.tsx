@@ -2534,6 +2534,24 @@ export default function ConciliacionPage() {
     try {
       const tieneTermino = Boolean(filtros.referencia && filtros.referencia.trim());
       const soloVerificacion = filtros.estatus === 'Por Verificar';
+
+      let extraMatchingIds: string[] = [];
+      if (tieneTermino) {
+        const term = filtros.referencia.trim();
+        if (/^[A-Za-z0-9_-]{3,}$/.test(term)) {
+          try {
+            const { data: dbInms } = await supabase
+              .from('inmuebles')
+              .select('identidad')
+              .or(`inmueble.ilike.%${term}%,cod_cont.ilike.%${term}%`)
+              .limit(50);
+            if (dbInms && dbInms.length > 0) {
+              extraMatchingIds = dbInms.map((i: any) => i.identidad).filter(Boolean);
+            }
+          } catch (_) {}
+        }
+      }
+
       const armar = () => {
         let q = supabase.from('pagos_reportados').select('*').neq('tipo', 'Retencion de IVA').order('created_at', { ascending: false }).limit(500);
         // Si hay búsqueda por término o se busca 'Por Verificar', no limitar por fecha
@@ -2568,7 +2586,7 @@ export default function ConciliacionPage() {
                                 (i.cod_cont || '').toLowerCase().includes(term.toLowerCase()))
             .map((i: any) => i.identidad)
             .filter(Boolean);
-          const allMatchingIds = Array.from(new Set([...rifsMatching, ...inmsMatching]));
+          const allMatchingIds = Array.from(new Set([...rifsMatching, ...inmsMatching, ...extraMatchingIds]));
 
           const orParts = [
             `referencia.ilike.%${term}%`,
@@ -2580,7 +2598,8 @@ export default function ConciliacionPage() {
             `detalles->>contribuyente_nombre.ilike.%${term}%`,
             `detalles->>codigo_inmueble.ilike.%${term}%`,
             `detalles->>cod_inmueble.ilike.%${term}%`,
-            `detalles->>inmueble.ilike.%${term}%`
+            `detalles->>inmueble.ilike.%${term}%`,
+            `detalles->>recibos.ilike.%${term}%`
           ];
           if (allMatchingIds.length > 0) {
             orParts.push(`identidad.in.(${allMatchingIds.slice(0, 50).join(',')})`);
@@ -2650,7 +2669,8 @@ export default function ConciliacionPage() {
           const condoCod = (condo?.codigo || det.condominio?.codigo || det.codigo_inmueble || det.cod_inmueble || det.inmueble || '').toLowerCase();
           const cont = (det.contribuyente || det.contribuyente_nombre || p.contribuyente || '').toLowerCase();
           const recibosStr = Array.isArray(det.recibos) ? det.recibos.join(' ').toLowerCase() : '';
-          return ref.includes(t) || iden.includes(t) || condoNom.includes(t) || condoCod.includes(t) || cont.includes(t) || recibosStr.includes(t);
+          const matchExtra = extraMatchingIds.some(emId => iden.includes(emId.toLowerCase()));
+          return ref.includes(t) || iden.includes(t) || condoNom.includes(t) || condoCod.includes(t) || cont.includes(t) || recibosStr.includes(t) || matchExtra;
         });
       }
       if (filtros.bancoDestino !== 'Todos') {
