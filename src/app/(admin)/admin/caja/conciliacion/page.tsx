@@ -95,6 +95,55 @@ function fmtFecha(iso: string | undefined) {
   } catch { return iso; }
 }
 
+export function parseMontoBusqueda(val: string): number | null {
+  if (!val) return null;
+  const s = String(val).trim();
+  if (!s) return null;
+  // Has both dot and comma: e.g. 46.233,63 or 46,233.63
+  if (s.includes('.') && s.includes(',')) {
+    const lastDot = s.lastIndexOf('.');
+    const lastComma = s.lastIndexOf(',');
+    if (lastComma > lastDot) {
+      // 46.233,63 -> comma is decimal
+      const clean = s.replace(/\./g, '').replace(',', '.');
+      const n = parseFloat(clean);
+      return isNaN(n) ? null : n;
+    } else {
+      // 46,233.63 -> dot is decimal
+      const clean = s.replace(/,/g, '');
+      const n = parseFloat(clean);
+      return isNaN(n) ? null : n;
+    }
+  }
+  // Has only comma: e.g. 46233,63
+  if (s.includes(',')) {
+    const parts = s.split(',');
+    if (parts.length > 2) {
+      const n = parseFloat(s.replace(/,/g, ''));
+      return isNaN(n) ? null : n;
+    }
+    const clean = s.replace(',', '.');
+    const n = parseFloat(clean);
+    return isNaN(n) ? null : n;
+  }
+  // Has only dot
+  if (s.includes('.')) {
+    const parts = s.split('.');
+    if (parts.length > 2) {
+      const n = parseFloat(s.replace(/\./g, ''));
+      return isNaN(n) ? null : n;
+    }
+    if (/^\d{1,3}\.\d{3}$/.test(s)) {
+      const n = parseFloat(s.replace('.', ''));
+      return isNaN(n) ? null : n;
+    }
+    const n = parseFloat(s);
+    return isNaN(n) ? null : n;
+  }
+  const n = parseFloat(s);
+  return isNaN(n) ? null : n;
+}
+
 function parseDetalles(raw: any): any {
   if (!raw) return {};
   if (typeof raw === 'string') {
@@ -2460,6 +2509,7 @@ export default function ConciliacionPage() {
     estatus: 'Todos', bancoDestino: 'Todos', formaPago: 'Todos', referencia: '', monto: '', modulo: 'Todos',
   });
   const [busquedaInput, setBusquedaInput] = useState('');
+  const [montoInput, setMontoInput] = useState('');
   const reqIdRef = useRef(0);
   const [pagoSel, setPagoSel] = useState<Pago | null>(null);
   const [mode, setMode] = useState<'conciliar'|'comprobante'|'edoCuenta'|null>(null);
@@ -2470,6 +2520,13 @@ export default function ConciliacionPage() {
     }, 350);
     return () => clearTimeout(timer);
   }, [busquedaInput]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setFiltros(f => (f.monto === montoInput ? f : { ...f, monto: montoInput }));
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [montoInput]);
 
   const fetchPagos = useCallback(async () => {
     const currentReqId = ++reqIdRef.current;
@@ -2530,7 +2587,18 @@ export default function ConciliacionPage() {
           }
           q = q.or(orParts.join(','));
         }
-        if (filtros.monto) q = q.eq('monto', filtros.monto);
+        if (filtros.monto) {
+          const montoNum = parseMontoBusqueda(filtros.monto);
+          if (montoNum !== null) {
+            const sRaw = String(filtros.monto).trim();
+            const tieneDecimales = sRaw.includes(',') || (sRaw.includes('.') && !/^\d{1,3}\.\d{3}$/.test(sRaw));
+            if (tieneDecimales) {
+              q = q.gte('monto', Number((montoNum - 0.05).toFixed(2))).lte('monto', Number((montoNum + 0.05).toFixed(2)));
+            } else {
+              q = q.gte('monto', Number((montoNum - 0.05).toFixed(2))).lte('monto', Number((montoNum + 0.99).toFixed(2)));
+            }
+          }
+        }
         return q;
       };
       let result: any[] = [];
@@ -2590,6 +2658,25 @@ export default function ConciliacionPage() {
           const det = parseDetalles(p.detalles);
           return (p.banco_destino || det.banco_destino || '').includes(filtros.bancoDestino.split(' - ')[0]);
         });
+      }
+      if (filtros.monto) {
+        const montoNum = parseMontoBusqueda(filtros.monto);
+        if (montoNum !== null) {
+          const sRaw = String(filtros.monto).trim();
+          const tieneDecimales = sRaw.includes(',') || (sRaw.includes('.') && !/^\d{1,3}\.\d{3}$/.test(sRaw));
+          result = result.filter((p: any) => {
+            const det = parseDetalles(p.detalles);
+            const mP = parseFloat(String(p.monto || 0)) || 0;
+            const mC = parseFloat(String(det.monto_conciliado || 0)) || 0;
+            const mT = parseFloat(String(det.montoTotal || 0)) || 0;
+            const subMontos = (Array.isArray(det.pagos_agregados) ? det.pagos_agregados : [])
+              .map((pa: any) => parseFloat(String(pa?.monto || 0)) || 0);
+            const fpMontos = (Array.isArray(det.formasPago) ? det.formasPago : [])
+              .map((fp: any) => parseFloat(String(fp?.monto || 0)) || 0);
+            const todosMontos = [mP, mC, mT, ...subMontos, ...fpMontos].filter(x => x > 0);
+            return todosMontos.some(val => Math.abs(val - montoNum) <= 0.05 || (!tieneDecimales && Math.floor(val) === Math.floor(montoNum)));
+          });
+        }
       }
       if (currentReqId !== reqIdRef.current) return;
       setPagos(result);
@@ -2897,7 +2984,7 @@ export default function ConciliacionPage() {
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
             <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-slate-50 rounded-t-xl">
               <span className="font-bold text-slate-700 text-sm uppercase tracking-wide flex items-center gap-2"><Filter size={15}/> Seleccione los Filtros</span>
-              <button onClick={fetchPagos} disabled={loading} className="flex items-center gap-2 bg-cyan-500 hover:bg-cyan-600 text-white px-4 py-2 rounded-lg font-semibold text-sm transition-colors disabled:opacity-50">
+              <button onClick={() => { setFiltros(f => ({ ...f, referencia: busquedaInput, monto: montoInput })); fetchPagos(); }} disabled={loading} className="flex items-center gap-2 bg-cyan-500 hover:bg-cyan-600 text-white px-4 py-2 rounded-lg font-semibold text-sm transition-colors disabled:opacity-50">
                 <Filter size={14}/> {loading ? 'Cargando...' : 'Aplicar Filtros'}
               </button>
             </div>
@@ -2938,7 +3025,34 @@ export default function ConciliacionPage() {
                   )}
                 </div>
               </div>
-              <div><label className="block text-xs font-semibold text-slate-500 mb-1">Monto</label><input value={filtros.monto} onChange={e=>setFiltros(f=>({...f,monto:e.target.value}))} placeholder="Monto exacto" type="number" className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-400" /></div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 mb-1">Monto</label>
+                <div className="relative">
+                  <input
+                    value={montoInput}
+                    onChange={e => setMontoInput(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        setFiltros(f => ({ ...f, monto: montoInput }));
+                      }
+                    }}
+                    placeholder="Ej: 46.233,63"
+                    type="text"
+                    inputMode="decimal"
+                    className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs pr-6 focus:outline-none focus:ring-1 focus:ring-cyan-400"
+                  />
+                  {montoInput && (
+                    <button
+                      type="button"
+                      onClick={() => { setMontoInput(''); setFiltros(f => ({ ...f, monto: '' })); }}
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold w-4 h-4 flex items-center justify-center rounded-full hover:bg-slate-200"
+                      title="Limpiar monto"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              </div>
               <div><label className="block text-xs font-semibold text-emerald-700 mb-1">Módulo</label><select id="filtro-modulo-conciliacion" value={filtros.modulo} onChange={e=>setFiltros(f=>({...f,modulo:e.target.value as FiltroModulo}))} className="w-full border border-emerald-300 bg-emerald-50/40 rounded px-2 py-1.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-400">{FILTROS_MODULO.map(x=><option key={x}>{x}</option>)}</select></div>
             </div>
           </div>
