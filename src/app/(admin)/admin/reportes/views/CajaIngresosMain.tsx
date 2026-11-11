@@ -248,6 +248,7 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
     return pagos.filter(p => {
       // Excluir pagos anulados, reversados, condonados, rechazados o aún pendientes de verificar
       if (p.estado === 'Anulado' || p.estado === 'Reversado' || p.estado === 'Condonado' || p.estado === 'Rechazado' || p.estado === 'Por Verificar' || p.estado === 'Pendiente') return false;
+      const det = parseDet(p);
       // Filtrar según el criterio seleccionado:
       // - "registro": Fecha real en que se cobró/registró en Caja (p.created_at)
       // - "banco": Fecha bancaria del comprobante (fTxDate)
