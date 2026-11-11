@@ -270,8 +270,15 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
                         myName.includes(pCajLower) ||
                         (cajero && pCajLower === cajero.toLowerCase());
         if (!matches) return false;
-      } else if (cajero && pCajero !== cajero) {
-        return false;
+      } else if (cajero) {
+        const cLower = cajero.toLowerCase().trim();
+        const pCajLower = pCajero.toLowerCase().trim();
+        const matches = pCajLower === cLower ||
+                        pCajLower.endsWith(`-${cLower}`) ||
+                        cLower.endsWith(`-${pCajLower}`) ||
+                        pCajLower.includes(cLower) ||
+                        cLower.includes(pCajLower);
+        if (!matches) return false;
       }
       if (forma !== 'Todas') {
         if (forma === 'Tarjetas (Débito y Crédito)' && !isDebitoPago(p) && !isCreditoPago(p)) return false;

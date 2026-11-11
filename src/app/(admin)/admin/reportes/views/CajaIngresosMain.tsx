@@ -248,16 +248,15 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
     return pagos.filter(p => {
       // Excluir pagos anulados, reversados, condonados, rechazados o aún pendientes de verificar
       if (p.estado === 'Anulado' || p.estado === 'Reversado' || p.estado === 'Condonado' || p.estado === 'Rechazado' || p.estado === 'Por Verificar' || p.estado === 'Pendiente') return false;
-      const det = parseDet(p);
-      const fd = det.factura_digital || {};
-      const fOv = det.fecha_emision_override || det.fecha_asignacion_override || (fd.fecha_emision ? String(fd.fecha_emision).slice(0, 10) : '');
-      const d = (fOv && /^\d{4}-\d{2}-\d{2}$/.test(String(fOv))) ? new Date(`${String(fOv)}T12:00:00`) : new Date(p.created_at);
+      // Filtrar según el criterio seleccionado:
+      // - "registro": Fecha real en que se cobró/registró en Caja (p.created_at)
+      // - "banco": Fecha bancaria del comprobante (fTxDate)
+      const d = new Date(p.created_at);
       const fTx = det.fecha_transaccion || det.fecha_banco || '';
       const fTxYmd = fTx ? String(fTx).slice(0, 10) : '';
       const fTxDate = /^\d{4}-\d{2}-\d{2}$/.test(fTxYmd) ? new Date(fTxYmd + 'T12:00:00') : (fTx ? new Date(fTx) : null);
       const validFTxDate = fTxDate && !isNaN(fTxDate.getTime()) ? fTxDate : null;
       
-      // Filtrar según el criterio seleccionado: por Fecha de Registro en Caja o por Fecha Bancaria del Comprobante
       const fechaCoincide = criterioFecha === 'banco'
         ? (validFTxDate ? (validFTxDate >= s && validFTxDate <= e) : (d >= s && d <= e))
         : (d >= s && d <= e);
@@ -266,6 +265,14 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
 
       // Para debitos: det.cajero. Para transferencias conciliadas: det.analista o det.cajero
       const cajero = det.cajero || det.analista || '';
+      const normCaja = (s: string) => String(s || '').toLowerCase().replace(/^[a-z]-/i, '').trim();
+      const matchCajaTolerante = (c1: string, c2: string) => {
+        if (!c1 || !c2) return false;
+        const n1 = normCaja(c1);
+        const n2 = normCaja(c2);
+        return c1.toLowerCase() === c2.toLowerCase() || n1 === n2 || n1.includes(n2) || n2.includes(n1);
+      };
+
       if (!effectiveIsAdmin) {
         const myName = currentUser.toLowerCase();
         const pCajLower = cajero.toLowerCase();
@@ -273,10 +280,13 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
                         pCajLower.endsWith(`-${myName}`) ||
                         pCajLower.includes(myName) ||
                         myName.includes(pCajLower) ||
-                        (selectedCajas.length > 0 && selectedCajas.some(sc => sc.toLowerCase() === pCajLower));
+                        (selectedCajas.length > 0 && selectedCajas.some(sc => matchCajaTolerante(sc, cajero)));
         if (!matches) return false;
       }
-      if (effectiveIsAdmin && selectedCajas.length > 0 && !selectedCajas.includes(cajero)) return false;
+      if (effectiveIsAdmin && selectedCajas.length > 0) {
+        const matches = selectedCajas.some(sc => sc === cajero || matchCajaTolerante(sc, cajero));
+        if (!matches) return false;
+      }
       if (subTipo === 'Ingresos por Banco' && bancFilter) {
         const bd = det.banco_destino || det.banco_receptor || '';
         if (bd !== bancFilter) return false;
