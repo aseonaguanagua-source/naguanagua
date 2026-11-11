@@ -597,11 +597,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
                   }
                 }
               }
+              const dirInm = row.direccion;
+              if (dirInm && dirInm.trim().length > 3 && !dirInm.trim().startsWith('0 0') && !dirInm.trim().startsWith('2 000')) {
+                return dirInm.trim();
+              }
               const dirFiscal = row.contribuyentes?.direccion;
               if (dirFiscal && dirFiscal.trim().length > 3 && !dirFiscal.startsWith('0 0') && !dirFiscal.startsWith('2 000')) {
-                return dirFiscal;
+                return dirFiscal.trim();
               }
-              return dirFiscal || row.direccion || '';
+              return (dirInm || dirFiscal || '').trim();
             })(),
             Observaciones: row.contribuyentes?.observaciones || '',
             Actividad: act || 'No aplica',
@@ -1407,10 +1411,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
             );
             if (dirLocalCambio) {
               updatePayload.direccion = local.direccion;
+            } else if (local.direccion && String(local.direccion).trim() !== '') {
+              // Preservar la dirección física propia de este inmueble/local (no sobreescribir con otros códigos del mismo titular)
+              updatePayload.direccion = local.direccion;
             } else if ((data.locales.length === 1 || dirTopCambio) && data.Direccion && String(data.Direccion).trim() !== '') {
               updatePayload.direccion = data.Direccion;
-            } else if (local.direccion && String(local.direccion).trim() !== '') {
-              updatePayload.direccion = local.direccion;
             }
             if (local.telefono) {
               updatePayload.telefono = local.telefono;

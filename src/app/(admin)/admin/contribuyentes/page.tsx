@@ -2674,11 +2674,18 @@ function ContribuyentesPageContent() {
 
       if (cRow) {
         const dirContValida = cRow.direccion && cRow.direccion.trim().length > 3 && cRow.direccion.trim() !== '0 0' && cRow.direccion.trim() !== '0';
-        if (dirContValida && (!direccionEfectiva || direccionEfectiva === '0 0' || direccionEfectiva.trim() === '0' || /^0\s+0\b/.test(direccionEfectiva.trim()) || locales.length <= 1)) {
-          direccionEfectiva = cRow.direccion;
-          if (locales.length === 1) {
-            locales[0].direccion = cRow.direccion;
+        const rowDirValida = direccionEfectiva && direccionEfectiva.trim().length > 3 && direccionEfectiva.trim() !== '0 0' && direccionEfectiva.trim() !== '0' && !/^0\s+0\b/.test(direccionEfectiva.trim());
+
+        if (locales.length === 1) {
+          const loc0DirValida = locales[0]?.direccion && locales[0].direccion.trim().length > 3 && locales[0].direccion.trim() !== '0 0' && locales[0].direccion.trim() !== '0' && !/^0\s+0\b/.test(locales[0].direccion.trim());
+          if (loc0DirValida) {
+            direccionEfectiva = locales[0].direccion.trim();
+          } else if (dirContValida) {
+            locales[0].direccion = cRow.direccion.trim();
+            direccionEfectiva = cRow.direccion.trim();
           }
+        } else if (dirContValida && !rowDirValida) {
+          direccionEfectiva = cRow.direccion.trim();
         }
 
         const obs = cRow.observaciones || '';
