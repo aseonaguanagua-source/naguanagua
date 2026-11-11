@@ -1874,14 +1874,43 @@ export default function CajaPage() {
         });
         if (yaLiquidadoPosterior) return false;
 
+        // Si se buscó un código específico (isCodeFormat), aislar estrictamente por inmueble:
+        // El abono solo pertenece a esta consulta si pertenece a userInmCodes
+        const apCod = String(detObj?.codigo_inmueble || detObj?.cod_inmueble || '').toUpperCase();
+        const apRecs = Array.isArray(detObj?.recibos) ? detObj.recibos : [];
+        const apCodes = new Set<string>();
+        if (apCod) apCodes.add(apCod);
+        apRecs.forEach((r: string) => {
+          const m = String(r).match(/(?:RECIB-HIST|CM)-([A-Z0-9_-]+?)(?:-M\d+)?$/i);
+          if (m && m[1]) apCodes.add(m[1].toUpperCase());
+        });
+        if (isCodeFormat && userInmCodes.length > 0 && apCodes.size > 0) {
+          if (!userInmCodes.some(code => apCodes.has(code))) return false;
+        }
+
         const pIdentClean = String(p.identidad || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
         const pIdentNums = String(p.identidad || '').replace(/\D/g, '');
-        if (pIdentClean && cleanIdents.has(pIdentClean)) return true;
-        if (pIdentNums.length >= 4 && cleanIdents.has(pIdentNums)) return true;
+        if (pIdentClean && cleanIdents.has(pIdentClean)) {
+          if (isCodeFormat && userInmCodes.length > 0 && apCodes.size > 0 && !userInmCodes.some(code => apCodes.has(code))) {
+            return false;
+          }
+          return true;
+        }
+        if (pIdentNums.length >= 4 && cleanIdents.has(pIdentNums)) {
+          if (isCodeFormat && userInmCodes.length > 0 && apCodes.size > 0 && !userInmCodes.some(code => apCodes.has(code))) {
+            return false;
+          }
+          return true;
+        }
 
         const detStr = (typeof p.detalles === 'string' ? p.detalles : JSON.stringify(p.detalles || '')).toLowerCase();
         if (userInmCodes.some(code => code && detStr.includes(code))) return true;
-        if (contribNombre && contribNombre.length > 5 && detStr.includes(contribNombre)) return true;
+        if (contribNombre && contribNombre.length > 5 && detStr.includes(contribNombre)) {
+          if (isCodeFormat && userInmCodes.length > 0 && apCodes.size > 0 && !userInmCodes.some(code => apCodes.has(code))) {
+            return false;
+          }
+          return true;
+        }
         return false;
       });
       setAbonosAprobados(arrAbonosAprob);
@@ -1899,7 +1928,15 @@ export default function CajaPage() {
             notaTasaAbono = String(detObj.nota_cambio_tasa || 'Tasa BCV aplicada en abono previo');
           }
           if (Array.isArray(detObj.recibos)) {
-            detObj.recibos.forEach((r: string) => { if (r) recibosDeAbono.add(r); });
+            detObj.recibos.forEach((r: string) => {
+              if (r) {
+                if (isCodeFormat && userInmCodes.length > 0) {
+                  const m = String(r).match(/(?:RECIB-HIST|CM)-([A-Z0-9_-]+?)(?:-M\d+)?$/i);
+                  if (m && m[1] && !userInmCodes.includes(m[1].toUpperCase())) return;
+                }
+                recibosDeAbono.add(r);
+              }
+            });
           }
         });
         if (omitirSepAbono) setOmitirMultaSeptiembre(true);
@@ -2217,7 +2254,12 @@ export default function CajaPage() {
       abonosAprobados.forEach((ap: any) => {
         const detObj = typeof ap.detalles === 'string' ? (() => { try { return JSON.parse(ap.detalles); } catch { return {}; } })() : (ap.detalles || {});
         const recsAbono: string[] = Array.isArray(detObj.recibos) ? detObj.recibos : [];
-        const coincide = recsAbono.length === 0 || recsAbono.some((r: string) => selSet.has(r)) || selectedRecibos.includes('RECIB-DEUDA');
+        const apCod = String(detObj?.codigo_inmueble || detObj?.cod_inmueble || '').toUpperCase();
+
+        // Coincidencia estricta: debe coincidir algún recibo o el código del inmueble del abono debe estar en los recibos seleccionados
+        const coincideRecibo = recsAbono.length > 0 && recsAbono.some((r: string) => selSet.has(r));
+        const coincideInm = apCod && Array.from(selSet).some(r => r.toUpperCase().includes(apCod));
+        const coincide = coincideRecibo || coincideInm || (recsAbono.length === 0 && !apCod && selectedRecibos.includes('RECIB-DEUDA'));
         if (coincide) {
           totalAbonoPrevio = Math.round((totalAbonoPrevio + (parseFloat(ap.monto || detObj.monto_abonado || '0') || 0)) * 100) / 100;
         }
