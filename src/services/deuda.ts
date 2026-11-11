@@ -46,7 +46,8 @@ export function calcularMontoRecibo(
     if (totalDeudaMMV > 0) {
       const baseMonto = totalDeudaMMV * tasaBcv;
       const montoPendiente = calcularMontoPendiente(recibo.referencia, pagosPendientes);
-      return Math.max(0, baseMonto - montoPendiente);
+      if (montoPendiente > 0) return 0;
+      return baseMonto;
     }
     return parseFloat(String(recibo.monto || '0').replace(/[^\d.]/g, '')) || 0;
   }
@@ -68,7 +69,8 @@ export function calcularMontoRecibo(
 
     if (totalMesConIva > 0) {
       const montoPendiente = calcularMontoPendiente(recibo.referencia, pagosPendientes);
-      return Math.max(0, totalMesConIva - montoPendiente);
+      if (montoPendiente > 0) return 0;
+      return totalMesConIva;
     }
   }
 

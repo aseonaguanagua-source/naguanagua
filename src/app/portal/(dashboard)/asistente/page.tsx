@@ -238,6 +238,18 @@ export default function AsistenteGlobalPage() {
 
         const recibosPend = rc.recibos || [];
         const pagosVerif = (pagosDB || []).filter((p: any) => p.estado === 'Por Verificar');
+        const isReciboPendingVerif = (ref: string): boolean => {
+          const cleanRef = String(ref || '').trim().toUpperCase();
+          if (!cleanRef) return false;
+          return pagosVerif.some((p: any) => {
+            let det: any = {};
+            try { det = typeof p.detalles === 'string' ? JSON.parse(p.detalles) : (p.detalles || {}); } catch (_) {}
+            const refs: string[] = Array.isArray(det.recibos) ? det.recibos : [];
+            if (refs.some((x: string) => String(x || '').trim().toUpperCase() === cleanRef)) return true;
+            if (p.referencia && String(p.referencia).trim().toUpperCase() === cleanRef) return true;
+            return false;
+          });
+        };
 
         let totalBaseBs = 0;
         let totalMultaBs = 0;
@@ -248,6 +260,11 @@ export default function AsistenteGlobalPage() {
         const deudaPorInmMap = new Map<string, { deudaBs: number; multaBs: number; meses: number }>();
 
         for (const r of recibosPend) {
+          // Si el recibo ya está reportado y en verificación, no sumarlo como deuda pendiente
+          if (r.estado === 'Por Verificar' || isReciboPendingVerif(r.referencia)) {
+            continue;
+          }
+
           let baseMes = 0;
           let multaMes = 0;
           let ivaMes = 0;

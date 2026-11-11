@@ -315,13 +315,17 @@ export default function DondePagarPage() {
 
   // Función para determinar si una referencia está en pagos en verificación
   const isItemPending = (ref: string): boolean => {
+    const cleanRef = String(ref || '').trim().toUpperCase();
+    if (!cleanRef) return false;
     return pagosPorVerificar.some((p: any) => {
       let det: any = {};
       try {
         det = typeof p.detalles === 'string' ? JSON.parse(p.detalles) : (p.detalles || {});
       } catch (_) {}
-      const refs: string[] = det.recibos || [];
-      return refs.includes(ref);
+      const refs: string[] = Array.isArray(det.recibos) ? det.recibos : [];
+      if (refs.some((r: string) => String(r || '').trim().toUpperCase() === cleanRef)) return true;
+      if (p.referencia && String(p.referencia).trim().toUpperCase() === cleanRef) return true;
+      return false;
     });
   };
 
@@ -489,7 +493,7 @@ export default function DondePagarPage() {
       const isUnified = c.inms.length > 1;
       const allReceiptRefs = c.receipts.map((r) => r.referencia);
       const selectableReceipts = c.receipts.filter((r) => !isItemPending(r.referencia));
-      const totalBs = (selectableReceipts.length > 0 ? selectableReceipts : c.receipts).reduce((s, r) => s + getReciboMonto(r), 0);
+      const totalBs = selectableReceipts.reduce((s, r) => s + getReciboMonto(r), 0);
 
       // Si no es unificado, estructurar lista directa de recibos
       if (!isUnified) {
@@ -573,11 +577,12 @@ export default function DondePagarPage() {
         const inmMatch = c.inms.find((i) => i.inmueble === inmId);
         const monto = getReciboMonto(r);
 
-        if (isItemPending(r.referencia)) {
+        const itemPending = isItemPending(r.referencia);
+        if (itemPending) {
           monthMap[mKey].anyPending = true;
+        } else {
+          monthMap[mKey].totalBs += monto;
         }
-
-        monthMap[mKey].totalBs += monto;
         monthMap[mKey].receiptRefs.push(r.referencia);
         monthMap[mKey].items.push({
           id: r.id || r.referencia,
@@ -1465,20 +1470,28 @@ export default function DondePagarPage() {
                           </div>
                         ) : (
                           <div className="flex items-center gap-2 self-end sm:self-center">
-                            <span className="text-xs font-black text-slate-700 bg-white px-2.5 py-1 rounded-lg border border-slate-200 whitespace-nowrap">
-                              Bs. {formatBs(group.totalBs)}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => toggleLocalAll(group.allReceiptRefs)}
-                              className={`text-[11px] font-bold px-2.5 py-1 rounded transition-colors whitespace-nowrap border ${
-                                allGroupSelected 
-                                  ? 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700' 
-                                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
-                              }`}
-                            >
-                              {allGroupSelected ? 'Deseleccionar' : 'Elegir Todo'}
-                            </button>
+                            {group.allReceiptRefs.length > 0 && group.allReceiptRefs.every(r => isItemPending(r)) ? (
+                              <span className="text-[10px] font-bold text-amber-800 bg-amber-100 border border-amber-300 px-2.5 py-1 rounded-lg whitespace-nowrap">
+                                En Verificación Bancaria
+                              </span>
+                            ) : (
+                              <>
+                                <span className="text-xs font-black text-slate-700 bg-white px-2.5 py-1 rounded-lg border border-slate-200 whitespace-nowrap">
+                                  Bs. {formatBs(group.totalBs)}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => toggleLocalAll(group.allReceiptRefs)}
+                                  className={`text-[11px] font-bold px-2.5 py-1 rounded transition-colors whitespace-nowrap border ${
+                                    allGroupSelected 
+                                      ? 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700' 
+                                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                                  }`}
+                                >
+                                  {allGroupSelected ? 'Deseleccionar' : 'Elegir Todo'}
+                                </button>
+                              </>
+                            )}
                           </div>
                         )}
                       </div>
@@ -1613,7 +1626,13 @@ export default function DondePagarPage() {
                                     </label>
 
                                     <span className="font-black text-xs text-slate-800 whitespace-nowrap">
-                                      Bs. {formatBs(month.totalBs)}
+                                      {isPending ? (
+                                        <span className="text-[10px] font-bold text-amber-800 bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded">
+                                          En Verificación
+                                        </span>
+                                      ) : (
+                                        `Bs. ${formatBs(month.totalBs)}`
+                                      )}
                                     </span>
                                   </div>
 
@@ -1625,7 +1644,13 @@ export default function DondePagarPage() {
                                           • <strong className="text-slate-700">{it.inmId}</strong>: {it.actividad}
                                         </span>
                                         <span className="font-mono text-slate-600 whitespace-nowrap">
-                                          Bs. {formatBs(it.monto)}
+                                          {isItemPending(it.referencia) ? (
+                                            <span className="text-[9px] font-bold text-amber-800 bg-amber-100 border border-amber-300 px-1 py-0.2 rounded">
+                                              En Verificación
+                                            </span>
+                                          ) : (
+                                            `Bs. ${formatBs(it.monto)}`
+                                          )}
                                         </span>
                                       </div>
                                     ))}
@@ -1674,7 +1699,13 @@ export default function DondePagarPage() {
                                         </span>
                                       </div>
                                       <span className="font-bold text-xs text-slate-800 whitespace-nowrap">
-                                        Bs. {formatBs(item.monto)}
+                                        {isPending ? (
+                                          <span className="text-[10px] font-bold text-amber-800 bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded">
+                                            En Verificación
+                                          </span>
+                                        ) : (
+                                          `Bs. ${formatBs(item.monto)}`
+                                        )}
                                       </span>
                                     </div>
                                     {isPending && (

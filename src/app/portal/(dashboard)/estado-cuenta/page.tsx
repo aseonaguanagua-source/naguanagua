@@ -288,7 +288,41 @@ export default function EstadoCuentaPage() {
     return porMesConRetencion(d)[idx] || null;
   };
 
+  // Función para determinar si una referencia o recibo está en verificación por un pago reportado
+  const isReceiptPending = (r: any): boolean => {
+    if (r?.estado === 'Por Verificar') return true;
+    const ref = String(r?.referencia || '').trim().toUpperCase();
+    if (!ref) return false;
+    return pagosPorVerificar.some((p: any) => {
+      let det: any = {};
+      try { det = typeof p.detalles === 'string' ? JSON.parse(p.detalles) : (p.detalles || {}); } catch (_) {}
+      const refs: string[] = Array.isArray(det.recibos) ? det.recibos : [];
+      if (refs.some((x: string) => String(x || '').trim().toUpperCase() === ref)) return true;
+      if (p.referencia && String(p.referencia).trim().toUpperCase() === ref) return true;
+      return false;
+    });
+  };
+
+  const getReciboMontoNominal = (r: any): number => {
+    if (r.estado === 'Abonado') return parseFloat(String(r.monto || '0').replace(/[^\d.]/g, '')) || 0;
+    const inmsSource = misInmuebles;
+    const currentRate = tasaBcv > 0 ? tasaBcv : 1;
+
+    if (r.referencia?.startsWith('RECIB-HIST-')) {
+      const pm = histMes(r);
+      if (pm) return pm.total;
+    } else if (r.referencia?.startsWith('CM-')) {
+      const d = desgloseReciboCM(r, inmsSource, currentRate);
+      return d.total;
+    }
+    return parseFloat(String(r.monto || '0').replace(/[^\d.]/g, '')) || 0;
+  };
+
   const getReciboMonto = (r: any): string => {
+    // Si el recibo ya fue reportado y está en verificación en Caja / Conciliación,
+    // su deuda a pagar es 0 mientras esté en verificación (no generar diferencia por cambio de tasa BCV).
+    if (isReceiptPending(r)) return '0.00';
+
     if (r.estado === 'Abonado') return String(parseFloat(String(r.monto || '0').replace(/[^\d.]/g, '')) || 0);
     const inmsSource = misInmuebles;
     const currentRate = tasaBcv > 0 ? tasaBcv : 1;
@@ -305,19 +339,7 @@ export default function EstadoCuentaPage() {
       baseMonto = parseFloat(String(r.monto || '0').replace(/[^\d.]/g, '')) || 0;
     }
 
-    // AHORA restamos los pagos pendientes
-    let montoPendiente = 0;
-    pagosPorVerificar.forEach((p) => {
-      let det: any = {};
-      try { det = typeof p.detalles === 'string' ? JSON.parse(p.detalles) : (p.detalles || {}); } catch (e) {}
-      const refs = det.recibos || [];
-      if (refs.includes(r.referencia)) {
-        const montoPago = parseFloat(String(p.monto || '0').replace(/[^0-9.]/g, '')) || 0;
-        if (refs.length > 0) montoPendiente += (montoPago / refs.length);
-      }
-    });
-
-    return String(Math.max(0, baseMonto - montoPendiente).toFixed(2));
+    return String(Math.max(0, baseMonto).toFixed(2));
   };
 
   const getReciboBreakdown = (r: any) => {
@@ -433,6 +455,8 @@ export default function EstadoCuentaPage() {
         recibo: any;
         inmueble: any;
         monto: number;
+        montoNominal?: number;
+        isEnVerificacion?: boolean;
         inmuDesc: string;
         referencia: string;
         vencimiento: string;
@@ -456,7 +480,9 @@ export default function EstadoCuentaPage() {
       const periodoKey = esMulta ? 'MULTA' : (f.emision ? f.emision.substring(0, 7) : 'MES');
       const groupKey = `${localId}__${periodoKey}`;
 
-      const montoNum = parseFloat(getReciboMonto(f)) || 0;
+      const fEnVerif = isReceiptPending(f);
+      const montoNum = fEnVerif ? 0 : (parseFloat(getReciboMonto(f)) || 0);
+      const montoNominal = getReciboMontoNominal(f);
       const inmuDesc = matchedInm
         ? cleanClasificacionActividad(matchedInm.actividad_principal || matchedInm.clasificacion || '')
         : '';
@@ -482,13 +508,16 @@ export default function EstadoCuentaPage() {
 
       const group = groupsMap.get(groupKey)!;
       group.totalBs += montoNum;
-      if (montoNum > 0 || f.estado === 'Abonado' || f.estado === 'Pagado') {
+      // Solo si el recibo NO está en verificación y tiene saldo pendiente, el grupo deja de estar en verificación
+      if (!fEnVerif && (montoNum > 0 || f.estado === 'Abonado' || f.estado === 'Pagado')) {
         group.isEnVerificacion = false;
       }
       group.items.push({
         recibo: f,
         inmueble: matchedInm,
         monto: montoNum,
+        montoNominal,
+        isEnVerificacion: fEnVerif,
         inmuDesc,
         referencia: f.referencia,
         vencimiento: f.vencimiento,
@@ -1402,7 +1431,7 @@ export default function EstadoCuentaPage() {
           : allRecibosGrupos.filter(g => g.localId === selectedLocal);
 
         const currentPendBs = targetGrupos.reduce((acc: number, g: any) => acc + g.totalBs, 0);
-        const targetItems = targetGrupos.flatMap(g => g.items.map(it => it.recibo));
+        const targetItems = targetGrupos.flatMap(g => g.items.filter(it => !it.isEnVerificacion).map(it => it.recibo));
         const ivaTot = targetItems.reduce((s: number, f: any) => s + getReciboBreakdown(f).ivaMes, 0);
         const retTot = targetItems.reduce((s: number, f: any) => s + getReciboBreakdown(f).retencionMes, 0);
         const targetLocalIds = Array.from(new Set(targetGrupos.map(g => g.localId)));
@@ -1411,6 +1440,7 @@ export default function EstadoCuentaPage() {
         const notaCredAplicableBs = Math.min(notaCredDispBs, Math.max(0, netoSinNota));
         const totalNetoFinalBs = Math.max(0, Math.round((netoSinNota - notaCredAplicableBs) * 100) / 100);
         const recibosGrupos = targetGrupos;
+        const todosEnVerif = targetGrupos.length > 0 && targetGrupos.every(g => g.isEnVerificacion);
 
         return (
           <div className="bg-white rounded-xl shadow-sm border border-red-200 overflow-hidden">
@@ -1419,7 +1449,13 @@ export default function EstadoCuentaPage() {
               <h3 className="font-bold text-red-700 uppercase text-sm tracking-wide">
                 Recibos Pendientes {selectedLocal !== 'TODOS' ? `(${selectedLocal})` : ''}
               </h3>
-              <span className="ml-auto text-xs font-bold text-red-600">Total a Cancelar: Bs. {formatBs(totalNetoFinalBs)}</span>
+              {todosEnVerif ? (
+                <span className="ml-auto text-xs font-bold text-amber-800 bg-amber-100 border border-amber-300 px-2.5 py-1 rounded-md">
+                  En Verificación Bancaria (Sin diferencias)
+                </span>
+              ) : (
+                <span className="ml-auto text-xs font-bold text-red-600">Total a Cancelar: Bs. {formatBs(totalNetoFinalBs)}</span>
+              )}
             </div>
             {(retTot > 0 || notaCredDispBs > 0) && (
               <div className={`grid grid-cols-1 ${retTot > 0 && notaCredDispBs > 0 ? 'sm:grid-cols-4' : 'sm:grid-cols-3'} gap-2 px-4 py-3 border-b border-red-100 text-xs`}>
@@ -1519,7 +1555,9 @@ export default function EstadoCuentaPage() {
                             </td>
                             <td className="px-4 py-3 text-right font-bold text-red-700 whitespace-nowrap">
                               {g.isEnVerificacion ? (
-                                <span className="text-emerald-600 text-xs font-bold">En Verificación</span>
+                                <span className="text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded text-xs font-bold inline-flex items-center gap-1">
+                                  En Verificación
+                                </span>
                               ) : (
                                 `Bs. ${g.totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                               )}
@@ -1549,7 +1587,13 @@ export default function EstadoCuentaPage() {
                                           </span>
                                         </div>
                                         <div className="font-bold text-slate-800 whitespace-nowrap">
-                                          Bs. {item.monto.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                          {item.isEnVerificacion ? (
+                                            <span className="text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded text-[10px] font-bold">
+                                              En Verificación
+                                            </span>
+                                          ) : (
+                                            `Bs. ${item.monto.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                          )}
                                         </div>
                                       </div>
                                     ))}
