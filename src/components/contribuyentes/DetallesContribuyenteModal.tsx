@@ -1999,6 +1999,15 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                                                 </button>
                                                 <button
                                                   type="button"
+                                                  onClick={() => onAjustarDeuda({ ...hijo, Identidad: viewData.Identidad, Contribuyente: viewData.Contribuyente })}
+                                                  className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 hover:text-amber-950 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-1 rounded-lg transition-colors cursor-pointer"
+                                                  title={`Ajustar deuda específicamente para esta actividad (${hijo.inmueble})`}
+                                                >
+                                                  <Calculator className="w-3 h-3 text-amber-600" />
+                                                  <span>Deuda</span>
+                                                </button>
+                                                <button
+                                                  type="button"
                                                   disabled={eliminandoCode === hijo.inmueble}
                                                   onClick={() => handleQuitarActividad(hijo.inmueble, cleanClasificacionActividad(hijo.actividad_principal) || hijo.actividad_principal || 'Actividad Comercial', inm.inmueble)}
                                                   className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 hover:text-rose-900 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2 py-1 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
@@ -2116,15 +2125,26 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                         </div>
 
                         <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
-                          <button
-                            type="button"
-                            onClick={() => onImprimirEstadoDeCuenta(inm.inmueble, 'separados')}
-                            className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-xl transition-colors cursor-pointer"
-                            title={`Descargar Estado de Cuenta en PDF para este local (${inm.inmueble})`}
-                          >
-                            <Printer className="w-3.5 h-3.5" />
-                            <span>PDF Estado Cuenta Local</span>
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => onImprimirEstadoDeCuenta(inm.inmueble, 'separados')}
+                              className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-xl transition-colors cursor-pointer"
+                              title={`Descargar Estado de Cuenta en PDF para este local (${inm.inmueble})`}
+                            >
+                              <Printer className="w-3.5 h-3.5" />
+                              <span>PDF Estado Cuenta Local</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onAjustarDeuda({ ...inm, Identidad: viewData.Identidad, Contribuyente: viewData.Contribuyente })}
+                              className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-800 hover:text-amber-950 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-3 py-1.5 rounded-xl transition-colors cursor-pointer"
+                              title={`Ajustar deuda específicamente para este local (${inm.inmueble})`}
+                            >
+                              <Calculator className="w-3.5 h-3.5 text-amber-600" />
+                              <span>Ajustar Deuda</span>
+                            </button>
+                          </div>
 
                           <div className="flex items-center gap-2">
                             {meses === 0 && parseFloat(inm.deuda_mmv || '0') <= 0.0001 && parseFloat(inm.deuda_congelada_bs || '0') <= 0.01 && (

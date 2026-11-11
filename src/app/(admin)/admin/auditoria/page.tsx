@@ -418,7 +418,7 @@ export default function AuditoriaPage() {
   const [filterUser, setFilterUser] = useState('');
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
-  const [datePreset, setDatePreset] = useState<'all' | 'today' | 'yesterday' | '7days' | 'month'>('all');
+  const [datePreset, setDatePreset] = useState<'all' | 'today' | 'yesterday' | '7days' | 'month' | 'custom'>('all');
   const [incluirConsultas, setIncluirConsultas] = useState(false);
   const [activeTab, setActiveTab] = useState<'bitacora' | 'usuarios'>('bitacora');
   const [currentPage, setCurrentPage] = useState(1);
@@ -1418,7 +1418,7 @@ export default function AuditoriaPage() {
                 value={filterDateFrom}
                 onChange={e => {
                   setFilterDateFrom(e.target.value);
-                  setDatePreset('all');
+                  setDatePreset('custom');
                 }}
                 className="bg-transparent text-xs text-slate-700 focus:outline-none"
               />
@@ -1428,7 +1428,7 @@ export default function AuditoriaPage() {
                 value={filterDateTo}
                 onChange={e => {
                   setFilterDateTo(e.target.value);
-                  setDatePreset('all');
+                  setDatePreset('custom');
                 }}
                 className="bg-transparent text-xs text-slate-700 focus:outline-none"
               />

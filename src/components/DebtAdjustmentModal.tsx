@@ -100,15 +100,19 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
   }, [inmsBD, inmuebles, rowIdentidad, row]);
 
   // Selección de inmueble objetivo ('ALL' para todos, o código de inmueble específico)
-  const initialInm = row?.inmueble || row?.codigo_inmueble || row?.cod_inmueble || 'ALL';
+  const initialInm = row?.inmueble || row?.codigo_inmueble || row?.cod_inmueble || (misInmuebles.length === 1 ? misInmuebles[0].inmueble : (misInmuebles.length > 1 ? misInmuebles[0].inmueble : 'ALL'));
   const [targetInmCode, setTargetInmCode] = useState<string>(initialInm);
 
   useEffect(() => {
     const rInm = row?.inmueble || row?.codigo_inmueble || row?.cod_inmueble;
-    if (rInm && rInm !== targetInmCode && targetInmCode === 'ALL') {
+    if (rInm && rInm !== targetInmCode) {
       setTargetInmCode(rInm);
+    } else if (!rInm && targetInmCode === 'ALL' && misInmuebles.length > 0) {
+      // Si el contribuyente tiene múltiples inmuebles, por defecto apuntar al primero para no alterar
+      // accidentalmente todos los locales a la vez
+      setTargetInmCode(misInmuebles[0].inmueble);
     }
-  }, [row]);
+  }, [row, misInmuebles]);
 
   // Inmueble representativo para calcular la tarifa mensual
   const activeInm = useMemo(() => {
@@ -386,10 +390,14 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
       }
 
       // Verificación en servidor antes de guardar para evitar agregar meses que ya fueron cancelados en el sistema
+      let inmsValidos = [...targetInms];
       if (selectedCount > 0) {
         const periodosEfectivosServidor = Array.from(
           new Set([...selectedMonths, ...allMonths.slice(-selectedCount).map(m => m.key)])
         );
+        const inmsOmitidos: string[] = [];
+        const inmsFiltrados: any[] = [];
+
         for (const inm of targetInms) {
           const qsCheck = new URLSearchParams();
           if (inm?.inmueble) qsCheck.set('inmueble', String(inm.inmueble));
@@ -402,15 +410,25 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
             if (perYaPagado) {
               const pExistente = mapaSrv[perYaPagado];
               const mLabel = allMonths.find(m => m.key === perYaPagado)?.label || perYaPagado;
-              setPagosPorPeriodo(mapaSrv);
-              const extraHint = targetInmCode === 'ALL' && misInmuebles.length > 1
-                ? ` Este contribuyente posee múltiples inmuebles/locales. Si desea aplicar la deuda únicamente al inmueble deseado, selecciónelo arriba en "Aplicar Deuda a:".`
-                : '';
-              throw new Error(
-                `No se puede agregar el período ${mLabel} (${perYaPagado}) al inmueble ${inm.inmueble}: ya fue cancelado en el sistema (${pExistente.etiqueta}) · Referencia: ${pExistente.referencia}.${extraHint}`
-              );
+              if (targetInmCode !== 'ALL') {
+                setPagosPorPeriodo(mapaSrv);
+                throw new Error(
+                  `No se puede agregar el período ${mLabel} (${perYaPagado}) al inmueble ${inm.inmueble}: ya fue cancelado en el sistema (${pExistente.etiqueta}) · Referencia: ${pExistente.referencia}.`
+                );
+              } else {
+                inmsOmitidos.push(`${inm.inmueble} (${mLabel} cancelado ref. ${pExistente.referencia})`);
+                continue;
+              }
             }
           }
+          inmsFiltrados.push(inm);
+        }
+
+        if (targetInmCode === 'ALL') {
+          if (inmsFiltrados.length === 0) {
+            throw new Error('Todos los inmuebles de este contribuyente ya tienen cancelados los períodos seleccionados.');
+          }
+          inmsValidos = inmsFiltrados;
         }
       }
 
@@ -418,12 +436,12 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
       const registroNota = `[${fechaHoy}] AJUSTE DE DEUDA: Asignados ${selectedCount} meses (${financialSummary.periodoTexto}). Total estimado: Bs. ${financialSummary.totalGeneral.toFixed(2)}. Motivo: ${nota.trim()} (Autorizado por: ${claveLimpia})`;
 
       // Respaldo de los valores anteriores (para auditoría y posible reverso)
-      const valoresPrevios = targetInms.map((i: any) => ({
+      const valoresPrevios = inmsValidos.map((i: any) => ({
         inmueble: i.inmueble, meses_deuda: i.meses_deuda, deuda_mmv: i.deuda_mmv,
         multa_bs: i.multa_bs, deuda_congelada_bs: i.deuda_congelada_bs,
       }));
 
-      for (const inm of targetInms) {
+      for (const inm of inmsValidos) {
         const esTerreno = isTerrenoInm(inm);
         let mmvMes = esTerreno ? 0 : parseFloat(inm.mmv_mes || '0');
         let fijarTarifa = false;
@@ -599,8 +617,8 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
       if (rowIdentidad) {
         try {
           let q = supabase.from('facturas').delete().eq('identidad', rowIdentidad).eq('estado', 'Pendiente');
-          if (targetInmCode !== 'ALL' && targetInms.length === 1 && targetInms[0]?.inmueble) {
-            q = q.like('referencia', `%${targetInms[0].inmueble}%`);
+          if (targetInmCode !== 'ALL' && inmsValidos.length === 1 && inmsValidos[0]?.inmueble) {
+            q = q.like('referencia', `%${inmsValidos[0].inmueble}%`);
           }
           const { error: errDel } = await q;
           if (errDel) console.warn('Limpieza de facturas pendientes omitida:', errDel.message);
@@ -613,7 +631,7 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
       await logAudit('Ajuste de deuda (meses)', {
         identidad: rowIdentidad,
         contribuyente: rowContribuyente,
-        inmuebles: targetInms.map((i: any) => i.inmueble),
+        inmuebles: inmsValidos.map((i: any) => i.inmueble),
         meses_nuevos: selectedCount,
         periodo: financialSummary.periodoTexto,
         total_estimado_bs: financialSummary.totalGeneral,
