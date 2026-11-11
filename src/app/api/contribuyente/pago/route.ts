@@ -130,12 +130,12 @@ export async function POST(request: Request) {
         const { data: docsVig } = await supabase
           .from('documentos')
           .select('id, detalles')
-          .eq('tipo', 'Nota de Credito')
+          .in('tipo', ['Nota de Credito', 'Nota de Crédito', 'Saldo a Favor', 'nota_de_credito'])
           .eq('estado', 'Vigente')
           .in('identidad', docIdentsCheck);
 
         const seenIds = new Set<string>();
-        const totalDisponibleDB = (docsVig || []).reduce((acc: number, d: any) => {
+        const totalDocsDB = (docsVig || []).reduce((acc: number, d: any) => {
           if (!d?.id || seenIds.has(d.id)) return acc;
           seenIds.add(d.id);
           let det: any = {};
@@ -143,6 +143,17 @@ export async function POST(request: Request) {
           const m = parseFloat(String(det.monto_bs ?? det.monto ?? '0').replace(/,/g, '.')) || 0;
           return acc + (m > 0 ? m : 0);
         }, 0);
+
+        // Si no está todo en documentos, corroborar también en inmuebles.saldo_favor_bs
+        let totalDisponibleDB = totalDocsDB;
+        if (totalDisponibleDB + 0.05 < saldoFavorUsado) {
+          const { data: inmsSaldo } = await supabase
+            .from('inmuebles')
+            .select('saldo_favor_bs')
+            .in('identidad', docIdentsCheck);
+          const sumInmsSaldo = (inmsSaldo || []).reduce((acc: number, i: any) => acc + (parseFloat(String(i.saldo_favor_bs || 0)) || 0), 0);
+          totalDisponibleDB = Math.max(totalDisponibleDB, sumInmsSaldo, totalDocsDB + sumInmsSaldo);
+        }
 
         if (totalDisponibleDB + 0.05 < saldoFavorUsado) {
           return NextResponse.json(

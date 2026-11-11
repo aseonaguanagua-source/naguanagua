@@ -110,12 +110,16 @@ export default function DondePagarPage() {
         setNotasCreditoVigentes([]);
         return;
       }
-      const { data: docsNC } = await supabase
+      const { data: docsNC, error: errNC } = await supabase
         .from('documentos')
-        .select('id, identidad, tipo, estado, concepto, detalles, created_at')
-        .eq('tipo', 'Nota de Credito')
+        .select('id, identidad, contribuyente, tipo, estado, detalles, created_at')
+        .in('tipo', ['Nota de Credito', 'Nota de Crédito', 'Saldo a Favor', 'nota_de_credito'])
         .eq('estado', 'Vigente')
         .in('identidad', identTargets);
+
+      if (errNC) {
+        console.error('Error cargando notas de crédito vigentes:', errNC);
+      }
 
       const seenDocIds = new Set<string>();
       const deduped: any[] = [];
@@ -124,6 +128,35 @@ export default function DondePagarPage() {
         seenDocIds.add(String(d.id));
         deduped.push(d);
       });
+
+      // Incluir también saldos a favor directos en catastro (inmuebles.saldo_favor_bs) si no están en documentos
+      (inmsList || []).forEach((inm: any) => {
+        const sBs = parseFloat(String(inm?.saldo_favor_bs || 0)) || 0;
+        if (sBs > 0.01) {
+          const inmCode = String(inm?.inmueble || '').trim().toUpperCase();
+          const yaExiste = deduped.some((d: any) => {
+            let det: any = {};
+            try { det = typeof d.detalles === 'string' ? JSON.parse(d.detalles) : (d.detalles || {}); } catch {}
+            const cod = String(det?.codigo_inmueble || det?.cod_inmueble || d?.identidad || '').trim().toUpperCase();
+            return cod === inmCode || Math.abs((parseFloat(det?.monto_bs || det?.monto || 0)) - sBs) < 0.01;
+          });
+          if (!yaExiste) {
+            deduped.push({
+              id: `inm_saldo_${inm.id || inmCode}`,
+              identidad: cleanDoc,
+              tipo: 'Nota de Credito',
+              estado: 'Vigente',
+              detalles: {
+                monto: sBs,
+                monto_bs: sBs,
+                codigo_inmueble: inmCode,
+                motivo: `Saldo a favor registrado en catastro (${inmCode})`
+              }
+            });
+          }
+        }
+      });
+
       setNotasCreditoVigentes(deduped);
     } catch (e) {
       console.warn('Error consultando notas de crédito vigentes en portal:', e);
