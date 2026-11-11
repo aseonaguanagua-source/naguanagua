@@ -724,8 +724,9 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
     const detPadre = pagoPadre ? parseDet(pagoPadre) : null;
     const fdPadre = detPadre?.factura_digital || {};
     const rc0 = Array.isArray(det.recibo_caja) ? det.recibo_caja[0] : det.recibo_caja;
-    const fTx = normalizarFechaYMD(det.fecha_transaccion);
+    const rcPadre0 = Array.isArray(detPadre?.recibo_caja) ? detPadre.recibo_caja[0] : detPadre?.recibo_caja;
     const fRc = normalizarFechaYMD(rc0?.fechaEmision);
+    const fRcPadre = normalizarFechaYMD(rcPadre0?.fechaEmision);
     const fFacturaRaw =
       normalizarFechaYMD(det.fecha_emision_override) ||
       normalizarFechaYMD(det.fecha_asignacion_override) ||
@@ -734,10 +735,10 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
       normalizarFechaYMD(detPadre?.fecha_emision_override) ||
       normalizarFechaYMD(fdPadre.fecha_emision) ||
       normalizarFechaYMD(fdPadre.fecha_asignacion) ||
-      (fTx && fRegistro && fTx < fRegistro ? fTx : '') ||
-      (fRc && fRegistro && fRc < fRegistro ? fRc : '') ||
-      fTx ||
-      fRc ||
+      normalizarFechaYMD(rc0?.fechaIngresoCaja) ||
+      normalizarFechaYMD(rcPadre0?.fechaIngresoCaja) ||
+      (fRc && fRegistro && fRc.slice(0, 7) < fRegistro.slice(0, 7) ? fRc : '') ||
+      (fRcPadre && fRegistro && fRcPadre.slice(0, 7) < fRegistro.slice(0, 7) ? fRcPadre : '') ||
       fRegistro;
     const fFactura = fFacturaRaw || fRegistro;
 
@@ -867,7 +868,7 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
           esSubPago
             ? (parseNum(paMatch?.monto) || parseNum(fpMatch?.monto) || parseNum(p.monto))
             : (det.es_pago_adicional || yaExistenComoFilasSeparadas)
-              ? (parseNum(det.monto_conciliado) || parseNum(paMatch?.monto) || parseNum(fpMatch?.monto) || parseNum(p.monto))
+              ? (parseNum(paMatch?.monto) || parseNum(fpMatch?.monto) || parseNum(p.monto))
               : (parseNum(det.monto_conciliado) || parseNum(paMatch?.monto) || parseNum(fpMatch?.monto) || (Array.isArray(det.formasPago) && det.formasPago.length === 1 ? parseNum(det.formasPago[0]?.monto) : 0) || parseNum(p.monto))
         );
         if (
@@ -981,8 +982,9 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
           '';
         const codPrincipal = resolverCodigoPrincipalInm(codPrincipalRaw, inmMap);
 
+        const bancoEmisor = paMatch?.banco || fpMatch?.banco || det.banco || p.banco || '';
         const vals: any[] = [
-          dmy(fPagoDisplay || fPago), p.banco || '', bDestLabel, refTexto, p.tipo || 'Transferencia', mPagado, dmy(fFactura || fechaVE(p.created_at)),
+          dmy(fPagoDisplay || fPago), bancoEmisor, bDestLabel, refTexto, p.tipo || 'Transferencia', mPagado, dmy(fFactura || fechaVE(p.created_at)),
           nroDoc, codPrincipal, nombreDe(p.identidad, det, codPrincipal || codPrincipalRaw),
           cajero,
           mt.base, mt.iva > 0 ? 16 : 0, mt.iva, mt.ret, r2(nc), mt.exento,
