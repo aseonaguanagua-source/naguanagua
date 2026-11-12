@@ -96,40 +96,69 @@ export default function DondePagarPage() {
 
   const fetchNotasCreditoVigentes = async (docIdent: string, inmsList: any[]) => {
     const cleanDoc = String(docIdent || '').trim();
-    if (!cleanDoc) {
+    const inmIdents = (inmsList || [])
+      .map((i: any) => String(i?.identidad || '').trim())
+      .filter(Boolean);
+    const primaryIdent = inmIdents[0] || cleanDoc;
+    if (!cleanDoc && !primaryIdent) {
       setNotasCreditoVigentes([]);
       return;
     }
     try {
-      const variants = getIdentidadVariantsExact(cleanDoc);
+      const allIdents = Array.from(new Set([cleanDoc, ...inmIdents].filter(Boolean)));
+      const variants = allIdents.flatMap(id => getIdentidadVariantsExact(id));
       const inmCodes = (inmsList || [])
         .map((i: any) => String(i?.inmueble || '').trim().toUpperCase())
         .filter(Boolean);
-      const identTargets = Array.from(new Set([...variants, cleanDoc.toUpperCase(), ...inmCodes].filter(Boolean)));
-      if (identTargets.length === 0) {
-        setNotasCreditoVigentes([]);
-        return;
-      }
-      const { data: docsNC, error: errNC } = await supabase
-        .from('documentos')
-        .select('id, identidad, contribuyente, tipo, estado, detalles, created_at')
-        .in('tipo', ['Nota de Credito', 'Nota de Crédito', 'Saldo a Favor', 'nota_de_credito'])
-        .eq('estado', 'Vigente')
-        .in('identidad', identTargets);
-
-      if (errNC) {
-        console.error('Error cargando notas de crédito vigentes:', errNC);
-      }
+      const identTargets = Array.from(new Set([...variants, ...allIdents.map(s => s.toUpperCase()), ...inmCodes].filter(Boolean)));
 
       const seenDocIds = new Set<string>();
       const deduped: any[] = [];
-      (docsNC || []).forEach((d: any) => {
+      const pushUniqueDoc = (d: any) => {
         if (!d?.id || seenDocIds.has(String(d.id))) return;
+        const st = String(d?.estado || 'Vigente').trim();
+        if (['Anulada', 'Anulado', 'Consumida', 'Usada', 'Aplicada'].includes(st)) return;
+        let det: any = {};
+        try { det = typeof d.detalles === 'string' ? JSON.parse(d.detalles) : (d.detalles || {}); } catch {}
+        const monto = parseFloat(String(det?.monto_bs ?? det?.monto ?? 0)) || 0;
+        if (monto <= 0.01) return;
         seenDocIds.add(String(d.id));
-        deduped.push(d);
-      });
+        deduped.push({ ...d, estado: 'Vigente', detalles: det });
+      };
 
-      // Incluir también saldos a favor directos en catastro (inmuebles.saldo_favor_bs) si no están en documentos
+      // 1. Consultar endpoint con service_role (evita bloqueos RLS y busca también en detalles->>codigo_inmueble)
+      const codigosToQuery = inmCodes.length > 0 ? inmCodes : [''];
+      await Promise.all(
+        codigosToQuery.slice(0, 8).map(async (cod) => {
+          try {
+            const res = await fetch(
+              `/api/admin/documentos/listar-notas-credito?identidad=${encodeURIComponent(primaryIdent)}&codigo=${encodeURIComponent(cod)}`,
+              { cache: 'no-store' }
+            );
+            if (res.ok) {
+              const json = await res.json();
+              (json?.notas || []).forEach(pushUniqueDoc);
+            }
+          } catch {}
+        })
+      );
+
+      // 2. Respaldo directo en tabla documentos
+      if (identTargets.length > 0) {
+        const { data: docsNC, error: errNC } = await supabase
+          .from('documentos')
+          .select('id, identidad, contribuyente, tipo, estado, detalles, created_at')
+          .in('tipo', ['Nota de Credito', 'Nota de Crédito', 'Saldo a Favor', 'nota_de_credito'])
+          .eq('estado', 'Vigente')
+          .in('identidad', identTargets);
+
+        if (errNC) {
+          console.error('Error cargando notas de crédito vigentes:', errNC);
+        }
+        (docsNC || []).forEach(pushUniqueDoc);
+      }
+
+      // 3. Incluir también saldos a favor directos en catastro (inmuebles.saldo_favor_bs) si no están en documentos
       (inmsList || []).forEach((inm: any) => {
         const sBs = parseFloat(String(inm?.saldo_favor_bs || 0)) || 0;
         if (sBs > 0.01) {
@@ -143,7 +172,7 @@ export default function DondePagarPage() {
           if (!yaExiste) {
             deduped.push({
               id: `inm_saldo_${inm.id || inmCode}`,
-              identidad: cleanDoc,
+              identidad: primaryIdent || cleanDoc,
               tipo: 'Nota de Credito',
               estado: 'Vigente',
               detalles: {

@@ -1090,9 +1090,7 @@ export default function FacturacionElectronicaPage() {
           esRetencion: editForm.esRetencion,
           sinMulta: editForm.sinMulta,
           modulo: editForm.modulo,
-          fecha: editForm.fecha,
           fechaEmision: editForm.fecha,
-          fechaAsignacion: editForm.fecha,
           concepto: editForm.concepto,
           marcarAnulada: editForm.marcarAnulada,
           usuario: usuarioActual || 'Administrador'

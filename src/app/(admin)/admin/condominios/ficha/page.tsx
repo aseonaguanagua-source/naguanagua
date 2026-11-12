@@ -131,13 +131,22 @@ function Ficha() {
     const t = q.trim().toUpperCase();
     const enriched = e.renglones.map((r: any) => {
       const hijosR = e.renglones.filter((x: any) => x.padreId === r.clave);
-      if (hijosR.length > 0 && r.totalBs === 0) {
-        const sumMensual = hijosR.reduce((acc: number, ch: any) => acc + (ch.mensualBs || 0), 0);
-        const sumBase = hijosR.reduce((acc: number, ch: any) => acc + (ch.deuda?.baseBs || 0), 0);
-        const sumMulta = hijosR.reduce((acc: number, ch: any) => acc + (ch.deuda?.multaBs || 0), 0);
-        const sumIva = hijosR.reduce((acc: number, ch: any) => acc + (ch.deuda?.ivaBs || 0), 0);
-        const sumTotal = hijosR.reduce((acc: number, ch: any) => acc + (ch.totalBs || 0), 0);
-        const maxMeses = Math.max(...hijosR.map((ch: any) => ch.deuda?.meses || 0), 0);
+      if (hijosR.length > 0 && (r.esGrupo || (r.deuda?.baseBs || 0) === 0)) {
+        const sumMensual = (r.mensualBs || 0) + hijosR.reduce((acc: number, ch: any) => acc + (ch.mensualBs || 0), 0);
+        const sumBase = (r.deuda?.baseBs || 0) + hijosR.reduce((acc: number, ch: any) => acc + (ch.deuda?.baseBs || 0), 0);
+        const sumMulta = (r.deuda?.multaBs || 0) + hijosR.reduce((acc: number, ch: any) => acc + (ch.deuda?.multaBs || 0), 0);
+        const sumMultaExtra = (r.multaExtraBs || 0) + hijosR.reduce((acc: number, ch: any) => acc + (ch.multaExtraBs || 0), 0);
+        const sumMultasManuales = (r.multasManualesBs || 0) + hijosR.reduce((acc: number, ch: any) => acc + (ch.multasManualesBs || 0), 0);
+        const allMultasManuales = [...(r.multasManuales || []), ...hijosR.flatMap((ch: any) => ch.multasManuales || [])];
+        const sumIva = (r.deuda?.ivaBs || 0) + hijosR.reduce((acc: number, ch: any) => acc + (ch.deuda?.ivaBs || 0), 0);
+        const sumTotal = (r.totalBs || 0) + hijosR.reduce((acc: number, ch: any) => acc + (ch.totalBs || 0), 0);
+        const maxMeses = Math.max(r.deuda?.meses || 0, ...hijosR.map((ch: any) => ch.deuda?.meses || 0), 0);
+        const maxMultaMeses = Math.max(
+          (r.multaMeses || 0),
+          ...hijosR.map((ch: any) => ch.multaMeses || 0),
+          allMultasManuales.length,
+          0
+        );
         return {
           ...r,
           mensualBs: sumMensual,
@@ -150,6 +159,10 @@ function Ficha() {
             ivaBs: sumIva,
             totalBs: sumTotal,
           },
+          multaMeses: maxMultaMeses,
+          multaExtraBs: sumMultaExtra,
+          multasManualesBs: sumMultasManuales,
+          multasManuales: allMultasManuales,
           totalBs: sumTotal,
           _hijosRenglones: hijosR,
         };
@@ -300,13 +313,24 @@ function Ficha() {
 
   /** Renglón del estado de cuenta de una unidad */
   const renglonDe = (id: string) => e?.renglones?.find((x: any) => x.clave === id);
-  /** Meses con multa: toma los meses con recargo en mora (o multaMeses si es remanente) sin duplicar */
+  /** Meses con multa: toma los meses con recargo en mora (o multaMeses / multasManuales si es remanente) sin duplicar */
   const mesesMultaDe = (r: any) => {
     const enAseo = (r?.deuda?.porMes || []).filter((m: any) => m.multaBs > 0).length;
+    const manualesCount = Array.isArray(r?.multasManuales) ? r.multasManuales.length : 0;
     if (enAseo === 0 && r?._hijosRenglones?.length) {
-      return Math.max(...r._hijosRenglones.map((ch: any) => (ch?.deuda?.porMes || []).filter((m: any) => m.multaBs > 0).length), 0);
+      const maxHijos = Math.max(
+        ...r._hijosRenglones.map((ch: any) =>
+          Math.max(
+            (ch?.deuda?.porMes || []).filter((m: any) => m.multaBs > 0).length,
+            Number(ch?.multaMeses) || 0,
+            Array.isArray(ch?.multasManuales) ? ch.multasManuales.length : 0
+          )
+        ),
+        0
+      );
+      return Math.max(maxHijos, Number(r?.multaMeses) || 0, manualesCount);
     }
-    return Math.max(enAseo, Number(r?.multaMeses) || 0);
+    return Math.max(enAseo + manualesCount, Number(r?.multaMeses) || 0);
   };
 
   /** Estado de cuenta individual desde la pestaña Unidades */
@@ -1698,8 +1722,13 @@ function Ficha() {
 
       {editorU !== undefined && c && (
         <EditorUnidad
-          condo={c} unidad={editorU} unidades={d.unidades} multas={d.multas || []} usuario={usuarioActual()} porActividad={!!e?.porActividad}
-          renglon={editorU ? e?.renglones.find((r: any) => r.clave === editorU.id) || null : null}
+          condo={c}
+          unidad={editorU ? (d.unidades.find((u: any) => u.id === editorU.id) || editorU) : editorU}
+          unidades={d.unidades}
+          multas={d.multas || []}
+          usuario={usuarioActual()}
+          porActividad={!!e?.porActividad}
+          renglon={editorU ? (renglones.find((r: any) => r.clave === editorU.id) || e?.renglones.find((r: any) => r.clave === editorU.id) || null) : null}
           onClose={() => setEditorU(undefined)}
           onSaved={async (cerrar: boolean) => { await cargar(); if (cerrar) setEditorU(undefined); }}
         />

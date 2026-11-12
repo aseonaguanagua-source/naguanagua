@@ -1089,6 +1089,79 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
     return { totalBase, totalIva, totalMultas, totalConvenio, subtotal, retencion75, descuentoSaldoFavor, totalPagar, mesesMax };
   }, [unifiedInmuebles, tasaEfectiva, saldoFavorEfectivo]);
 
+  // Recibos pendientes mostrados en la pestaña Estado de Cuenta (combina facturasDb reales o recibos sintéticos RECIB-HIST- del catastro)
+  const recibosPendientesDisplay = useMemo(() => {
+    if (facturasDb && facturasDb.length > 0) return facturasDb;
+    const nombresMes = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'];
+    const pagosAprobados = (pagosDb || []).filter((p: any) => {
+      const st = String(p?.estado || '').toLowerCase();
+      return st === 'aprobado' || st === 'conciliado' || st === 'procesado';
+    });
+    const tieneOctubrePagado = pagosAprobados.some((p: any) => /OCTUBRE\s*2026/i.test(String(p?.concepto || '')) || (Array.isArray(p?.recibos_pagados) && p.recibos_pagados.some((r: any) => /OCTUBRE\s*2026/i.test(String(r)))));
+    const tieneSeptiembrePagado = pagosAprobados.some((p: any) => /SEPTIEMBRE\s*2026/i.test(String(p?.concepto || '')) || (Array.isArray(p?.recibos_pagados) && p.recibos_pagados.some((r: any) => /SEPTIEMBRE\s*2026/i.test(String(r)))));
+
+    const list: any[] = [];
+    unifiedInmuebles.forEach((group) => {
+      const { inm, isNAParent, isNA, mmvTotal, mesesDeuda, hijos, codigo } = group;
+      if (isTerrenoInm(inm)) return;
+      const isCondo = (inm.condominio_padre_id || inm.es_condominio) && !isNAParent;
+      if (isCondo) return;
+      const meses = Math.max(0, mesesDeuda);
+      if (meses <= 0) return;
+
+      const esRes = isResidencialInm(inm);
+      const esExon = isExoneradoTotalMultas(inm.notas);
+      const cantExon = getMesesExoneradosCount(inm.notas);
+      const mesesConMulta = esExon ? 0 : Math.max(0, meses - 1 - cantExon);
+
+      let baseMes = 0;
+      let ivaMes = 0;
+      let multaMes = 0;
+      if (isNAParent && hijos && hijos.length > 0) {
+        hijos.forEach((h: any) => {
+          const hRes = isResidencialInm(h);
+          const hBase = Math.round(calcularMensualidad(h, tasaEfectiva) * 100) / 100;
+          const hIva = hRes ? 0 : Math.round((hBase * 0.16) * 100) / 100;
+          const hMora = hRes ? 0.10 : 0.12;
+          const hMulta = esExon ? 0 : Math.round((hBase * hMora) * 100) / 100;
+          baseMes += hBase;
+          ivaMes += hIva;
+          multaMes += hMulta;
+        });
+      } else {
+        const rawBase = isNAParent
+          ? calcularMensualidad({ ...inm, mmv_mes: mmvTotal, cant_inmuebles: 1, isNAParent: true }, tasaEfectiva)
+          : calcularMensualidad({ ...inm, cant_inmuebles: inm.es_condominio ? (isNA ? 1 : inm.cant_inmuebles) : 1 }, tasaEfectiva);
+        baseMes = Math.round(rawBase * 100) / 100;
+        ivaMes = esRes ? 0 : Math.round((baseMes * 0.16) * 100) / 100;
+        const moraTasa = esRes ? 0.10 : 0.12;
+        multaMes = esExon ? 0 : Math.round((baseMes * moraTasa) * 100) / 100;
+      }
+
+      // Si el contribuyente ya pagó OCTUBRE 2026 pero debe 1 mes (ej. transferencia de SEPTIEMBRE 2026 rechazada), el mes pendiente parte desde SEPTIEMBRE 2026
+      const endMonthIdx = (meses === 1 && tieneOctubrePagado && !tieneSeptiembrePagado) ? 8 : 9; // 8 = SEPTIEMBRE, 9 = OCTUBRE
+      for (let i = 0; i < meses; i++) {
+        const offsetFromEnd = (meses - 1) - i;
+        let mIdx = endMonthIdx - offsetFromEnd;
+        let yr = 2026;
+        while (mIdx < 0) {
+          mIdx += 12;
+          yr -= 1;
+        }
+        const llevaMulta = i < mesesConMulta;
+        const montoMes = Math.round((baseMes + ivaMes + (llevaMulta ? multaMes : 0)) * 100) / 100;
+        list.push({
+          referencia: `RECIB-HIST-${codigo}-M${i + 1}`,
+          emision: `${nombresMes[mIdx]} ${yr}`,
+          estado: 'Pendiente',
+          monto: montoMes.toFixed(2),
+          sintetico: true
+        });
+      }
+    });
+    return list;
+  }, [facturasDb, unifiedInmuebles, tasaEfectiva, pagosDb]);
+
   // Condominio padre si aplica
   const condominioPadre = useMemo(() => {
     const pId = viewData?.condominio_padre_id || userInms.find(i => i.condominio_padre_id)?.condominio_padre_id;
@@ -1346,7 +1419,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
           {[
             { id: 'perfil', label: 'Perfil y Contacto', icon: Users },
             { id: 'inmuebles', label: `Inmuebles (${unifiedInmuebles.length}${realActivitiesCount > unifiedInmuebles.length ? ` · ${realActivitiesCount} act.` : ''})`, icon: Building2 },
-            { id: 'deuda', label: `Estado de Cuenta (${facturasDb.length} recibos)`, icon: DollarSign },
+            { id: 'deuda', label: `Estado de Cuenta (${recibosPendientesDisplay.length} recibos)`, icon: DollarSign },
             { id: 'pagos', label: `Historial de Pagos (${pagosDb.length})`, icon: Receipt },
             { id: 'servicios', label: `Servicios y Convenios (${serviciosEspDb.length + (conveniosDb.length > 0 ? conveniosDb.filter(c => {
               if (c.estado === 'Anulado') return false;
@@ -2309,11 +2382,11 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
               <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
                 <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
                   <span className="font-bold text-xs text-slate-700 uppercase tracking-wide">
-                    Detalle Cronológico de Recibos y Meses Pendientes ({facturasDb.length})
+                    Detalle Cronológico de Recibos y Meses Pendientes ({recibosPendientesDisplay.length})
                   </span>
                 </div>
 
-                {facturasDb.length === 0 ? (
+                {recibosPendientesDisplay.length === 0 ? (
                   <div className="p-8 text-center text-slate-500 text-xs">
                     No hay recibos de facturación pendientes emitidos.
                   </div>
@@ -2330,8 +2403,8 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {facturasDb.map((f, idx) => {
-                          const isUltimo = idx === facturasDb.length - 1;
+                        {recibosPendientesDisplay.map((f, idx) => {
+                          const isUltimo = idx === recibosPendientesDisplay.length - 1;
                           const rawMonto = parseFloat(String(f.monto || '0').replace(/[^\d.]/g, '')) || 0;
                           return (
                             <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
@@ -2356,7 +2429,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                               <td className="px-4 py-2.5 text-right font-black text-rose-600">
                                 Bs. {formatBs(rawMonto)}
                               </td>
-                              {onDeleteFactura && (
+                              {onDeleteFactura && !f.sintetico && (
                                 <td className="px-3 py-2.5 text-center">
                                   <button
                                     onClick={() => onDeleteFactura(f)}
@@ -2366,6 +2439,9 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                                     <X className="w-3.5 h-3.5" />
                                   </button>
                                 </td>
+                              )}
+                              {onDeleteFactura && f.sintetico && (
+                                <td className="px-3 py-2.5 text-center text-slate-300">—</td>
                               )}
                             </tr>
                           );

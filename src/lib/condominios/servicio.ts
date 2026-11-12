@@ -289,25 +289,28 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasaRaw: numb
     const mesesMoraCubiertosPorAseo = Math.max(0, meses - 1);
 
     const baseParaMultaExtra = Array.isArray(basesPorMes) ? (basesPorMes[basesPorMes.length - 1] || r.montoBs) : r.montoBs;
-    // Si la unidad es un grupo contenedor (mu?.es_grupo), no genera multas directas: cobran sus actividades
-    // multaExtraBs solo cobra meses de multa remanentes (previos al aseo pendiente) no cubiertos por el aseo dinámico
-    let mesesMultaRemanente = (!mu?.es_grupo && u) ? Math.max(0, multaMesesRaw - Math.max(mesesMoraCubiertosPorAseo, mesesMoraRealesHoy)) : 0;
+    const manuales = multasPend
+      .filter(m => (u ? m.unidad_id === u.id : !m.unidad_id) && !(omitirMultaSeptiembre && String(m.periodo || '').slice(0, 7) === '2026-09'))
+      .map(m => ({ id: m.id, concepto: m.concepto, montoBs: montoMulta(m, tasa), periodo: m.periodo, creada_por: m.creada_por, created_at: m.created_at }));
+    const multasManualesBs = r2(manuales.reduce((a, m) => a + m.montoBs, 0));
+
+    // Si la unidad es un grupo contenedor (mu?.es_grupo), no genera multas automáticas directas: cobran sus actividades
+    // multaExtraBs solo cobra meses de multa remanentes (previos al aseo pendiente) no cubiertos por el aseo dinámico ni por multas manuales específicas
+    let mesesMultaRemanente = (!mu?.es_grupo && u) ? Math.max(0, multaMesesRaw - Math.max(mesesMoraCubiertosPorAseo, mesesMoraRealesHoy) - manuales.length) : 0;
     if (mesesMultaRemanente > 0) {
+      const periodosManualesSet = new Set(manuales.map(m => String(m.periodo || '').slice(0, 7)).filter(Boolean));
       const prevPeriodos = M.periodosMultasPrevias(desde, mesesMultaRemanente, hoy).filter(p => {
         if (exoneradoTotalInm) return false;
         if (hasta && p <= hasta) return false;
         if (isMesExoneradoMulta(notasInmCheck, p)) return false;
         if (omitirMultaSeptiembre && p === '2026-09') return false;
+        if (periodosManualesSet.has(p)) return false;
         return true;
       });
       mesesMultaRemanente = prevPeriodos.length;
     }
-    const multaMeses = mesesMultaEnAseo + mesesMultaRemanente;
+    const multaMeses = mesesMultaEnAseo + mesesMultaRemanente + manuales.length;
     const multaExtraBs = (!mu?.es_grupo && u) ? r2(r2(baseParaMultaExtra * tMulta) * mesesMultaRemanente) : 0;
-    const manuales = multasPend
-      .filter(m => (u ? m.unidad_id === u.id : !m.unidad_id) && !(omitirMultaSeptiembre && m.periodo === '2026-09'))
-      .map(m => ({ id: m.id, concepto: m.concepto, montoBs: montoMulta(m, tasa), periodo: m.periodo, creada_por: m.creada_por, created_at: m.created_at }));
-    const multasManualesBs = r2(manuales.reduce((a, m) => a + m.montoBs, 0));
     const idCondoNorm = M.normId(condoRow.identidad);
     const idChildNorm = M.normId(u?.identidad);
     const idPadreNorm = M.normId(padre?.identidad);

@@ -163,20 +163,18 @@ export async function POST(req: Request) {
       ]
     };
 
-    const fechaUnificada = [fechaEmision, fechaAsignacion, fecha].find(f => f && /^\d{4}-\d{2}-\d{2}$/.test(String(f).trim()))?.trim();
-    if (fechaUnificada) {
-      const [yyyy, mm, dd] = fechaUnificada.split('-');
+    const fechaEmisionClean = [fechaEmision, fecha].find(f => f && /^\d{4}-\d{2}-\d{2}$/.test(String(f).trim()))?.trim();
+    if (fechaEmisionClean) {
+      const [yyyy, mm, dd] = fechaEmisionClean.split('-');
       const ddmmyyyy = `${dd}/${mm}/${yyyy}`;
-      const isoCaracas = `${fechaUnificada}T12:00:00-04:00`;
+      const isoCaracas = `${fechaEmisionClean}T12:00:00-04:00`;
 
-      nuevosDetalles.fecha_emision_override = fechaUnificada;
-      if (!nuevosDetalles.fecha_transaccion) {
-        nuevosDetalles.fecha_transaccion = fechaUnificada;
+      nuevosDetalles.fecha_emision_override = fechaEmisionClean;
+      // Preservar siempre la fecha original del movimiento bancario / pago para que no se sobreescriba con la fecha de emisión
+      if (!nuevosDetalles.fecha_transaccion && pago.created_at) {
+        nuevosDetalles.fecha_transaccion = String(pago.created_at).slice(0, 10);
       }
 
-      if (Array.isArray(nuevosDetalles.recibo_caja) && nuevosDetalles.recibo_caja[0]) {
-        nuevosDetalles.recibo_caja[0].fechaTransaccion = fechaUnificada;
-      }
       if (nuevosDetalles.factura_digital && typeof nuevosDetalles.factura_digital === 'object') {
         nuevosDetalles.factura_digital = {
           ...nuevosDetalles.factura_digital,
@@ -258,7 +256,7 @@ export async function POST(req: Request) {
         metodo: String(fp?.metodo || fp?.descripcion || fp?.tipo || 'Transferencia').trim(),
         banco: String(fp?.banco || '').trim(),
         referencia: String(fp?.referencia || '').trim(),
-        fecha: fp?.fecha || fechaUnificada || det.fecha_transaccion || pago.created_at,
+        fecha: fp?.fecha || det.fecha_transaccion || det.fecha_banco || pago.created_at,
         monto: Math.round(((parseFloat(String(fp?.monto ?? 0).replace(',', '.')) || 0) + Number.EPSILON) * 100) / 100,
       })).filter((fp: any) => fp.monto > 0);
 
@@ -288,7 +286,6 @@ export async function POST(req: Request) {
       referencia: nuevaRef,
       modulo: nuevoModulo,
       detalles: nuevosDetalles,
-      ...(fechaUnificada ? { created_at: `${fechaUnificada}T12:00:00-04:00` } : {})
     };
 
     const { error: upErr } = await sb.from('pagos_reportados').update(updatePayload).eq('id', pagoId);

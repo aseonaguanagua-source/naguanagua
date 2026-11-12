@@ -280,7 +280,7 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
       })()
     : (simulacionTFHKA?.Encabezado?.IdentificacionDocumento?.FechaEmision || fechaActual);
   const rawFechaAsignacion = yaEmitidaVigente
-    ? (det?.factura_digital?.raw_response?.resultado?.fechaAsignacion || det?.factura_digital?.raw_response?.resultado?.fechaAsignacionNumeroControl || det?.factura_digital?.fecha_asignacion || '')
+    ? (det?.factura_digital?.raw_response?.resultado?.fechaAsignacionNumeroControl || det?.factura_digital?.fecha_asignacion || det?.factura_digital?.raw_response?.resultado?.fechaAsignacion || '')
     : '';
   const fechaAsignacionDoc = rawFechaAsignacion
     ? (() => {
@@ -365,9 +365,7 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           pagoId: pago.pagoId || pago.id,
-          fecha: nuevaFecha,
           fechaEmision: nuevaFecha,
-          fechaAsignacion: nuevaFecha,
           usuario: 'Administrador'
         })
       });

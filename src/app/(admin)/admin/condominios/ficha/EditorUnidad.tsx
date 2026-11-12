@@ -23,8 +23,9 @@ function fmtPeriodo(p: string) {
 function generarMesesCondo(): { key: string; label: string }[] {
   const lista: { key: string; label: string }[] = [];
   const now = new Date();
-  const cursor = new Date(now.getFullYear(), now.getMonth() - 2, 1);
-  for (let i = 0; i < 36; i++) {
+  const cursor = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const limite = new Date(2019, 0, 1); // Desde Enero 2019 (incluye Diciembre 2019 y todos los años siguientes)
+  while (cursor >= limite) {
     const y = cursor.getFullYear();
     const m = cursor.getMonth();
     const key = `${y}-${String(m + 1).padStart(2, '0')}`;
@@ -172,8 +173,9 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
       );
       return;
     }
-    if (multaMotivo.trim().length < 5) {
-      alert('Escriba el motivo (mínimo 5 caracteres).');
+    const motivoFinalMulta = multaMotivo.trim().length >= 5 ? multaMotivo.trim() : motivo.trim();
+    if (motivoFinalMulta.length < 5) {
+      alert('Escriba el motivo de la asignación (mínimo 5 caracteres).');
       return;
     }
     const bsPorMes = parseLocalFloat(multaMontoBs);
@@ -186,9 +188,12 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
       const uActual = usuario || (typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('admin_user_data') || '{}').usuario : '') || 'Administrador';
       const multasCreadas: any[] = [];
 
-      for (const per of multaPeriodosSeleccionados) {
+      for (let idx = 0; idx < multaPeriodosSeleccionados.length; idx++) {
+        const per = multaPeriodosSeleccionados[idx];
         const perTexto = fmtPeriodo(per);
-        const conceptoFinal = `Multa por mora ${perTexto}`.trim();
+        const conceptoFinal = (multaPeriodosSeleccionados.length === 1 && multaConcepto.trim().length >= 3)
+          ? multaConcepto.trim()
+          : `Multa por mora ${perTexto}`.trim();
         const r = await fetch('/api/admin/condominios/multas', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -199,7 +204,8 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
             concepto: conceptoFinal,
             monto_bs: bsPorMes,
             usuario: uActual,
-            motivo: multaMotivo
+            motivo: motivoFinalMulta,
+            reemplazar_acumulados: idx === 0 && multaReemplazaAcumulados
           })
         });
         const j = await r.json();
@@ -209,21 +215,18 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
 
       // Actualizar estado local inmediato de multas
       if (multasCreadas.length > 0) {
-        setMultasLocales(prev => [...prev, ...multasCreadas]);
+        if (multaReemplazaAcumulados) {
+          setMultasLocales(prev => [
+            ...prev.filter(m => m.unidad_id !== unidad.id),
+            ...multasCreadas
+          ]);
+          setF((prev: any) => ({ ...prev, multa_meses: 0 }));
+        } else {
+          setMultasLocales(prev => [...prev, ...multasCreadas]);
+        }
       }
-
-      if (multaReemplazaAcumulados && Number(f.multa_meses) > 0) {
-        await fetch('/api/admin/condominios/unidades', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id: unidad.id,
-            cambios: { multa_meses: 0 },
-            usuario: uActual,
-            motivo: `Ajuste a 0 meses acumulados al fijar multas específicas para ${multaPeriodosSeleccionados.map(fmtPeriodo).join(', ')}: ${multaMotivo}`
-          })
-        });
-        setF((prev: any) => ({ ...prev, multa_meses: 0 }));
+      if (!motivo.trim() && motivoFinalMulta) {
+        setMotivo(motivoFinalMulta);
       }
 
       alert(`¡${multaPeriodosSeleccionados.length} multa(s) asignada(s) exitosamente!`);
@@ -250,7 +253,7 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
   const multaMesesN = Math.max(0, parseInt(f.multa_meses) || 0);
   const mesesMoraAuto = (renglon?.deuda?.porMes || []).filter((m: any) => m.multaBs > 0).length;
   const mesesAdicionales = Math.max(0, multaMesesN - mesesMoraAuto);
-  const totalBadgeMeses = Math.max(mesesMoraAuto, multaMesesN);
+  const totalBadgeMeses = Math.max(mesesMoraAuto, multaMesesN) + multasPend.length;
 
   const esNA = actCom.trim().toUpperCase() === 'N/A' || actCom.trim() === '';
   const actividad = clase === 'RES' ? actRes : (actCom.trim() ? actividadConNivel(actCom.trim().toUpperCase(), nivel) : '');
@@ -285,8 +288,55 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
 
   const guardar = async () => {
     setErr('');
-    if (motivo.trim().length < 5) { setErr('Escriba el motivo del cambio (queda en la Auditoría).'); return; }
+    const motivoEfectivo = motivo.trim().length >= 5 ? motivo.trim() : multaMotivo.trim();
+    if (motivoEfectivo.length < 5) { setErr('Escriba el motivo del cambio (queda en la Auditoría).'); return; }
     if (clase === 'COM' && !actCom.trim() && f.estado !== 'Desocupada' && !f.es_grupo) { setErr('Indique la actividad comercial.'); return; }
+
+    // Si el usuario dejó abierto el panel de "Asignar Multa a un Período Específico" con períodos seleccionados y pulsó "Guardar cambios", guardar primero esa multa
+    let seGuardoMultaEspecifica = false;
+    if (!nueva && unidad?.id && mostrarAgregarMulta && multaPeriodosSeleccionados.length > 0 && parseLocalFloat(multaMontoBs) > 0) {
+      const periodoYaPagado = multaPeriodosSeleccionados.find(p => Boolean(pagosPorPeriodo[p]));
+      if (periodoYaPagado) {
+        const pInfo = pagosPorPeriodo[periodoYaPagado];
+        const msg = `No se puede asignar multa al período ${fmtPeriodo(periodoYaPagado)} (${periodoYaPagado}): ya figura como "${pInfo.etiqueta}" con la Referencia: ${pInfo.referencia}.`;
+        setErr(msg);
+        alert(msg);
+        return;
+      }
+      setGuardando(true);
+      try {
+        const uActual = usuario || (typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('admin_user_data') || '{}').usuario : '') || 'Administrador';
+        const bsPorMes = parseLocalFloat(multaMontoBs);
+        for (let idx = 0; idx < multaPeriodosSeleccionados.length; idx++) {
+          const per = multaPeriodosSeleccionados[idx];
+          const perTexto = fmtPeriodo(per);
+          const conceptoFinal = (multaPeriodosSeleccionados.length === 1 && multaConcepto.trim().length >= 3)
+            ? multaConcepto.trim()
+            : `Multa por mora ${perTexto}`.trim();
+          const r = await fetch('/api/admin/condominios/multas', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              codigo: condo.codigo,
+              unidad_id: unidad.id,
+              periodo: /^\d{4}-\d{2}$/.test(per) ? `${per}-01` : per,
+              concepto: conceptoFinal,
+              monto_bs: bsPorMes,
+              usuario: uActual,
+              motivo: motivoEfectivo,
+              reemplazar_acumulados: idx === 0 && multaReemplazaAcumulados
+            })
+          });
+          const j = await r.json();
+          if (!r.ok) throw new Error(j.error || `No se pudo agregar la multa para ${perTexto}`);
+        }
+        seGuardoMultaEspecifica = true;
+      } catch (e: any) {
+        setErr(e.message);
+        setGuardando(false);
+        return;
+      }
+    }
 
     // Bloquear si los meses pendientes de aseo solicitados abarcan algún período cuyo mes ya fue facturado/cancelado en el sistema
     if (conflictoPeriodoMeses) {
@@ -330,19 +380,30 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
         actividad_activa: unidad.actividad_activa || null,
       };
       for (const k of Object.keys(datos)) {
+        if (k === 'multa_meses' && (seGuardoMultaEspecifica || multasPend.length > 0) && Number(datos[k]) === 0) {
+          continue;
+        }
         if (k === 'actividades_extra') {
           if (JSON.stringify(datos[k]) !== JSON.stringify(antes[k])) cambios[k] = datos[k];
         } else if (String(datos[k] ?? '').toUpperCase() !== String(antes[k] ?? '').toUpperCase()) {
           cambios[k] = datos[k];
         }
       }
-      if (!Object.keys(cambios).length) { onClose(); return; }
+      if (!Object.keys(cambios).length) {
+        setGuardando(false);
+        if (seGuardoMultaEspecifica) {
+          onSaved(true);
+        } else {
+          onClose();
+        }
+        return;
+      }
     }
     setGuardando(true);
     try {
       const r = await fetch('/api/admin/condominios/unidades', {
         method: nueva ? 'POST' : 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(nueva ? { codigo: condo.codigo, unidad: datos, usuario, motivo } : { id: unidad.id, cambios, usuario, motivo }),
+        body: JSON.stringify(nueva ? { codigo: condo.codigo, unidad: datos, usuario, motivo: motivoEfectivo } : { id: unidad.id, cambios, usuario, motivo: motivoEfectivo }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || 'No se pudo guardar');
@@ -780,9 +841,9 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
                           </div>
                         </div>
 
-                        {/* Chips seleccionables para meses */}
-                        <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl max-h-40 overflow-y-auto flex flex-wrap gap-1.5">
-                          {listaMesesCondo.slice(0, 24).map(m => {
+                        {/* Chips seleccionables para meses (desde 2019 hasta el último mes vencido) */}
+                        <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl max-h-56 overflow-y-auto flex flex-wrap gap-1.5">
+                          {listaMesesCondo.map(m => {
                             const pagoInfo = pagosPorPeriodo[m.key];
                             const sel = !pagoInfo && multaPeriodosSeleccionados.includes(m.key);
                             const esDeuda = (renglon?.periodos || []).includes(m.key);

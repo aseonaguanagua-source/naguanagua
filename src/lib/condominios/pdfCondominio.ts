@@ -60,7 +60,8 @@ export function generarPdfEstadoCuentaCondominio(
 
     doc.setFontSize(8);
     doc.setTextColor(220, 38, 38);
-    doc.text(`TASA VIGENTE HASTA: ${e.tasa}`, 105, 23, { align: 'center' });
+    const fechaEmision = new Date().toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    doc.text(`TASA VIGENTE HASTA: ${fechaEmision}   |   TASA EURO BCV: Bs. ${fmtBs(tasaEur)}`, 105, 23, { align: 'center' });
     doc.setTextColor(0, 0, 0);
 
     // ── METADATA & LÍNEA ──
@@ -68,7 +69,7 @@ export function generarPdfEstadoCuentaCondominio(
     doc.line(14, 32, 196, 32);
     doc.setFontSize(7.5);
     doc.setFont('helvetica', 'italic');
-    doc.text(`Generado por: ${cajero}`, 14, 36);
+    doc.text(`Generado por: ${cajero}   |   Fecha: ${fechaEmision}`, 14, 36);
     doc.setFont('helvetica', 'normal');
     doc.text(`Página ${pageNumber} de ${totalPages}   |   Nro.: ${docNro}`, 196, 36, { align: 'right' });
     doc.line(14, 38, 196, 38);
