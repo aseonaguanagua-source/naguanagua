@@ -46,8 +46,19 @@ export function EliminarMultaModal({ row, inmuebles, tcmmv, recibos, onClose, on
     });
   }, [inmuebles, rawId]);
 
+  const rowSpecificInm = useMemo(() => {
+    const direct = row?.inmueble || row?.codigo_inmueble || row?.cod_inmueble;
+    if (direct) return String(direct).trim();
+    const rawCod = String(row?.cod_cont || row?.CodCont || '').trim();
+    const tokens = rawCod.split(/\s+/).filter(Boolean);
+    if (tokens.length === 1 && tokens[0] !== 'Pendiente' && tokens[0] !== 'N/A' && tokens[0].toUpperCase() !== rawId) {
+      return tokens[0];
+    }
+    return '';
+  }, [row, rawId]);
+
   const [selectedInmCode, setSelectedInmCode] = useState<string>(
-    userInms.length > 1 ? '__TODOS__' : (userInms.length > 0 ? userInms[0].inmueble : '')
+    rowSpecificInm || (userInms.length > 1 ? '__TODOS__' : (userInms.length > 0 ? userInms[0].inmueble : ''))
   );
 
   const isTodosSelected = selectedInmCode === '__TODOS__' && userInms.length > 1;

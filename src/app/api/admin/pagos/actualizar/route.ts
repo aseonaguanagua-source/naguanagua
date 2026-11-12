@@ -682,7 +682,44 @@ export async function POST(req: Request) {
             }
             const histRefs = recibos.filter(r => r.startsWith('RECIB-HIST-'));
             const multaRefs = recibos.filter(r => r.startsWith('MULTA-'));
-            if (!d.es_abono && (histRefs.length > 0 || multaRefs.length > 0 || recibos.includes('RECIB-DEUDA'))) {
+
+            // Si este pago se reportó como abono parcial (es_abono: true), verificar si sumado a otros abonos
+            // ya aprobados del mismo inmueble/recibo ya completa el monto_factura esperado.
+            let abonoCompletadoAcumulado = false;
+            if (d.es_abono && !d.abono_completado) {
+              const montoFacturaEsp = parseFloat(String(d.monto_factura || d.total_seleccionado || 0)) || 0;
+              const montoActualNum = parseFloat(String(actualP.monto || d.monto_conciliado || 0)) || 0;
+              if (montoFacturaEsp > 0 && montoActualNum > 0) {
+                const codInmActual = String(d.cod_inmueble || d.codigo_inmueble || d.inmueble || '').trim().toUpperCase();
+                const { data: otrosAbonos } = await sb
+                  .from('pagos_reportados')
+                  .select('id, monto, detalles')
+                  .eq('estado', 'Aprobado')
+                  .neq('id', pagoId)
+                  .or(idVars.map((v: string) => `detalles->>identidad.eq.${v}`).join(','));
+                const abonosHermanos = (otrosAbonos || []).filter((op: any) => {
+                  const detO = typeof op.detalles === 'string' ? JSON.parse(op.detalles || '{}') : (op.detalles || {});
+                  if (!detO.es_abono || detO.abono_completado) return false;
+                  const recsO: string[] = Array.isArray(detO.recibos) ? detO.recibos : [];
+                  if (recibos.length > 0 && recsO.some((r: string) => recibos.includes(r))) return true;
+                  const codO = String(detO.cod_inmueble || detO.codigo_inmueble || detO.inmueble || '').trim().toUpperCase();
+                  return Boolean(codInmActual && codO && codInmActual === codO);
+                });
+                const sumaHermanos = abonosHermanos.reduce((s: number, op: any) => s + (parseFloat(String(op.monto || 0)) || 0), 0);
+                if (montoActualNum + sumaHermanos >= montoFacturaEsp - 0.50) {
+                  abonoCompletadoAcumulado = true;
+                  d.abono_completado = true;
+                  for (const op of abonosHermanos) {
+                    const detO = typeof op.detalles === 'string' ? JSON.parse(op.detalles || '{}') : (op.detalles || {});
+                    await sb.from('pagos_reportados').update({
+                      detalles: { ...detO, abono_completado: true }
+                    }).eq('id', op.id);
+                  }
+                }
+              }
+            }
+
+            if ((!d.es_abono || abonoCompletadoAcumulado) && (histRefs.length > 0 || multaRefs.length > 0 || recibos.includes('RECIB-DEUDA'))) {
               for (const inm of inmsPrev) {
                 const cod = String(inm.inmueble || '').toUpperCase();
                 const histInm = histRefs.filter(r => r.toUpperCase().includes(`-${cod}-`));

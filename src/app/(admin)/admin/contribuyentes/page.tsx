@@ -2216,6 +2216,7 @@ function ContribuyentesPageContent() {
             Correo: row.email || row.correo_electronico || 'No registrado',
             CodCont: cod || '',
             cod_cont: cod || '',
+            inmueble: cod || undefined,
             Direccion: row.direccion || '',
             Observaciones: row.notas || '',
             Actividad: row.actividad_principal || 'No aplica',
@@ -2267,6 +2268,7 @@ function ContribuyentesPageContent() {
           const rowIsElim = ['eliminado', 'inactivo', 'desactivado', 'baja'].includes(String(row.estado || '').trim().toLowerCase());
           if (!isCodeFormat && cod && !rowIsElim && !existing.CodCont.includes(cod)) {
             existing.CodCont += " " + cod;
+            existing.inmueble = undefined;
           }
           mapResults.set(groupKey, existing);
         }
@@ -4238,6 +4240,13 @@ function ContribuyentesPageContent() {
             recibos={recibos}
             setFacturas={setFacturas}
             onClose={() => setIsDebtModalOpen(false)}
+            onSuccess={async (_inms: any[], newMonths: number, summary: any) => {
+              setFormData((prev: any) => prev ? ({ ...prev, MesesDeuda: newMonths, DeudaBs: summary?.totalGeneral ?? prev.DeudaBs }) : prev);
+              setViewData((prev: any) => prev ? ({ ...prev, MesesDeuda: newMonths, DeudaBs: summary?.totalGeneral ?? prev.DeudaBs, _ts: Date.now() }) : prev);
+              if (serverSearchTerm.trim().length > 0) {
+                await handleServerSearch();
+              }
+            }}
           />
         )}
       </div>
@@ -5028,6 +5037,12 @@ function ContribuyentesPageContent() {
           recibos={recibos}
           setFacturas={setFacturas}
           onClose={() => setDebtModalOpen(false)}
+          onSuccess={async (_inms: any[], newMonths: number, summary: any) => {
+            setViewData((prev: any) => prev ? ({ ...prev, MesesDeuda: newMonths, DeudaBs: summary?.totalGeneral ?? prev.DeudaBs, _ts: Date.now() }) : prev);
+            if (serverSearchTerm.trim().length > 0) {
+              await handleServerSearch();
+            }
+          }}
         />
       )}
 

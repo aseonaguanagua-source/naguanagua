@@ -74,15 +74,28 @@ export function AsignarMultaModal({ row, inmuebles, tcmmv, onClose, onSuccess }:
     return [];
   }, [inmsBD, inmuebles, rawId, row]);
 
+  const rowSpecificInm = useMemo(() => {
+    const direct = row?.inmueble || row?.codigo_inmueble || row?.cod_inmueble;
+    if (direct) return String(direct).trim();
+    const rawCod = String(row?.cod_cont || row?.CodCont || '').trim();
+    const tokens = rawCod.split(/\s+/).filter(Boolean);
+    if (tokens.length === 1 && tokens[0] !== 'Pendiente' && tokens[0] !== 'N/A' && tokens[0].toUpperCase() !== rawId) {
+      return tokens[0];
+    }
+    return '';
+  }, [row, rawId]);
+
   const [selectedInmCode, setSelectedInmCode] = useState<string>(
-    userInms.length > 0 ? userInms[0].inmueble : (row?.inmueble || '')
+    rowSpecificInm || (userInms.length > 0 ? userInms[0].inmueble : '')
   );
 
   useEffect(() => {
-    if (userInms.length > 0 && !selectedInmCode) {
+    if (rowSpecificInm && selectedInmCode !== rowSpecificInm) {
+      setSelectedInmCode(rowSpecificInm);
+    } else if (userInms.length > 0 && !selectedInmCode) {
       setSelectedInmCode(userInms[0].inmueble);
     }
-  }, [userInms, selectedInmCode]);
+  }, [userInms, selectedInmCode, rowSpecificInm]);
 
   const activeInm = useMemo(() => {
     return userInms.find((i: any) => i.inmueble === selectedInmCode) || userInms[0] || null;

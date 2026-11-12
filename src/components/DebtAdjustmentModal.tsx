@@ -46,8 +46,25 @@ function getAvailableDebtMonths(): MonthItem[] {
   return months;
 }
 
-export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFacturas, onClose, addAuditLog }: any) {
-  const { refreshData } = useAppContext();
+function resolveRowInmCode(r: any): string {
+  const direct = r?.inmueble || r?.codigo_inmueble || r?.cod_inmueble;
+  if (direct) return String(direct).trim();
+  const rawCod = String(r?.cod_cont || r?.CodCont || '').trim();
+  const tokens = rawCod.split(/\s+/).filter(Boolean);
+  const rawId = String(r?.Identidad || r?.identidad || '').trim().toUpperCase();
+  if (
+    tokens.length === 1 &&
+    tokens[0] !== 'Pendiente' &&
+    tokens[0] !== 'N/A' &&
+    tokens[0].toUpperCase() !== rawId
+  ) {
+    return tokens[0];
+  }
+  return '';
+}
+
+export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFacturas, onClose, onSuccess, addAuditLog }: any) {
+  const { refreshData, refreshUserData } = useAppContext();
   const [isProcessing, setIsProcessing] = useState(false);
   const [dynamicTcmmv, setDynamicTcmmv] = useState<number>(tcmmv || 1);
   const [clave, setClave] = useState('');
@@ -92,19 +109,21 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
     );
     if (allDirectos.length > 0) return allDirectos;
 
-    if (row?.inmueble) {
-      const byCode = inmuebles.filter((i: any) => i.inmueble === row.inmueble);
+    const rCod = resolveRowInmCode(row);
+    if (rCod) {
+      const byCode = inmuebles.filter((i: any) => i.inmueble === rCod);
       if (byCode.length > 0) return byCode;
     }
     return [];
   }, [inmsBD, inmuebles, rowIdentidad, row]);
 
   // Selección de inmueble objetivo ('ALL' para todos, o código de inmueble específico)
-  const initialInm = row?.inmueble || row?.codigo_inmueble || row?.cod_inmueble || (misInmuebles.length === 1 ? misInmuebles[0].inmueble : (misInmuebles.length > 1 ? misInmuebles[0].inmueble : 'ALL'));
+  const rowInmCode = resolveRowInmCode(row);
+  const initialInm = rowInmCode || (misInmuebles.length === 1 ? misInmuebles[0].inmueble : (misInmuebles.length > 1 ? misInmuebles[0].inmueble : 'ALL'));
   const [targetInmCode, setTargetInmCode] = useState<string>(initialInm);
 
   useEffect(() => {
-    const rInm = row?.inmueble || row?.codigo_inmueble || row?.cod_inmueble;
+    const rInm = resolveRowInmCode(row);
     if (rInm && rInm !== targetInmCode) {
       setTargetInmCode(rInm);
     } else if (!rInm && targetInmCode === 'ALL' && misInmuebles.length > 0) {
@@ -646,8 +665,14 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
         );
       }
 
+      if (identProp && refreshUserData) {
+        await refreshUserData(identProp);
+      }
       await refreshData(true);
-      alert(`✅ Deuda actualizada exitosamente a ${selectedCount} meses.\n\nPeríodo: ${financialSummary.periodoTexto}.\nLos cambios ya se reflejan en Caja y Estado de Cuenta.`);
+      if (onSuccess) {
+        await onSuccess(inmsValidos, selectedCount, financialSummary);
+      }
+      alert(`✅ Deuda actualizada exitosamente a ${selectedCount} meses.\n\nInmueble(s): ${inmsValidos.map((i: any) => i.inmueble).join(', ')}\nPeríodo: ${financialSummary.periodoTexto}.\nLos cambios ya se reflejan en Caja y Estado de Cuenta.`);
       onClose();
     } catch (err: any) {
       console.error(err);
@@ -667,7 +692,14 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
               <Calculator className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
             <div>
-              <h2 className="font-black text-base sm:text-lg tracking-tight">Seleccionar Meses de Deuda</h2>
+              <h2 className="font-black text-base sm:text-lg tracking-tight flex items-center gap-2">
+                <span>Seleccionar Meses de Deuda</span>
+                {targetInmCode && targetInmCode !== 'ALL' && (
+                  <span className="px-2 py-0.5 text-xs font-black rounded-md bg-orange-500/20 text-orange-300 border border-orange-400/30">
+                    {targetInmCode}
+                  </span>
+                )}
+              </h2>
               <p className="text-xs text-slate-300 mt-0.5">
                 {rowContribuyente} <span className="text-slate-400">({rowIdentidad || 'Sin Documento'})</span>
               </p>
