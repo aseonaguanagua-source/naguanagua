@@ -348,18 +348,58 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasaRaw: numb
   }
 
   const s = (f: (x: RenglonEstado) => number) => r2(renglones.reduce((a, x) => a + f(x), 0));
+  const esPorAct = M.porActividad(c);
+  let totBaseBs = s(x => x.deuda.baseBs);
+  let totMultaBs = s(x => x.deuda.multaBs + x.multaExtraBs + x.multasManualesBs);
+  let totIvaBs = s(x => x.deuda.ivaBs);
+  let totRetBs = s(x => x.deuda.retencionBs);
+  let totTotalBs = s(x => x.totalBs);
+
+  if (esPorAct && tasa > 0 && renglones.filter(x => x.totalBs > 0.01).length > 1) {
+    const conv = (bs: number) => r2(bs / tasa);
+    const grupos = new Map<string, RenglonEstado[]>();
+    for (const r of renglones) {
+      if (r.esGrupo && renglones.some(h => h.padreId === r.clave)) continue;
+      const gKey = r.padreId || r.clave;
+      const arr = grupos.get(gKey) || [];
+      arr.push(r);
+      grupos.set(gKey, arr);
+    }
+    let sumBaseEur = 0;
+    let sumMultaEur = 0;
+    let sumIvaEur = 0;
+    for (const items of grupos.values()) {
+      const cBase = r2(items.reduce((acc, h) => r2(acc + conv(Number(h.deuda?.baseBs) || 0)), 0));
+      const cMulta = r2(items.reduce((acc, h) => r2(acc + conv((Number(h.deuda?.multaBs) || 0) + (Number(h.multaExtraBs) || 0))) + conv(Number(h.multasManualesBs) || 0), 0));
+      const cIva = items.length > 1 && !items[0].residencial
+        ? r2(cBase * 0.16)
+        : r2(items.reduce((acc, h) => r2(acc + conv(Number(h.deuda?.ivaBs) || 0)), 0));
+      sumBaseEur = r2(sumBaseEur + cBase);
+      sumMultaEur = r2(sumMultaEur + cMulta);
+      sumIvaEur = r2(sumIvaEur + cIva);
+    }
+    const sumBrutoEur = r2(sumBaseEur + sumMultaEur + sumIvaEur);
+    const cRetEur = totRetBs > 0 ? conv(totRetBs) : 0;
+    const sumNetoEur = r2(sumBrutoEur - cRetEur);
+    totBaseBs = r2(sumBaseEur * tasa);
+    totMultaBs = r2(sumMultaEur * tasa);
+    totIvaBs = r2(sumIvaEur * tasa);
+    totRetBs = r2(cRetEur * tasa);
+    totTotalBs = r2(sumNetoEur * tasa);
+  }
+
   return {
     tasa,
     mensual: M.cargoMensual(c, unidades, tasa),
     renglones,
     totales: {
-      baseBs: s(x => x.deuda.baseBs), multaBs: s(x => x.deuda.multaBs + x.multaExtraBs + x.multasManualesBs), ivaBs: s(x => x.deuda.ivaBs),
-      retencionBs: s(x => x.deuda.retencionBs), totalBs: s(x => x.totalBs),
+      baseBs: totBaseBs, multaBs: totMultaBs, ivaBs: totIvaBs,
+      retencionBs: totRetBs, totalBs: totTotalBs,
       mesesMax: Math.max(0, ...renglones.map(x => x.deuda.meses)),
       unidadesConDeuda: renglones.filter(x => x.totalBs > 0.01).reduce((a, x) => a + Math.max(1, x.cantidad), 0),
     },
     quienPaga: { aseo: M.aseoLoPagaLaUnidad(c) ? 'UNIDAD' : 'CONDOMINIO', multa: M.multaLaPagaLaUnidad(c) ? 'UNIDAD' : 'CONDOMINIO' },
-    porActividad: M.porActividad(c),
+    porActividad: esPorAct,
   };
 }
 
@@ -452,32 +492,19 @@ export async function cargarCondominio(codigo: string) {
     const rawSF = parseFloat(inf.saldo_favor_bs || '0') || 0;
     const multaBsInm = parseFloat(inf.multa_bs || '0') || 0;
 
-    // Auto-reconciliar si en tabla `inmuebles` ya se descontó el mes (ej. pagado en Caja General / Contribuyentes)
-    // o si la multa ya fue saldada en `inmuebles`, pero `condominio_unidades` quedó rezagada
-    let aseoDesdeEfectivo = u.aseo_pendiente_desde;
+    // La fuente autoritativa de deuda en condominios es condominio_unidades.aseo_pendiente_desde.
+    // Nunca borrar aseo_pendiente_desde automáticamente por valores rezagados de meses_deuda=0 en inmuebles.
+    const aseoDesdeEfectivo = u.aseo_pendiente_desde;
     let multaMesesEfectivo = Number(u.multa_meses || 0);
-    const esResUnidad = M.unidadResidencial(aMotorCondo(condo), aMotorUnidad(u));
-    const permiteAutoReconciliarInm = esUnidadesPropias && !(esResUnidad && condo.origen === 'SIGYR_REARMADO' && Number(inf.meses_deuda) === 0);
-    if (permiteAutoReconciliarInm && inf.meses_deuda !== undefined && inf.meses_deuda !== null) {
+    if (esUnidadesPropias && inf.meses_deuda !== undefined && inf.meses_deuda !== null) {
       const mInm = Math.max(0, parseInt(String(inf.meses_deuda), 10) || 0);
       const mUnid = M.mesesPendientes(u.aseo_pendiente_desde);
-      let cambioSync = false;
-      if (mInm < mUnid) {
-        aseoDesdeEfectivo = mInm === 0 ? null : M.pendienteDesdeParaMeses(mInm);
-        if (mInm <= 1 && multaBsInm <= 0.01) {
-          multaMesesEfectivo = 0;
-        }
-        cambioSync = true;
-      }
-      if (multaMesesEfectivo > 0 && mInm <= 1 && multaBsInm <= 0.01) {
+      if (multaMesesEfectivo > 0 && mUnid <= 1 && mInm <= 1 && multaBsInm <= 0.01) {
         multaMesesEfectivo = 0;
-        cambioSync = true;
-      }
-      if (cambioSync) {
         unidadesASincronizarBD.push({
           id: u.id,
           aseo_pendiente_desde: aseoDesdeEfectivo,
-          multa_meses: multaMesesEfectivo,
+          multa_meses: 0,
         });
       }
     }
@@ -658,18 +685,10 @@ export async function resumenGeneral() {
     u.padre_inmueble = inf.padre_id || null;
     u.notas_inmueble = inf.notas || '';
     const cPadre = condosMap.get(u.condominio_id);
-    const esResU = cPadre ? M.unidadResidencial(aMotorCondo(cPadre), aMotorUnidad(u)) : false;
-    const permiteReconciliar = cPadre && unidadesPropias(cPadre) && !(esResU && cPadre.origen === 'SIGYR_REARMADO' && Number(inf.meses_deuda) === 0);
-    if (permiteReconciliar && inf.meses_deuda !== undefined && inf.meses_deuda !== null) {
+    if (cPadre && unidadesPropias(cPadre) && inf.meses_deuda !== undefined && inf.meses_deuda !== null) {
       const mInm = Math.max(0, parseInt(String(inf.meses_deuda), 10) || 0);
       const mUnid = M.mesesPendientes(u.aseo_pendiente_desde);
-      if (mInm < mUnid) {
-        u.aseo_pendiente_desde = mInm === 0 ? null : M.pendienteDesdeParaMeses(mInm);
-        if (mInm <= 1 && u.multa_bs <= 0.01) {
-          u.multa_meses = 0;
-        }
-      }
-      if (Number(u.multa_meses || 0) > 0 && mInm <= 1 && u.multa_bs <= 0.01) {
+      if (Number(u.multa_meses || 0) > 0 && mUnid <= 1 && mInm <= 1 && u.multa_bs <= 0.01) {
         u.multa_meses = 0;
       }
     }

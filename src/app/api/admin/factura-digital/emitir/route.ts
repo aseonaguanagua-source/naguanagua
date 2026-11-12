@@ -1377,7 +1377,11 @@ export async function POST(request: Request) {
     const bancoRaw = String(bancoOverride || pagoRow?.banco || fp0.banco || '').trim();
     const bancoPago = bancoRaw.toLowerCase() === tipoPago.toLowerCase() ? '' : bancoRaw;
     const refPago = String(referencia || pagoRow?.referencia || fp0.referencia || '').trim();
-    const fechaTxResuelta = detPago.fecha_pago_override || detPago.fecha_transaccion || detPago.fecha_banco || fp0.fecha || pagoRow?.created_at || fechaActual.toISOString();
+    const fTxP = String(detPago.fecha_transaccion || '').slice(0, 10);
+    const fBancoP = String(detPago.fecha_banco || '').slice(0, 10);
+    const fIngP = String(detPago.fecha_ingreso_caja || pagoRow?.created_at || '').slice(0, 10);
+    const fTxPref = (fBancoP && fTxP && fBancoP < fTxP && fTxP === fIngP) ? fBancoP : (detPago.fecha_transaccion || detPago.fecha_banco);
+    const fechaTxResuelta = detPago.fecha_pago_override || fTxPref || fp0.fecha || pagoRow?.created_at || fechaActual.toISOString();
     const fechaPago = fechaPagoOverride 
       ? `${fechaPagoOverride}T12:00:00-04:00`
       : (/^\d{4}-\d{2}-\d{2}$/.test(String(fechaTxResuelta).trim()) ? `${String(fechaTxResuelta).trim()}T12:00:00-04:00` : fechaTxResuelta);
@@ -1635,25 +1639,21 @@ export async function POST(request: Request) {
               // y no la dirección general de otro establecimiento del mismo contribuyente (ej. Local 01 vs Local 1A).
               const dirAnyProp = activeProps.find((p: any) => isValidDir(p.direccion))?.direccion || userProps.find((p: any) => isValidDir(p.direccion))?.direccion;
               const tieneInmuebleEspecifico = Boolean(matchedPropEspecifico || esPagoPorLocal || codInmEspecifico);
-              const rawDirEspStartsCat = /^0\s+0\b/i.test(String(dirEspecifica || '').trim());
-              const preferDirFiscalContrib = !esPagoPorLocal && !esCondoGlobal && isValidDir(dirFiscal) && (activeProps.length <= 1 || rawDirEspStartsCat);
               const cand = esCondoGlobal
                 ? (isValidDir(parentDir) ? parentDir : (isValidDir(dirFiscal) ? dirFiscal : (isValidDir(dirEspecifica) ? dirEspecifica : dirAnyProp)))
-                : (preferDirFiscalContrib
-                  ? dirFiscal
-                  : (tieneInmuebleEspecifico && isValidDir(dirEspecifica)
-                    ? dirEspecifica
-                    : (isValidDir(dirRecibo)
-                      ? dirRecibo
-                      : (isValidDir(dirEspecifica)
-                        ? dirEspecifica
-                        : (isValidDir(dirFiscal)
-                          ? dirFiscal
-                          : (isValidDir(dirSrv)
-                            ? dirSrv
-                            : (isValidDir(propRef?.direccion)
-                              ? propRef?.direccion
-                              : (isValidDir(dirAnyProp) ? dirAnyProp : parentDir))))))));
+                : (tieneInmuebleEspecifico && isValidDir(dirEspecifica)
+                  ? dirEspecifica
+                  : (isValidDir(dirRecibo)
+                    ? dirRecibo
+                    : (isValidDir(dirEspecifica)
+                      ? dirEspecifica
+                      : (isValidDir(dirFiscal)
+                        ? dirFiscal
+                        : (isValidDir(dirSrv)
+                          ? dirSrv
+                          : (isValidDir(propRef?.direccion)
+                            ? propRef?.direccion
+                            : (isValidDir(dirAnyProp) ? dirAnyProp : parentDir)))))));
               
               return sanitizarDireccionFiscal(cand, {
                 unidadNumero: uNum,

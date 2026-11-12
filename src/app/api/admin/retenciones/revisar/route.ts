@@ -166,7 +166,7 @@ export async function POST(request: Request) {
       const docFacStr = String(fd.numero_documento || '').trim();
       const ctrlFacStr = String(fd.numero_control || '').trim();
 
-      const yaTieneNC = (docsExistentes || []).some((d: any) => {
+      const ncExistente = (docsExistentes || []).find((d: any) => {
         if (d.estado === 'Anulada' || d.estado === 'Eliminada') return false;
         const dDet = parseDet(d.detalles);
         if (dDet.pago_id && dDet.pago_id === pago.id) return true;
@@ -177,7 +177,11 @@ export async function POST(request: Request) {
         if (docFacStr && docFacStr.length >= 3 && origRef.includes(`Factura ${docFacStr}`)) return true;
         return false;
       });
-      if (yaTieneNC) return null;
+      if (ncExistente) {
+        const dDetEx = parseDet(ncExistente.detalles);
+        const montoEx = Number(dDetEx.monto_bs ?? dDetEx.monto ?? 0) || 0;
+        if (Math.abs(montoEx - retenidoCalc) <= 1.00) return null;
+      }
 
       // Resolver código de inmueble del pago o contribuyente
       const refsList = Array.isArray(det.referencias) ? det.referencias : [];
@@ -201,12 +205,18 @@ export async function POST(request: Request) {
         if (inmRow?.inmueble) codInmTarget = String(inmRow.inmueble).trim().toUpperCase();
       }
 
-      const resAcred = await acreditarSaldoFavor(targetIdentidad, retenidoCalc, codInmTarget || undefined, supabase);
-      if (!resAcred.ok) {
-        console.warn('[retenciones/revisar] No se pudo acreditar saldo a favor en inmueble:', resAcred.error);
+      const diffAcred = ncExistente
+        ? Math.max(0, Math.round((retenidoCalc - (Number(parseDet(ncExistente.detalles).monto_bs ?? parseDet(ncExistente.detalles).monto ?? 0) || 0)) * 100) / 100)
+        : retenidoCalc;
+      if (diffAcred > 0) {
+        const resAcred = await acreditarSaldoFavor(targetIdentidad, diffAcred, codInmTarget || undefined, supabase);
+        if (!resAcred.ok) {
+          console.warn('[retenciones/revisar] No se pudo acreditar saldo a favor en inmueble:', resAcred.error);
+        }
       }
 
       const ncDetalles = {
+        ...(ncExistente ? parseDet(ncExistente.detalles) : {}),
         monto: retenidoCalc.toFixed(2),
         monto_bs: retenidoCalc,
         ambito: 'CONTRIBUYENTE',
@@ -220,12 +230,18 @@ export async function POST(request: Request) {
         numero_comprobante: numCompRef || undefined,
       };
 
-      await supabase.from('documentos').insert({
-        identidad: targetIdentidad,
-        tipo: 'Nota de Credito',
-        estado: 'Vigente',
-        detalles: JSON.stringify(ncDetalles),
-      });
+      if (ncExistente) {
+        await supabase.from('documentos').update({
+          detalles: JSON.stringify(ncDetalles),
+        }).eq('id', ncExistente.id);
+      } else {
+        await supabase.from('documentos').insert({
+          identidad: targetIdentidad,
+          tipo: 'Nota de Credito',
+          estado: 'Vigente',
+          detalles: JSON.stringify(ncDetalles),
+        });
+      }
 
       // Actualizar detalles del pago con el desglose de retención y el saldo a favor acreditado
       det.es_retencion = true;

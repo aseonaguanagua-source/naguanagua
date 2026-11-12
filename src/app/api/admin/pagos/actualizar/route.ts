@@ -306,6 +306,20 @@ export async function POST(req: Request) {
                 if (inmsAfectados && inmsAfectados.length > 0) {
                   for (const inm of inmsAfectados) {
                     if (inm.inmueble && codsInmRestaurados.has(String(inm.inmueble).toUpperCase())) continue;
+                    if (inm.inmueble) {
+                      const codU = String(inm.inmueble).trim().toUpperCase();
+                      const { data: otrosAprobados } = await sb
+                        .from('pagos_reportados')
+                        .select('id, created_at, detalles')
+                        .eq('estado', 'Aprobado')
+                        .neq('id', actualP.id)
+                        .gte('created_at', actualP.created_at || '2026-10-01');
+                      const yaPagadoEnOtro = (otrosAprobados || []).some((op: any) => {
+                        const dStr = typeof op.detalles === 'string' ? op.detalles : JSON.stringify(op.detalles || {});
+                        return dStr.toUpperCase().includes(codU);
+                      });
+                      if (yaPagadoEnOtro) continue;
+                    }
                     const mesesPagados = recibos.filter((r: string) => r.toUpperCase().includes(String(inm.inmueble || '').toUpperCase())).length || 1;
                     const curMeses = Math.max(0, parseInt(String(inm.meses_deuda || 0)));
                     const nuevoMeses = curMeses + mesesPagados;

@@ -971,13 +971,16 @@ export default function FacturacionElectronicaPage() {
     const fPagoOverride = normYMD(pago.detalles?.fecha_pago_override || pago.fechaPagoOverride);
     const fTx = normYMD(pago.detalles?.fecha_transaccion);
     const fBanco = normYMD(pago.detalles?.fecha_banco);
+    const fIngreso = normYMD(pago.detalles?.fecha_ingreso_caja);
     const fReciboCaja = normYMD(Array.isArray(pago.detalles?.recibo_caja) && pago.detalles.recibo_caja[0]?.fechaEmision ? pago.detalles.recibo_caja[0].fechaEmision : '');
     const fp0Fecha = normYMD(Array.isArray(pago.detalles?.formasPago) && pago.detalles.formasPago[0]?.fecha ? pago.detalles.formasPago[0].fecha : '');
     const fCreacion = normYMD(pago.created_at);
+    const fTxPreferida = (fBanco && fTx && fBanco < fTx && (fTx === fIngreso || fTx === fCreacion))
+      ? fBanco
+      : (fTx || fBanco);
     const fechaPagoOrig = (
       fPagoOverride ||
-      fTx ||
-      fBanco ||
+      fTxPreferida ||
       fReciboCaja ||
       fp0Fecha ||
       normYMD(pago.fechaPago) ||
@@ -1036,11 +1039,14 @@ export default function FacturacionElectronicaPage() {
       (yaEmitidaVigente ? (pago.fechaEmision || pago.detalles?.factura_digital?.fecha_emision) : '') ||
       ''
     ).slice(0, 10);
+    const fTxE = String(pago.detalles?.fecha_transaccion || '').slice(0, 10);
+    const fBancoE = String(pago.detalles?.fecha_banco || '').slice(0, 10);
+    const fIngresoE = String(pago.detalles?.fecha_ingreso_caja || pago.created_at || '').slice(0, 10);
+    const fTxPrefE = (fBancoE && fTxE && fBancoE < fTxE && fTxE === fIngresoE) ? fBancoE : (fTxE || fBancoE);
     const fTxOrig = String(
       pago.detalles?.fecha_pago_override ||
       pago.fechaPagoOverride ||
-      pago.detalles?.fecha_transaccion ||
-      pago.detalles?.fecha_banco ||
+      fTxPrefE ||
       (Array.isArray(pago.detalles?.recibo_caja) && pago.detalles.recibo_caja[0]?.fechaEmision ? pago.detalles.recibo_caja[0].fechaEmision : '') ||
       (Array.isArray(pago.detalles?.formasPago) && pago.detalles.formasPago[0]?.fecha ? pago.detalles.formasPago[0].fecha : '') ||
       pago.fechaPago ||
@@ -1062,7 +1068,7 @@ export default function FacturacionElectronicaPage() {
       concepto: conceptoOrig,
       esRetencion: !!(pago.esRetencion || pago.conRetencion || pago.detalles?.es_retencion || pago.detalles?.agente_retencion),
       sinMulta: Boolean(pago.tieneMulta === false || pago.detalles?.llevaMulta === false || pago.detalles?.sin_multas === true),
-      modulo: pago.modulo || (pago.condominio ? 'condominios' : 'caja'),
+      modulo: pago.modulo || pago.detalles?.modulo || (pago.condominio || pago.detalles?.es_condominio || pago.detalles?.isCondominio || pago.detalles?.condominio ? 'condominios' : 'caja'),
       marcarAnulada: false
     });
   };

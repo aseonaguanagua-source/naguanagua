@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
 import { clasificarPago, extraerCodigoInmueble, parseDetalles, rangoDiaCaracas } from '@/lib/documentoPago';
+import { sanitizarDireccionFiscal } from '@/lib/formatters';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -1171,22 +1172,32 @@ export async function GET(request: Request) {
           modulo: pago.modulo || (infoCondo(pago, det) ? 'condominios' : 'caja'),
           grupo_pago: pago.grupo_pago || null,
           direccion: (() => {
-            const limpiarDir = (d: any) => String(d || '').replace(/^\s*(?:0\s+0|1\s+0|SN\s+0|\d+\s+\d+\s+[A-Z0-9-]+\s+\d+)\s+/i, '').trim();
+            const limpiarDir = (d: any, opts?: any) => sanitizarDireccionFiscal(String(d || ''), opts);
             const isValidDir = (d: any) => {
               const s = limpiarDir(d);
               return s.length > 3 && s !== '0 0' && s !== '0' && s.toUpperCase() !== 'N/A';
             };
             const dirCondoOficial = condo?.direccion || condoRow?.direccion || (codCondoRaw ? inmMap.get(codCondoRaw)?.direccion : null);
             const dirCont = cont?.direccion;
-            const dirInm = esModoCondominio ? null : clasif.inmuebles.map(c => inmMap.get(c)?.direccion).find((d: any) => isValidDir(d));
+            const inmPrim = esModoCondominio ? null : clasif.inmuebles.map(c => inmMap.get(c)).find((m: any) => isValidDir(m?.direccion));
+            const dirInm = inmPrim?.direccion || null;
+            const uNum = esModoCondominio ? null : (
+              det?.condominio?.lineas?.[0]?.numero ||
+              det?.condominio?.lineas?.[0]?.unidadNumero ||
+              det?.condominio_hijos_pagados?.[0]?.numero ||
+              inmPrim?.numero_local ||
+              null
+            );
+            const nombreCondo = condo?.nombre || condoRow?.nombre || det?.condominio?.nombre || null;
+            const optsDir = { unidadNumero: uNum, nombreCondo, parentDir: dirCondoOficial };
             const dirRec = Array.isArray(det.recibo_caja) ? det.recibo_caja[0]?.domicilioFiscal : '';
             if (esModoCondominio && isValidDir(dirCondoOficial)) {
-              return limpiarDir(dirCondoOficial);
+              return limpiarDir(dirCondoOficial, { unidadNumero: null, nombreCondo, parentDir: dirCondoOficial });
             }
-            const rawInmStartsCat = /^0\s+0\b/i.test(String(dirInm || '').trim());
-            const preferContDir = !esPagoPorLocal && !esModoCondominio && isValidDir(dirCont) && (clasif.inmuebles.length <= 1 || rawInmStartsCat);
-            const rawCand = (esModoCondominio ? (dirCondoOficial || dirRec || dirCont || det.direccion) : (det.direccion || (preferContDir ? dirCont : (dirInm || dirRec || dirCont)))) || '';
-            return limpiarDir(rawCand);
+            const rawCand = (esModoCondominio
+              ? (dirCondoOficial || dirRec || dirCont || det.direccion)
+              : (det.direccion || dirInm || dirRec || dirCont)) || '';
+            return limpiarDir(rawCand, optsDir);
           })(),
           detalles: det,
           retencionEstado: stRet,

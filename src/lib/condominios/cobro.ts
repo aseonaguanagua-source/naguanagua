@@ -240,15 +240,54 @@ export async function prepararCobro(sol: SolicitudCobro): Promise<Cobro & { _dat
 
     // Facturas: CONDOMINIO → una al condominio. CONTRIBUYENTE → una por dueño.
     const facturas: Factura[] = [];
+    const t = (k: keyof LineaCobro) => r2(lineas.reduce((a, l) => a + (Number(l[k]) || 0), 0));
+    let totBaseBs = t('baseBs');
+    let totMultaBs = r2(t('multaBs') + t('multasAparteBs'));
+    let totIvaBs = t('ivaBs');
+    let totRetBs = t('retencionBs');
+    let totTotalBs = t('totalBs');
+
     if (modo === 'CONDOMINIO') {
-        const totalBs = r2(lineas.reduce((a, l) => a + l.totalBs, 0));
-        let baseBs = r2(lineas.reduce((a, l) => a + l.baseBs, 0));
-        const multaBs = r2(lineas.reduce((a, l) => a + l.multaBs + l.multasAparteBs, 0));
-        let ivaBs = r2(lineas.reduce((a, l) => a + l.ivaBs, 0));
-        let retencionBs = r2(lineas.reduce((a, l) => a + l.retencionBs, 0));
+        if (porAct && tasa > 0 && lineas.length > 1) {
+            const conv = (bs: number) => r2(bs / tasa);
+            const grupos = new Map<string, LineaCobro[]>();
+            for (const l of lineas) {
+                const gKey = l.padreId || l.clave;
+                const arr = grupos.get(gKey) || [];
+                arr.push(l);
+                grupos.set(gKey, arr);
+            }
+            let sumBaseEur = 0;
+            let sumMultaEur = 0;
+            let sumIvaEur = 0;
+            for (const items of grupos.values()) {
+                const cBase = r2(items.reduce((acc, h) => r2(acc + conv(Number(h.baseBs) || 0)), 0));
+                const cMulta = r2(items.reduce((acc, h) => r2(acc + conv((Number(h.multaBs) || 0) + (Number(h.multasAparteBs) || 0))), 0));
+                const cIva = items.length > 1 && !items[0].residencial
+                    ? r2(cBase * 0.16)
+                    : r2(items.reduce((acc, h) => r2(acc + conv(Number(h.ivaBs) || 0)), 0));
+                sumBaseEur = r2(sumBaseEur + cBase);
+                sumMultaEur = r2(sumMultaEur + cMulta);
+                sumIvaEur = r2(sumIvaEur + cIva);
+            }
+            const sumBrutoEur = r2(sumBaseEur + sumMultaEur + sumIvaEur);
+            const cRetEur = totRetBs > 0 ? conv(totRetBs) : 0;
+            const sumNetoEur = r2(sumBrutoEur - cRetEur);
+            totBaseBs = r2(sumBaseEur * tasa);
+            totMultaBs = r2(sumMultaEur * tasa);
+            totIvaBs = r2(sumIvaEur * tasa);
+            totRetBs = r2(cRetEur * tasa);
+            totTotalBs = r2(sumNetoEur * tasa);
+        }
+
+        const totalBs = totTotalBs;
+        let baseBs = totBaseBs;
+        const multaBs = totMultaBs;
+        let ivaBs = totIvaBs;
+        let retencionBs = totRetBs;
         let totalBrutoBs = r2(baseBs + multaBs + ivaBs);
         // Asegurar cuadre exacto SENIAT/TFHKA cuando es factura global de condominio comercial con retención 75%
-        if (multaBs === 0 && ivaBs > 0 && retencionBs > 0) {
+        if (!porAct && multaBs === 0 && ivaBs > 0 && retencionBs > 0) {
             const baseIdeal = Math.round((totalBs / 1.04) * 100);
             for (let delta = 0; delta <= 50; delta++) {
                 for (const sign of delta === 0 ? [1] : [-1, 1]) {
@@ -307,10 +346,9 @@ export async function prepararCobro(sol: SolicitudCobro): Promise<Cobro & { _dat
         facturas.push(...g.values());
     }
 
-    const t = (k: keyof LineaCobro) => r2(lineas.reduce((a, l) => a + (Number(l[k]) || 0), 0));
     return {
         condo: datos.condo, estado, modo, puedePagarCondominio: true, lineas, facturas, avisos, _datos: datos,
-        totales: { baseBs: t('baseBs'), multaBs: r2(t('multaBs') + t('multasAparteBs')), ivaBs: t('ivaBs'), retencionBs: t('retencionBs'), totalBs: t('totalBs'), meses: Math.max(0, ...lineas.map(l => l.meses)) },
+        totales: { baseBs: totBaseBs, multaBs: totMultaBs, ivaBs: totIvaBs, retencionBs: totRetBs, totalBs: totTotalBs, meses: Math.max(0, ...lineas.map(l => l.meses)) },
     };
 }
 
@@ -471,7 +509,7 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
     if (codigosInmFoto.length > 0) {
         const { data: inmsRows } = await sb
             .from('inmuebles')
-            .select('id, inmueble, meses_deuda, deuda_mmv, multa_bs, deuda_congelada_bs, saldo_favor_bs')
+            .select('id, inmueble, direccion, meses_deuda, deuda_mmv, multa_bs, deuda_congelada_bs, saldo_favor_bs')
             .in('inmueble', codigosInmFoto);
         (inmsRows || []).forEach((ir: any) => {
             if (ir.inmueble) inmsFotoMap.set(String(ir.inmueble).toUpperCase(), ir);
@@ -547,8 +585,14 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
 
     // 1) Un pago por factura
     const pagos: { id: string; reciboRef: string; factura: Factura }[] = [];
-    const fechaPagoReal = (pago.pagosAgregados || []).find((pa: any) => pa?.fecha && pa?.metodo !== 'Saldo a Favor')?.fecha;
-    const fechaTransaccion = String(fechaPagoReal || sol.fechaOverride || new Date(Date.now() - 4 * 3600 * 1000).toISOString()).slice(0, 10);
+    const hoyStr = new Date(Date.now() - 4 * 3600 * 1000).toISOString().slice(0, 10);
+    const paRealConFecha = (pago.pagosAgregados || []).find((pa: any) => (pa?.fechaTransaccion || pa?.fecha) && pa?.metodo !== 'Saldo a Favor');
+    const fechaPagoReal = paRealConFecha?.fechaTransaccion || paRealConFecha?.fecha;
+    const fechaTransaccion = String(
+        (sol.fechaOverride && sol.fechaOverride !== hoyStr && (!fechaPagoReal || fechaPagoReal === hoyStr))
+            ? sol.fechaOverride
+            : (fechaPagoReal || sol.fechaOverride || hoyStr)
+    ).slice(0, 10);
     const esTransferencia = (pago.metodo || '').toLowerCase().includes('transferencia') || (pago.metodo || '').toLowerCase().includes('pago móvil') || Boolean(pago.pagosAgregados && pago.pagosAgregados.some((pa: any) => (pa.metodo || '').toLowerCase().includes('transferencia') || (pa.metodo || '').toLowerCase().includes('pago móvil')));
 
     // Si la referencia ingresada ya existía en un pago previo rechazado, anulado o reversado, liberarla
@@ -593,11 +637,17 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
         const codInmuebleFila = esIndividualUnidad ? (codPrincipalUnidad || c.codigo) : c.codigo;
         const reciboRef = `CONDO-${codInmuebleFila}-${Date.now().toString().slice(-6)}${cobro.facturas.length > 1 ? `-${i + 1}` : ''}`;
         const ret = r2(ls.reduce((a, l) => a + l.retencionBs, 0));
-        let formasPago = [{ descripcion: pago.metodo, fecha: new Date().toISOString(), forma: formaPagoCodigo(pago.metodo), banco: pago.banco || undefined, bancoDestino: pago.bancoDestino || undefined, referencia: ref || undefined, monto: f.totalBs }];
+        let formasPago = [{ descripcion: pago.metodo, fecha: new Date((fechaTransaccion || hoyStr) + 'T12:00:00Z').toISOString(), forma: formaPagoCodigo(pago.metodo), banco: pago.banco || undefined, bancoDestino: pago.bancoDestino || undefined, referencia: ref || undefined, monto: f.totalBs }];
         if (pago.pagosAgregados && pago.pagosAgregados.length > 0) {
-            formasPago = pago.pagosAgregados.map(pa => ({
-                descripcion: pa.metodo, fecha: pa.fecha ? new Date(pa.fecha + 'T12:00:00Z').toISOString() : new Date().toISOString(), forma: formaPagoCodigo(pa.metodo), banco: pa.banco || undefined, bancoDestino: pa.bancoDestino || undefined, referencia: pa.referencia || undefined, monto: pa.monto
-            }));
+            formasPago = pago.pagosAgregados.map(pa => {
+                const fPa = pa.fechaTransaccion || pa.fecha;
+                const fEf = (sol.fechaOverride && sol.fechaOverride !== hoyStr && (!fPa || fPa === hoyStr))
+                    ? sol.fechaOverride
+                    : (fPa || fechaTransaccion || hoyStr);
+                return {
+                    descripcion: pa.metodo, fecha: new Date(String(fEf).slice(0, 10) + 'T12:00:00Z').toISOString(), forma: formaPagoCodigo(pa.metodo), banco: pa.banco || undefined, bancoDestino: pa.bancoDestino || undefined, referencia: pa.referencia || undefined, monto: pa.monto
+                };
+            });
         }
 
         const periodosDesc = ls.flatMap(l => l.periodos);
@@ -665,6 +715,15 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
         const esMultiPago = cobro.facturas.length > 1 || pagosReales.length > 1;
         const grupoId = grupo || (esMultiPago ? (pago.pagoId || id) : null);
 
+        const dirBaseRecibo = esIndividualUnidad
+            ? (inmsFotoMap.get(String(codInmuebleFila || '').toUpperCase())?.direccion || uPrim?.direccion || pPrim?.direccion || c.direccion)
+            : c.direccion;
+        const domicilioFiscalRecibo = sanitizarDireccionFiscal(dirBaseRecibo, {
+            unidadNumero: (cobro.modo === 'CONDOMINIO' && !sol.soloMultas) ? null : (ls[0]?.numero || null),
+            nombreCondo: c.nombre,
+            parentDir: c.direccion,
+        });
+
         const reciboCajaItem = {
             reciboNo: refFinal.slice(-7).padStart(7, '0'),
             controlWeb: `WEB-${refFinal.slice(-7).padStart(7, '0')}`,
@@ -673,10 +732,7 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
             fechaIngresoCaja: new Date().toISOString().slice(0, 10),
             codContribuyente: f.identidad,
             razonSocial: f.nombre,
-            domicilioFiscal: sanitizarDireccionFiscal(c.direccion, {
-                unidadNumero: (cobro.modo === 'CONDOMINIO' && !sol.soloMultas) ? null : (ls[0]?.numero || null),
-                nombreCondo: c.nombre,
-            }),
+            domicilioFiscal: domicilioFiscalRecibo,
             rifCi: f.identidad,
             caja: pago.cajero || 'Caja',
             periodo: periodoTexto,

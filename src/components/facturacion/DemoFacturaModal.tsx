@@ -36,7 +36,7 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
 
   const montoPagado = parseFloat(String(pago?.monto || det.montoTotal || 0));
   const sFavor = parseFloat(String(det.saldo_a_favor_nuevo || det.monto_sobrante || det.saldo_favor || det.saldo_favor_generado || 0)) || 0;
-  let retGuardada = parseFloat(String(det.monto_retencion_iva || det.retencion_iva || pago?.montoRetencion || 0)) || 0;
+  let retGuardada = parseFloat(String(det.monto_retencion_iva || det.retencion_iva || det.factura_digital?.retencion?.retenido || pago?.montoRetencion || 0)) || 0;
   const sFavorReal = (esRetencion && Math.abs(sFavor - retGuardada) < 0.05) ? 0 : sFavor;
 
   // Detección de Nota de Crédito (Saldo a Favor) aplicada en caja
@@ -355,7 +355,11 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
       setFechaEditable(new Date().toLocaleDateString('en-CA', { timeZone: 'America/Caracas' }));
     }
 
-    const rawPago = pago?.fechaPagoOverride || det?.fecha_pago_override || det?.fecha_transaccion || det?.fecha_banco || det?.formasPago?.[0]?.fecha || pago?.fecha || pago?.created_at || '';
+    const fTxP = String(det?.fecha_transaccion || '').slice(0, 10);
+    const fBancoP = String(det?.fecha_banco || '').slice(0, 10);
+    const fIngP = String(det?.fecha_ingreso_caja || pago?.created_at || '').slice(0, 10);
+    const fTxPreferida = (fBancoP && fTxP && fBancoP < fTxP && fTxP === fIngP) ? fBancoP : (fTxP || fBancoP);
+    const rawPago = pago?.fechaPagoOverride || det?.fecha_pago_override || fTxPreferida || det?.formasPago?.[0]?.fecha || pago?.fecha || pago?.created_at || '';
     const sp = String(rawPago).trim();
     if (/^\d{4}-\d{2}-\d{2}/.test(sp)) {
       setFechaPagoEditable(sp.slice(0, 10));
@@ -573,12 +577,22 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
   const licenciaFinal = inmuebleLicencia || det.licencia || 'ACTIVIDAD ECONÓMICA GENERAL';
   const conceptoGeneralFinal = resolverConceptoPeriodoPago(pago);
 
-  // Totales sincronizados con la simulación real de The Factory HKA si está disponible
+  // Totales sincronizados con la factura ya emitida (inmutable) o con la simulación real de The Factory HKA
   const simTot = simulacionTFHKA?.Encabezado?.Totales;
-  const baseImponibleFinal = simTot?.MontoGravadoTotal ? parseFloat(simTot.MontoGravadoTotal) : baseImponible;
-  const ivaFinal = simTot?.TotalIVA ? parseFloat(simTot.TotalIVA) : iva;
-  const exentoFinal = simTot?.MontoExentoTotal ? parseFloat(simTot.MontoExentoTotal) : exento;
-  const totalFacturaFinal = simTot?.TotalAPagar ? parseFloat(simTot.TotalAPagar) : totalFactura;
+  const fdBaseEmitida = parseFloat(String(det.factura_digital?.retencion?.base || det.base_imponible || 0)) || 0;
+  const fdIvaEmitido = parseFloat(String(det.factura_digital?.retencion?.iva || det.iva_monto || 0)) || 0;
+  const baseImponibleFinal = (yaEmitidaVigente && fdTotalGuardado > 0)
+    ? (fdBaseEmitida > 0 ? fdBaseEmitida : baseImponible)
+    : (simTot?.MontoGravadoTotal ? parseFloat(simTot.MontoGravadoTotal) : baseImponible);
+  const ivaFinal = (yaEmitidaVigente && fdTotalGuardado > 0)
+    ? (fdIvaEmitido > 0 ? fdIvaEmitido : iva)
+    : (simTot?.TotalIVA ? parseFloat(simTot.TotalIVA) : iva);
+  const exentoFinal = (yaEmitidaVigente && fdTotalGuardado > 0)
+    ? exento
+    : (simTot?.MontoExentoTotal ? parseFloat(simTot.MontoExentoTotal) : exento);
+  const totalFacturaFinal = (yaEmitidaVigente && fdTotalGuardado > 0)
+    ? fdTotalGuardado
+    : (simTot?.TotalAPagar ? parseFloat(simTot.TotalAPagar) : totalFactura);
 
   const handlePrint = () => {
     const prevTitle = document.title;
