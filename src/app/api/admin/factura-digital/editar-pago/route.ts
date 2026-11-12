@@ -169,10 +169,11 @@ export async function POST(req: Request) {
       const ddmmyyyy = `${dd}/${mm}/${yyyy}`;
       const isoCaracas = `${fechaUnificada}T12:00:00-04:00`;
 
-      nuevosDetalles.fecha_transaccion = fechaUnificada;
-      nuevosDetalles.fecha_banco = fechaUnificada;
       nuevosDetalles.fecha_emision_override = fechaUnificada;
       nuevosDetalles.fecha_asignacion_override = fechaUnificada;
+      if (!nuevosDetalles.fecha_transaccion) {
+        nuevosDetalles.fecha_transaccion = fechaUnificada;
+      }
 
       if (Array.isArray(nuevosDetalles.recibo_caja) && nuevosDetalles.recibo_caja[0]) {
         nuevosDetalles.recibo_caja[0].fechaTransaccion = fechaUnificada;

@@ -267,7 +267,8 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
     hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
   });
 
-  const rawFechaEmision = fechaEditable || pago?.fechaEmisionOverride || det?.fecha_emision_override || det?.fecha_asignacion_override || pago?.fechaEmision || det?.factura_digital?.fecha_emision || det?.fecha_transaccion || pago?.created_at;
+  const yaEmitidaVigente = Boolean(pago?.facturaEmitida && !pago?.facturaAnulada);
+  const rawFechaEmision = fechaEditable || pago?.fechaEmisionOverride || det?.fecha_emision_override || det?.fecha_asignacion_override || (yaEmitidaVigente ? (pago?.fechaEmision || det?.factura_digital?.fecha_emision) : '');
   const fechaEmisionDoc = rawFechaEmision
     ? (() => {
         const s = String(rawFechaEmision).trim();
@@ -325,7 +326,7 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
   // Inicializar fecha editable al abrir el modal
   useEffect(() => {
     if (!isOpen || !pago) return;
-    const raw = pago?.fechaEmisionOverride || det?.fecha_emision_override || det?.fecha_asignacion_override || pago?.fechaEmision || det?.factura_digital?.fecha_emision || det?.fecha_transaccion || pago?.created_at || '';
+    const raw = pago?.fechaEmisionOverride || det?.fecha_emision_override || det?.fecha_asignacion_override || (yaEmitidaVigente ? (pago?.fechaEmision || det?.factura_digital?.fecha_emision) : '') || '';
     const s = String(raw).trim();
     if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
       setFechaEditable(s.slice(0, 10));

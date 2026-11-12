@@ -981,23 +981,16 @@ export default function FacturacionElectronicaPage() {
       fCreacion
     );
     const hoyYMD = hoyCaracas();
-    const txEnMesAnterior =
-      fechaPagoOrig &&
-      /^\d{4}-\d{2}-\d{2}$/.test(fechaPagoOrig) &&
-      fechaPagoOrig.slice(0, 7) < hoyYMD.slice(0, 7)
-        ? fechaPagoOrig
-        : '';
+    const yaEmitidaVigente = Boolean(pago.facturaEmitida && !pago.facturaAnulada);
     const fechaEmisionGuardada = normYMD(
       pago.fechaEmisionOverride ||
       pago.detalles?.fecha_emision_override ||
       pago.detalles?.fecha_asignacion_override ||
-      pago.fechaEmision ||
-      pago.detalles?.factura_digital?.fecha_emision ||
-      txEnMesAnterior ||
+      (yaEmitidaVigente ? (pago.fechaEmision || pago.detalles?.factura_digital?.fecha_emision) : '') ||
       ''
     ) || hoyYMD;
     setEmitFechaEmision(fechaEmisionGuardada);
-    setEmitFechaAsignacion(fechaEmisionGuardada);
+    setEmitFechaAsignacion(hoyYMD);
     setEmitFechaPago(fechaPagoOrig || hoyYMD);
 
     // Cargar desglose de formas de pago múltiples solo si existen montos reales desglosados (> 0 en cada pago)
@@ -1032,15 +1025,12 @@ export default function FacturacionElectronicaPage() {
   // Abrir Modal de Edición Directa de Datos Fiscales
   const handleOpenEditModal = (pago: any) => {
     setPagoAEditar(pago);
+    const yaEmitidaVigente = Boolean(pago.facturaEmitida && !pago.facturaAnulada);
     const fOrig = (
       pago.fechaEmisionOverride ||
       pago.detalles?.fecha_emision_override ||
       pago.detalles?.fecha_asignacion_override ||
-      pago.fechaEmision ||
-      pago.detalles?.factura_digital?.fecha_emision ||
-      pago.detalles?.fecha_transaccion ||
-      pago.created_at ||
-      pago.fecha ||
+      (yaEmitidaVigente ? (pago.fechaEmision || pago.detalles?.factura_digital?.fecha_emision) : '') ||
       ''
     ).slice(0, 10);
     const conceptoOrig = pago.detalles?.concepto || pago.detalles?.mes_aseo || pago.detalles?.detalle || '';
