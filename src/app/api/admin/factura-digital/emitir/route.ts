@@ -1377,12 +1377,7 @@ export async function POST(request: Request) {
     const bancoRaw = String(bancoOverride || pagoRow?.banco || fp0.banco || '').trim();
     const bancoPago = bancoRaw.toLowerCase() === tipoPago.toLowerCase() ? '' : bancoRaw;
     const refPago = String(referencia || pagoRow?.referencia || fp0.referencia || '').trim();
-    const fBancoPago = String(detPago.fecha_banco || '').slice(0, 10);
-    const fTxPago = String(detPago.fecha_transaccion || '').slice(0, 10);
-    const fCreacionPago = String(pagoRow?.created_at || '').slice(0, 10);
-    const fechaTxResuelta = (fBancoPago && fTxPago === fCreacionPago && fBancoPago !== fCreacionPago)
-      ? fBancoPago
-      : (detPago.fecha_transaccion || detPago.fecha_banco || fp0.fecha || pagoRow?.created_at || fechaActual.toISOString());
+    const fechaTxResuelta = detPago.fecha_pago_override || detPago.fecha_transaccion || detPago.fecha_banco || fp0.fecha || pagoRow?.created_at || fechaActual.toISOString();
     const fechaPago = fechaPagoOverride 
       ? `${fechaPagoOverride}T12:00:00-04:00`
       : (/^\d{4}-\d{2}-\d{2}$/.test(String(fechaTxResuelta).trim()) ? `${String(fechaTxResuelta).trim()}T12:00:00-04:00` : fechaTxResuelta);
@@ -2113,6 +2108,11 @@ export async function POST(request: Request) {
           tfhkaResponse.resultado.fechaEmision = fechaEmisionDDMMYYYY;
         }
         nuevosDetalles.fecha_emision_override = fechaEmisionYMD;
+        if (fechaPagoOverride && /^\d{4}-\d{2}-\d{2}$/.test(String(fechaPagoOverride).trim())) {
+          const fpClean = String(fechaPagoOverride).trim();
+          nuevosDetalles.fecha_transaccion = fpClean;
+          nuevosDetalles.fecha_pago_override = fpClean;
+        }
         nuevosDetalles.factura_digital = {
           emitida:          true,
           url:              finalUrl || null,
@@ -2441,6 +2441,73 @@ export async function POST(request: Request) {
         if (idsIntegrados.length > 0) {
           nuevosDetalles.pagos_integrados_ids = idsIntegrados;
           await supabase.from('pagos_reportados').update({ detalles: nuevosDetalles }).eq('id', pagoId);
+        }
+
+        // Si este pago era parte de un Pago Múltiple / Abono Parcial que se acaba de completar al facturar,
+        // verificar si la deuda en `inmuebles` aún no había sido descontada (ej. cuando ambos pagos se registraron como abono) y descontarla.
+        if (detPago?.es_abono === true || nuevosDetalles.abono_completado === true || idsIntegrados.length > 0) {
+          const histRefsEmit = recibosPrin.filter((r: string) => r.startsWith('RECIB-HIST-') || r.startsWith('DUMMY-HIST-'));
+          const deudaPrevArr: any[] = Array.isArray(nuevosDetalles.deuda_previa)
+            ? nuevosDetalles.deuda_previa
+            : (Array.isArray(detPago?.deuda_previa) ? detPago.deuda_previa : []);
+          if (histRefsEmit.length > 0 && deudaPrevArr.length > 0) {
+            const codesInRefs = Array.from(new Set(histRefsEmit.map((r: string) => {
+              const m = r.match(/(?:RECIB-HIST|DUMMY-HIST)-([A-Z0-9_-]+?)(?:-M?\d+)?$/i);
+              return m && m[1] ? m[1].toUpperCase() : '';
+            }).filter(Boolean)));
+            if (codesInRefs.length > 0) {
+              const { data: inmsCheck } = await supabase
+                .from('inmuebles')
+                .select('id, inmueble, meses_deuda, deuda_mmv, multa_bs, mmv_mes, padre_id, condominio_padre_id')
+                .in('inmueble', codesInRefs);
+              const parentsToSync = new Set<string>();
+              for (const inmRow of inmsCheck || []) {
+                const codU = String(inmRow.inmueble || '').toUpperCase();
+                const histThis = histRefsEmit.filter((r: string) => r.includes(`-${codU}-`));
+                const mesesPagados = histThis.length;
+                if (mesesPagados <= 0) continue;
+                const snap = deudaPrevArr.find((dp: any) => String(dp?.inmueble || '').toUpperCase() === codU || dp?.id === inmRow.id);
+                const prevMeses = snap && snap.meses_deuda != null ? parseInt(String(snap.meses_deuda), 10) : null;
+                const curMeses = Math.max(0, parseInt(String(inmRow.meses_deuda || 0), 10));
+                if (prevMeses !== null && !isNaN(prevMeses) && curMeses >= prevMeses && curMeses > 0) {
+                  const nuevoMeses = Math.max(0, curMeses - mesesPagados);
+                  const dMmv = parseFloat(String(inmRow.deuda_mmv || 0));
+                  const mBs = parseFloat(String(inmRow.multa_bs || 0));
+                  const nuevaDeudaMmv = nuevoMeses === 0 ? 0 : parseFloat(((dMmv * nuevoMeses) / (curMeses || 1)).toFixed(6));
+                  const nuevaMultaBs = nuevoMeses === 0 ? 0 : parseFloat(((mBs * nuevoMeses) / (curMeses || 1)).toFixed(2));
+                  await supabase.from('inmuebles').update({
+                    meses_deuda: nuevoMeses,
+                    deuda_mmv: nuevaDeudaMmv,
+                    multa_bs: nuevaMultaBs,
+                    ...(nuevoMeses === 0 ? { deuda_congelada_bs: 0 } : {})
+                  }).eq('id', inmRow.id);
+                  if (inmRow.padre_id) parentsToSync.add(inmRow.padre_id);
+                  if (inmRow.condominio_padre_id) parentsToSync.add(inmRow.condominio_padre_id);
+                }
+              }
+              for (const pCode of Array.from(parentsToSync)) {
+                const { data: parentInm } = await supabase.from('inmuebles').select('id, inmueble, actividad_principal').eq('inmueble', pCode).maybeSingle();
+                if (parentInm && String(parentInm.actividad_principal || '').trim().toUpperCase() === 'N/A') {
+                  const { data: childrenInms } = await supabase
+                    .from('inmuebles')
+                    .select('meses_deuda, deuda_mmv, multa_bs')
+                    .or(`padre_id.eq.${pCode},condominio_padre_id.eq.${pCode}`)
+                    .neq('estado', 'Eliminado');
+                  if (childrenInms && childrenInms.length > 0) {
+                    const maxM = Math.max(0, ...childrenInms.map((c: any) => parseInt(String(c.meses_deuda || 0), 10) || 0));
+                    const sumD = Math.round(childrenInms.reduce((s: number, c: any) => s + (parseFloat(String(c.deuda_mmv || 0)) || 0), 0) * 10000) / 10000;
+                    const sumM = Math.round(childrenInms.reduce((s: number, c: any) => s + (parseFloat(String(c.multa_bs || 0)) || 0), 0) * 100) / 100;
+                    await supabase.from('inmuebles').update({
+                      meses_deuda: maxM,
+                      deuda_mmv: maxM === 0 ? 0 : sumD,
+                      multa_bs: maxM === 0 ? 0 : sumM,
+                      ...(maxM === 0 ? { deuda_congelada_bs: 0 } : {})
+                    }).eq('id', parentInm.id);
+                  }
+                }
+              }
+            }
+          }
         }
       }
 

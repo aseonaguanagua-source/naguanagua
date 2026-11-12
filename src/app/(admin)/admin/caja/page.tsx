@@ -200,6 +200,8 @@ export default function CajaPage() {
   const [isPagoMultiple, setIsPagoMultiple] = useState(false);
   const [abonoPrevioAprobado, setAbonoPrevioAprobado] = useState<number>(0);
   const [abonosAprobados, setAbonosAprobados] = useState<any[]>([]);
+  const retencionManualZeroRef = useRef<boolean>(false);
+  const lastAutoFilledAbonoRef = useRef<string>('');
 
   // Modal de Confirmación de Pago
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
@@ -527,6 +529,11 @@ export default function CajaPage() {
       try {
         det = typeof p.detalles === 'string' ? JSON.parse(p.detalles) : (p.detalles || {});
       } catch (_) {}
+      // Si es un abono parcial (Pago Múltiple) aún no completado, NO bloquear el recibo
+      // para que el cajero pueda ver la diferencia restante y registrar el 2do pago inmediatamente.
+      if (det.es_abono === true && det.abono_completado !== true) {
+        return;
+      }
       const refs: string[] = det.recibos || [];
       const deudaPrev: any[] = Array.isArray(det.deuda_previa) ? det.deuda_previa : [];
       refs.forEach(ref => {
@@ -565,6 +572,11 @@ export default function CajaPage() {
       try {
         det = typeof p.detalles === 'string' ? JSON.parse(p.detalles) : (p.detalles || {});
       } catch (_) {}
+      // Si es un abono parcial (Pago Múltiple) aún no completado, NO bloquear el recibo
+      // para que el cajero pueda ver la diferencia restante y registrar el 2do pago inmediatamente.
+      if (det.es_abono === true && det.abono_completado !== true) {
+        return;
+      }
       const refs: string[] = det.recibos || [];
       refs.forEach(ref => map.set(ref, p));
     });
@@ -721,6 +733,8 @@ export default function CajaPage() {
     setMontoPorConciliar(0);
     setAbonoPrevioAprobado(0);
     setAbonosAprobados([]);
+    retencionManualZeroRef.current = false;
+    lastAutoFilledAbonoRef.current = '';
     setNotificacionConciliacion(null);
     setTotalBs(0);
 
@@ -1821,17 +1835,19 @@ export default function CajaPage() {
       setPagosPorConciliar(arrPagosPend);
       setMontoPorConciliar(totalPendConciliar);
 
-      // Consultar abonos parciales (Pago Múltiple) ya aprobados y pendientes de completar en Caja
+      // Consultar abonos parciales (Pago Múltiple) aprobados o recién registrados en Caja pendientes de completar
       let queryAbonosAprob = supabase
         .from('pagos_reportados')
         .select('id, referencia, monto, tipo, banco, identidad, created_at, estado, detalles')
-        .eq('estado', 'Aprobado');
+        .in('estado', ['Aprobado', 'Por Verificar']);
       if (identOrs.length > 0) {
         queryAbonosAprob = queryAbonosAprob.or(identOrs.join(','));
       }
       const { data: allAprobados } = await queryAbonosAprob
         .order('created_at', { ascending: false })
         .limit(100);
+
+      const userInmCodesUpper = userInmCodes.map(c => c.toUpperCase());
 
       const arrAbonosAprob = (allAprobados || []).filter((p: any) => {
         const detObj = typeof p.detalles === 'string' ? (() => { try { return JSON.parse(p.detalles); } catch { return {}; } })() : (p.detalles || {});
@@ -1875,7 +1891,7 @@ export default function CajaPage() {
         if (yaLiquidadoPosterior) return false;
 
         // Si se buscó un código específico (isCodeFormat), aislar estrictamente por inmueble:
-        // El abono solo pertenece a esta consulta si pertenece a userInmCodes
+        // El abono solo pertenece a esta consulta si pertenece a userInmCodesUpper
         const apCod = String(detObj?.codigo_inmueble || detObj?.cod_inmueble || '').toUpperCase();
         const apRecs = Array.isArray(detObj?.recibos) ? detObj.recibos : [];
         const apCodes = new Set<string>();
@@ -1884,20 +1900,20 @@ export default function CajaPage() {
           const m = String(r).match(/(?:RECIB-HIST|CM)-([A-Z0-9_-]+?)(?:-M\d+)?$/i);
           if (m && m[1]) apCodes.add(m[1].toUpperCase());
         });
-        if (isCodeFormat && userInmCodes.length > 0 && apCodes.size > 0) {
-          if (!userInmCodes.some(code => apCodes.has(code))) return false;
+        if (isCodeFormat && userInmCodesUpper.length > 0 && apCodes.size > 0) {
+          if (!userInmCodesUpper.some(code => apCodes.has(code))) return false;
         }
 
         const pIdentClean = String(p.identidad || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
         const pIdentNums = String(p.identidad || '').replace(/\D/g, '');
         if (pIdentClean && cleanIdents.has(pIdentClean)) {
-          if (isCodeFormat && userInmCodes.length > 0 && apCodes.size > 0 && !userInmCodes.some(code => apCodes.has(code))) {
+          if (isCodeFormat && userInmCodesUpper.length > 0 && apCodes.size > 0 && !userInmCodesUpper.some(code => apCodes.has(code))) {
             return false;
           }
           return true;
         }
         if (pIdentNums.length >= 4 && cleanIdents.has(pIdentNums)) {
-          if (isCodeFormat && userInmCodes.length > 0 && apCodes.size > 0 && !userInmCodes.some(code => apCodes.has(code))) {
+          if (isCodeFormat && userInmCodesUpper.length > 0 && apCodes.size > 0 && !userInmCodesUpper.some(code => apCodes.has(code))) {
             return false;
           }
           return true;
@@ -1906,7 +1922,7 @@ export default function CajaPage() {
         const detStr = (typeof p.detalles === 'string' ? p.detalles : JSON.stringify(p.detalles || '')).toLowerCase();
         if (userInmCodes.some(code => code && detStr.includes(code))) return true;
         if (contribNombre && contribNombre.length > 5 && detStr.includes(contribNombre)) {
-          if (isCodeFormat && userInmCodes.length > 0 && apCodes.size > 0 && !userInmCodes.some(code => apCodes.has(code))) {
+          if (isCodeFormat && userInmCodesUpper.length > 0 && apCodes.size > 0 && !userInmCodesUpper.some(code => apCodes.has(code))) {
             return false;
           }
           return true;
@@ -1920,9 +1936,16 @@ export default function CajaPage() {
         let omitirSepAbono = false;
         let tasaAbono = '';
         let notaTasaAbono = '';
+        let abonoSinRet = false;
+        let abonoConRet = false;
         arrAbonosAprob.forEach((p: any) => {
           const detObj = typeof p.detalles === 'string' ? (() => { try { return JSON.parse(p.detalles); } catch { return {}; } })() : (p.detalles || {});
           if (detObj.omitir_multa_septiembre) omitirSepAbono = true;
+          if (detObj.es_retencion === true || Number(detObj.monto_retencion_iva || 0) > 0) {
+            abonoConRet = true;
+          } else if (detObj.es_retencion === false || Number(detObj.monto_retencion_iva || 0) === 0) {
+            abonoSinRet = true;
+          }
           if (detObj.tasa_bcv_aplicada && !tasaAbono) {
             tasaAbono = String(detObj.tasa_bcv_aplicada);
             notaTasaAbono = String(detObj.nota_cambio_tasa || 'Tasa BCV aplicada en abono previo');
@@ -1930,15 +1953,19 @@ export default function CajaPage() {
           if (Array.isArray(detObj.recibos)) {
             detObj.recibos.forEach((r: string) => {
               if (r) {
-                if (isCodeFormat && userInmCodes.length > 0) {
+                if (isCodeFormat && userInmCodesUpper.length > 0) {
                   const m = String(r).match(/(?:RECIB-HIST|CM)-([A-Z0-9_-]+?)(?:-M\d+)?$/i);
-                  if (m && m[1] && !userInmCodes.includes(m[1].toUpperCase())) return;
+                  if (m && m[1] && !userInmCodesUpper.includes(m[1].toUpperCase())) return;
                 }
                 recibosDeAbono.add(r);
               }
             });
           }
         });
+        if (abonoSinRet && !abonoConRet) {
+          retencionManualZeroRef.current = true;
+          setRetencionIVA(0);
+        }
         if (omitirSepAbono) setOmitirMultaSeptiembre(true);
         if (tasaAbono) {
           setCustomBcvRate(tasaAbono);
@@ -2248,18 +2275,40 @@ export default function CajaPage() {
 
     // Calcular con precisión canónica de 2 decimales idéntica a recibos y factura SENIAT
     let totalAbonoPrevio = 0;
-    const hayConceptosSeleccionados = selectedRecibos.length > 0 || selectedCuotas.length > 0 || selectedServicios.length > 0 || selectedTalaPoda.length > 0;
+    const hayConceptosSeleccionados =
+      selectedRecibos.length > 0 ||
+      selectedCuotas.length > 0 ||
+      selectedServicios.length > 0 ||
+      selectedTalaPoda.length > 0 ||
+      (isCondominio && (condominioModo === 'Total' || selectedHijos.length > 0));
     if (hayConceptosSeleccionados && abonosAprobados.length > 0) {
-      const selSet = new Set(selectedRecibos);
+      const selSet = new Set(selectedRecibos.map(r => String(r).toUpperCase()));
+      const ownInmSet = new Set(
+        allInms
+          .flatMap((i: any) => [i?.inmueble, i?.cod_cont, i?.padre_id, i?.condominio_padre_id])
+          .map((c: any) => String(c || '').trim().toUpperCase())
+          .filter(Boolean)
+      );
+      if (foundUser?.CodCont) ownInmSet.add(String(foundUser.CodCont).trim().toUpperCase());
+      if (foundUser?.cod_cont) ownInmSet.add(String(foundUser.cod_cont).trim().toUpperCase());
+
       abonosAprobados.forEach((ap: any) => {
         const detObj = typeof ap.detalles === 'string' ? (() => { try { return JSON.parse(ap.detalles); } catch { return {}; } })() : (ap.detalles || {});
         const recsAbono: string[] = Array.isArray(detObj.recibos) ? detObj.recibos : [];
         const apCod = String(detObj?.codigo_inmueble || detObj?.cod_inmueble || '').toUpperCase();
 
-        // Coincidencia estricta: debe coincidir algún recibo o el código del inmueble del abono debe estar en los recibos seleccionados
-        const coincideRecibo = recsAbono.length > 0 && recsAbono.some((r: string) => selSet.has(r));
-        const coincideInm = apCod && Array.from(selSet).some(r => r.toUpperCase().includes(apCod));
-        const coincide = coincideRecibo || coincideInm || (recsAbono.length === 0 && !apCod && selectedRecibos.includes('RECIB-DEUDA'));
+        const coincideRecibo = recsAbono.length > 0 && recsAbono.some((r: string) => selSet.has(String(r).toUpperCase()));
+        const coincideInm = Boolean(
+          apCod && (
+            Array.from(selSet).some(r => r.includes(apCod)) ||
+            ownInmSet.has(apCod)
+          )
+        );
+        const coincide =
+          coincideRecibo ||
+          coincideInm ||
+          (isCondominio && (condominioModo === 'Total' || selectedHijos.length > 0)) ||
+          (recsAbono.length === 0 && !apCod && selectedRecibos.includes('RECIB-DEUDA'));
         if (coincide) {
           totalAbonoPrevio = Math.round((totalAbonoPrevio + (parseFloat(ap.monto || detObj.monto_abonado || '0') || 0)) * 100) / 100;
         }
@@ -2379,10 +2428,12 @@ export default function CajaPage() {
     setTotalBs(isCondominio && selectedRecibos.length === 0 ? total : parseFloat((sb + siva + smulta).toFixed(2)));
 
     // Ajuste dinámico de retención:
-    // Si hay IVA retenible, preconfigurar al 75% si estaba en 0.
+    // Si hay IVA retenible, preconfigurar al 75% si estaba en 0 (salvo que el cajero o el 1er abono hayan fijado 0%).
     // Si los conceptos seleccionados NO son de agentes de retención, forzar a 0%.
     if (sivaRetencionable > 0) {
-      setRetencionIVA(prev => (prev === 0 ? 75 : prev));
+      if (!retencionManualZeroRef.current) {
+        setRetencionIVA(prev => (prev === 0 ? 75 : prev));
+      }
     } else {
       setRetencionIVA(0);
       setComprobanteRetencion('');
@@ -2455,6 +2506,22 @@ export default function CajaPage() {
   })();
 
   const totalNetoAPagar = Math.max(0, Math.round(((sumBase + sumIVA + sumMulta) - montoRetencionIVARounded + ajusteMontoAcordado - abonoPrevioAprobado - (useSaldoFavor ? (foundUser?.SaldoFavor || 0) : 0)) * 100) / 100);
+
+  // Cuando existe un primer pago / abono parcial registrado, pre-llenar automáticamente la diferencia faltante
+  // en los campos de monto (Punto de Venta y Transferencia) para que el cajero vea de inmediato lo que falta por pagar.
+  useEffect(() => {
+    if (abonoPrevioAprobado > 0 && totalNetoAPagar > 0) {
+      const key = `${foundUser?.Identidad || ''}_${abonoPrevioAprobado.toFixed(2)}_${totalNetoAPagar.toFixed(2)}`;
+      if (lastAutoFilledAbonoRef.current !== key) {
+        lastAutoFilledAbonoRef.current = key;
+        const formattedDiff = formatLocalNumberInput(totalNetoAPagar.toFixed(2).replace('.', ','));
+        setMontoDebito(formattedDiff);
+        setMontoTransferido(formattedDiff);
+      }
+    } else if (abonoPrevioAprobado <= 0) {
+      lastAutoFilledAbonoRef.current = '';
+    }
+  }, [abonoPrevioAprobado, totalNetoAPagar, foundUser?.Identidad]);
 
   /** Códigos de inmueble que toca el cobro actual / el contribuyente buscado. */
   const codigosDelCobro = (soloSeleccion: boolean): string[] => {
@@ -3338,7 +3405,7 @@ export default function CajaPage() {
         } else if (finalTotal > 0) {
           fpsList.push({
             descripcion: paymentMethod === 'TMD' ? 'TARJETA DE CRÉDITO MASTER (TMD)' : paymentMethod === 'TVD' ? 'TARJETA DE CRÉDITO VISA (TVD)' : paymentMethod === 'Credito' ? 'TARJETA DE CRÉDITO' : paymentMethod === 'Debito' ? 'TARJETA DE DÉBITO' : paymentMethod,
-            fecha: new Date().toISOString(),
+            fecha: fechaTransaccion || fechaCorteCaja || new Date().toISOString(),
             forma: paymentMethod === 'Debito' ? '05' : ['Credito', 'TMD', 'TVD'].includes(paymentMethod) ? '06' : '99',
             banco: banco || undefined,
             referencia: reqRef ? referencia : referenciaDebito || undefined,
@@ -3581,7 +3648,7 @@ export default function CajaPage() {
                   .from('pagos_reportados')
                   .select('id, detalles')
                   .in('identidad', variantesIdent)
-                  .eq('estado', 'Aprobado');
+                  .in('estado', ['Aprobado', 'Por Verificar']);
                 const listaActualizar = [
                   ...(abonosAprobados || []),
                   ...((abonosPrevios || []).filter((ap: any) => !idsAbonos.has(ap.id)))
@@ -3652,7 +3719,7 @@ export default function CajaPage() {
 
         // ── LIMPIAR / REDUCIR DEUDA CONDOMINIO ──
         if (isCondominio) {
-          if (condominioModo === 'Local' && selectedHijos.length > 0) {
+          if (condominioModo === 'Local' && selectedHijos.length > 0 && !esAbonoDebito) {
             for (const hijoId of selectedHijos) {
               const hijo = condominioHijos.find((h: any) => h.id === hijoId);
               const mesesTotales = Math.max(1, parseInt(hijo?.meses_deuda || '1'));
@@ -3685,37 +3752,41 @@ export default function CajaPage() {
                 }
               }
             } else {
-              // Abono total a condominio: descontar mes a mes de los hijos en orden
-              let dineroCondo = montoReal;
-              for (const hijo of condominioHijos) {
-                const mesesHijo = Math.max(0, parseInt(hijo?.meses_deuda || '0'));
-                if (mesesHijo <= 0 || dineroCondo <= 0) continue;
-                const infoDebt = getHijoDebt(hijo);
-                const costPorMes = mesesHijo > 0 ? (infoDebt.total / mesesHijo) : infoDebt.total;
-                let cubiertos = 0;
-                for (let m = 1; m <= mesesHijo; m++) {
-                  if (dineroCondo >= costPorMes - 0.01) {
-                    dineroCondo = Math.max(0, dineroCondo - costPorMes);
-                    cubiertos++;
-                  } else {
-                    break;
-                  }
-                }
-                const resto = Math.max(0, mesesHijo - cubiertos);
-                if (resto === 0) {
-                  await supabase.from('inmuebles').update({ deuda_mmv: 0, deuda_congelada_bs: 0, multa_bs: 0, meses_deuda: 0 }).eq('id', hijo.id);
+              // PAGO MÚLTIPLE / ABONO PARCIAL en modo Total o Local:
+              // No descontar meses individuales en el primer abono parcial; el recibo conserva su deuda hasta que
+              // se registre el segundo pago por la diferencia restante.
+            }
+          } else if (condominioModo === 'Abono' && condominioHijos.length > 0) {
+            // Abono explícito a condominio: descontar mes a mes de los hijos en orden
+            let dineroCondo = montoReal;
+            for (const hijo of condominioHijos) {
+              const mesesHijo = Math.max(0, parseInt(hijo?.meses_deuda || '0'));
+              if (mesesHijo <= 0 || dineroCondo <= 0) continue;
+              const infoDebt = getHijoDebt(hijo);
+              const costPorMes = mesesHijo > 0 ? (infoDebt.total / mesesHijo) : infoDebt.total;
+              let cubiertos = 0;
+              for (let m = 1; m <= mesesHijo; m++) {
+                if (dineroCondo >= costPorMes - 0.01) {
+                  dineroCondo = Math.max(0, dineroCondo - costPorMes);
+                  cubiertos++;
                 } else {
-                  await supabase.from('inmuebles').update({ meses_deuda: resto }).eq('id', hijo.id);
+                  break;
                 }
               }
-              if (dineroCondo > 0.01) {
-                const parentClean = (freshInmuebles.length > 0 ? freshInmuebles : inmuebles).find((i: any) =>
-                  (i.identidad || '').replace(/-/g,'').toUpperCase() === (foundUser.Identidad || '').replace(/-/g,'').toUpperCase()
-                );
-                if (parentClean) {
-                  const sAct = parseFloat(String(parentClean.saldo_favor_bs || '0')) || 0;
-                  await supabase.from('inmuebles').update({ saldo_favor_bs: sAct + parseFloat(dineroCondo.toFixed(2)) }).eq('id', parentClean.id);
-                }
+              const resto = Math.max(0, mesesHijo - cubiertos);
+              if (resto === 0) {
+                await supabase.from('inmuebles').update({ deuda_mmv: 0, deuda_congelada_bs: 0, multa_bs: 0, meses_deuda: 0 }).eq('id', hijo.id);
+              } else {
+                await supabase.from('inmuebles').update({ meses_deuda: resto }).eq('id', hijo.id);
+              }
+            }
+            if (dineroCondo > 0.01) {
+              const parentClean = (freshInmuebles.length > 0 ? freshInmuebles : inmuebles).find((i: any) =>
+                (i.identidad || '').replace(/-/g,'').toUpperCase() === (foundUser.Identidad || '').replace(/-/g,'').toUpperCase()
+              );
+              if (parentClean) {
+                const sAct = parseFloat(String(parentClean.saldo_favor_bs || '0')) || 0;
+                await supabase.from('inmuebles').update({ saldo_favor_bs: sAct + parseFloat(dineroCondo.toFixed(2)) }).eq('id', parentClean.id);
               }
             }
           }
@@ -4302,16 +4373,13 @@ export default function CajaPage() {
                 esAbono: !!esAbono,
               };
             });
-            // Para transferencias NO se emite ni se muestra recibo inmediato porque no está conciliado
-            setReciboData(null);
-            alert('✅ Pago registrado exitosamente en estado "Por Verificar".\n\nPor normativa de recaudación, el recibo y la factura fiscal se generarán una vez que el pago sea CONCILIADO en el módulo de Conciliación Bancaria.');
-          } else if (hijosPagados.length === 1) {
-            setReciboData(null);
-            alert('✅ Pago registrado exitosamente en estado "Por Verificar".\n\nPor normativa de recaudación, el recibo y la factura fiscal se generarán una vez que el pago sea CONCILIADO en el módulo de Conciliación Bancaria.');
-          } else {
-            setReciboData(null);
-            alert('✅ Pago registrado exitosamente en estado "Por Verificar".\n\nPor normativa de recaudación, el recibo y la factura fiscal se generarán una vez que el pago sea CONCILIADO en el módulo de Conciliación Bancaria.');
           }
+          const diffPendienteAlert = Math.max(0, Math.round((finalTotal - montoReal) * 100) / 100);
+          const msgTransfer = esAbono && diffPendienteAlert > 0.01
+            ? `✅ 1er Pago / Abono registrado por Bs. ${formatBs(montoReal)} (En Verificación).\n\n🔴 FALTA POR PAGAR (DIFERENCIA): Bs. ${formatBs(diffPendienteAlert)}\n\nLa diferencia restante ya quedó calculada en pantalla para que registre el siguiente pago.`
+            : '✅ Pago registrado exitosamente en estado "Por Verificar".\n\nPor normativa de recaudación, el recibo y la factura fiscal se generarán una vez que el pago sea CONCILIADO en el módulo de Conciliación Bancaria.';
+          setReciboData(null);
+          alert(msgTransfer);
         } catch(e) {}
       }
 
@@ -4363,6 +4431,16 @@ export default function CajaPage() {
         } else {
           // refreshUserData: refresca SOLO este contribuyente, evita recargar todo el sistema
           const prevSelectedRecibos = [...selectedRecibos];
+          const prevSelectedHijos = [...selectedHijos];
+          const prevSelectedCuotas = [...selectedCuotas];
+          const prevSelectedServicios = [...selectedServicios];
+          const prevSelectedTalaPoda = [...selectedTalaPoda];
+          const prevRetencionIVA = retencionIVA;
+          const prevCustomBcvRate = customBcvRate;
+          const prevJustificacionBcv = justificacionBcv;
+          const prevOmitirSep = omitirMultaSeptiembre;
+          const diffRestante = esAbono ? Math.max(0, Math.round((finalTotal - montoReal) * 100) / 100) : 0;
+
           await refreshUserData(foundUser?.Identidad || '');
           if (!esAbono) {
             setSelectedRecibos([]);
@@ -4378,8 +4456,24 @@ export default function CajaPage() {
           setComprobante(null);
           setConfirmPayload(null);
           await handleSearch();
-          if (esAbono && prevSelectedRecibos.length > 0) {
-            setSelectedRecibos(prevSelectedRecibos);
+          if (esAbono) {
+            if (prevSelectedRecibos.length > 0) setSelectedRecibos(prevSelectedRecibos);
+            if (prevSelectedHijos.length > 0) setSelectedHijos(prevSelectedHijos);
+            if (prevSelectedCuotas.length > 0) setSelectedCuotas(prevSelectedCuotas);
+            if (prevSelectedServicios.length > 0) setSelectedServicios(prevSelectedServicios);
+            if (prevSelectedTalaPoda.length > 0) setSelectedTalaPoda(prevSelectedTalaPoda);
+            retencionManualZeroRef.current = prevRetencionIVA === 0;
+            setRetencionIVA(prevRetencionIVA);
+            if (prevCustomBcvRate) {
+              setCustomBcvRate(prevCustomBcvRate);
+              setJustificacionBcv(prevJustificacionBcv);
+            }
+            if (prevOmitirSep) setOmitirMultaSeptiembre(true);
+            if (diffRestante > 0) {
+              const formattedDiff = formatLocalNumberInput(diffRestante.toFixed(2).replace('.', ','));
+              setMontoDebito(formattedDiff);
+              setMontoTransferido(formattedDiff);
+            }
           }
         }
       }, 600);
@@ -6746,6 +6840,7 @@ export default function CajaPage() {
                           value={retencionIVA} 
                           onChange={(e) => {
                             const val = parseInt(e.target.value);
+                            retencionManualZeroRef.current = (val === 0);
                             setRetencionIVA(val);
                             if (val === 0) setComprobanteRetencion('');
                           }}
@@ -6861,16 +6956,38 @@ export default function CajaPage() {
                 </div>
               )}
               {abonoPrevioAprobado > 0 && (
-                <div className="flex justify-between items-center text-amber-700 font-semibold mt-2 bg-amber-50 px-2.5 py-1.5 rounded-lg border border-amber-200">
-                  <span className="flex items-center gap-1.5">
-                    <span>💳</span> Abono Previo Conciliado:
-                  </span>
-                  <span className="font-bold">- Bs. {formatBs(abonoPrevioAprobado)}</span>
+                <div className="mt-2 bg-amber-50 border-2 border-amber-300 rounded-xl p-3 space-y-1.5 shadow-2xs">
+                  <div className="flex justify-between items-center text-amber-900 font-bold text-xs">
+                    <span className="flex items-center gap-1.5">
+                      <span>💳</span> 1er Pago / Abono Registrado:
+                    </span>
+                    <span className="font-black text-amber-800">- Bs. {formatBs(abonoPrevioAprobado)}</span>
+                  </div>
+                  {abonosAprobados.length > 0 && (
+                    <div className="space-y-1 pt-1 border-t border-amber-200/70">
+                      {abonosAprobados.map((ap: any, idxAp: number) => (
+                        <div key={ap.id || idxAp} className="flex justify-between items-center text-[11px] text-amber-800">
+                          <span className="font-mono">
+                            • {ap.tipo || 'Pago'} Ref: {ap.referencia || 'S/R'} ({ap.estado === 'Por Verificar' ? 'En Verificación' : 'Aprobado'})
+                          </span>
+                          <span className="font-bold">Bs. {formatBs(parseFloat(ap.monto || '0') || 0)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center pt-1.5 border-t border-amber-300 text-rose-700 font-black text-xs">
+                    <span className="uppercase tracking-wide">🔴 FALTA POR PAGAR (DIFERENCIA):</span>
+                    <span className="text-base font-black text-rose-600">Bs. {formatBs(totalNetoAPagar)}</span>
+                  </div>
                 </div>
               )}
               <div className="flex justify-between items-center pt-2 mt-2 border-t border-slate-200">
                 <span className="text-slate-800 font-bold text-base">
-                  {paymentMethod === 'Saldo a Favor' ? 'Total a Descontar de Nota de Crédito:' : 'Total Neto a Pagar:'}
+                  {paymentMethod === 'Saldo a Favor'
+                    ? 'Total a Descontar de Nota de Crédito:'
+                    : abonoPrevioAprobado > 0
+                      ? 'Diferencia Restante a Pagar:'
+                      : 'Total Neto a Pagar:'}
                 </span>
                 <span className="text-2xl font-black text-emerald-700">
                   Bs. {formatBs(
@@ -6934,9 +7051,8 @@ export default function CajaPage() {
               {isPagoMultiple && (
                 <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                   <p className="text-xs text-blue-800 font-medium">
-                    <strong>Pago Múltiple activado:</strong> Registre la transferencia primero. 
-                    El recibo quedará bloqueado hasta que la transferencia sea conciliada (verificada). 
-                    Una vez aprobada, el contribuyente podrá cancelar el monto restante con Débito u otro método.
+                    <strong>Pago Múltiple activado:</strong> Ingrese primero el monto del 1er pago (ej. primera transferencia o punto de venta). 
+                    Al procesarlo, el sistema descontará ese abono y colocará automáticamente la <strong>diferencia faltante</strong> para que registre el 2do pago de inmediato.
                   </p>
                 </div>
               )}

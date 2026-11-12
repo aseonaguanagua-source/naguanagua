@@ -420,6 +420,7 @@ export default function FacturacionElectronicaPage() {
     monto: '',
     referencia: '',
     fecha: '',
+    fechaTransaccion: '',
     concepto: '',
     esRetencion: false,
     sinMulta: false,
@@ -967,15 +968,17 @@ export default function FacturacionElectronicaPage() {
       if (yr < 2020 || yr > 2035) return `2026${s.slice(4)}`;
       return s;
     };
-    const fp0Fecha = normYMD(Array.isArray(pago.detalles?.formasPago) && pago.detalles.formasPago[0]?.fecha ? pago.detalles.formasPago[0].fecha : '');
-    const fBanco = normYMD(pago.detalles?.fecha_banco);
+    const fPagoOverride = normYMD(pago.detalles?.fecha_pago_override || pago.fechaPagoOverride);
     const fTx = normYMD(pago.detalles?.fecha_transaccion);
+    const fBanco = normYMD(pago.detalles?.fecha_banco);
+    const fReciboCaja = normYMD(Array.isArray(pago.detalles?.recibo_caja) && pago.detalles.recibo_caja[0]?.fechaEmision ? pago.detalles.recibo_caja[0].fechaEmision : '');
+    const fp0Fecha = normYMD(Array.isArray(pago.detalles?.formasPago) && pago.detalles.formasPago[0]?.fecha ? pago.detalles.formasPago[0].fecha : '');
     const fCreacion = normYMD(pago.created_at);
     const fechaPagoOrig = (
-      (fBanco && fTx === fCreacion && fBanco !== fCreacion ? fBanco : '') ||
-      (fp0Fecha && fTx === fCreacion && fp0Fecha !== fCreacion ? fp0Fecha : '') ||
+      fPagoOverride ||
       fTx ||
       fBanco ||
+      fReciboCaja ||
       fp0Fecha ||
       normYMD(pago.fechaPago) ||
       fCreacion
@@ -1033,6 +1036,17 @@ export default function FacturacionElectronicaPage() {
       (yaEmitidaVigente ? (pago.fechaEmision || pago.detalles?.factura_digital?.fecha_emision) : '') ||
       ''
     ).slice(0, 10);
+    const fTxOrig = String(
+      pago.detalles?.fecha_pago_override ||
+      pago.fechaPagoOverride ||
+      pago.detalles?.fecha_transaccion ||
+      pago.detalles?.fecha_banco ||
+      (Array.isArray(pago.detalles?.recibo_caja) && pago.detalles.recibo_caja[0]?.fechaEmision ? pago.detalles.recibo_caja[0].fechaEmision : '') ||
+      (Array.isArray(pago.detalles?.formasPago) && pago.detalles.formasPago[0]?.fecha ? pago.detalles.formasPago[0].fecha : '') ||
+      pago.fechaPago ||
+      pago.created_at ||
+      ''
+    ).slice(0, 10);
     const conceptoOrig = pago.detalles?.concepto || pago.detalles?.mes_aseo || pago.detalles?.detalle || '';
     const montoPagadoReal = pago.montoPagado || 
       pago.detalles?.monto_conciliado || 
@@ -1044,6 +1058,7 @@ export default function FacturacionElectronicaPage() {
       monto: String(montoPagadoReal),
       referencia: pago.referencia && pago.referencia !== 'N/A' ? pago.referencia : '',
       fecha: fOrig || hoyCaracas(),
+      fechaTransaccion: fTxOrig || hoyCaracas(),
       concepto: conceptoOrig,
       esRetencion: !!(pago.esRetencion || pago.conRetencion || pago.detalles?.es_retencion || pago.detalles?.agente_retencion),
       sinMulta: Boolean(pago.tieneMulta === false || pago.detalles?.llevaMulta === false || pago.detalles?.sin_multas === true),
@@ -1091,6 +1106,7 @@ export default function FacturacionElectronicaPage() {
           sinMulta: editForm.sinMulta,
           modulo: editForm.modulo,
           fechaEmision: editForm.fecha,
+          fechaTransaccion: editForm.fechaTransaccion,
           concepto: editForm.concepto,
           marcarAnulada: editForm.marcarAnulada,
           usuario: usuarioActual || 'Administrador'
@@ -2761,7 +2777,29 @@ export default function FacturacionElectronicaPage() {
                         max="2030-12-31"
                         value={emitFechaEmision}
                         onChange={e => {
-                          setEmitFechaEmision(e.target.value);
+                          const val = e.target.value;
+                          setEmitFechaEmision(val);
+                          const pId = selectedPagoForEmit?.pagoId || selectedPagoForEmit?.id;
+                          if (pId && /^\d{4}-\d{2}-\d{2}$/.test(val)) {
+                            const yr = parseInt(val.slice(0, 4), 10);
+                            if (yr >= 2020 && yr <= 2035) {
+                              fetch('/api/admin/factura-digital/editar-pago', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ pagoId: pId, fechaEmision: val, usuario: adminUser?.usuario || 'Administrador' }),
+                              }).catch(() => {});
+                              setSelectedPagoForEmit((prev: any) => prev ? {
+                                ...prev,
+                                fechaEmisionOverride: val,
+                                detalles: { ...(prev.detalles || {}), fecha_emision_override: val }
+                              } : prev);
+                              setPagosList(prev => prev.map(it => (it.id === pId || it.pagoId === pId) ? {
+                                ...it,
+                                fechaEmisionOverride: val,
+                                detalles: { ...(it.detalles || {}), fecha_emision_override: val }
+                              } : it));
+                            }
+                          }
                         }}
                         onBlur={e => {
                           const s = String(e.target.value || '').trim().slice(0, 10);
@@ -2799,7 +2837,43 @@ export default function FacturacionElectronicaPage() {
                         min="2020-01-01"
                         max="2030-12-31"
                         value={emitFechaPago}
-                        onChange={e => setEmitFechaPago(e.target.value)}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setEmitFechaPago(val);
+                          const pId = selectedPagoForEmit?.pagoId || selectedPagoForEmit?.id;
+                          if (pId && /^\d{4}-\d{2}-\d{2}$/.test(val)) {
+                            const yr = parseInt(val.slice(0, 4), 10);
+                            if (yr >= 2020 && yr <= 2035) {
+                              fetch('/api/admin/factura-digital/editar-pago', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ pagoId: pId, fechaTransaccion: val, usuario: adminUser?.usuario || 'Administrador' }),
+                              }).catch(() => {});
+                              setSelectedPagoForEmit((prev: any) => prev ? {
+                                ...prev,
+                                fechaPago: val,
+                                fechaPagoOverride: val,
+                                detalles: {
+                                  ...(prev.detalles || {}),
+                                  fecha_transaccion: val,
+                                  fecha_pago_override: val,
+                                  fecha_banco: val,
+                                }
+                              } : prev);
+                              setPagosList(prev => prev.map(it => (it.id === pId || it.pagoId === pId) ? {
+                                ...it,
+                                fechaPago: val,
+                                fechaPagoOverride: val,
+                                detalles: {
+                                  ...(it.detalles || {}),
+                                  fecha_transaccion: val,
+                                  fecha_pago_override: val,
+                                  fecha_banco: val,
+                                }
+                              } : it));
+                            }
+                          }
+                        }}
                         onBlur={e => {
                           const s = String(e.target.value || '').trim().slice(0, 10);
                           if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
@@ -2811,7 +2885,7 @@ export default function FacturacionElectronicaPage() {
                         }}
                         className="w-full border border-indigo-400 bg-indigo-50/40 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500"
                       />
-                      <p className="text-[9px] text-slate-500 mt-0.5">Fecha del movimiento bancario</p>
+                      <p className="text-[9px] text-indigo-700 font-semibold mt-0.5">Fecha registrada en Caja (editable)</p>
                     </div>
                   </div>
                 </div>
@@ -3121,6 +3195,8 @@ export default function FacturacionElectronicaPage() {
                       conRetencion: emitEsRetencion,
                       esRetencion: emitEsRetencion,
                       fechaEmisionOverride: emitFechaEmision || undefined,
+                      fechaPagoOverride: emitFechaPago || undefined,
+                      fechaPago: emitFechaPago || selectedPagoForEmit.fechaPago,
                       fechaEmision: emitFechaEmision ? `${emitFechaEmision}T12:00:00-04:00` : selectedPagoForEmit.fechaEmision,
                       detalles: {
                         ...(selectedPagoForEmit.detalles || {}),
@@ -3140,7 +3216,9 @@ export default function FacturacionElectronicaPage() {
                         conRetencion: emitEsRetencion,
                         monto_factura: total,
                         multa_bs: multa,
-                        fecha_emision_override: emitFechaEmision || undefined
+                        fecha_emision_override: emitFechaEmision || undefined,
+                        fecha_transaccion: emitFechaPago || selectedPagoForEmit.detalles?.fecha_transaccion,
+                        fecha_pago_override: emitFechaPago || undefined,
                       }
                     };
                     setSelectedPagoForDemo(demoPago);
@@ -3246,7 +3324,7 @@ export default function FacturacionElectronicaPage() {
                   </div>
                 </div>
 
-                {/* 3. Referencia Bancaria, Fecha de Emisión y Asignación & Selección de Caja */}
+                {/* 3. Referencia Bancaria, Fecha de Emisión, Fecha de Transacción & Selección de Caja */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">
@@ -3274,15 +3352,14 @@ export default function FacturacionElectronicaPage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-600 mb-1">
-                      Fecha de Asignación (TFHKA)
+                    <label className="block text-xs font-bold text-indigo-900 mb-1">
+                      Fecha Transacción <span className="text-rose-500">*</span>
                     </label>
                     <input
                       type="date"
-                      value={hoyCaracas()}
-                      readOnly
-                      disabled
-                      className="w-full border border-slate-300 bg-slate-100 rounded-xl px-2 py-2 text-xs font-semibold text-slate-500 cursor-not-allowed"
+                      value={editForm.fechaTransaccion}
+                      onChange={e => setEditForm(prev => ({ ...prev, fechaTransaccion: e.target.value }))}
+                      className="w-full border border-indigo-400 bg-indigo-50/40 rounded-xl px-2 py-2 text-xs font-semibold focus:ring-2 focus:ring-indigo-500"
                     />
                   </div>
 

@@ -21,6 +21,7 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
   const [simulacionTFHKA, setSimulacionTFHKA] = useState<any>(null);
   const [cargandoSimulacion, setCargandoSimulacion] = useState<boolean>(false);
   const [fechaEditable, setFechaEditable] = useState<string>('');
+  const [fechaPagoEditable, setFechaPagoEditable] = useState<string>('');
   const [guardandoFecha, setGuardandoFecha] = useState<boolean>(false);
 
   const det = pago?.detalles || {};
@@ -353,6 +354,20 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
     } else {
       setFechaEditable(new Date().toLocaleDateString('en-CA', { timeZone: 'America/Caracas' }));
     }
+
+    const rawPago = pago?.fechaPagoOverride || det?.fecha_pago_override || det?.fecha_transaccion || det?.fecha_banco || det?.formasPago?.[0]?.fecha || pago?.fecha || pago?.created_at || '';
+    const sp = String(rawPago).trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(sp)) {
+      setFechaPagoEditable(sp.slice(0, 10));
+    } else if (sp) {
+      try {
+        setFechaPagoEditable(new Date(sp).toLocaleDateString('en-CA', { timeZone: 'America/Caracas' }));
+      } catch {
+        setFechaPagoEditable('');
+      }
+    } else {
+      setFechaPagoEditable('');
+    }
   }, [isOpen, pago]);
 
   const handleGuardarFechaEnFactura = async (nuevaFecha: string) => {
@@ -371,6 +386,27 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
       });
     } catch (e) {
       console.warn('Error guardando fecha de emisión/asignación:', e);
+    } finally {
+      setGuardandoFecha(false);
+    }
+  };
+
+  const handleGuardarFechaPagoEnFactura = async (nuevaFechaPago: string) => {
+    setFechaPagoEditable(nuevaFechaPago);
+    if (!pago?.id || !/^\d{4}-\d{2}-\d{2}$/.test(nuevaFechaPago)) return;
+    setGuardandoFecha(true);
+    try {
+      await fetch('/api/admin/factura-digital/editar-pago', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pagoId: pago.pagoId || pago.id,
+          fechaTransaccion: nuevaFechaPago,
+          usuario: 'Administrador'
+        })
+      });
+    } catch (e) {
+      console.warn('Error guardando fecha de transacción:', e);
     } finally {
       setGuardandoFecha(false);
     }
@@ -500,6 +536,7 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
             bancoOverride: det.banco || pago.banco,
             formaPagoOverride: det.tipo || pago.tipo,
             fechaEmisionOverride: fechaEditable || pago.fechaEmisionOverride || det.fecha_emision_override,
+            fechaPagoOverride: fechaPagoEditable || pago.fechaPagoOverride || det.fecha_pago_override || det.fecha_transaccion,
             montoTotal: totalFactura || pago.monto || det.monto_factura || pago.montoTotal || det.montoTotal
           })
         });
@@ -516,7 +553,7 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
 
     fetchSimulacion();
     return () => { cancel = true; };
-  }, [isOpen, pago, fechaEditable]);
+  }, [isOpen, pago, fechaEditable, fechaPagoEditable]);
 
   if (!isOpen || !pago) return null;
 
@@ -613,6 +650,18 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
                 onChange={e => handleGuardarFechaEnFactura(e.target.value)}
                 className="bg-slate-900 text-white border border-slate-600 rounded px-1.5 py-0.5 text-xs font-mono font-bold focus:outline-none focus:ring-1 focus:ring-emerald-400"
                 title="Editar Fecha de Emisión de la Factura"
+              />
+            </div>
+            <div className="flex items-center gap-1.5 bg-slate-800/80 border border-slate-600 rounded-lg px-2.5 py-1">
+              <span className="text-[10px] font-bold text-amber-300 uppercase whitespace-nowrap">
+                💳 Fecha Transacción:
+              </span>
+              <input
+                type="date"
+                value={fechaPagoEditable}
+                onChange={e => handleGuardarFechaPagoEnFactura(e.target.value)}
+                className="bg-slate-900 text-white border border-slate-600 rounded px-1.5 py-0.5 text-xs font-mono font-bold focus:outline-none focus:ring-1 focus:ring-amber-400"
+                title="Editar Fecha del Pago / Transacción en Caja"
               />
               {guardandoFecha && <span className="text-[10px] text-amber-300 animate-pulse">Guardando...</span>}
             </div>
@@ -883,6 +932,14 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
                       <div><strong>Forma:</strong> {tipoPago}</div>
                       {banco && banco !== 'N/A' && <div><strong>Banco:</strong> {banco}</div>}
                       {referencia && referencia !== 'N/A' && <div><strong>Referencia:</strong> <span className="font-mono">{referencia}</span></div>}
+                      {fechaPagoEditable && (
+                        <div>
+                          <strong>Fecha Transacción:</strong>{' '}
+                          <span className="font-mono font-bold text-slate-900">
+                            {fechaPagoEditable.split('-').reverse().join('/')}
+                          </span>
+                        </div>
+                      )}
                       {montoConciliado > 0 && <div><strong>Monto Conciliado:</strong> <span className="font-bold text-slate-900 font-mono">Bs. {formatBs(montoConciliado)}</span></div>}
                       <div><strong>Aplicado a Factura (Neto):</strong> <span className="font-mono font-bold text-emerald-800">Bs. {formatBs(montoNetoCobrado)}</span></div>
                     </div>
@@ -1060,9 +1117,11 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
                   onProcederEmitir({
                     ...pago,
                     fechaEmisionOverride: fechaEditable || pago?.fechaEmisionOverride,
+                    fechaPagoOverride: fechaPagoEditable || pago?.fechaPagoOverride,
                     detalles: {
                       ...(pago?.detalles || {}),
-                      ...(fechaEditable ? { fecha_emision_override: fechaEditable } : {})
+                      ...(fechaEditable ? { fecha_emision_override: fechaEditable } : {}),
+                      ...(fechaPagoEditable ? { fecha_pago_override: fechaPagoEditable, fecha_transaccion: fechaPagoEditable } : {})
                     }
                   }, totalFacturaFinal, totalFacturaFinal);
                 }}

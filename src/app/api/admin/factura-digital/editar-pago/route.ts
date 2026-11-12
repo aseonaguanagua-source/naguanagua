@@ -18,6 +18,8 @@ export async function POST(req: Request) {
       fecha,
       fechaEmision,
       fechaAsignacion,
+      fechaTransaccion,
+      fechaPago,
       sinMulta,
       concepto,
       formasPago,
@@ -193,6 +195,19 @@ export async function POST(req: Request) {
           nuevosDetalles.factura_digital.payload_generado.documentoElectronico.Encabezado.IdentificacionDocumento.FechaEmision = ddmmyyyy;
           nuevosDetalles.factura_digital.payload_generado.documentoElectronico.Encabezado.IdentificacionDocumento.FechaVencimiento = ddmmyyyy;
         }
+      }
+    }
+
+    const fechaPagoClean = [fechaTransaccion, fechaPago].find(f => f && /^\d{4}-\d{2}-\d{2}$/.test(String(f).trim()))?.trim();
+    if (fechaPagoClean) {
+      nuevosDetalles.fecha_transaccion = fechaPagoClean;
+      nuevosDetalles.fecha_pago_override = fechaPagoClean;
+      nuevosDetalles.fecha_banco = fechaPagoClean;
+      if (Array.isArray(nuevosDetalles.formasPago) && nuevosDetalles.formasPago.length === 1 && nuevosDetalles.formasPago[0]) {
+        nuevosDetalles.formasPago[0] = {
+          ...nuevosDetalles.formasPago[0],
+          fecha: fechaPagoClean
+        };
       }
     }
 

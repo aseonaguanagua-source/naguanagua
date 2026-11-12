@@ -1533,9 +1533,6 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
               .filter((p: any) => p.id !== pago.id && (p.estado === 'Aprobado' || conciliarTodoElGrupo))
               .reduce((acc: number, p: any) => acc + (parseFloat(String(p.monto || '0')) || 0), 0)
           : 0;
-        const dineroTotalCubierto = montoConciliadoNum + retencionIvaPago + saldoUsadoPago + Math.max(abonoPrevioPago, otrosPagosGrupoMonto);
-        const esAbonoParcialConcil = !!det.es_abono || (montoConciliadoNum > 0 && det.total_seleccionado && dineroTotalCubierto < parseFloat(det.total_seleccionado) - 1.00);
-
         // Recolectar códigos de inmuebles de referencias, detalles y del propio pago
         const propertyCodesFromRefs = new Set<string>();
         recibos.forEach((r: string) => {
@@ -1564,6 +1561,56 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
           ...idVariants.map(v => `identidad.eq.${v}`),
           ...Array.from(propertyCodesFromRefs).map(c => `inmueble.eq.${c}`)
         ];
+
+        // Consultar abonos hermanos ya aprobados del mismo contribuyente/inmueble/recibos
+        let sumaAbonosHermanos = 0;
+        const abonosHermanosToMark: any[] = [];
+        try {
+          if (idVariants.length > 0 && (det.es_abono || abonoPrevioPago > 0 || recibos.length > 0)) {
+            const { data: hermanosDb } = await supabase
+              .from('pagos_reportados')
+              .select('id, monto, created_at, detalles')
+              .in('identidad', idVariants)
+              .eq('estado', 'Aprobado')
+              .neq('id', pago.id);
+            const recsUpper = recibos.map((r: string) => String(r).toUpperCase());
+            for (const h of hermanosDb || []) {
+              let dh: any = h.detalles || {};
+              if (typeof dh === 'string') { try { dh = JSON.parse(dh); } catch { dh = {}; } }
+              if (dh?.anulado || dh?.factura_digital?.anulada || dh?.factura_anulada) continue;
+              const hRecs = Array.isArray(dh?.recibos) ? dh.recibos.map((r: any) => String(r).toUpperCase()) : [];
+              const hCod = String(dh?.cod_inmueble || dh?.codigo_inmueble || '').toUpperCase();
+              const comparteRec = recsUpper.length > 0 && hRecs.length > 0 && hRecs.some((r: string) => recsUpper.includes(r));
+              const comparteCod = Boolean(hCod && propertyCodesFromRefs.has(hCod) && recsUpper.length === 0 && hRecs.length === 0);
+              const esVinculadoExplicito = dh?.completado_con_pago_id === pago.id || det?.completado_con_pago_id === h.id || dh?.pago_principal_id === pago.id;
+              const diffDias = Math.abs(new Date(h.created_at || 0).getTime() - new Date(pago.created_at || Date.now()).getTime()) / (86400 * 1000);
+              if (esVinculadoExplicito || ((comparteRec || comparteCod) && (dh?.es_abono === true || det?.es_abono === true) && !dh?.factura_digital?.emitida && diffDias <= 25)) {
+                sumaAbonosHermanos += parseFloat(String(h.monto || dh?.monto_abonado || 0)) || 0;
+                abonosHermanosToMark.push({ id: h.id, detalles: dh });
+              }
+            }
+          }
+        } catch (eHerm) {
+          console.warn('Error consultando abonos hermanos en conciliación:', eHerm);
+        }
+
+        const montoObjetivoConcil = parseFloat(String(det.total_seleccionado || det.monto_factura || det.monto_neto_factura || 0)) || 0;
+        const dineroTotalCubierto = montoConciliadoNum + retencionIvaPago + saldoUsadoPago + Math.max(abonoPrevioPago, otrosPagosGrupoMonto, sumaAbonosHermanos);
+        const abonoCompletadoConHermanos = montoObjetivoConcil > 0 && dineroTotalCubierto >= montoObjetivoConcil - 1.00;
+        const esAbonoParcialConcil = !abonoCompletadoConHermanos && (!!det.es_abono || (montoConciliadoNum > 0 && montoObjetivoConcil > 0 && dineroTotalCubierto < montoObjetivoConcil - 1.00));
+
+        if (abonoCompletadoConHermanos && (det.es_abono || abonosHermanosToMark.length > 0)) {
+          try {
+            const detUpd = { ...det, abono_completado: true };
+            await supabase.from('pagos_reportados').update({ detalles: detUpd }).eq('id', pago.id);
+            for (const hm of abonosHermanosToMark) {
+              const dHm = { ...(hm.detalles || {}), abono_completado: true, completado_con_pago_id: hm.detalles?.completado_con_pago_id || pago.id };
+              await supabase.from('pagos_reportados').update({ detalles: dHm }).eq('id', hm.id);
+            }
+          } catch (eMark) {
+            console.warn('Error marcando abono_completado en conciliación:', eMark);
+          }
+        }
 
         if (recibos.includes('RECIB-DEUDA') || histRefsConcil.length > 0 || multaRefsConcil.length > 0 || (facs && facs.length > 0)) {
           const { data: inmList2 } = await supabase
@@ -1606,6 +1653,14 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
                 }
               } else if (!esAbonoParcialConcil && (histRefsThisInm.length > 0 || facsThisInm.length > 0)) {
                 const mesesPagados = histRefsThisInm.length > 0 ? histRefsThisInm.length : facsThisInm.length;
+                const prevSnap = Array.isArray(det.deuda_previa)
+                  ? det.deuda_previa.find((dp: any) => String(dp?.inmueble || '').toUpperCase() === inmCod || dp?.id === inm.id)
+                  : null;
+                const prevMesesSnap = prevSnap && prevSnap.meses_deuda != null ? parseInt(String(prevSnap.meses_deuda), 10) : null;
+                // Evitar descontar dos veces si un pago hermano (ej. Punto de Venta) ya redujo meses_deuda previamente
+                if (prevMesesSnap !== null && !isNaN(prevMesesSnap) && numMesesInm <= Math.max(0, prevMesesSnap - mesesPagados)) {
+                  continue;
+                }
                 const nuevoMeses = Math.max(0, numMesesInm - mesesPagados);
                 const d = parseFloat(String(inm.deuda_mmv || 0));
                 const m = parseFloat(String(inm.multa_bs || 0));

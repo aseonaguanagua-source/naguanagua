@@ -612,7 +612,8 @@ function Caja() {
       fechaTransaccion: fechaTransaccionAct,
       fechaIngresoCaja: fechaIngresoCajaAct,
     }]);
-    setMetodoAct('Transferencia'); setBancoAct('Banco de Venezuela'); setBancoDestinoAct('BANCAMIGA - 0172 - 0717'); setReferenciaAct(''); setMontoAct(''); setComprobanteAct(null);
+    const nuevoRestante = Math.max(0, Math.round((faltaPagar - montoParsed) * 100) / 100);
+    setMetodoAct('Transferencia'); setBancoAct('Banco de Venezuela'); setBancoDestinoAct('BANCAMIGA - 0172 - 0717'); setReferenciaAct(''); setMontoAct(nuevoRestante > 0.05 ? fmtBs(nuevoRestante) : ''); setComprobanteAct(null);
   };
 
   const quitarPago = (idx: number) => {
