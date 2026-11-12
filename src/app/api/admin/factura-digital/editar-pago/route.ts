@@ -170,7 +170,6 @@ export async function POST(req: Request) {
       const isoCaracas = `${fechaUnificada}T12:00:00-04:00`;
 
       nuevosDetalles.fecha_emision_override = fechaUnificada;
-      nuevosDetalles.fecha_asignacion_override = fechaUnificada;
       if (!nuevosDetalles.fecha_transaccion) {
         nuevosDetalles.fecha_transaccion = fechaUnificada;
       }
@@ -182,15 +181,12 @@ export async function POST(req: Request) {
         nuevosDetalles.factura_digital = {
           ...nuevosDetalles.factura_digital,
           fecha_emision: isoCaracas,
-          fecha_asignacion: isoCaracas,
         };
         if (nuevosDetalles.factura_digital.raw_response?.resultado) {
           nuevosDetalles.factura_digital.raw_response = {
             ...nuevosDetalles.factura_digital.raw_response,
             resultado: {
               ...nuevosDetalles.factura_digital.raw_response.resultado,
-              fechaAsignacion: ddmmyyyy,
-              fechaAsignacionNumeroControl: ddmmyyyy,
               fechaEmision: ddmmyyyy,
             }
           };

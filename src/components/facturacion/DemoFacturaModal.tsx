@@ -279,6 +279,20 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
         return new Date(s).toLocaleDateString('es-VE', { timeZone: 'America/Caracas', day: '2-digit', month: '2-digit', year: 'numeric' });
       })()
     : (simulacionTFHKA?.Encabezado?.IdentificacionDocumento?.FechaEmision || fechaActual);
+  const rawFechaAsignacion = yaEmitidaVigente
+    ? (det?.factura_digital?.raw_response?.resultado?.fechaAsignacion || det?.factura_digital?.raw_response?.resultado?.fechaAsignacionNumeroControl || det?.factura_digital?.fecha_asignacion || '')
+    : '';
+  const fechaAsignacionDoc = rawFechaAsignacion
+    ? (() => {
+        const s = String(rawFechaAsignacion).trim();
+        if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) return s;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+          const [y, m, d] = s.split('-');
+          return `${d}/${m}/${y}`;
+        }
+        return new Date(s).toLocaleDateString('es-VE', { timeZone: 'America/Caracas', day: '2-digit', month: '2-digit', year: 'numeric' });
+      })()
+    : fechaActual;
   const horaEmisionDoc = pago?.fechaEmision
     ? new Date(pago.fechaEmision).toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })
     : horaActual;
@@ -487,7 +501,7 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
             esRetencion: pago.esRetencion ?? det.es_retencion ?? det.conRetencion ?? esRetencion,
             bancoOverride: det.banco || pago.banco,
             formaPagoOverride: det.tipo || pago.tipo,
-            fechaEmisionOverride: pago.fechaEmisionOverride || det.fecha_emision_override,
+            fechaEmisionOverride: fechaEditable || pago.fechaEmisionOverride || det.fecha_emision_override,
             montoTotal: totalFactura || pago.monto || det.monto_factura || pago.montoTotal || det.montoTotal
           })
         });
@@ -504,7 +518,7 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
 
     fetchSimulacion();
     return () => { cancel = true; };
-  }, [isOpen, pago]);
+  }, [isOpen, pago, fechaEditable]);
 
   if (!isOpen || !pago) return null;
 
@@ -593,14 +607,14 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
           <div className="flex items-center gap-2 flex-wrap">
             <div className="flex items-center gap-1.5 bg-slate-800/80 border border-slate-600 rounded-lg px-2.5 py-1">
               <span className="text-[10px] font-bold text-emerald-300 uppercase whitespace-nowrap">
-                📅 Emisión y Asig.:
+                📅 Fecha Emisión:
               </span>
               <input
                 type="date"
                 value={fechaEditable}
                 onChange={e => handleGuardarFechaEnFactura(e.target.value)}
                 className="bg-slate-900 text-white border border-slate-600 rounded px-1.5 py-0.5 text-xs font-mono font-bold focus:outline-none focus:ring-1 focus:ring-emerald-400"
-                title="Editar Fecha de Emisión y Fecha de Asignación (iguales)"
+                title="Editar Fecha de Emisión de la Factura"
               />
               {guardandoFecha && <span className="text-[10px] text-amber-300 animate-pulse">Guardando...</span>}
             </div>
@@ -691,7 +705,7 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
                   </div>
                   <div className="flex justify-between sm:justify-end gap-3">
                     <span className="text-slate-500 font-semibold">Fecha de Asig.:</span>
-                    <strong className="text-slate-900">{fechaEmisionDoc}</strong>
+                    <strong className="text-slate-900">{fechaAsignacionDoc}</strong>
                   </div>
                 </div>
               </div>
@@ -1045,7 +1059,14 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
               <button
                 onClick={() => {
                   onClose();
-                  onProcederEmitir(pago, totalFacturaFinal, totalFacturaFinal);
+                  onProcederEmitir({
+                    ...pago,
+                    fechaEmisionOverride: fechaEditable || pago?.fechaEmisionOverride,
+                    detalles: {
+                      ...(pago?.detalles || {}),
+                      ...(fechaEditable ? { fecha_emision_override: fechaEditable } : {})
+                    }
+                  }, totalFacturaFinal, totalFacturaFinal);
                 }}
                 className="px-5 py-2.5 bg-[#0d2a4a] hover:bg-[#153e6b] text-white rounded-xl text-xs font-extrabold flex items-center gap-2 shadow-md transition-colors cursor-pointer"
               >

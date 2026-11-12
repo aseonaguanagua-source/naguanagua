@@ -2110,12 +2110,9 @@ export async function POST(request: Request) {
           ];
         }
         if (tfhkaResponse?.resultado) {
-          tfhkaResponse.resultado.fechaAsignacion = fechaEmisionDDMMYYYY;
-          tfhkaResponse.resultado.fechaAsignacionNumeroControl = fechaEmisionDDMMYYYY;
           tfhkaResponse.resultado.fechaEmision = fechaEmisionDDMMYYYY;
         }
         nuevosDetalles.fecha_emision_override = fechaEmisionYMD;
-        nuevosDetalles.fecha_asignacion_override = fechaEmisionYMD;
         nuevosDetalles.factura_digital = {
           emitida:          true,
           url:              finalUrl || null,
@@ -2123,7 +2120,7 @@ export async function POST(request: Request) {
           numero_documento: finalDoc,
           tfhka_seq:        parseInt(finalDoc, 10) || seq,
           fecha_emision:    fechaEmisionISO,
-          fecha_asignacion: fechaEmisionISO,
+          fecha_asignacion: fechaActual.toISOString(),
           raw_response:     tfhkaResponse,
           ...(totalManualNum > 0 ? { total_manual: totalManualNum, monto_cobrado: montoCobrado, motivo_ajuste: motivoAjuste || null, ajustado_por: usuario || null } : {}),
         };

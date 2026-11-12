@@ -2764,7 +2764,6 @@ export default function FacturacionElectronicaPage() {
                         value={emitFechaEmision}
                         onChange={e => {
                           setEmitFechaEmision(e.target.value);
-                          setEmitFechaAsignacion(e.target.value);
                         }}
                         onBlur={e => {
                           const s = String(e.target.value || '').trim().slice(0, 10);
@@ -2773,41 +2772,25 @@ export default function FacturacionElectronicaPage() {
                             if (yr < 2020 || yr > 2035) {
                               const fixed = `2026${s.slice(4)}`;
                               setEmitFechaEmision(fixed);
-                              setEmitFechaAsignacion(fixed);
                             }
                           }
                         }}
                         className="w-full border border-emerald-400 bg-emerald-50/40 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500"
                       />
-                      <p className="text-[9px] text-emerald-700 font-semibold mt-0.5">Sincronizada con Fecha de Asignación</p>
+                      <p className="text-[9px] text-emerald-700 font-semibold mt-0.5">Editable (cambia la Fecha de Emisión en la factura)</p>
                     </div>
                     <div>
-                      <label className="block text-[10px] font-bold text-emerald-900 uppercase mb-0.5 flex items-center justify-between">
+                      <label className="block text-[10px] font-bold text-slate-600 uppercase mb-0.5 flex items-center justify-between">
                         <span>📅 Fecha de Asignación (Ctrl)</span>
                       </label>
                       <input
                         type="date"
-                        min="2020-01-01"
-                        max="2030-12-31"
-                        value={emitFechaAsignacion || emitFechaEmision}
-                        onChange={e => {
-                          setEmitFechaAsignacion(e.target.value);
-                          setEmitFechaEmision(e.target.value);
-                        }}
-                        onBlur={e => {
-                          const s = String(e.target.value || '').trim().slice(0, 10);
-                          if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
-                            const yr = parseInt(s.slice(0, 4), 10);
-                            if (yr < 2020 || yr > 2035) {
-                              const fixed = `2026${s.slice(4)}`;
-                              setEmitFechaAsignacion(fixed);
-                              setEmitFechaEmision(fixed);
-                            }
-                          }
-                        }}
-                        className="w-full border border-emerald-400 bg-emerald-50/40 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500"
+                        value={emitFechaAsignacion || hoyCaracas()}
+                        readOnly
+                        disabled
+                        className="w-full border border-slate-300 bg-slate-100 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-500 cursor-not-allowed"
                       />
-                      <p className="text-[9px] text-emerald-700 font-semibold mt-0.5">Igual a la Fecha de Emisión</p>
+                      <p className="text-[9px] text-slate-500 font-semibold mt-0.5">Fija de hoy (asignada por The Factory HKA)</p>
                     </div>
                     <div>
                       <label className="block text-[10px] font-bold text-indigo-900 uppercase mb-0.5 flex items-center justify-between">
@@ -3293,14 +3276,15 @@ export default function FacturacionElectronicaPage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-emerald-900 mb-1">
-                      Fecha de Asignación <span className="text-rose-500">*</span>
+                    <label className="block text-xs font-bold text-slate-600 mb-1">
+                      Fecha de Asignación (TFHKA)
                     </label>
                     <input
                       type="date"
-                      value={editForm.fecha}
-                      onChange={e => setEditForm(prev => ({ ...prev, fecha: e.target.value }))}
-                      className="w-full border border-emerald-400 bg-emerald-50/40 rounded-xl px-2 py-2 text-xs font-semibold focus:ring-2 focus:ring-emerald-500"
+                      value={hoyCaracas()}
+                      readOnly
+                      disabled
+                      className="w-full border border-slate-300 bg-slate-100 rounded-xl px-2 py-2 text-xs font-semibold text-slate-500 cursor-not-allowed"
                     />
                   </div>
 
