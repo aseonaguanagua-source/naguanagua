@@ -307,21 +307,93 @@ export const generarCorteCajaPDF = (
     startY = currentY + 30;
   };
 
+  const getDet = (p: any): any => {
+    if (!p?.detalles) return {};
+    if (typeof p.detalles === 'object') return p.detalles;
+    try { return JSON.parse(p.detalles); } catch { return {}; }
+  };
+  const esTokenInternoRecibo = (val: any): boolean => {
+    const s = String(val || '').trim();
+    if (!s) return true;
+    return /^(RECIB-HIST|RECIB-DEUDA|DUMMY|CONDO-|MULTA-|CM-|RECH-|SER-|TP-)/i.test(s) || /RECIB-HIST/i.test(s);
+  };
+  const limpiarRef = (p: any, det?: any): string => {
+    const d = det || getDet(p);
+    const rawRef = String(p?.referencia || '').trim();
+    if (/^RECH-/i.test(rawRef)) {
+      const orig = String(d?.referencia_original || d?.referencia || d?.formasPago?.[0]?.referencia || '').trim();
+      if (orig && !/^RECH-/i.test(orig)) return orig;
+      return rawRef.replace(/^RECH-([^-]+)-[a-f0-9]+$/i, '$1');
+    }
+    return rawRef || String(d?.referencia || d?.formasPago?.[0]?.referencia || '').trim();
+  };
+  const getNumeroRecibo = (p: any, det?: any): string => {
+    const d = det || getDet(p);
+    const rc0 = Array.isArray(d?.recibo_caja) ? d.recibo_caja[0] : d?.recibo_caja;
+    const candidatos = [
+      rc0?.reciboNo,
+      d?.recibo_no,
+      d?.numero_recibo,
+      d?.nro_recibo,
+      p?.numero_recibo,
+      d?.factura_digital?.numero_documento,
+      p?.factura_ref,
+      rc0?.controlWeb,
+      ...(Array.isArray(d?.recibos) ? d.recibos : []),
+      d?.recibo_digital?.numero,
+    ];
+    for (const c of candidatos) {
+      const s = String(c || '').trim();
+      if (s && !esTokenInternoRecibo(s)) return s;
+    }
+    const refLimpia = limpiarRef(p, d);
+    if (refLimpia && !esTokenInternoRecibo(refLimpia)) return refLimpia;
+    return 'N/A';
+  };
+  const getAprobacion = (p: any, det?: any): string => {
+    const d = det || getDet(p);
+    const rc0 = Array.isArray(d?.recibo_caja) ? d.recibo_caja[0] : d?.recibo_caja;
+    return String(d?.aprobacion || limpiarRef(p, d) || rc0?.referencia || 'N/A').trim() || 'N/A';
+  };
+  const getLote = (p: any, det?: any): string => {
+    const d = det || getDet(p);
+    return String(d?.lote || '0390').trim() || '0390';
+  };
+  const getNombre = (p: any, c: any, det?: any): string => {
+    const d = det || getDet(p);
+    const rc0 = Array.isArray(d?.recibo_caja) ? d.recibo_caja[0] : d?.recibo_caja;
+    return String(
+      c?.Contribuyente ||
+      c?.contribuyente ||
+      p?.contribuyente ||
+      d?.contribuyente ||
+      d?.contribuyente_nombre ||
+      rc0?.razonSocial ||
+      d?.factura_digital?.razon_social ||
+      d?.condominio?.nombre ||
+      p?.identidad ||
+      'N/A'
+    );
+  };
+
   // 1. Débito
   drawSubTable(
     "TRANSACCIONES CON TARJETA DE DEBITO", 
     debitos, 
     ["FECHA/HORA", "TIPO", "CONTRIBUYENTE", "RECIBO", "BANCO", "APROBACION", "LOTE", "MONTO"],
-    (p, c) => [
-      safeDT(p.created_at),
-      String(p.tipo || 'DEB').substring(0,3).toUpperCase(),
-      String(c.Contribuyente || c.contribuyente || p.contribuyente || p.identidad || 'N/A').substring(0,35),
-      String(p.factura_ref || p.referencia || 'N/A'),
-      String(p.banco_origen || p.banco || 'N/A'),
-      String(p.referencia || 'N/A'),
-      '0390',
-      (parseFloat(p.monto || '0') || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    ],
+    (p, c) => {
+      const det = getDet(p);
+      return [
+        safeDT(p.created_at),
+        String(p.tipo || 'DEB').substring(0,3).toUpperCase(),
+        getNombre(p, c, det).substring(0,35),
+        getNumeroRecibo(p, det),
+        String(p.banco_origen || p.banco || 'N/A'),
+        getAprobacion(p, det),
+        getLote(p, det),
+        (parseFloat(p.monto || '0') || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      ];
+    },
     totalDebito,
     "Total Debito:"
   );
@@ -331,16 +403,19 @@ export const generarCorteCajaPDF = (
     "TRANSACCIONES CON TARJETA DE CREDITO (TMD / TVD)", 
     creditos, 
     ["FECHA/HORA", "TIPO", "CONTRIBUYENTE", "RECIBO", "BANCO", "APROBACION", "LOTE", "MONTO"],
-    (p, c) => [
-      safeDT(p.created_at),
-      String(p.tipo || 'TMD').substring(0,3).toUpperCase(),
-      String(c.Contribuyente || c.contribuyente || p.contribuyente || p.identidad || 'N/A').substring(0,35),
-      String(p.factura_ref || p.referencia || 'N/A'),
-      String(p.banco_origen || p.banco || 'N/A'),
-      String(p.referencia || 'N/A'),
-      '0390',
-      (parseFloat(p.monto || '0') || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    ],
+    (p, c) => {
+      const det = getDet(p);
+      return [
+        safeDT(p.created_at),
+        String(p.tipo || 'TMD').substring(0,3).toUpperCase(),
+        getNombre(p, c, det).substring(0,35),
+        getNumeroRecibo(p, det),
+        String(p.banco_origen || p.banco || 'N/A'),
+        getAprobacion(p, det),
+        getLote(p, det),
+        (parseFloat(p.monto || '0') || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      ];
+    },
     totalCredito,
     "Total Credito:"
   );
@@ -623,20 +698,92 @@ export const generarIngresoBancarioPDF = (
     startY = currentY + 30;
   };
 
+  const getDetCorte = (p: any): any => {
+    if (!p?.detalles) return {};
+    if (typeof p.detalles === 'object') return p.detalles;
+    try { return JSON.parse(p.detalles); } catch { return {}; }
+  };
+  const esTokenInternoReciboCorte = (val: any): boolean => {
+    const s = String(val || '').trim();
+    if (!s) return true;
+    return /^(RECIB-HIST|RECIB-DEUDA|DUMMY|CONDO-|MULTA-|CM-|RECH-|SER-|TP-)/i.test(s) || /RECIB-HIST/i.test(s);
+  };
+  const limpiarRefCorte = (p: any, det?: any): string => {
+    const d = det || getDetCorte(p);
+    const rawRef = String(p?.referencia || '').trim();
+    if (/^RECH-/i.test(rawRef)) {
+      const orig = String(d?.referencia_original || d?.referencia || d?.formasPago?.[0]?.referencia || '').trim();
+      if (orig && !/^RECH-/i.test(orig)) return orig;
+      return rawRef.replace(/^RECH-([^-]+)-[a-f0-9]+$/i, '$1');
+    }
+    return rawRef || String(d?.referencia || d?.formasPago?.[0]?.referencia || '').trim();
+  };
+  const getNumeroReciboCorte = (p: any, det?: any): string => {
+    const d = det || getDetCorte(p);
+    const rc0 = Array.isArray(d?.recibo_caja) ? d.recibo_caja[0] : d?.recibo_caja;
+    const candidatos = [
+      rc0?.reciboNo,
+      d?.recibo_no,
+      d?.numero_recibo,
+      d?.nro_recibo,
+      p?.numero_recibo,
+      d?.factura_digital?.numero_documento,
+      p?.factura_ref,
+      rc0?.controlWeb,
+      ...(Array.isArray(d?.recibos) ? d.recibos : []),
+      d?.recibo_digital?.numero,
+    ];
+    for (const c of candidatos) {
+      const s = String(c || '').trim();
+      if (s && !esTokenInternoReciboCorte(s)) return s;
+    }
+    const refLimpia = limpiarRefCorte(p, d);
+    if (refLimpia && !esTokenInternoReciboCorte(refLimpia)) return refLimpia;
+    return 'N/A';
+  };
+  const getAprobacionCorte = (p: any, det?: any): string => {
+    const d = det || getDetCorte(p);
+    const rc0 = Array.isArray(d?.recibo_caja) ? d.recibo_caja[0] : d?.recibo_caja;
+    return String(d?.aprobacion || limpiarRefCorte(p, d) || rc0?.referencia || 'N/A').trim() || 'N/A';
+  };
+  const getLoteCorte = (p: any, det?: any): string => {
+    const d = det || getDetCorte(p);
+    return String(d?.lote || '0390').trim() || '0390';
+  };
+  const getNombreCorte = (p: any, c: any, det?: any): string => {
+    const d = det || getDetCorte(p);
+    const rc0 = Array.isArray(d?.recibo_caja) ? d.recibo_caja[0] : d?.recibo_caja;
+    return String(
+      c?.Contribuyente ||
+      c?.contribuyente ||
+      p?.contribuyente ||
+      d?.contribuyente ||
+      d?.contribuyente_nombre ||
+      rc0?.razonSocial ||
+      d?.factura_digital?.razon_social ||
+      d?.condominio?.nombre ||
+      p?.identidad ||
+      'N/A'
+    );
+  };
+
   drawSubTable(
     "TRANSACCIONES CON TARJETA DE DEBITO", 
     debitos, 
     ["FECHA/HORA", "TIPO", "CONTRIBUYENTE", "RECIBO", "BANCO", "APROBACION", "LOTE", "MONTO"],
-    (p, c) => [
-      safeDT(p.created_at),
-      String(p.tipo || 'DEB').substring(0,3).toUpperCase(),
-      String(c.Contribuyente || c.contribuyente || p.contribuyente || p.identidad || 'N/A').substring(0,40),
-      p.factura_ref || p.referencia || 'N/A',
-      p.banco_origen || 'BANESCO - 0134',
-      p.referencia || 'N/A',
-      '0390',
-      (parseFloat(p.monto) || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    ],
+    (p, c) => {
+      const det = getDetCorte(p);
+      return [
+        safeDT(p.created_at),
+        String(p.tipo || 'DEB').substring(0,3).toUpperCase(),
+        getNombreCorte(p, c, det).substring(0,40),
+        getNumeroReciboCorte(p, det),
+        p.banco_origen || p.banco || 'BANESCO - 0134',
+        getAprobacionCorte(p, det),
+        getLoteCorte(p, det),
+        (parseFloat(p.monto) || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      ];
+    },
     totalDebito,
     "Total Debito:"
   );
@@ -645,16 +792,19 @@ export const generarIngresoBancarioPDF = (
     "TRANSACCIONES CON TARJETA DE CREDITO (TMD / TVD)", 
     creditos, 
     ["FECHA/HORA", "TIPO", "CONTRIBUYENTE", "RECIBO", "BANCO", "APROBACION", "LOTE", "MONTO"],
-    (p, c) => [
-      safeDT(p.created_at),
-      String(p.tipo || 'TMD').substring(0,3).toUpperCase(),
-      String(c.Contribuyente || c.contribuyente || p.contribuyente || p.identidad || 'N/A').substring(0,40),
-      p.factura_ref || p.referencia || 'N/A',
-      p.banco_origen || 'BANESCO - 0134',
-      p.referencia || 'N/A',
-      '0390',
-      (parseFloat(p.monto) || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    ],
+    (p, c) => {
+      const det = getDetCorte(p);
+      return [
+        safeDT(p.created_at),
+        String(p.tipo || 'TMD').substring(0,3).toUpperCase(),
+        getNombreCorte(p, c, det).substring(0,40),
+        getNumeroReciboCorte(p, det),
+        p.banco_origen || p.banco || 'BANESCO - 0134',
+        getAprobacionCorte(p, det),
+        getLoteCorte(p, det),
+        (parseFloat(p.monto) || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      ];
+    },
     totalCredito,
     "Total Credito:"
   );
@@ -663,15 +813,18 @@ export const generarIngresoBancarioPDF = (
     "TRANSFERENCIAS", 
     transferencias, 
     ["FECHA/HORA", "TIPO", "CONTRIBUYENTE", "RECIBO", "BANCO ORIGEN", "REFERENCIA", "MONTO"],
-    (p, c) => [
-      safeDT(p.created_at),
-      String(p.tipo || 'TRF').substring(0,3).toUpperCase(),
-      String(c.Contribuyente || c.contribuyente || p.contribuyente || p.identidad || 'N/A').substring(0,40),
-      p.factura_ref || p.referencia || 'N/A',
-      String(p.banco_origen || 'N/A').substring(0,20),
-      p.referencia || 'N/A',
-      (parseFloat(p.monto) || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    ],
+    (p, c) => {
+      const det = getDetCorte(p);
+      return [
+        safeDT(p.created_at),
+        String(p.tipo || 'TRF').substring(0,3).toUpperCase(),
+        getNombreCorte(p, c, det).substring(0,40),
+        getNumeroReciboCorte(p, det),
+        String(p.banco_origen || p.banco || 'N/A').substring(0,20),
+        limpiarRefCorte(p, det) || 'N/A',
+        (parseFloat(p.monto) || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      ];
+    },
     totalTransf,
     "Total Transferencias:"
   );

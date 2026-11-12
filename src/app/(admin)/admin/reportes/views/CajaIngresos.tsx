@@ -22,6 +22,75 @@ function parseDet(p: any): any {
   try { return JSON.parse(p.detalles); } catch { return {}; }
 }
 
+function esTokenInternoRecibo(val: any): boolean {
+  const s = String(val || '').trim();
+  if (!s) return true;
+  return /^(RECIB-HIST|RECIB-DEUDA|DUMMY|CONDO-|MULTA-|CM-|RECH-|SER-|TP-)/i.test(s) || /RECIB-HIST/i.test(s);
+}
+
+function limpiarReferenciaPago(p: any, det?: any): string {
+  const d = det || parseDet(p);
+  const rawRef = String(p?.referencia || '').trim();
+  if (/^RECH-/i.test(rawRef)) {
+    const orig = String(d?.referencia_original || d?.referencia || d?.formasPago?.[0]?.referencia || '').trim();
+    if (orig && !/^RECH-/i.test(orig)) return orig;
+    return rawRef.replace(/^RECH-([^-]+)-[a-f0-9]+$/i, '$1');
+  }
+  return rawRef || String(d?.referencia || d?.formasPago?.[0]?.referencia || '').trim();
+}
+
+function getNumeroRecibo(p: any, det?: any): string {
+  const d = det || parseDet(p);
+  const rc0 = Array.isArray(d?.recibo_caja) ? d.recibo_caja[0] : d?.recibo_caja;
+  const candidatos = [
+    rc0?.reciboNo,
+    d?.recibo_no,
+    d?.numero_recibo,
+    d?.nro_recibo,
+    p?.numero_recibo,
+    d?.factura_digital?.numero_documento,
+    p?.factura_ref,
+    rc0?.controlWeb,
+    ...(Array.isArray(d?.recibos) ? d.recibos : []),
+    d?.recibo_digital?.numero,
+  ];
+  for (const c of candidatos) {
+    const s = String(c || '').trim();
+    if (s && !esTokenInternoRecibo(s)) return s;
+  }
+  const refLimpia = limpiarReferenciaPago(p, d);
+  if (refLimpia && !esTokenInternoRecibo(refLimpia)) return refLimpia;
+  return '-';
+}
+
+function getAprobacion(p: any, det?: any): string {
+  const d = det || parseDet(p);
+  const rc0 = Array.isArray(d?.recibo_caja) ? d.recibo_caja[0] : d?.recibo_caja;
+  return String(d?.aprobacion || limpiarReferenciaPago(p, d) || rc0?.referencia || '-').trim() || '-';
+}
+
+function getLote(p: any, det?: any): string {
+  const d = det || parseDet(p);
+  return String(d?.lote || '0390').trim() || '0390';
+}
+
+function formatContribuyente(p: any, det?: any): string {
+  const d = det || parseDet(p);
+  const rc0 = Array.isArray(d?.recibo_caja) ? d.recibo_caja[0] : d?.recibo_caja;
+  const id = String(p?.identidad || '').trim();
+  const nom = String(
+    p?.contribuyente ||
+    d?.contribuyente ||
+    d?.contribuyente_nombre ||
+    rc0?.razonSocial ||
+    d?.factura_digital?.razon_social ||
+    d?.condominio?.nombre ||
+    ''
+  ).trim();
+  if (id && nom && nom.toUpperCase() !== id.toUpperCase()) return `${id} - ${nom}`;
+  return id || nom || '-';
+}
+
 function isDebito(p: any) {
   const t = String(p.tipo || '').toUpperCase().trim(); return t === 'DEBITO' || t === 'DÉBITO' || t === 'CREDITO' || t === 'CRÉDITO' || t === 'TMD' || t === 'TVD' || t === 'REC' || t === 'PUNTO DE VENTA';
 }
@@ -185,18 +254,17 @@ export default function CajaIngresos({ pagos, cajeros, isAdmin, currentUser, tcm
                   <tbody>
                     {debitos.map((p, i) => {
                       const det = parseDet(p);
-                      const recibos: string[] = det.recibos || [];
                       return (
                         <tr key={p.id} className="hover:bg-slate-50">
                           <td className={tdCls}>{i+1}</td>
                           <td className={tdCls}>{fmtDate(p.created_at)}</td>
                           <td className={`${tdCls} font-semibold`}>{p.tipo}</td>
                           <td className={tdCls}>{det.cajero || '-'}</td>
-                          <td className={tdCls}>{p.identidad} - {p.contribuyente}</td>
-                          <td className={tdCls}>{recibos[0] || p.referencia || '-'}</td>
+                          <td className={tdCls}>{formatContribuyente(p, det)}</td>
+                          <td className={tdCls}>{getNumeroRecibo(p, det)}</td>
                           <td className={tdCls}>{p.banco || '-'}</td>
-                          <td className={tdCls}>{det.aprobacion || '-'}</td>
-                          <td className={tdCls}>{det.lote || '-'}</td>
+                          <td className={tdCls}>{getAprobacion(p, det)}</td>
+                          <td className={tdCls}>{getLote(p, det)}</td>
                           <td className={`${tdCls} text-right font-semibold`}>Bs. {fmtBs(parseFloat(p.monto)||0)}</td>
                         </tr>
                       );
@@ -217,7 +285,6 @@ export default function CajaIngresos({ pagos, cajeros, isAdmin, currentUser, tcm
                   <tbody>
                     {transferencias.map((p, i) => {
                       const det = parseDet(p);
-                      const recibos: string[] = det.recibos || [];
                       const mConc = parseFloat(det.monto_conciliado || p.monto) || 0;
                       const conciliado = p.estado === 'Aprobado' || p.estado === 'Con Diferencia';
                       return (
@@ -227,12 +294,12 @@ export default function CajaIngresos({ pagos, cajeros, isAdmin, currentUser, tcm
                           <td className={tdCls}>{fmtDate(p.created_at)}</td>
                           <td className={`${tdCls} font-semibold`}>{p.tipo}</td>
                           <td className={tdCls}>{det.cajero || '-'}</td>
-                          <td className={tdCls}>{p.identidad} - {p.contribuyente}</td>
-                          <td className={tdCls}>{recibos[0] || '-'}</td>
+                          <td className={tdCls}>{formatContribuyente(p, det)}</td>
+                          <td className={tdCls}>{getNumeroRecibo(p, det)}</td>
                           <td className={tdCls}>{p.banco || '-'}</td>
-                          <td className={tdCls}>{p.referencia || '-'}</td>
+                          <td className={tdCls}>{limpiarReferenciaPago(p, det) || '-'}</td>
                           <td className={tdCls}>{det.banco_destino || det.banco_receptor || '-'}</td>
-                          <td className={tdCls}>{p.referencia || '-'}</td>
+                          <td className={tdCls}>{limpiarReferenciaPago(p, det) || '-'}</td>
                           <td className={`${tdCls} text-right`}>Bs. {fmtBs(parseFloat(p.monto)||0)}</td>
                           <td className={`${tdCls} text-right font-semibold`}>Bs. {fmtBs(mConc)}</td>
                         </tr>

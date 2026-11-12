@@ -83,15 +83,77 @@ function getEstadoStyle(estado: string): React.CSSProperties {
   if (estado === 'Pendiente') return { color: '#c0392b', fontWeight: 700 };
   return { color: '#555' };
 }
-function getNombre(p: any, contribuyentes: any[] | Map<string, string>): string {
-  if (!p.identidad) return p.contribuyente || '';
+function esTokenInternoRecibo(val: any): boolean {
+  const s = String(val || '').trim();
+  if (!s) return true;
+  return /^(RECIB-HIST|RECIB-DEUDA|DUMMY|CONDO-|MULTA-|CM-|RECH-|SER-|TP-)/i.test(s) || /RECIB-HIST/i.test(s);
+}
+
+function limpiarReferenciaPago(p: any, det?: any): string {
+  const d = det || parseDet(p);
+  const rawRef = String(p?.referencia || '').trim();
+  if (/^RECH-/i.test(rawRef)) {
+    const orig = String(d?.referencia_original || d?.referencia || d?.formasPago?.[0]?.referencia || '').trim();
+    if (orig && !/^RECH-/i.test(orig)) return orig;
+    return rawRef.replace(/^RECH-([^-]+)-[a-f0-9]+$/i, '$1');
+  }
+  return rawRef || String(d?.referencia || d?.formasPago?.[0]?.referencia || '').trim();
+}
+
+function getNumeroRecibo(p: any, det?: any): string {
+  const d = det || parseDet(p);
+  const rc0 = Array.isArray(d?.recibo_caja) ? d.recibo_caja[0] : d?.recibo_caja;
+  const candidatos = [
+    rc0?.reciboNo,
+    d?.recibo_no,
+    d?.numero_recibo,
+    d?.nro_recibo,
+    p?.numero_recibo,
+    d?.factura_digital?.numero_documento,
+    p?.factura_ref,
+    rc0?.controlWeb,
+    ...(Array.isArray(d?.recibos) ? d.recibos : []),
+    d?.recibo_digital?.numero,
+  ];
+  for (const c of candidatos) {
+    const s = String(c || '').trim();
+    if (s && !esTokenInternoRecibo(s)) return s;
+  }
+  const refLimpia = limpiarReferenciaPago(p, d);
+  if (refLimpia && !esTokenInternoRecibo(refLimpia)) return refLimpia;
+  return '-';
+}
+
+function getAprobacion(p: any, det?: any): string {
+  const d = det || parseDet(p);
+  const rc0 = Array.isArray(d?.recibo_caja) ? d.recibo_caja[0] : d?.recibo_caja;
+  return String(d?.aprobacion || limpiarReferenciaPago(p, d) || rc0?.referencia || '-').trim() || '-';
+}
+
+function getLote(p: any, det?: any): string {
+  const d = det || parseDet(p);
+  return String(d?.lote || '0390').trim() || '0390';
+}
+
+function getNombre(p: any, contribuyentes: any[] | Map<string, string>, det?: any): string {
+  const d = det || parseDet(p);
+  const rc0 = Array.isArray(d?.recibo_caja) ? d.recibo_caja[0] : d?.recibo_caja;
+  const fallbackDet =
+    p?.contribuyente ||
+    d?.contribuyente ||
+    d?.contribuyente_nombre ||
+    rc0?.razonSocial ||
+    d?.factura_digital?.razon_social ||
+    d?.condominio?.nombre ||
+    '';
+  if (!p?.identidad) return fallbackDet;
   const clean = (s: string) => (s || '').replace(/[-.\s]/g, '').toUpperCase();
   const idClean = clean(p.identidad);
   if (contribuyentes instanceof Map) {
-    return contribuyentes.get(idClean) || p.contribuyente || '';
+    return contribuyentes.get(idClean) || fallbackDet;
   }
   const found = contribuyentes.find((c: any) => clean(c.identidad || '') === idClean || clean(c.Identidad || '') === idClean);
-  return found?.contribuyente || found?.Contribuyente || p.contribuyente || '';
+  return found?.contribuyente || found?.Contribuyente || fallbackDet;
 }
 
 function coincideBusqueda(p: any, term: string, contribuyentes: any[] | Map<string, string>): boolean {
@@ -107,11 +169,12 @@ function coincideBusqueda(p: any, term: string, contribuyentes: any[] | Map<stri
   if (qClean && idClean.includes(qClean)) return true;
 
   // 2. Nombre / Contribuyente / Razón social
-  const nombre = String(getNombre(p, contribuyentes) || p.contribuyente || det.contribuyente || '').toLowerCase();
+  const nombre = String(getNombre(p, contribuyentes, det) || p.contribuyente || det.contribuyente || '').toLowerCase();
   if (nombre.includes(q)) return true;
 
-  // 3. Referencia bancaria
-  const refRaw = String(p.referencia || det.referencia || '').toLowerCase();
+  // 3. Referencia bancaria y número de recibo
+  const nroRecibo = getNumeroRecibo(p, det).toLowerCase();
+  const refRaw = `${String(p.referencia || det.referencia || '')} ${nroRecibo}`.toLowerCase();
   const refClean = refRaw.replace(/[^a-z0-9]/gi, '');
   if (refRaw.includes(q)) return true;
   if (qClean && refClean.includes(qClean)) return true;
@@ -136,7 +199,7 @@ function coincideBusqueda(p: any, term: string, contribuyentes: any[] | Map<stri
   }
 
   // 5. Recibos / Facturas
-  const recs = (Array.isArray(det.recibos) ? det.recibos.join(' ') : String(det.recibos || '')).toLowerCase();
+  const recs = `${Array.isArray(det.recibos) ? det.recibos.join(' ') : String(det.recibos || '')} ${nroRecibo} ${det.factura_digital?.numero_documento || ''}`.toLowerCase();
   if (recs.includes(q)) return true;
   if (qClean && recs.replace(/[^a-z0-9]/gi, '').includes(qClean)) return true;
 
@@ -146,8 +209,8 @@ function coincideBusqueda(p: any, term: string, contribuyentes: any[] | Map<stri
   if (banco.includes(q) || bDest.includes(q)) return true;
 
   // 7. Aprobación y Lote
-  const aprob = String(det.aprobacion || '').toLowerCase();
-  const lote = String(det.lote || '').toLowerCase();
+  const aprob = String(getAprobacion(p, det) || '').toLowerCase();
+  const lote = String(getLote(p, det) || '').toLowerCase();
   if (aprob.includes(q) || lote.includes(q)) return true;
 
   // 8. Cajero / Operador / Analista
@@ -341,8 +404,8 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
   const nowStr = new Date().toLocaleDateString('es-VE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
 
   const libroRows = pagosFiltrados.map(p => {
-    const det = parseDet(p); const recs: string[] = det.recibos || [];
-    return { fecha: p.created_at, rif: p.identidad, nombre: p.contribuyente, tipoDoc: isTarjeta(p) ? 'REC' : (p.tipo || 'AOC'), recibo: recs[0] || p.referencia || '-', total: parseFloat(p.monto) || 0 };
+    const det = parseDet(p);
+    return { fecha: p.created_at, rif: p.identidad, nombre: getNombre(p, contribMap, det) || p.contribuyente, tipoDoc: isTarjeta(p) ? 'REC' : (p.tipo || 'AOC'), recibo: getNumeroRecibo(p, det), total: parseFloat(p.monto) || 0 };
   });
   const totalLibro = libroRows.reduce((s, r) => s + r.total, 0);
 
@@ -491,15 +554,15 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead><tr>{(showDT ? ['#','Fecha/Hora','Tipo','Operador','Contribuyente','Recibo','Banco','Aprobacion','Lote','Estado','Monto'] : ['#','Fecha','Tipo','Operador','Contribuyente','Recibo','Banco','Aprobacion','Lote','Estado','Monto']).map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
-          <tbody>{debitos.map((p, i) => { const det = parseDet(p); const recs: string[] = det.recibos || []; return (<tr key={p.id} style={{ background: i % 2 === 0 ? '#fff' : '#f9fafe' }}>
+          <tbody>{debitos.map((p, i) => { const det = parseDet(p); return (<tr key={p.id} style={{ background: i % 2 === 0 ? '#fff' : '#f9fafe' }}>
             <td style={S.td}>{i + 1}</td><td style={S.td}>{showDT ? fmtDT(p.created_at) : fmtDate(p.created_at)}</td>
             <td style={{ ...S.td, fontWeight: 700 }}>{p.tipo}</td><td style={S.td}>{det.cajero || '-'}</td>
             <td style={{ ...S.td, color: '#2a5298' }}>
               <div style={{ fontWeight: 600 }}>{p.identidad}</div>
-              <div style={{ fontSize: '0.78em', color: '#555' }}>{getNombre(p, contribuyentes)}</div>
+              <div style={{ fontSize: '0.78em', color: '#555' }}>{getNombre(p, contribMap, det)}</div>
             </td>
-            <td style={S.td}>{recs[0] || p.referencia || '-'}</td><td style={S.td}>{p.banco || '-'}</td>
-            <td style={S.td}>{det.aprobacion || '-'}</td><td style={S.td}>{det.lote || '-'}</td>
+            <td style={S.td}>{getNumeroRecibo(p, det)}</td><td style={S.td}>{p.banco || '-'}</td>
+            <td style={S.td}>{getAprobacion(p, det)}</td><td style={S.td}>{getLote(p, det)}</td>
             <td style={S.td}><span style={getEstadoStyle(p.estado)}>{p.estado || 'Aprobado'}</span></td>
             <CeldaMonto p={p} valor={parseFloat(p.monto) || 0} style={{ ...S.td, textAlign: 'right', fontWeight: 700 }} />
           </tr>); })}</tbody>
@@ -515,15 +578,15 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead><tr>{(showDT ? ['#','Fecha/Hora','Tipo','Operador','Contribuyente','Recibo','Banco','Aprobacion / Ref','Lote','Estado','Monto'] : ['#','Fecha','Tipo','Operador','Contribuyente','Recibo','Banco','Aprobacion / Ref','Lote','Estado','Monto']).map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
-          <tbody>{creditos.map((p, i) => { const det = parseDet(p); const recs: string[] = det.recibos || []; return (<tr key={p.id} style={{ background: i % 2 === 0 ? '#fff' : '#f9fafe' }}>
+          <tbody>{creditos.map((p, i) => { const det = parseDet(p); return (<tr key={p.id} style={{ background: i % 2 === 0 ? '#fff' : '#f9fafe' }}>
             <td style={S.td}>{i + 1}</td><td style={S.td}>{showDT ? fmtDT(p.created_at) : fmtDate(p.created_at)}</td>
             <td style={{ ...S.td, fontWeight: 700, color: '#1e40af' }}>{p.tipo}</td><td style={S.td}>{det.cajero || '-'}</td>
             <td style={{ ...S.td, color: '#2a5298' }}>
               <div style={{ fontWeight: 600 }}>{p.identidad}</div>
-              <div style={{ fontSize: '0.78em', color: '#555' }}>{getNombre(p, contribuyentes)}</div>
+              <div style={{ fontSize: '0.78em', color: '#555' }}>{getNombre(p, contribMap, det)}</div>
             </td>
-            <td style={S.td}>{recs[0] || p.referencia || '-'}</td><td style={S.td}>{p.banco || '-'}</td>
-            <td style={S.td}>{p.referencia || det.aprobacion || '-'}</td><td style={S.td}>{det.lote || '-'}</td>
+            <td style={S.td}>{getNumeroRecibo(p, det)}</td><td style={S.td}>{p.banco || '-'}</td>
+            <td style={S.td}>{getAprobacion(p, det)}</td><td style={S.td}>{getLote(p, det)}</td>
             <td style={S.td}><span style={getEstadoStyle(p.estado)}>{p.estado || 'Aprobado'}</span></td>
             <CeldaMonto p={p} valor={parseFloat(p.monto) || 0} style={{ ...S.td, textAlign: 'right', fontWeight: 700 }} />
           </tr>); })}</tbody>
@@ -557,7 +620,7 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead><tr>{(showDT ? ['#','Fecha/Hora','Fecha Bco','Tipo','Fecha Libro','Operador','Contribuyente','Recibo','Banco Emisor','Referencia','Banco Empresa','Referencia','Estado','Monto'] : ['#','Conciliado','Registro','Tipo','Operador','Contribuyente','Recibo','Banco Emisor','Referencia','Banco Empresa','Referencia','Estado','Monto Reportado','Monto Conciliado']).map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
               <tbody>{items.map((p, i) => {
-                const det = parseDet(p); const recs: string[] = det.recibos || [];
+                const det = parseDet(p);
                 const mC = parseFloat(det.monto_conciliado || p.monto) || 0;
                 const conc = p.estado === 'Aprobado' || p.estado === 'Con Diferencia';
                 const bDest = clasificarBancoDestino(p);
@@ -567,9 +630,9 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
                     : <><td style={S.td}>{conc ? <b style={{ color: '#1a7a1a' }}>{det.fecha_banco || fmtDate(p.created_at)}</b> : <span style={{ color: '#aaa' }}>-</span>}</td><td style={S.td}>{fmtDate(p.created_at)}</td><td style={{ ...S.td, fontWeight: 700 }}>{p.tipo}</td></>}
                   <td style={S.td}>{det.cajero || '-'}</td><td style={{ ...S.td, color: '#2a5298' }}>
                     <div style={{ fontWeight: 600 }}>{p.identidad}</div>
-                    <div style={{ fontSize: '0.78em', color: '#555' }}>{getNombre(p, contribMap)}</div>
+                    <div style={{ fontSize: '0.78em', color: '#555' }}>{getNombre(p, contribMap, det)}</div>
                   </td>
-                  <td style={S.td}>{recs[0] || '-'}</td><td style={S.td}>{p.banco || '-'}</td><td style={S.td}>{p.referencia || '-'}</td>
+                  <td style={S.td}>{getNumeroRecibo(p, det)}</td><td style={S.td}>{p.banco || '-'}</td><td style={S.td}>{limpiarReferenciaPago(p, det) || '-'}</td>
                   <td style={S.td}>
                     {bDest === 'Banesco' ? (
                       <span style={{ background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', padding: '2px 6px', borderRadius: 4, fontWeight: 700, fontSize: 10 }}>
@@ -582,7 +645,7 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
                     ) : (
                       <span style={{ fontSize: 11, color: '#475569' }}>{det.banco_destino || det.banco_receptor || '-'}</span>
                     )}
-                  </td><td style={S.td}>{p.referencia || '-'}</td>
+                  </td><td style={S.td}>{limpiarReferenciaPago(p, det) || '-'}</td>
                   {!showDT && <td style={S.td}>{p.estado || '-'}</td>}
                   {showDT ? <CeldaMonto p={p} valor={mC} style={{ ...S.td, textAlign: 'right', fontWeight: 700 }} />
                     : <><td style={{ ...S.td, textAlign: 'right' }}>{fmtBs(parseFloat(p.monto) || 0)}</td><CeldaMonto p={p} valor={mC} style={{ ...S.td, textAlign: 'right', fontWeight: 700 }} /></>}
@@ -668,15 +731,15 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead><tr>{(showDT ? ['#','Fecha/Hora','Tipo','Operador','Contribuyente','Recibo','Referencia / Comprobante','Estado','Monto Aplicado'] : ['#','Fecha','Tipo','Operador','Contribuyente','Recibo','Referencia / Comprobante','Estado','Monto Aplicado']).map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
-          <tbody>{saldosAFavor.map((p, i) => { const det = parseDet(p); const recs: string[] = det.recibos || []; return (<tr key={p.id} style={{ background: i % 2 === 0 ? '#fff' : '#faf5ff' }}>
+          <tbody>{saldosAFavor.map((p, i) => { const det = parseDet(p); return (<tr key={p.id} style={{ background: i % 2 === 0 ? '#fff' : '#faf5ff' }}>
             <td style={S.td}>{i + 1}</td><td style={S.td}>{showDT ? fmtDT(p.created_at) : fmtDate(p.created_at)}</td>
             <td style={{ ...S.td, fontWeight: 700, color: '#6d28d9' }}>{p.tipo}</td><td style={S.td}>{det.cajero || '-'}</td>
             <td style={{ ...S.td, color: '#2a5298' }}>
               <div style={{ fontWeight: 600 }}>{p.identidad}</div>
-              <div style={{ fontSize: '0.78em', color: '#555' }}>{getNombre(p, contribuyentes)}</div>
+              <div style={{ fontSize: '0.78em', color: '#555' }}>{getNombre(p, contribMap, det)}</div>
             </td>
-            <td style={S.td}>{recs[0] || '-'}</td>
-            <td style={S.td}>{p.referencia || '-'}</td>
+            <td style={S.td}>{getNumeroRecibo(p, det)}</td>
+            <td style={S.td}>{limpiarReferenciaPago(p, det) || '-'}</td>
             <td style={S.td}><span style={getEstadoStyle(p.estado)}>{p.estado || 'Aprobado'}</span></td>
             <CeldaMonto p={p} valor={parseFloat(p.monto) || 0} style={{ ...S.td, textAlign: 'right', fontWeight: 700, color: '#6d28d9' }} />
           </tr>); })}</tbody>

@@ -74,11 +74,81 @@ function isTransfPago(p: any) {
   return !isDebitoPago(p) && !isCreditoPago(p) && !isDepositoPago(p) && !isSaldoPago(p) && !isRetencionPago(p);
 }
 
-function getNombre(p: any, contribMap?: Map<string, string>): string {
-  if (!p.identidad) return p.contribuyente || '';
+function esTokenInternoRecibo(val: any): boolean {
+  const s = String(val || '').trim();
+  if (!s) return true;
+  return /^(RECIB-HIST|RECIB-DEUDA|DUMMY|CONDO-|MULTA-|CM-|RECH-|SER-|TP-)/i.test(s) || /RECIB-HIST/i.test(s);
+}
+
+function limpiarReferenciaPago(p: any, det?: any): string {
+  const d = det || parseDet(p);
+  const rawRef = String(p?.referencia || '').trim();
+  if (/^RECH-/i.test(rawRef)) {
+    const orig = String(d?.referencia_original || d?.referencia || d?.formasPago?.[0]?.referencia || '').trim();
+    if (orig && !/^RECH-/i.test(orig)) return orig;
+    return rawRef.replace(/^RECH-([^-]+)-[a-f0-9]+$/i, '$1');
+  }
+  return rawRef || String(d?.referencia || d?.formasPago?.[0]?.referencia || '').trim();
+}
+
+function getNumeroRecibo(p: any, det?: any): string {
+  const d = det || parseDet(p);
+  const rc0 = Array.isArray(d?.recibo_caja) ? d.recibo_caja[0] : d?.recibo_caja;
+  const candidatos = [
+    rc0?.reciboNo,
+    d?.recibo_no,
+    d?.numero_recibo,
+    d?.nro_recibo,
+    p?.numero_recibo,
+    d?.factura_digital?.numero_documento,
+    p?.factura_ref,
+    rc0?.controlWeb,
+    ...(Array.isArray(d?.recibos) ? d.recibos : []),
+    d?.recibo_digital?.numero,
+  ];
+  for (const c of candidatos) {
+    const s = String(c || '').trim();
+    if (s && !esTokenInternoRecibo(s)) return s;
+  }
+  const refLimpia = limpiarReferenciaPago(p, d);
+  if (refLimpia && !esTokenInternoRecibo(refLimpia)) return refLimpia;
+  return '-';
+}
+
+function getAprobacion(p: any, det?: any): string {
+  const d = det || parseDet(p);
+  const rc0 = Array.isArray(d?.recibo_caja) ? d.recibo_caja[0] : d?.recibo_caja;
+  return String(d?.aprobacion || limpiarReferenciaPago(p, d) || rc0?.referencia || '-').trim() || '-';
+}
+
+function getLote(p: any, det?: any): string {
+  const d = det || parseDet(p);
+  return String(d?.lote || '0390').trim() || '0390';
+}
+
+function getNombre(p: any, contribMap?: Map<string, string>, det?: any): string {
+  const d = det || parseDet(p);
+  const rc0 = Array.isArray(d?.recibo_caja) ? d.recibo_caja[0] : d?.recibo_caja;
   const clean = (s: string) => (s || '').replace(/[-.\s]/g, '').toUpperCase();
-  const idClean = clean(p.identidad);
-  return contribMap?.get(idClean) || p.contribuyente || '';
+  const idClean = p?.identidad ? clean(p.identidad) : '';
+  const fromMap = idClean ? contribMap?.get(idClean) : '';
+  const raw =
+    fromMap ||
+    p?.contribuyente ||
+    d?.contribuyente ||
+    d?.contribuyente_nombre ||
+    rc0?.razonSocial ||
+    d?.factura_digital?.razon_social ||
+    d?.condominio?.nombre ||
+    '';
+  return String(raw || '').trim();
+}
+
+function formatContribuyente(p: any, contribMap?: Map<string, string>, det?: any): string {
+  const id = String(p?.identidad || '').trim();
+  const nom = getNombre(p, contribMap, det);
+  if (id && nom && nom.toUpperCase() !== id.toUpperCase()) return `${id} - ${nom}`;
+  return id || nom || '-';
 }
 
 function coincideBusqueda(p: any, term: string, contribMap?: Map<string, string>): boolean {
@@ -94,11 +164,12 @@ function coincideBusqueda(p: any, term: string, contribMap?: Map<string, string>
   if (qClean && idClean.includes(qClean)) return true;
 
   // 2. Nombre / Contribuyente
-  const nombre = String(getNombre(p, contribMap) || p.contribuyente || det.contribuyente || '').toLowerCase();
+  const nombre = String(getNombre(p, contribMap, det) || p.contribuyente || det.contribuyente || '').toLowerCase();
   if (nombre.includes(q)) return true;
 
-  // 3. Referencia bancaria
-  const refRaw = String(p.referencia || det.referencia || '').toLowerCase();
+  // 3. Referencia bancaria y número de recibo
+  const nroRecibo = getNumeroRecibo(p, det).toLowerCase();
+  const refRaw = `${String(p.referencia || det.referencia || '')} ${nroRecibo}`.toLowerCase();
   const refClean = refRaw.replace(/[^a-z0-9]/gi, '');
   if (refRaw.includes(q)) return true;
   if (qClean && refClean.includes(qClean)) return true;
@@ -123,7 +194,7 @@ function coincideBusqueda(p: any, term: string, contribMap?: Map<string, string>
   }
 
   // 5. Recibos / Facturas
-  const recs = (Array.isArray(det.recibos) ? det.recibos.join(' ') : String(det.recibos || '')).toLowerCase();
+  const recs = `${Array.isArray(det.recibos) ? det.recibos.join(' ') : String(det.recibos || '')} ${nroRecibo} ${det.factura_digital?.numero_documento || ''}`.toLowerCase();
   if (recs.includes(q)) return true;
   if (qClean && recs.replace(/[^a-z0-9]/gi, '').includes(qClean)) return true;
 
@@ -133,8 +204,8 @@ function coincideBusqueda(p: any, term: string, contribMap?: Map<string, string>
   if (banco.includes(q) || bDest.includes(q)) return true;
 
   // 7. Aprobación y Lote
-  const aprob = String(det.aprobacion || '').toLowerCase();
-  const lote = String(det.lote || '').toLowerCase();
+  const aprob = String(getAprobacion(p, det) || '').toLowerCase();
+  const lote = String(getLote(p, det) || '').toLowerCase();
   if (aprob.includes(q) || lote.includes(q)) return true;
 
   // 8. Cajero / Analista
@@ -352,7 +423,7 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
             </thead>
             <tbody>
               {items.map((p, i) => {
-                const det = parseDet(p); const recs: string[] = det.recibos || [];
+                const det = parseDet(p);
                 const mC = parseFloat(det.monto_conciliado || p.monto) || 0;
                 const bancoDestClass = clasificarBancoDestino(p);
                 const bDestTexto = det.banco_destino || det.banco_receptor || p.banco || '-';
@@ -364,10 +435,10 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
                     <td style={{ ...S.td, fontWeight: 700 }}>{p.tipo}</td>
                     <td style={S.td}>{det.fecha_banco ? fmtDate(det.fecha_banco) : ((p.identidad?.startsWith('V-') || p.identidad?.startsWith('V') || p.identidad?.startsWith('E-') || p.tipoContribuyente?.toLowerCase().includes('residencial')) ? 'RECIBO' : 'NO FACTURADO')}</td>
                     <td style={S.td}>{det.cajero || '-'}</td>
-                    <td style={{ ...S.td, color: '#2a5298' }}>{p.identidad} - {getNombre(p, contribMap) || p.contribuyente}</td>
-                    <td style={S.td}>{recs[0] || '-'}</td>
+                    <td style={{ ...S.td, color: '#2a5298' }}>{formatContribuyente(p, contribMap, det)}</td>
+                    <td style={S.td}>{getNumeroRecibo(p, det)}</td>
                     <td style={S.td}>{p.banco || '-'}</td>
-                    <td style={S.td}>{p.referencia || '-'}</td>
+                    <td style={S.td}>{limpiarReferenciaPago(p, det) || '-'}</td>
                     <td style={S.td}>
                       {bancoDestClass === 'Banesco' ? (
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', padding: '2px 6px', borderRadius: 4, fontWeight: 700, fontSize: 11 }}>
@@ -608,22 +679,23 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
-                  <tr>{['#', 'Fecha/Hora', 'Tipo', 'Cajero', 'Contribuyente', 'Recibo', 'Banco', 'Aprobación / Ref', 'Monto']
+                  <tr>{['#', 'Fecha/Hora', 'Tipo', 'Cajero', 'Contribuyente', 'Recibo', 'Banco', 'Aprobación / Ref', 'Lote', 'Monto']
                     .map(h => <th key={h} style={S.th}>{h}</th>)}</tr>
                 </thead>
                 <tbody>
                   {creditos.map((p, i) => {
-                    const det = parseDet(p); const recs: string[] = det.recibos || [];
+                    const det = parseDet(p);
                     return (
                       <tr key={p.id} style={{ background: i % 2 === 0 ? '#fff' : '#f9fafe' }}>
                         <td style={S.td}>{i + 1}</td>
                         <td style={S.td}>{fmtDT(p.created_at)}</td>
                         <td style={{ ...S.td, fontWeight: 700, color: '#1e40af' }}>{p.tipo}</td>
                         <td style={S.td}>{det.cajero || '-'}</td>
-                        <td style={{ ...S.td, color: '#2a5298' }}>{p.identidad}-{p.contribuyente}</td>
-                        <td style={S.td}>{recs[0] || p.referencia || '-'}</td>
+                        <td style={{ ...S.td, color: '#2a5298' }}>{formatContribuyente(p, contribMap, det)}</td>
+                        <td style={S.td}>{getNumeroRecibo(p, det)}</td>
                         <td style={S.td}>{p.banco || '-'}</td>
-                        <td style={S.td}>{p.referencia || det.aprobacion || '-'}</td>
+                        <td style={S.td}>{getAprobacion(p, det)}</td>
+                        <td style={S.td}>{getLote(p, det)}</td>
                         <CeldaMonto p={p} valor={parseFloat(p.monto) || 0} />
                       </tr>
                     );
@@ -631,7 +703,7 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
                 </tbody>
                 <tfoot>
                   <tr>
-                    <td colSpan={8} style={S.tf}>Total Items Crédito: {creditos.length}</td>
+                    <td colSpan={9} style={S.tf}>Total Items Crédito: {creditos.length}</td>
                     <td style={{ ...S.tf, textAlign: 'right', color: '#1e40af' }}>Total Crédito: {fmtBs(totalCredito)}</td>
                   </tr>
                 </tfoot>
@@ -684,18 +756,18 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
                 </thead>
                 <tbody>
                   {debitos.map((p, i) => {
-                    const det = parseDet(p); const recs: string[] = det.recibos || [];
+                    const det = parseDet(p);
                     return (
                       <tr key={p.id} style={{ background: i % 2 === 0 ? '#fff' : '#f9fafe' }}>
                         <td style={S.td}>{i + 1}</td>
                         <td style={S.td}>{fmtDT(p.created_at)}</td>
                         <td style={{ ...S.td, fontWeight: 700 }}>{p.tipo}</td>
                         <td style={S.td}>{det.cajero || '-'}</td>
-                        <td style={{ ...S.td, color: '#2a5298' }}>{p.identidad}-{p.contribuyente}</td>
-                        <td style={S.td}>{recs[0] || p.referencia || '-'}</td>
+                        <td style={{ ...S.td, color: '#2a5298' }}>{formatContribuyente(p, contribMap, det)}</td>
+                        <td style={S.td}>{getNumeroRecibo(p, det)}</td>
                         <td style={S.td}>{p.banco || '-'}</td>
-                        <td style={S.td}>{det.aprobacion || '-'}</td>
-                        <td style={S.td}>{det.lote || '-'}</td>
+                        <td style={S.td}>{getAprobacion(p, det)}</td>
+                        <td style={S.td}>{getLote(p, det)}</td>
                         <CeldaMonto p={p} valor={parseFloat(p.monto) || 0} />
                       </tr>
                     );
@@ -725,16 +797,15 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
                 <tbody>
                   {saldosAFavor.map((p, i) => {
                     const det = parseDet(p);
-                    const recs: string[] = det.recibos || [];
                     return (
                       <tr key={p.id} style={{ background: i % 2 === 0 ? '#fff' : '#faf5ff' }}>
                         <td style={S.td}>{i + 1}</td>
                         <td style={S.td}>{fmtDT(p.created_at)}</td>
                         <td style={{ ...S.td, fontWeight: 700, color: '#6d28d9' }}>{p.tipo}</td>
                         <td style={S.td}>{det.cajero || '-'}</td>
-                        <td style={{ ...S.td, color: '#2a5298' }}>{p.identidad}-{p.contribuyente}</td>
-                        <td style={S.td}>{recs[0] || p.referencia || '-'}</td>
-                        <td style={S.td}>{p.referencia || '-'}</td>
+                        <td style={{ ...S.td, color: '#2a5298' }}>{formatContribuyente(p, contribMap, det)}</td>
+                        <td style={S.td}>{getNumeroRecibo(p, det)}</td>
+                        <td style={S.td}>{limpiarReferenciaPago(p, det) || '-'}</td>
                         <td style={S.td}><span style={{ color: '#16a34a', fontWeight: 700 }}>{p.estado || 'Aprobado'}</span></td>
                         <CeldaMonto p={p} valor={parseFloat(p.monto) || 0} />
                       </tr>
@@ -769,8 +840,8 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
                         <td style={S.td}>{fmtDT(p.created_at)}</td>
                         <td style={{ ...S.td, fontWeight: 700, color: '#475569' }}>{p.tipo}</td>
                         <td style={S.td}>{det.cajero || '-'}</td>
-                        <td style={{ ...S.td, color: '#2a5298' }}>{p.identidad}-{p.contribuyente}</td>
-                        <td style={S.td}>{p.referencia || '-'}</td>
+                        <td style={{ ...S.td, color: '#2a5298' }}>{formatContribuyente(p, contribMap, det)}</td>
+                        <td style={S.td}>{limpiarReferenciaPago(p, det) || '-'}</td>
                         <td style={S.td}><span style={{ color: '#16a34a', fontWeight: 700 }}>{p.estado || 'Aprobado'}</span></td>
                         <CeldaMonto p={p} valor={parseFloat(p.monto) || 0} />
                       </tr>
