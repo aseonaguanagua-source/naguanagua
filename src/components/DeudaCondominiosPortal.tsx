@@ -1,10 +1,17 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Building2, AlertTriangle, Users, ChevronDown, ChevronUp, Info, ShieldAlert } from 'lucide-react';
+import { Building2, AlertTriangle, Users, ChevronDown, ChevronUp, Info, ShieldAlert, Snowflake } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { getIdentidadVariantsExact } from '@/lib/formatters';
 import { formatBs } from '@/lib/formatCurrency';
+
+const fmtDMY = (ymd?: string | null) => {
+  const s = String(ymd || '').trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return s || '—';
+  const [y, m, d] = s.split('-');
+  return `${d}/${m}/${y}`;
+};
 
 interface CondoUnitInfo {
   inmueble: string;
@@ -19,6 +26,7 @@ interface CondoUnitInfo {
 
 export default function DeudaCondominiosPortal({ identidad }: { identidad: string }) {
   const [condoUnits, setCondoUnits] = useState<CondoUnitInfo[]>([]);
+  const [tasasCongeladas, setTasasCongeladas] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
 
@@ -104,6 +112,14 @@ export default function DeudaCondominiosPortal({ identidad }: { identidad: strin
         }
 
         setCondoUnits(items);
+        const allCondoCodes = Array.from(new Set(items.map(it => String(it.condominioCodigo || '').trim().toUpperCase()).filter(Boolean)));
+        if (allCondoCodes.length > 0) {
+          try {
+            const rTc = await fetch(`/api/admin/condominios/congelar-tasa?codigos=${encodeURIComponent(allCondoCodes.join(','))}`, { cache: 'no-store' });
+            const jTc = await rTc.json();
+            if (jTc?.tasas) setTasasCongeladas(jTc.tasas);
+          } catch {}
+        }
       } catch (err) {
         console.error('Error cargando unidades de condominio portal:', err);
       } finally {
@@ -146,6 +162,20 @@ export default function DeudaCondominiosPortal({ identidad }: { identidad: strin
             Estimado contribuyente, usted posee inmuebles o locales comerciales ubicados dentro de:
             <strong className="text-amber-950"> {condominiosUnicos.join(', ')}</strong>.
           </p>
+
+          {Object.entries(tasasCongeladas)
+            .filter(([, v]) => v?.activa)
+            .map(([cod, v]) => {
+              const nom = condoUnits.find(u => u.condominioCodigo.toUpperCase() === cod)?.condominioNombre || cod;
+              return (
+                <div key={cod} className="bg-sky-50 border border-sky-300 text-sky-950 rounded-xl px-3 py-2 text-xs flex items-center gap-2 font-bold">
+                  <Snowflake className="w-4 h-4 text-sky-600 shrink-0" />
+                  <span>
+                    ❄️ {nom}: Tasa congelada en <b>Bs. {formatBs(v.activa.tasa)} / €</b> vigente por el período del <b>{fmtDMY(v.activa.desde)}</b> al <b>{fmtDMY(v.activa.hasta)}</b>.
+                  </span>
+                </div>
+              );
+            })}
 
           <div className="bg-white/80 border border-amber-200 rounded-xl p-3 text-xs text-amber-950 space-y-1.5 mt-2">
             <div className="flex items-start gap-2 font-bold text-amber-900">

@@ -5,11 +5,18 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   Building2, Search, RefreshCw, AlertTriangle, CheckCircle2, Wallet, CalendarClock,
-  Layers, ChevronLeft, ChevronRight, UserSearch, X, Download, Pencil, Award, FileText, Trash2
+  Layers, ChevronLeft, ChevronRight, UserSearch, X, Download, Pencil, Award, FileText, Trash2, Snowflake
 } from 'lucide-react';
 import { SelectorModulo } from '@/components/condominios/SelectorModulo';
+import ModalCongelarTasaCondominio from '@/components/condominios/ModalCongelarTasaCondominio';
 
 const fmtBs = (n: number) => (Number(n) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtDMY = (ymd?: string | null) => {
+  const s = String(ymd || '').trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return s || '—';
+  const [y, m, d] = s.split('-');
+  return `${d}/${m}/${y}`;
+};
 const MODALIDAD: Record<string, { label: string; cls: string }> = {
   CENTRALIZADO:    { label: 'Centralizado',      cls: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
   MIXTO_COMERCIAL: { label: 'Mixto comercial',   cls: 'bg-amber-50 text-amber-800 border-amber-200' },
@@ -29,6 +36,7 @@ export default function CondominiosPage() {
   const [filtroSolvencia, setFiltroSolvencia] = useState<'TODOS' | 'SOLVENTES' | 'INSOLVENTES'>('TODOS');
   const [orden, setOrden] = useState<'nombre' | 'deuda' | 'meses' | 'unidades'>('deuda');
   const [pagina, setPagina] = useState(0);
+  const [modalCongelarCondo, setModalCongelarCondo] = useState<any | null>(null);
 
   // Búsqueda por dueño de unidad
   const [dueno, setDueno] = useState('');
@@ -428,6 +436,12 @@ export default function CondominiosPage() {
                   <td className="py-3 px-4">
                     <div className="font-bold text-slate-900">{f.nombre}</div>
                     <div className="text-[11px] text-slate-500 font-mono">{f.codigo} · {f.identidad} · {f.tipo === 'RESIDENCIAL' ? 'Residencial' : f.tipo === 'COMERCIAL' ? 'Comercial' : 'Mixto'}</div>
+                    {f.tasaCongelada && (
+                      <div className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-100 border border-sky-300 text-sky-900 text-[10px] font-black">
+                        <Snowflake className="w-3 h-3 text-sky-700" />
+                        Tasa Congelada: Bs {fmtBs(f.tasaCongelada.tasa)} ({fmtDMY(f.tasaCongelada.desde)} al {fmtDMY(f.tasaCongelada.hasta)})
+                      </div>
+                    )}
                     <div className="text-[10px] mt-1 text-blue-600 font-bold hover:underline flex items-center gap-1">
                       <Pencil className="w-3 h-3" /> Editar y agregar unidades (clic aquí o en la fila)
                     </div>
@@ -512,6 +526,18 @@ export default function CondominiosPage() {
                         </button>
                       )}
                       <button
+                        onClick={() => setModalCongelarCondo(f)}
+                        title={f.tasaCongelada ? `Tasa Congelada activa: Bs ${fmtBs(f.tasaCongelada.tasa)} (${fmtDMY(f.tasaCongelada.desde)} al ${fmtDMY(f.tasaCongelada.hasta)})` : 'Congelar tasa de este condominio por un período (requiere clave)'}
+                        className={`px-2 py-1 rounded-lg border font-bold text-[11px] inline-flex items-center gap-1 cursor-pointer shadow-2xs transition-all ${
+                          f.tasaCongelada
+                            ? 'border-sky-400 bg-sky-600 hover:bg-sky-700 text-white'
+                            : 'border-sky-300 bg-sky-50 hover:bg-sky-100 text-sky-800'
+                        }`}
+                      >
+                        <Snowflake className="w-3.5 h-3.5" />
+                        {f.tasaCongelada ? 'Congelada' : 'Congelar Tasa'}
+                      </button>
+                      <button
                         onClick={() => handleEliminarCondominio(f)}
                         disabled={eliminandoCodigo === f.codigo}
                         title={`Eliminar el condominio "${f.nombre}" y todas sus unidades de una sola vez`}
@@ -528,6 +554,18 @@ export default function CondominiosPage() {
           </table>
         </div>
       </div>
+
+      {modalCongelarCondo && (
+        <ModalCongelarTasaCondominio
+          condominio={modalCongelarCondo}
+          tasaActualSistema={datos?.tasa || 0}
+          onClose={() => setModalCongelarCondo(null)}
+          onSaved={async () => {
+            setModalCongelarCondo(null);
+            await cargar();
+          }}
+        />
+      )}
     </div>
   );
 }

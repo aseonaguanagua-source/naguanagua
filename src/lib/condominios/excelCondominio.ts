@@ -71,6 +71,13 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
       }
     } catch { /* sin logos */ }
   };
+  const tc = (e as any)?.tasaCongelada || c?.tasa_congelada_activa || null;
+  const fmtDMY = (ymd?: string | null) => {
+    const s = String(ymd || '').trim().slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return s || '—';
+    const [y, m, d] = s.split('-');
+    return `${d}/${m}/${y}`;
+  };
   const encabezado = (ws: any, titulo: string, ancho: number) => {
     logosEn(ws);
     ws.mergeCells(1, 4, 1, ancho); ws.getCell(1, 4).value = 'INSTITUTO AUTÓNOMO MUNICIPAL DE ECOSOCIALISMO DE NAGUANAGUA (IAMEC)';
@@ -81,8 +88,12 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
     ws.mergeCells(3, 4, 3, ancho); ws.getCell(3, 4).value = `CONDOMINIO: ${c?.nombre || ''} (${c?.codigo || ''})${c?.identidad ? ' · RIF ' + c.identidad : ''}`;
     ws.getCell(3, 4).font = { bold: true, size: 10 };
     ws.mergeCells(4, 4, 4, ancho);
-    ws.getCell(4, 4).value = `Fecha: ${new Date().toLocaleString('es-VE')} · Tasa Euro BCV: ${tasaStr} · Valor UCD (Euro × 57): ${ucd.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · Emitido por: ${cajero || 'Administrador'}`;
-    ws.getCell(4, 4).font = { size: 9 };
+    if (tc && tc.activa && tc.desde && tc.hasta) {
+      ws.getCell(4, 4).value = `Fecha: ${new Date().toLocaleString('es-VE')} · TASA CONGELADA POR EL PERÍODO DEL ${fmtDMY(tc.desde)} AL ${fmtDMY(tc.hasta)}: Bs. ${tasaStr} · Valor UCD (Euro × 57): ${ucd.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · Emitido por: ${cajero || 'Administrador'}`;
+    } else {
+      ws.getCell(4, 4).value = `Fecha: ${new Date().toLocaleString('es-VE')} · Tasa Euro BCV: ${tasaStr} · Valor UCD (Euro × 57): ${ucd.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · Emitido por: ${cajero || 'Administrador'}`;
+    }
+    ws.getCell(4, 4).font = { size: 9, bold: Boolean(tc && tc.activa) };
   };
 
   const renglones = e?.renglones || [];
@@ -103,6 +114,9 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
   const resRet = conv(totales.retencionBs || 0);
   const resNeto = rnd(resBruto - resRet);
   const filasRes: [string, number | string, string?][] = [
+    ...(tc && tc.activa && tc.desde && tc.hasta ? [
+      ['Régimen de Tasa Aplicada', `TASA CONGELADA DEL ${fmtDMY(tc.desde)} AL ${fmtDMY(tc.hasta)} (Bs. ${tasaStr}/€)`] as [string, string],
+    ] : []),
     ['Unidades registradas', renglones.filter(r => r.clave !== '__SIN_REGISTRAR__').length],
     ['Unidades con deuda', totales.unidadesConDeuda || 0],
     ['Meses máximos adeudados', totales.mesesMax || 0],

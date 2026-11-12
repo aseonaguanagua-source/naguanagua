@@ -25,7 +25,8 @@ const TIPO_LABEL: Record<string, string> = {
 export default function EstadoCuentaPage() {
   const { inmuebles, recibos, contribuyentes, tcmmv } = useAppContext();
   const [portalDoc, setPortalDoc] = useState('');
-  const tasaBcv = tcmmv || 0;
+  const [tasaCongeladaPortal, setTasaCongeladaPortal] = useState<any>(null);
+  const tasaBcv = (tasaCongeladaPortal?.tasa > 0 ? tasaCongeladaPortal.tasa : tcmmv) || 0;
   const [misInmueblesDb, setMisInmueblesDb] = useState<any[]>([]);
   const [misNaCodes, setMisNaCodes] = useState<string[]>([]);
   const [misFactDb, setMisFactDb] = useState<any[]>([]);
@@ -133,6 +134,20 @@ export default function EstadoCuentaPage() {
           });
           setMisInmueblesDb(distinctInms);
           setMisNaCodes(rc.naCodes);
+          const condoCods = Array.from(new Set(
+            distinctInms
+              .flatMap((i: any) => [i.condominio_padre_id, i.es_condominio ? i.inmueble : null])
+              .filter(Boolean)
+              .map((c: string) => String(c).trim().toUpperCase())
+          ));
+          if (condoCods.length > 0) {
+            try {
+              const rTc = await fetch(`/api/admin/condominios/congelar-tasa?codigos=${encodeURIComponent(condoCods.join(','))}`, { cache: 'no-store' });
+              const jTc = await rTc.json();
+              const firstActiva = Object.values(jTc?.tasas || {}).find((x: any) => x?.activa) as any;
+              if (firstActiva?.activa) setTasaCongeladaPortal(firstActiva.activa);
+            } catch {}
+          }
           const combined: any[] = [
             ...(facturasDB || []).filter((f: any) => !ESTADOS_RECIBO_PENDIENTE.includes(f.estado)),
             ...rc.recibos,

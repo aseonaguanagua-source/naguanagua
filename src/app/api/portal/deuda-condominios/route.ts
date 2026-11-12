@@ -34,7 +34,16 @@ export async function GET(req: Request) {
           periodos: l.periodos, baseBs: l.baseBs, multaBs: l.multaBs + l.multasAparteBs, ivaBs: l.ivaBs,
           retencionBs: l.retencionBs, totalBs: l.totalBs,
         }));
-        if (lineas.length) out.push({ codigo: c.codigo, nombre: c.nombre, lineas, totalBs: cobro.totales?.totalBs || 0 });
+        if (lineas.length) {
+          out.push({
+            codigo: c.codigo,
+            nombre: c.nombre,
+            tasa: cobro.estado?.tasa || 0,
+            tasaCongelada: cobro.estado?.tasaCongelada || null,
+            lineas,
+            totalBs: cobro.totales?.totalBs || 0,
+          });
+        }
       } catch { /* condominio sin datos: se omite */ }
     }
     return NextResponse.json({ condominios: out }, { headers: { 'Cache-Control': 'no-store' } });

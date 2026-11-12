@@ -6,6 +6,12 @@ import { EstadoCuenta, RenglonEstado } from './servicio';
 import * as M from './motor';
 const fmtBs = (n: number) => (Number(n) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtEur = (n: number) => (Number(n) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtDMY = (ymd?: string | null) => {
+  const s = String(ymd || '').trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return s || '—';
+  const [y, m, d] = s.split('-');
+  return `${d}/${m}/${y}`;
+};
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 const fmtPeriodo = (p: string) => {
   if (!p || p.indexOf('-') === -1) return p;
@@ -61,7 +67,12 @@ export function generarPdfEstadoCuentaCondominio(
     doc.setFontSize(8);
     doc.setTextColor(220, 38, 38);
     const fechaEmision = new Date().toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric' });
-    doc.text(`TASA VIGENTE HASTA: ${fechaEmision}   |   TASA EURO BCV: Bs. ${fmtBs(tasaEur)}`, 105, 23, { align: 'center' });
+    const tc = (e as any)?.tasaCongelada || c?.tasa_congelada_activa || null;
+    if (tc && tc.activa && tc.desde && tc.hasta) {
+      doc.text(`TASA CONGELADA POR EL PERÍODO DEL ${fmtDMY(tc.desde)} AL ${fmtDMY(tc.hasta)}   |   TASA EURO BCV: Bs. ${fmtBs(tasaEur)}`, 105, 23, { align: 'center' });
+    } else {
+      doc.text(`TASA VIGENTE HASTA: ${fechaEmision}   |   TASA EURO BCV: Bs. ${fmtBs(tasaEur)}`, 105, 23, { align: 'center' });
+    }
     doc.setTextColor(0, 0, 0);
 
     // ── METADATA & LÍNEA ──
@@ -98,6 +109,15 @@ export function generarPdfEstadoCuentaCondominio(
   if (e.renglones.length === 1 && e.renglones[0].inmueble) {
     doc.setFont('helvetica', 'bold');
     doc.text(`Local / Unidad: ${e.renglones[0].inmueble}${e.renglones[0].numero ? ` · ${e.renglones[0].numero}` : ''}`, 14, y);
+    doc.setFont('helvetica', 'normal');
+    y += 5;
+  }
+  const tcCondo = (e as any)?.tasaCongelada || c?.tasa_congelada_activa || null;
+  if (tcCondo && tcCondo.activa && tcCondo.desde && tcCondo.hasta) {
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(3, 105, 161);
+    doc.text(`TASA CONGELADA POR EL PERÍODO DEL ${fmtDMY(tcCondo.desde)} AL ${fmtDMY(tcCondo.hasta)}: Bs. ${fmtBs(tasaEur)} / € (Luego cambia a tasa BCV diaria)`, 14, y);
+    doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'normal');
     y += 5;
   }
@@ -281,7 +301,12 @@ export function generarPdfMultasCondominio(c: any, e: EstadoCuenta, cajero: stri
 
     doc.setFontSize(8);
     doc.setTextColor(220, 38, 38);
-    doc.text(`TASA VIGENTE HASTA: ${e.tasa}`, 105, 23, { align: 'center' });
+    const tcMultas = (e as any)?.tasaCongelada || c?.tasa_congelada_activa || null;
+    if (tcMultas && tcMultas.activa && tcMultas.desde && tcMultas.hasta) {
+      doc.text(`TASA CONGELADA POR EL PERÍODO DEL ${fmtDMY(tcMultas.desde)} AL ${fmtDMY(tcMultas.hasta)}   |   TASA: Bs. ${fmtBs(e.tasa)}`, 105, 23, { align: 'center' });
+    } else {
+      doc.text(`TASA VIGENTE HASTA: ${e.tasa}`, 105, 23, { align: 'center' });
+    }
     doc.setTextColor(0, 0, 0);
 
     doc.setLineWidth(0.3);
@@ -441,7 +466,12 @@ export async function generarPdfEstadoCuentaUnidad(
 
     doc.setFontSize(8);
     doc.setTextColor(220, 38, 38);
-    doc.text(`TASA VIGENTE HASTA: ${new Date().toLocaleDateString('es-VE')}`, 105, 23, { align: 'center' });
+    const tcUnidad = c?.tasa_congelada_activa || null;
+    if (tcUnidad && tcUnidad.activa && tcUnidad.desde && tcUnidad.hasta) {
+      doc.text(`TASA CONGELADA POR EL PERÍODO DEL ${fmtDMY(tcUnidad.desde)} AL ${fmtDMY(tcUnidad.hasta)}   |   TASA EURO BCV: Bs. ${fmtBs(tasaEur)}`, 105, 23, { align: 'center' });
+    } else {
+      doc.text(`TASA VIGENTE HASTA: ${new Date().toLocaleDateString('es-VE')}`, 105, 23, { align: 'center' });
+    }
     doc.setTextColor(0, 0, 0);
 
     doc.setLineWidth(0.3);
@@ -779,9 +809,16 @@ export async function generarPdfEstadoCuentaUnidad(
   doc.setFontSize(7);
   doc.setFont('helvetica', 'bolditalic');
   doc.setTextColor(220, 38, 38);
-  doc.text('IMPORTANTE: Los montos indicados en este estado de cuenta son válidos ÚNICAMENTE para la fecha de emisión del presente documento.', 105, y, { align: 'center' });
-  y += 3.5;
-  doc.text('La tasa de cambio oficial BCV varía periódicamente. Para cancelar en fecha posterior, solicite un nuevo estado de cuenta actualizado.', 105, y, { align: 'center' });
+  const tcPie = c?.tasa_congelada_activa || null;
+  if (tcPie && tcPie.activa && tcPie.desde && tcPie.hasta) {
+    doc.text(`IMPORTANTE: TASA CONGELADA (Bs. ${fmtBs(tasaEur)}/€) POR EL PERÍODO DEL ${fmtDMY(tcPie.desde)} AL ${fmtDMY(tcPie.hasta)}.`, 105, y, { align: 'center' });
+    y += 3.5;
+    doc.text('Culminado este período, la tasa cambiará automáticamente a la tasa de cambio oficial BCV diaria.', 105, y, { align: 'center' });
+  } else {
+    doc.text('IMPORTANTE: Los montos indicados en este estado de cuenta son válidos ÚNICAMENTE para la fecha de emisión del presente documento.', 105, y, { align: 'center' });
+    y += 3.5;
+    doc.text('La tasa de cambio oficial BCV varía periódicamente. Para cancelar en fecha posterior, solicite un nuevo estado de cuenta actualizado.', 105, y, { align: 'center' });
+  }
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(0, 0, 0);
 

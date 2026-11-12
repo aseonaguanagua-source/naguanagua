@@ -5,9 +5,10 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Building2, Search, RefreshCw, AlertTriangle, Wallet, CheckCircle2, X, Printer, ShieldAlert, Power,
-  Receipt, Layers, ArrowLeft, FlaskConical, Users, UserSearch, FileText, Calendar, StickyNote,
+  Receipt, Layers, ArrowLeft, FlaskConical, Users, UserSearch, FileText, Calendar, StickyNote, Snowflake,
 } from 'lucide-react';
 import { SelectorModulo } from '@/components/condominios/SelectorModulo';
+import ModalCongelarTasaCondominio from '@/components/condominios/ModalCongelarTasaCondominio';
 import { getCajeroId } from '@/lib/cajaHelpers';
 import { LISTA_BANCOS } from '@/lib/bancos';
 import { supabase } from '@/lib/supabase';
@@ -61,6 +62,7 @@ function Caja() {
   const [guardandoContacto, setGuardandoContacto] = useState(false);
   const [contactoOmitido, setContactoOmitido] = useState(false);
   const [modalNotas, setModalNotas] = useState(false);
+  const [modalCongelarTasa, setModalCongelarTasa] = useState(false);
   const [notaCondominio, setNotaCondominio] = useState('');
   const [guardandoNota, setGuardandoNota] = useState(false);
   const [tasaOverrideStr, setTasaOverrideStr] = useState('');
@@ -395,6 +397,7 @@ function Caja() {
   /** unidad + todos=false → solo ese local; todos=true → todos los locales de ese dueño */
   const elegir = (cod: string, unidad?: any, todos = false) => {
     setCodigo(cod); setRes(null); setQ(''); setClaves([]); setAbonoLocales(false); setMeses(''); setRecibo(null); setSoloMultas(false); setIncluirMultas(true); setOmitirMultaSeptiembre(false); setContactoOmitido(false);
+    setTasaOverrideStr(''); setTasaFechaInfo(''); setFechaOverrideStr(hoyCaracas());
     if (unidad && todos && unidad.identidad) {
       setModo('CONTRIBUYENTE'); setIdentidad(String(unidad.identidad).toUpperCase());
       router.replace(`/admin/condominios/caja?codigo=${cod}&cedula=${encodeURIComponent(unidad.identidad)}`);
@@ -952,6 +955,14 @@ function Caja() {
               </button>
             </div>
             {tasaFechaInfo && <div className="text-[10px] font-semibold text-[#166534]">{tasaFechaInfo}</div>}
+            {!tasaOverrideStr && c?.tasa_congelada_activa && (
+              <div className="text-[10px] font-black text-sky-900 bg-sky-100 border border-sky-300 rounded-md px-2 py-1 flex items-center gap-1">
+                <Snowflake className="w-3.5 h-3.5 text-sky-700 shrink-0" />
+                <span>
+                  Tasa Congelada: Bs {fmtBs(c.tasa_congelada_activa.tasa)} ({fechaDMY(c.tasa_congelada_activa.desde)} al {fechaDMY(c.tasa_congelada_activa.hasta)})
+                </span>
+              </div>
+            )}
             {(() => {
               const t = parseFloat(tasaOverrideStr.replace(/\./g, '').replace(',', '.')) || Number(cobro?.estado?.tasa || estadoBase?.tasa || 0);
               return t > 0 ? <div className="text-[10px] font-semibold text-[#166534]">UCD (Euro × 57): Bs {fmtBs(valorUCD(t))}</div> : null;
@@ -974,7 +985,17 @@ function Caja() {
             {res.condominios.map((x: any) => (
               <button key={x.codigo} onClick={() => elegir(x.codigo)} className="w-full text-left px-4 py-2.5 hover:bg-emerald-50 flex items-center gap-3 cursor-pointer">
                 <Building2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <div><div className="font-bold text-slate-900 text-sm">{x.nombre}</div><div className="text-[11px] text-slate-500 font-mono">{x.codigo} · {x.identidad} · {x.cant_declarada} unidades</div></div>
+                <div>
+                  <div className="font-bold text-slate-900 text-sm flex items-center gap-2 flex-wrap">
+                    <span>{x.nombre}</span>
+                    {x.tasaCongelada && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-sky-100 text-sky-900 border border-sky-300">
+                        ❄️ Tasa Congelada: Bs {fmtBs(x.tasaCongelada.tasa)} ({fechaDMY(x.tasaCongelada.desde)} al {fechaDMY(x.tasaCongelada.hasta)})
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[11px] text-slate-500 font-mono">{x.codigo} · {x.identidad} · {x.cant_declarada} unidades</div>
+                </div>
               </button>
             ))}
             {res.unidades.length > 0 && <div className="px-4 pt-3 text-[10px] font-black uppercase tracking-wider text-slate-400">Unidades</div>}
@@ -1285,7 +1306,44 @@ function Caja() {
                   >
                     📝 {c.notas ? 'Notas del Condominio' : '+ Agregar Nota'}
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setModalCongelarTasa(true)}
+                    className={`px-2.5 py-0.5 rounded-full text-[11px] font-extrabold flex items-center gap-1 cursor-pointer transition-colors ${
+                      c.tasa_congelada_activa
+                        ? 'bg-sky-600 border border-sky-700 text-white hover:bg-sky-700 shadow-2xs'
+                        : 'bg-sky-50 border border-sky-300 text-sky-900 hover:bg-sky-100'
+                    }`}
+                    title="Congelar o descongelar tasa por período para este condominio (requiere clave)"
+                  >
+                    <Snowflake className="w-3 h-3" />
+                    {c.tasa_congelada_activa
+                      ? `Tasa Congelada: Bs ${fmtBs(c.tasa_congelada_activa.tasa)}`
+                      : 'Congelar Tasa'}
+                  </button>
                 </div>
+                {c.tasa_congelada_activa && (
+                  <div className="mt-3 p-3 bg-gradient-to-r from-sky-50 to-cyan-50 border border-sky-300 rounded-xl text-sky-950 flex items-center justify-between gap-3 shadow-2xs max-w-2xl">
+                    <div className="flex items-start gap-2">
+                      <Snowflake className="w-4 h-4 text-sky-600 shrink-0 mt-0.5" />
+                      <div className="text-xs">
+                        <div className="font-black uppercase tracking-wide text-sky-950">
+                          ❄️ Tasa Congelada por el período del {fechaDMY(c.tasa_congelada_activa.desde)} al {fechaDMY(c.tasa_congelada_activa.hasta)}: Bs. {fmtBs(c.tasa_congelada_activa.tasa)} / €
+                        </div>
+                        <div className="text-[11px] text-sky-900 font-medium">
+                          Los montos en Caja para este condominio están calculados con la tasa congelada. Al finalizar el período vuelve automáticamente a la tasa BCV diaria.
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setModalCongelarTasa(true)}
+                      className="px-2.5 py-1 text-[11px] font-extrabold bg-white hover:bg-sky-100 text-sky-900 border border-sky-300 rounded-lg shrink-0 cursor-pointer"
+                    >
+                      Configurar
+                    </button>
+                  </div>
+                )}
                 {c.notas && (
                   <div className="mt-3.5 p-3.5 bg-amber-50/90 border border-amber-300 rounded-xl text-amber-950 flex items-start justify-between gap-3 shadow-2xs max-w-2xl">
                     <div className="flex items-start gap-2.5">
@@ -2022,7 +2080,21 @@ function Caja() {
                 </div>
               )}
               
-              <div className="text-xs text-white/70">{cobro.lineas.length} renglón(es) · hasta {cobro.totales.meses} mes(es) · tasa Euro Bs {formatBs(cobro.estado.tasa)} · UCD Bs {formatBs(valorUCD(cobro.estado.tasa))}</div>
+              {c?.tasa_congelada_activa && !tasaOverrideStr && (
+                <div className="bg-sky-500/20 border border-sky-400/50 rounded-xl px-3 py-2 text-xs text-sky-100 flex items-center gap-2">
+                  <Snowflake className="w-4 h-4 text-sky-300 shrink-0" />
+                  <div>
+                    <div className="font-black text-sky-200 uppercase text-[10px] tracking-wider">
+                      Tasa Congelada ({fechaDMY(c.tasa_congelada_activa.desde)} al {fechaDMY(c.tasa_congelada_activa.hasta)})
+                    </div>
+                    <div className="text-[11px] font-bold">
+                      Euro BCV Congelado: Bs. {formatBs(c.tasa_congelada_activa.tasa)}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="text-xs text-white/70">{cobro.lineas.length} renglón(es) · hasta {cobro.totales.meses} mes(es) · tasa Euro Bs {formatBs(cobro.estado.tasa)}{c?.tasa_congelada_activa && !tasaOverrideStr ? ' (Congelada)' : ''} · UCD Bs {formatBs(valorUCD(cobro.estado.tasa))}</div>
               <div className="text-xs space-y-1 border-t border-white/10 pt-3">
                 <div className="flex justify-between"><span className="text-white/70">Aseo</span><b className="tabular-nums">Bs {fmtBs(cobro.totales.baseBs)}</b></div>
                 <div className="flex justify-between"><span className="text-white/70">Multas</span><b className="tabular-nums">Bs {fmtBs(cobro.totales.multaBs)}</b></div>
@@ -2579,6 +2651,21 @@ function Caja() {
             </div>
           </div>
         </div>
+      )}
+
+      {modalCongelarTasa && c && (
+        <ModalCongelarTasaCondominio
+          condominio={c}
+          tasaActualSistema={cobro?.estado?.tasa || estadoBase?.tasa || 0}
+          usuario={usuario()?.usuario || 'Admin'}
+          onClose={() => setModalCongelarTasa(false)}
+          onSaved={async () => {
+            setModalCongelarTasa(false);
+            setTasaOverrideStr('');
+            setTasaFechaInfo('');
+            setCalcTrigger(prev => prev + 1);
+          }}
+        />
       )}
 
       <Link href="/admin/condominios" className="inline-flex items-center gap-1.5 text-sm font-bold text-emerald-700 hover:text-emerald-900 print:hidden"><ArrowLeft className="w-4 h-4" /> Lista de condominios</Link>

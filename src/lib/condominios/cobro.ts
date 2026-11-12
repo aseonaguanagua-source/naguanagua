@@ -16,7 +16,7 @@
  */
 import { supabaseAdmin as sb } from '@/lib/supabaseAdmin';
 import * as M from './motor';
-import { calcularEstado, cargarCondominio, tasaVigente, EstadoCuenta, RenglonEstado } from './servicio';
+import { calcularEstado, cargarCondominio, tasaVigente, EstadoCuenta, RenglonEstado, fmtFechaDMY } from './servicio';
 import { descontarSaldoFavor, acreditarSaldoFavor } from '@/lib/saldoFavor';
 import { sanitizarDireccionFiscal } from '@/lib/formatters';
 
@@ -112,7 +112,10 @@ const n = (s: any) => M.normId(s);
 export async function prepararCobro(sol: SolicitudCobro): Promise<Cobro & { _datos: any }> {
     const datos = await cargarCondominio(sol.codigo);
     if (!datos) throw new Error('Condominio no encontrado');
-    const rawTasa = sol.tasaOverride && sol.tasaOverride > 0 ? sol.tasaOverride : await tasaVigente();
+    const tcActiva = datos.condo?.tasa_congelada_activa || null;
+    const rawTasa = sol.tasaOverride && sol.tasaOverride > 0
+        ? sol.tasaOverride
+        : (tcActiva && tcActiva.tasa > 0 ? tcActiva.tasa : await tasaVigente());
     const tasa = r2(Number(rawTasa) || 0);
     if (!(tasa > 0)) throw new Error('No hay tasa BCV vigente configurada.');
     const fecha = sol.fechaOverride
@@ -121,6 +124,9 @@ export async function prepararCobro(sol: SolicitudCobro): Promise<Cobro & { _dat
     const estado = calcularEstado(datos.condo, datos.unidades, tasa, fecha, datos.multas, !!sol.omitirMultaSeptiembre);
     const porAct = estado.porActividad;
     const avisos: string[] = [];
+    if (tcActiva && (!sol.tasaOverride || Math.abs(sol.tasaOverride - tcActiva.tasa) < 0.01)) {
+        avisos.push(`❄️ Tasa Congelada activa: Bs. ${tcActiva.tasa.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} vigente por el período del ${fmtFechaDMY(tcActiva.desde)} al ${fmtFechaDMY(tcActiva.hasta)}.`);
+    }
     const modo: ModoCobro = (sol.soloMultas || sol.modalidad === 'multas_separadas' || sol.modalidad === 'individual')
         ? 'CONTRIBUYENTE'
         : ((sol.modalidad === 'completo' || sol.modalidad === 'abono_locales')
@@ -775,6 +781,7 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
             condominio: {
                 codigo: c.codigo, nombre: c.nombre, identidad: c.identidad, modalidad: c.modalidad, modalidad_cobro: modalidadCobroActiva, tipo: c.tipo,
                 solo_multas: !!sol.soloMultas,
+                ...(c.tasa_congelada_activa ? { tasa_congelada: c.tasa_congelada_activa } : {}),
                 lineas: ls.map(l => ({ unidad_id: porId.get(l.clave)?.id || undefined, inmueble: l.inmueble, numero: l.numero, propietario: l.propietario, identidad: l.identidad, actividad: l.actividad, residencial: l.residencial, meses: l.meses, periodos: l.periodos, aseoBs: l.baseBs, ivaBs: l.ivaBs, multaBs: r2(l.multaBs + l.multasAparteBs), retencionBs: l.retencionBs, totalBs: l.totalBs, totalBrutoBs: r2(l.baseBs + l.multaBs + l.multasAparteBs + l.ivaBs), _multasDetalle: l._multasDetalle || undefined }))
             },
             ...(grupo ? { grupo_pago: { id: grupo, referencia: refFinal, monto_total: cobro.totales.totalBs, partes: cobro.facturas.length, parte: i + 1 } } : {}),

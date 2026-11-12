@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as sb } from '@/lib/supabaseAdmin';
-import { buscarPorDueno, calcularEstado, cargarCondominio, resumenGeneral, tasaVigente } from '@/lib/condominios/servicio';
+import { buscarPorDueno, calcularEstado, cargarCondominio, obtenerMapaTasasCongeladas, resolverTasaCongelada, resumenGeneral, tasaVigente } from '@/lib/condominios/servicio';
 import { mesesPendientes, pendienteDesdeParaMeses, periodosPendientes } from '@/lib/condominios/motor';
 import { obtenerHistorialPagosMultasYPeriodos } from '@/lib/multasPagadas';
 
@@ -72,14 +72,31 @@ export async function GET(req: Request) {
         ...u,
         saldo_favor_bs: u.inmueble ? (sfMap.get(String(u.inmueble).toUpperCase()) || 0) : 0,
       }));
-      return NextResponse.json({ condominios: cs || [], unidades: usEnriquecidas });
+      const mapaTC = await obtenerMapaTasasCongeladas();
+      const csEnriquecidos = (cs || []).map((c: any) => {
+        const codUpper = String(c.codigo || '').trim().toUpperCase();
+        const cfg = mapaTC[codUpper] || null;
+        return {
+          ...c,
+          tasaCongelada: resolverTasaCongelada(cfg),
+          tasaCongeladaConfig: cfg,
+        };
+      });
+      return NextResponse.json({ condominios: csEnriquecidos, unidades: usEnriquecidas });
     }
 
     if (codigo) {
       const datos = await cargarCondominio(codigo);
       if (!datos) return NextResponse.json({ error: 'Condominio no encontrado' }, { status: 404 });
-      const tasa = await tasaVigente();
-      return NextResponse.json({ ...datos, estado: calcularEstado(datos.condo, datos.unidades, tasa, new Date(), datos.multas) });
+      const tasaParam = parseFloat(String(url.searchParams.get('tasa') || '0')) || 0;
+      const tcActiva = datos.condo?.tasa_congelada_activa || null;
+      const tasaDiaria = await tasaVigente();
+      const tasa = tasaParam > 0 ? tasaParam : (tcActiva && tcActiva.tasa > 0 ? tcActiva.tasa : tasaDiaria);
+      return NextResponse.json({
+        ...datos,
+        tasaDiaria,
+        estado: calcularEstado(datos.condo, datos.unidades, tasa, new Date(), datos.multas),
+      });
     }
 
     return NextResponse.json(await resumenGeneral());

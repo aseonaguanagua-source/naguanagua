@@ -5,14 +5,21 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
   ArrowLeft, Building2, RefreshCw, AlertTriangle, Wallet, CalendarClock, Layers, Settings, Search,
-  ChevronDown, ChevronRight, Save, X, History, Users, Download, Building, Wallet as WalletIcon, Plus, Pencil, FileText, Ban, Trash2, StickyNote, Award, Sliders, CreditCard, Receipt, ExternalLink, Handshake, LogOut
+  ChevronDown, ChevronRight, Save, X, History, Users, Download, Building, Wallet as WalletIcon, Plus, Pencil, FileText, Ban, Trash2, StickyNote, Award, Sliders, CreditCard, Receipt, ExternalLink, Handshake, LogOut, Snowflake
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import EditorUnidad from './EditorUnidad';
 import ModalAjusteMeses from './ModalAjusteMeses';
+import ModalCongelarTasaCondominio from '@/components/condominios/ModalCongelarTasaCondominio';
 import { mesesPendientes } from '@/lib/condominios/motor';
 
 const fmtBs = (n: number) => (Number(n) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtDMY = (ymd?: string | null) => {
+  const s = String(ymd || '').trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return s || '—';
+  const [y, m, d] = s.split('-');
+  return `${d}/${m}/${y}`;
+};
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 const fmtPeriodo = (p: string) => { const [y, m] = p.split('-'); return `${MESES[parseInt(m) - 1]} ${y}`; };
 const MODALIDAD: Record<string, string> = {
@@ -47,6 +54,7 @@ function Ficha() {
 
   // Edición de opciones
   const [editando, setEditando] = useState(false);
+  const [modalCongelarTasa, setModalCongelarTasa] = useState(false);
   const [form, setForm] = useState<any>({});
   const [motivo, setMotivo] = useState('');
   const [guardando, setGuardando] = useState(false);
@@ -501,6 +509,22 @@ function Ficha() {
                 >
                   <WalletIcon className="w-4 h-4" /> Cobrar en Caja
                 </Link>
+                <button
+                  id="btn-congelar-tasa-ficha"
+                  type="button"
+                  onClick={() => setModalCongelarTasa(true)}
+                  className={`px-4 py-2.5 rounded-xl border font-extrabold text-xs flex items-center gap-2 cursor-pointer transition-colors shadow-2xs ${
+                    c.tasa_congelada_activa
+                      ? 'border-sky-400 bg-sky-600 hover:bg-sky-700 text-white'
+                      : 'border-sky-300 bg-sky-50 hover:bg-sky-100 text-sky-900'
+                  }`}
+                  title="Congelar o descongelar la tasa BCV de este condominio por un período de fechas (requiere clave autorizada)"
+                >
+                  <Snowflake className="w-4 h-4" />
+                  {c.tasa_congelada_activa
+                    ? `Tasa Congelada: Bs ${fmtBs(c.tasa_congelada_activa.tasa)}`
+                    : 'Congelar Tasa'}
+                </button>
                 {admin && (
                   <button 
                     id="btn-agregar-unidad" 
@@ -528,6 +552,44 @@ function Ficha() {
                 </button>
               </div>
             </div>
+
+            {/* Banner de Tasa Congelada por Período si está activa o programada */}
+            {(c.tasa_congelada_activa || (c.tasa_congelada_config && c.tasa_congelada_config.activa)) && (
+              <div className={`p-3.5 rounded-xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs ${
+                c.tasa_congelada_activa
+                  ? 'bg-gradient-to-r from-sky-50 via-cyan-50/80 to-sky-100/60 border-sky-300 text-sky-950'
+                  : 'bg-slate-50 border-slate-300 text-slate-800'
+              }`}>
+                <div className="flex items-start gap-2.5">
+                  <Snowflake className={`w-5 h-5 shrink-0 mt-0.5 ${c.tasa_congelada_activa ? 'text-sky-600' : 'text-slate-500'}`} />
+                  <div className="text-xs space-y-0.5">
+                    {c.tasa_congelada_activa ? (
+                      <>
+                        <div className="font-black text-sky-950 uppercase tracking-wide">
+                          ❄️ Tasa Congelada por el período del {fmtDMY(c.tasa_congelada_activa.desde)} al {fmtDMY(c.tasa_congelada_activa.hasta)}: Bs. {fmtBs(c.tasa_congelada_activa.tasa)} / €
+                        </div>
+                        <div className="text-sky-900/90 font-medium">
+                          Todos los montos de este Estado de Cuenta, Caja de Condominios, Soy Contribuyente y Cobro Móvil están calculados a <b>Bs. {fmtBs(c.tasa_congelada_activa.tasa)}</b>. Vencido el {fmtDMY(c.tasa_congelada_activa.hasta)}, cambiará automáticamente a la tasa BCV diaria.
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="font-bold text-slate-800">
+                          Tasa Congelada configurada ({c.tasa_congelada_estado === 'VENCIDA' ? 'Período finalizado — Actualmente usa tasa BCV diaria' : 'Programada'}): Bs. {fmtBs(c.tasa_congelada_config.tasa)} / € (del {fmtDMY(c.tasa_congelada_config.desde)} al {fmtDMY(c.tasa_congelada_config.hasta)})
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setModalCongelarTasa(true)}
+                  className="px-3 py-1.5 text-xs font-extrabold bg-white hover:bg-sky-100 text-sky-900 border border-sky-300 rounded-lg shrink-0 cursor-pointer shadow-2xs transition-colors"
+                >
+                  ❄️ Configurar / Descongelar
+                </button>
+              </div>
+            )}
 
             {/* Notas del Condominio si existen */}
             {c.notas && (
@@ -1744,6 +1806,19 @@ function Ficha() {
           onClose={() => setAjusteMesesTarget(null)}
           onSaved={async () => {
             setAjusteMesesTarget(null);
+            await cargar();
+          }}
+        />
+      )}
+
+      {modalCongelarTasa && c && (
+        <ModalCongelarTasaCondominio
+          condominio={c}
+          tasaActualSistema={d?.tasaDiaria || e?.tasa || 0}
+          usuario={usuarioActual()}
+          onClose={() => setModalCongelarTasa(false)}
+          onSaved={async () => {
+            setModalCongelarTasa(false);
             await cargar();
           }}
         />

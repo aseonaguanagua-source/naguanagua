@@ -13,6 +13,184 @@ import { getTasaBCV } from '@/services/bcv';
 
 const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
+export const CONFIG_ID_TASAS_CONGELADAS = 'condominios_tasas_congeladas';
+
+export interface TasaCongeladaInfo {
+  activa: boolean;
+  tasa: number;
+  desde: string;            // YYYY-MM-DD (inicio del período inclusive)
+  hasta: string;            // YYYY-MM-DD (fin del período inclusive)
+  fechaReferencia?: string; // YYYY-MM-DD (fecha de la tasa BCV tomada, opcional)
+  motivo?: string;
+  actualizadoPor?: string;
+  actualizadoAt?: string;
+}
+
+/** Fecha actual en zona horaria America/Caracas en formato YYYY-MM-DD. */
+export function hoyCaracasYMD(d = new Date()): string {
+  try {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Caracas',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(d);
+  } catch {
+    return d.toISOString().slice(0, 10);
+  }
+}
+
+/** Formatea YYYY-MM-DD a DD/MM/YYYY. */
+export function fmtFechaDMY(ymd?: string | null): string {
+  const s = String(ymd || '').trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return s || '—';
+  const [y, m, d] = s.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+/**
+ * Devuelve la tasa congelada si y solo si está activa y la fecha actual (Caracas)
+ * se encuentra dentro del período [desde, hasta] inclusive.
+ * Una vez superada la fecha `hasta`, devuelve `null` y el condominio vuelve automáticamente a tasa diaria.
+ */
+export function resolverTasaCongelada(
+  info: TasaCongeladaInfo | null | undefined,
+  hoyYMD = hoyCaracasYMD()
+): TasaCongeladaInfo | null {
+  if (!info || !info.activa) return null;
+  const tasa = r2(Number(info.tasa) || 0);
+  const desde = String(info.desde || '').trim().slice(0, 10);
+  const hasta = String(info.hasta || '').trim().slice(0, 10);
+  if (tasa <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(desde) || !/^\d{4}-\d{2}-\d{2}$/.test(hasta)) return null;
+  if (hoyYMD >= desde && hoyYMD <= hasta) {
+    return {
+      ...info,
+      activa: true,
+      tasa,
+      desde,
+      hasta,
+    };
+  }
+  return null;
+}
+
+export function estadoVigenciaTasaCongelada(
+  info: TasaCongeladaInfo | null | undefined,
+  hoyYMD = hoyCaracasYMD()
+): 'ACTIVA' | 'PROGRAMADA' | 'VENCIDA' | 'INACTIVA' {
+  if (!info || !info.activa || !(Number(info.tasa) > 0) || !info.desde || !info.hasta) return 'INACTIVA';
+  const desde = String(info.desde).slice(0, 10);
+  const hasta = String(info.hasta).slice(0, 10);
+  if (hoyYMD < desde) return 'PROGRAMADA';
+  if (hoyYMD > hasta) return 'VENCIDA';
+  return 'ACTIVA';
+}
+
+let _cacheTasasCongeladas: { ts: number; map: Record<string, TasaCongeladaInfo> } | null = null;
+
+export function invalidarCacheTasasCongeladas() {
+  _cacheTasasCongeladas = null;
+}
+
+export async function obtenerMapaTasasCongeladas(forzar = false): Promise<Record<string, TasaCongeladaInfo>> {
+  const now = Date.now();
+  if (!forzar && _cacheTasasCongeladas && now - _cacheTasasCongeladas.ts < 3000) {
+    return _cacheTasasCongeladas.map;
+  }
+  try {
+    const { data } = await sb
+      .from('sistema_config')
+      .select('valor')
+      .eq('id', CONFIG_ID_TASAS_CONGELADAS)
+      .maybeSingle();
+    let map: Record<string, TasaCongeladaInfo> = {};
+    if (data?.valor) {
+      const parsed = typeof data.valor === 'string' ? JSON.parse(data.valor) : data.valor;
+      if (parsed && typeof parsed === 'object') {
+        for (const [k, v] of Object.entries(parsed)) {
+          if (v && typeof v === 'object') {
+            map[String(k).trim().toUpperCase()] = v as TasaCongeladaInfo;
+          }
+        }
+      }
+    }
+    _cacheTasasCongeladas = { ts: now, map };
+    return map;
+  } catch {
+    return {};
+  }
+}
+
+export async function guardarTasaCongeladaCondominio(params: {
+  codigo: string;
+  accion: 'congelar' | 'descongelar';
+  tasa?: number;
+  desde?: string;
+  hasta?: string;
+  fechaReferencia?: string;
+  motivo?: string;
+  usuario?: string;
+}): Promise<{ config: TasaCongeladaInfo | null; activa: TasaCongeladaInfo | null }> {
+  const cod = String(params.codigo || '').trim().toUpperCase();
+  if (!cod) throw new Error('Código de condominio requerido');
+
+  const mapa = await obtenerMapaTasasCongeladas(true);
+  const usuario = String(params.usuario || 'Admin').trim();
+  const ahoraIso = new Date().toISOString();
+
+  if (params.accion === 'descongelar') {
+    delete mapa[cod];
+  } else {
+    const tasa = r2(Number(params.tasa) || 0);
+    const desde = String(params.desde || '').trim().slice(0, 10);
+    const hasta = String(params.hasta || '').trim().slice(0, 10);
+    if (!(tasa > 0)) throw new Error('Debe indicar una tasa válida mayor a 0.');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(desde) || !/^\d{4}-\d{2}-\d{2}$/.test(hasta)) {
+      throw new Error('Debe indicar fechas válidas (Desde y Hasta) en formato YYYY-MM-DD.');
+    }
+    if (desde > hasta) {
+      throw new Error('La fecha de inicio (Desde) no puede ser mayor que la fecha fin (Hasta).');
+    }
+    mapa[cod] = {
+      activa: true,
+      tasa,
+      desde,
+      hasta,
+      fechaReferencia: params.fechaReferencia ? String(params.fechaReferencia).slice(0, 10) : undefined,
+      motivo: params.motivo ? String(params.motivo).trim() : undefined,
+      actualizadoPor: usuario,
+      actualizadoAt: ahoraIso,
+    };
+  }
+
+  const { error } = await sb.from('sistema_config').upsert(
+    {
+      id: CONFIG_ID_TASAS_CONGELADAS,
+      valor: JSON.stringify(mapa),
+      updated_at: ahoraIso,
+    },
+    { onConflict: 'id' }
+  );
+  if (error) throw new Error(error.message);
+  invalidarCacheTasasCongeladas();
+
+  const nuevaCfg = mapa[cod] || null;
+  const activa = resolverTasaCongelada(nuevaCfg);
+
+  try {
+    await sb.from('auditoria').insert({
+      usuario,
+      accion: params.accion === 'descongelar' ? 'Descongelar Tasa de Condominio' : 'Congelar Tasa de Condominio',
+      modulo: 'Condominios',
+      detalles: params.accion === 'descongelar'
+        ? `Condominio ${cod}: se desactivó la tasa congelada y volvió a tasa diaria BCV. ${params.motivo ? `Motivo: ${params.motivo}` : ''}`
+        : `Condominio ${cod}: tasa congelada en Bs. ${nuevaCfg?.tasa} por el período del ${fmtFechaDMY(nuevaCfg?.desde)} al ${fmtFechaDMY(nuevaCfg?.hasta)}. ${params.motivo ? `Motivo: ${params.motivo}` : ''}`,
+    });
+  } catch { }
+
+  return { config: nuevaCfg, activa };
+}
+
 export async function tasaVigente(): Promise<number> {
   try {
     const bcv = await getTasaBCV(false);
@@ -155,6 +333,7 @@ export interface RenglonEstado {
 
 export interface EstadoCuenta {
   tasa: number;
+  tasaCongelada?: TasaCongeladaInfo | null;
   mensual: M.CargoMensual;
   renglones: RenglonEstado[];
   totales: { baseBs: number; multaBs: number; ivaBs: number; retencionBs: number; totalBs: number; mesesMax: number; unidadesConDeuda: number };
@@ -390,6 +569,7 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasaRaw: numb
 
   return {
     tasa,
+    tasaCongelada: condoRow?.tasa_congelada_activa || null,
     mensual: M.cargoMensual(c, unidades, tasa),
     renglones,
     totales: {
@@ -438,6 +618,14 @@ export async function cargarCondominio(codigo: string) {
   }
 
   if (!condo) return null;
+
+  // Resolver tasa congelada por período (si existe y está vigente hoy en Caracas)
+  const mapaTasasCongeladas = await obtenerMapaTasasCongeladas();
+  const tcConfig = mapaTasasCongeladas[String(condo.codigo || '').trim().toUpperCase()] || null;
+  const tcActiva = resolverTasaCongelada(tcConfig);
+  condo.tasa_congelada_config = tcConfig;
+  condo.tasa_congelada_activa = tcActiva;
+  condo.tasa_congelada_estado = estadoVigenciaTasaCongelada(tcConfig);
 
   const { data: inm } = await sb.from('inmuebles').select('agente_retencion, telefono, correo_electronico, notas, clave_portal').eq('inmueble', condo.codigo).limit(1).maybeSingle();
   if (inm) {
@@ -658,7 +846,11 @@ export async function cargarCondominio(codigo: string) {
 
 /** Resumen de todos los condominios (lista + panel). */
 export async function resumenGeneral() {
-  const tasa = await tasaVigente();
+  const [tasa, mapaTasasCongeladas] = await Promise.all([
+    tasaVigente(),
+    obtenerMapaTasasCongeladas(),
+  ]);
+  const hoyYMD = hoyCaracasYMD();
   const condos = await todas((a, b) => sb.from('condominios').select('*').neq('estado', 'Eliminado').order('nombre').range(a, b));
   const unidades = await todas((a, b) => sb.from('condominio_unidades')
     .select('*').neq('estado', 'Eliminada').order('id').range(a, b));
@@ -696,15 +888,25 @@ export async function resumenGeneral() {
 
   const filas = condos.map(c => {
     const us = porCondo.get(c.id) || [];
-    const infCondo = infoInmuebles.get(String(c.codigo || '').trim().toUpperCase());
+    const codUpper = String(c.codigo || '').trim().toUpperCase();
+    const infCondo = infoInmuebles.get(codUpper);
     c.notas_inmueble = infCondo?.notas || '';
     c.agente_retencion = Boolean(c.agente_retencion || infCondo?.agente_retencion);
-    const e = calcularEstado(c, us, tasa, new Date(), multasPor.get(c.id) || []);
+    const tcCfg = mapaTasasCongeladas[codUpper] || null;
+    const tcActiva = resolverTasaCongelada(tcCfg, hoyYMD);
+    c.tasa_congelada_config = tcCfg;
+    c.tasa_congelada_activa = tcActiva;
+    const tasaEfectiva = tcActiva && tcActiva.tasa > 0 ? tcActiva.tasa : tasa;
+    const e = calcularEstado(c, us, tasaEfectiva, new Date(), multasPor.get(c.id) || []);
     return {
       codigo: c.codigo, nombre: c.nombre, identidad: c.identidad, tipo: c.tipo, modalidad: c.modalidad, estado: c.estado,
       cant_declarada: c.cant_declarada, unidades: us.length, mensualBs: e.mensual.condominioBs,
       meses: e.totales.mesesMax, deudaBs: e.totales.totalBs, cobro_tarifa_por_unidad: !!c.cobro_tarifa_por_unidad, porActividad: e.porActividad,
       permite_pago_por_unidad: !!c.permite_pago_por_unidad, permite_abonos: c.permite_abonos !== false, origen: c.origen || 'MIGRACION',
+      tasaAplicada: tasaEfectiva,
+      tasaCongelada: tcActiva,
+      tasaCongeladaConfig: tcCfg,
+      tasaCongeladaEstado: estadoVigenciaTasaCongelada(tcCfg, hoyYMD),
     };
   });
   const tot = (f: (x: any) => number) => r2(filas.reduce((a, x) => a + f(x), 0));

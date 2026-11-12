@@ -72,6 +72,7 @@ export default function DondePagarPage() {
 
   const { tcmmv: contextTcmmv } = useAppContext();
   const [tcmmv, setTcmmv] = useState<number>(0);
+  const [tasaCongeladaPortal, setTasaCongeladaPortal] = useState<any>(null);
 
   // Datos reales sincronizados
   const [userInms, setUserInms] = useState<any[]>([]);
@@ -299,6 +300,12 @@ export default function DondePagarPage() {
             condoRows.forEach((c: any) => { if (c.codigo && c.nombre) map[c.codigo] = c.nombre; });
             setCondoNames(map);
           }
+          try {
+            const rTc = await fetch(`/api/admin/condominios/congelar-tasa?codigos=${encodeURIComponent(condoPadreCodes.join(','))}`, { cache: 'no-store' });
+            const jTc = await rTc.json();
+            const firstActiva = Object.values(jTc?.tasas || {}).find((x: any) => x?.activa) as any;
+            if (firstActiva?.activa) setTasaCongeladaPortal(firstActiva.activa);
+          } catch {}
         }
 
         const reglaPorInm = new Map<string, 'completo' | 'solo_multa'>();
@@ -392,7 +399,7 @@ export default function DondePagarPage() {
   };
 
   // Cálculo canónico del monto de un recibo según la Ordenanza oficial
-  const effectiveTcmmv = tcmmv > 0 ? tcmmv : (contextTcmmv || 0);
+  const effectiveTcmmv = tasaCongeladaPortal?.tasa > 0 ? tasaCongeladaPortal.tasa : (tcmmv > 0 ? tcmmv : (contextTcmmv || 0));
 
   /** IVA retenido (75%) de un recibo — solo agentes de retención (misma regla de Caja). */
   const getReciboRetencion = (r: any): number => {

@@ -87,12 +87,17 @@ export default function KioskPage() {
   }, [router]);
 
   const [tcmmv, setTcmmv] = useState<number>(0);
+  const [tcmmvDiaria, setTcmmvDiaria] = useState<number>(0);
+  const [tasaCongeladaActiva, setTasaCongeladaActiva] = useState<any>(null);
   const [bcvDate, setBcvDate] = useState<string>('');
   const [currentTime, setCurrentTime] = useState<string>('');
 
   useEffect(() => {
     fetch('/api/bcv').then(r => r.json()).then(d => { 
-      if (d?.tcmmv) setTcmmv(d.tcmmv); 
+      if (d?.tcmmv) {
+        setTcmmv(d.tcmmv);
+        setTcmmvDiaria(d.tcmmv);
+      }
       if (d?.fecha) setBcvDate(d.fecha);
     }).catch(() => {});
 
@@ -610,6 +615,14 @@ export default function KioskPage() {
 
       const inmsDB = data.inmuebles;
       const user = data.foundUser as Contribuyente;
+
+      if (data.tasa_congelada && Number(data.tasa_congelada.tasa) > 0) {
+        setTasaCongeladaActiva(data.tasa_congelada);
+        setTcmmv(Number(data.tasa_congelada.tasa));
+      } else {
+        setTasaCongeladaActiva(null);
+        if (tcmmvDiaria > 0) setTcmmv(tcmmvDiaria);
+      }
 
       if (user.Identidad && /^[A-Z]-/i.test(user.Identidad)) {
         const detectedPrefix = user.Identidad.charAt(0).toUpperCase();

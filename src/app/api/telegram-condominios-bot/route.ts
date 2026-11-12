@@ -257,6 +257,10 @@ export async function POST(request: Request) {
     try {
       tasaBcv = (await tasaVigente()) || (await getTasaBCV())?.euro || 1;
     } catch (_) {}
+    const tcActiva = cData.condo?.tasa_congelada_activa || null;
+    if (tcActiva && Number(tcActiva.tasa) > 0) {
+      tasaBcv = Number(tcActiva.tasa);
+    }
 
     const estadoCalc = calcularEstado(cData.condo, cData.unidades, tasaBcv, new Date(), cData.multas);
     const { totales, porActividad } = estadoCalc;
@@ -290,7 +294,9 @@ export async function POST(request: Request) {
       `🏢 <b>Condominio:</b> ${cData.condo.nombre}\n` +
       `📄 <b>RIF:</b> <code>${cData.condo.identidad}</code>\n` +
       `🏷️ <b>Código:</b> <code>${cData.condo.codigo}</code>\n` +
-      `💵 <b>Tasa Oficial BCV:</b> ${fmtNum(tasaBcv)} Bs./TCMMV\n` +
+      (tcActiva
+        ? `❄️ <b>Tasa Congelada (${tcActiva.desde.split('-').reverse().join('/')} al ${tcActiva.hasta.split('-').reverse().join('/')}):</b> ${fmtNum(tasaBcv)} Bs./€\n`
+        : `💵 <b>Tasa Oficial BCV:</b> ${fmtNum(tasaBcv)} Bs./TCMMV\n`) +
       `🚪 <b>Unidades asociadas:</b> ${cData.unidades.length} unidades (${cData.condo.tipo})\n` +
       `━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
 

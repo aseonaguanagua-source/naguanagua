@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { getIdentidadVariants, getIdentidadVariantsExact } from '@/lib/formatters';
+import { obtenerMapaTasasCongeladas, resolverTasaCongelada } from '@/lib/condominios/servicio';
 
 export const dynamic = 'force-dynamic';
 
@@ -167,11 +168,27 @@ export async function GET(request: Request) {
       estado: 'Pendiente'
     }));
 
+    // Verificar si alguno de los inmuebles corresponde a un condominio con tasa congelada activa
+    let tasaCongeladaActiva: any = null;
+    try {
+      const mapaTC = await obtenerMapaTasasCongeladas();
+      for (const inm of inmsDB || []) {
+        const c1 = String(inm.condominio_padre_id || '').trim().toUpperCase();
+        const c2 = String(inm.inmueble || '').trim().toUpperCase();
+        const act = (c1 && resolverTasaCongelada(mapaTC[c1])) || (c2 && resolverTasaCongelada(mapaTC[c2])) || null;
+        if (act) {
+          tasaCongeladaActiva = act;
+          break;
+        }
+      }
+    } catch {}
+
     return NextResponse.json({
       foundUser,
       inmuebles: inmsDB,
       pagos: recDB || [],
-      facturas: [...(facDB || []), ...srvFacturas]
+      facturas: [...(facDB || []), ...srvFacturas],
+      tasa_congelada: tasaCongeladaActiva,
     });
 
   } catch (err: any) {
