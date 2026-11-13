@@ -1111,14 +1111,21 @@ export async function POST(request: Request) {
       if (sf === 0 && (String(pagoRow?.tipo || detPago.tipo || '').toLowerCase().includes('saldo a favor') || String(pagoRow?.tipo || detPago.tipo || '').toLowerCase().includes('nota de credito'))) {
         return parseFloat(String(pagoRow?.monto || 0)) || 0;
       }
+      const esItemSF = (it: any) => {
+        const t = `${it?.descripcion || ''} ${it?.metodo || ''} ${it?.tipo || ''} ${it?.referencia || ''}`
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '');
+        return t.includes('saldo a favor') || t.includes('saldo favor') || t.includes('nota de credito') || t.includes('nc-saldo-favor');
+      };
       if (sf === 0 && Array.isArray(detPago.pagos_agregados)) {
         sf = detPago.pagos_agregados
-          .filter((pa: any) => String(pa?.metodo || pa?.tipo || '').toLowerCase().includes('saldo a favor') || String(pa?.metodo || pa?.tipo || '').toLowerCase().includes('nota de credito'))
+          .filter(esItemSF)
           .reduce((sum: number, pa: any) => sum + (parseFloat(String(pa.monto || 0)) || 0), 0);
       }
       if (sf === 0 && Array.isArray(detPago.formasPago)) {
         sf = detPago.formasPago
-          .filter((fp: any) => String(fp?.descripcion || fp?.tipo || fp?.metodo || '').toLowerCase().includes('saldo a favor') || String(fp?.descripcion || fp?.tipo || fp?.metodo || '').toLowerCase().includes('nota de credito'))
+          .filter(esItemSF)
           .reduce((sum: number, fp: any) => sum + (parseFloat(String(fp.monto || 0)) || 0), 0);
       }
       if (sf === 0 && montoFacturaGuardado > 0 && abonoPrevioDescontado === 0 && detPago.saldo_usado === undefined) {
@@ -1744,16 +1751,75 @@ export async function POST(request: Request) {
                   ? detPago.pagos_agregados
                   : [];
 
-              const pagosBancarios = fuenteMultiOriginal.filter(
-                (pa: any) =>
-                  !String(pa?.descripcion || pa?.metodo || pa?.tipo || '').toLowerCase().includes('saldo a favor') &&
-                  !String(pa?.descripcion || pa?.metodo || pa?.tipo || '').toLowerCase().includes('nota de credito')
-              );
+              const esItemSaldoFavor = (pa: any) => {
+                const txt = `${pa?.descripcion || ''} ${pa?.metodo || ''} ${pa?.tipo || ''} ${pa?.referencia || ''}`
+                  .toLowerCase()
+                  .normalize('NFD')
+                  .replace(/[\u0300-\u036f]/g, '');
+                return (
+                  txt.includes('saldo a favor') ||
+                  txt.includes('saldo favor') ||
+                  txt.includes('nota de credito') ||
+                  txt.includes('nc-saldo-favor')
+                );
+              };
+
+              const pagosBancarios = fuenteMultiOriginal.filter((pa: any) => !esItemSaldoFavor(pa));
+
+              // Garantiza que la suma de FormasPago cuadre al céntimo con metaTotal y ningún Monto sea <= 0
+              const cuadrarFormasPago = (lista: any[], metaTotal: number, cantBancarios: number) => {
+                if (lista.length === 0 || metaTotal <= 0) return lista;
+                const sumActual = r2(lista.reduce((acc, it) => acc + (parseFloat(it.Monto) || 0), 0));
+                const diff = r2(metaTotal - sumActual);
+                if (Math.abs(diff) < 0.01) return lista;
+
+                // Intentar aplicar la diferencia a un único renglón (priorizando el último bancario) siempre que quede > 0
+                const indicesCandidatos: number[] = [];
+                for (let i = Math.min(cantBancarios, lista.length) - 1; i >= 0; i--) indicesCandidatos.push(i);
+                for (let i = lista.length - 1; i >= 0; i--) {
+                  if (!indicesCandidatos.includes(i)) indicesCandidatos.push(i);
+                }
+                for (const idx of indicesCandidatos) {
+                  const actual = parseFloat(lista[idx]?.Monto) || 0;
+                  if (r2(actual + diff) >= 0.01) {
+                    lista[idx].Monto = r2(actual + diff).toFixed(2);
+                    return lista;
+                  }
+                }
+
+                // Si la diferencia negativa supera a cualquier renglón individual (sobrepago repartido en varios pagos),
+                // prorratear proporcionalmente para que todos los renglones sean estrictamente > 0 y sumen metaTotal
+                const factor = metaTotal / sumActual;
+                let acum = 0;
+                let maxIdx = 0;
+                let maxVal = 0;
+                for (let i = 0; i < lista.length; i++) {
+                  const nuevo = Math.max(0.01, r2((parseFloat(lista[i].Monto) || 0) * factor));
+                  lista[i].Monto = nuevo.toFixed(2);
+                  acum = r2(acum + nuevo);
+                  if (nuevo > maxVal) {
+                    maxVal = nuevo;
+                    maxIdx = i;
+                  }
+                }
+                const rem = r2(metaTotal - acum);
+                if (Math.abs(rem) >= 0.01 && r2(parseFloat(lista[maxIdx].Monto) + rem) >= 0.01) {
+                  lista[maxIdx].Monto = r2(parseFloat(lista[maxIdx].Monto) + rem).toFixed(2);
+                }
+                return lista;
+              };
 
               // Si hubo Saldo a Favor o Retención de IVA, desglosar claramente las formas de pago
               if (saldoFavorUsado > 0 || (conRetencion && montoRetNum > 0)) {
                 const montoRetFinal = conRetencion && montoRetNum > 0 ? Math.min(totalAPagar, montoRetNum) : 0;
-                const montoSF = Math.min(r2(totalAPagar - montoRetFinal), saldoFavorUsado);
+                const sumBancariosRaw = r2(
+                  pagosBancarios.reduce((s, pa) => s + (parseFloat(String(pa?.monto || 0)) || 0), 0)
+                );
+                // Si hay múltiples pagos bancarios y también Saldo a Favor (y el total pagado superó la factura generando Nota de Crédito por excedente),
+                // los pagos bancarios cubren su monto real y el Saldo a Favor cubre el remanente neto de la factura.
+                const montoSF = pagosBancarios.length > 1 && sumBancariosRaw > 0
+                  ? Math.min(saldoFavorUsado, Math.max(0, r2(totalAPagar - montoRetFinal - sumBancariosRaw)))
+                  : Math.min(r2(totalAPagar - montoRetFinal), saldoFavorUsado);
                 const montoNetoCaja = r2(totalAPagar - montoRetFinal - montoSF);
 
                 const fps: any[] = [];
@@ -1791,6 +1857,7 @@ export async function POST(request: Request) {
                     TipoCambio:  '0.0000',
                   });
                 }
+                const cantBancariosFps = fps.length;
                 if (montoSF > 0) {
                   fps.push({
                     Descripcion: ['Compensación (Saldo a Favor)', '', 'NC-SALDO-FAVOR'].join('|'),
@@ -1812,16 +1879,7 @@ export async function POST(request: Request) {
                   });
                 }
 
-                // Asegurar cuadre exacto de formas de pago al céntimo con totalAPagar
-                const sumFps = fps.reduce((acc, it) => acc + parseFloat(it.Monto), 0);
-                const diffFps = r2(totalAPagar - sumFps);
-                if (diffFps !== 0 && fps.length > 0) {
-                  const targetIdx = pagosBancarios.length > 1 && fps[pagosBancarios.length - 1] && (parseFloat(fps[pagosBancarios.length - 1].Monto) + diffFps > 0)
-                    ? pagosBancarios.length - 1
-                    : 0;
-                  fps[targetIdx].Monto = (parseFloat(fps[targetIdx].Monto) + diffFps).toFixed(2);
-                }
-                return fps;
+                return cuadrarFormasPago(fps, totalAPagar, cantBancariosFps);
               }
 
               // Múltiples formas de pago registradas o editadas en el modal (ej. Débito + Transferencia)
@@ -1850,16 +1908,7 @@ export async function POST(request: Request) {
                   .filter((it: any) => parseFloat(it.Monto) > 0);
 
                 if (fps.length > 1 && sumFp > 0) {
-                  const difFp = r2(totalAPagar - sumFp);
-                  if (difFp !== 0) {
-                    const lastIdx = fps.length - 1;
-                    if (parseFloat(fps[lastIdx].Monto) + difFp > 0) {
-                      fps[lastIdx].Monto = r2(parseFloat(fps[lastIdx].Monto) + difFp).toFixed(2);
-                    } else if (parseFloat(fps[0].Monto) + difFp > 0) {
-                      fps[0].Monto = r2(parseFloat(fps[0].Monto) + difFp).toFixed(2);
-                    }
-                  }
-                  return fps;
+                  return cuadrarFormasPago(fps, totalAPagar, fps.length);
                 }
               }
 

@@ -355,8 +355,20 @@ export default function FacturacionElectronicaPage() {
   }>>([]);
   const [guardandoFormasPago, setGuardandoFormasPago] = useState(false);
 
-  const normalizarFormaPagoTFHKA = (raw: any): string => {
+  const esItemSaldoFavorFP = (fp: any): boolean => {
+    const s = `${fp?.formaPago || ''} ${fp?.descripcion || ''} ${fp?.tipo || ''} ${fp?.metodo || ''} ${fp?.referencia || ''}`
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+    return s.includes('saldo a favor') || s.includes('saldo favor') || s.includes('nota de credito') || s.includes('nc-saldo-favor');
+  };
+
+  const normalizarFormaPagoTFHKA = (raw: any, ref?: any): string => {
     const s = String(raw || 'Transferencia').trim();
+    const combined = `${s} ${ref || ''}`.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (combined.includes('saldo a favor') || combined.includes('saldo favor') || combined.includes('nota de credito') || combined.includes('nc-saldo-favor')) {
+      return 'Saldo a Favor';
+    }
     if (/d[eé]bito|punto de venta|\bpos\b|\btdd\b/i.test(s)) return 'Tarjeta de débito';
     if (/cr[eé]dito|\btdc\b|\btmd\b|\btvd\b|master|visa/i.test(s)) return 'Tarjeta de crédito';
     if (/dep[oó]sito/i.test(s)) return 'Depósito en cuenta';
@@ -365,16 +377,17 @@ export default function FacturacionElectronicaPage() {
 
   const activarModoPagoMultiple = () => {
     const fDef = emitFechaPago || emitFechaEmision || hoyCaracas();
-    const rawGuardados = Array.isArray(selectedPagoForEmit?.detalles?.formasPago) && selectedPagoForEmit.detalles.formasPago.length > 1
+    const rawGuardadosAll = Array.isArray(selectedPagoForEmit?.detalles?.formasPago) && selectedPagoForEmit.detalles.formasPago.length > 1
       ? selectedPagoForEmit.detalles.formasPago
       : Array.isArray(selectedPagoForEmit?.detalles?.pagos_agregados) && selectedPagoForEmit.detalles.pagos_agregados.length > 1
       ? selectedPagoForEmit.detalles.pagos_agregados
       : null;
+    const rawGuardados = rawGuardadosAll ? rawGuardadosAll.filter((fp: any) => !esItemSaldoFavorFP(fp)) : null;
 
     if (rawGuardados && rawGuardados.length > 1) {
       setEmitFormasPagoMultiples(
         rawGuardados.map((fp: any) => ({
-          formaPago: normalizarFormaPagoTFHKA(fp.descripcion || fp.tipo || fp.metodo || emitFormaPago),
+          formaPago: normalizarFormaPagoTFHKA(fp.descripcion || fp.tipo || fp.metodo || emitFormaPago, fp.referencia),
           banco: String(fp.banco || emitBanco || '').trim(),
           referencia: String(fp.referencia || '').trim(),
           fecha: String(fp.fecha || fp.fechaTransaccion || fDef).slice(0, 10) || fDef,
@@ -999,13 +1012,14 @@ export default function FacturacionElectronicaPage() {
     setEmitFechaAsignacion(hoyYMD);
     setEmitFechaPago(fechaPagoOrig || hoyYMD);
 
-    // Cargar desglose de formas de pago múltiples solo si existen montos reales desglosados (> 0 en cada pago)
+    // Cargar desglose de formas de pago múltiples solo si existen montos bancarios reales desglosados (> 1 pago bancario)
     const fechaTxDefault = fechaPagoOrig || hoyYMD;
-    const rawFps = Array.isArray(pago.detalles?.formasPago) && pago.detalles.formasPago.length > 1
+    const rawFpsAll = Array.isArray(pago.detalles?.formasPago) && pago.detalles.formasPago.length > 1
       ? pago.detalles.formasPago
       : Array.isArray(pago.detalles?.pagos_agregados) && pago.detalles.pagos_agregados.length > 1
       ? pago.detalles.pagos_agregados
       : null;
+    const rawFps = rawFpsAll ? rawFpsAll.filter((fp: any) => !esItemSaldoFavorFP(fp)) : null;
 
     const todosTienenMontoReal = Boolean(
       rawFps &&
@@ -1016,7 +1030,7 @@ export default function FacturacionElectronicaPage() {
     if (rawFps && todosTienenMontoReal) {
       setEmitFormasPagoMultiples(
         rawFps.map((fp: any) => ({
-          formaPago: normalizarFormaPagoTFHKA(fp.descripcion || fp.tipo || fp.metodo || fpDesc),
+          formaPago: normalizarFormaPagoTFHKA(fp.descripcion || fp.tipo || fp.metodo || fpDesc, fp.referencia),
           banco: String(fp.banco || bancoDesc || '').trim(),
           referencia: String(fp.referencia || '').trim(),
           fecha: String(fp.fecha || fp.fechaTransaccion || fechaTxDefault).slice(0, 10) || fechaTxDefault,
