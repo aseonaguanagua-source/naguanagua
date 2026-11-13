@@ -143,7 +143,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // ======================================================================
       if (!forceFresh && typeof window !== 'undefined') {
         const cached = await getFromIndexedDB<any>('naguanagua_full_cache');
-        if (cached && (cached.version === CURRENT_CACHE_VERSION || cached.version === 'v2026_10_06_carga_completa_v1') && Array.isArray(cached.inmuebles) && cached.inmuebles.length > 0) {
+        if (cached && cached.version === CURRENT_CACHE_VERSION && Array.isArray(cached.inmuebles) && cached.inmuebles.length > 0) {
           // CARGA INSTANTÁNEA (< 50ms) con saneamiento de códigos independientes mal unificados en N/A
           const cleanCachedInms = sanitizeNAParentLinks(cached.inmuebles);
           const detachedCodesMap = new Map<string, any>();
@@ -206,6 +206,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
                       isChildNormal: false,
                       childNormalCount: 0,
                       padre_id: null,
+                      isCondoChild: Boolean(indInm.condominio_padre_id),
+                      condominio_padre_id: indInm.condominio_padre_id || null,
+                      condominio_padre_nombre: null,
                     });
                   }
                 } else {
@@ -492,10 +495,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const aElim = ['eliminado', 'inactivo', 'desactivado'].includes(String(a.estado || '').trim().toLowerCase());
         const bElim = ['eliminado', 'inactivo', 'desactivado'].includes(String(b.estado || '').trim().toLowerCase());
         if (aElim !== bElim) return aElim ? 1 : -1;
+        const aIsCondoChild = Boolean(a.condominio_padre_id);
+        const bIsCondoChild = Boolean(b.condominio_padre_id);
+        if (aIsCondoChild !== bIsCondoChild) return aIsCondoChild ? 1 : -1;
+        const aIsNA = a.actividad_principal === 'N/A';
+        const bIsNA = b.actividad_principal === 'N/A';
+        if (aIsNA !== bIsNA) return aIsNA ? -1 : 1;
         const aIsChild = Boolean(a.padre_id);
         const bIsChild = Boolean(b.padre_id);
         if (aIsChild !== bIsChild) return aIsChild ? 1 : -1;
-        return 0;
+        return String(a.inmueble || '').localeCompare(String(b.inmueble || ''));
       });
 
       const map = new Map();

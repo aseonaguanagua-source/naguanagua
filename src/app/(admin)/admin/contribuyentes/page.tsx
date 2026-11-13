@@ -126,6 +126,7 @@ function ContribuyentesPageContent() {
   const [filteredContribuyentes, setFilteredContribuyentes] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [tableSearchTerm, setTableSearchTerm] = useState('');
+  const [searchResetCounter, setSearchResetCounter] = useState(0);
   const [condoSearchNotice, setCondoSearchNotice] = useState<Array<{
     condominioCodigo: string;
     condominioNombre: string;
@@ -2055,6 +2056,8 @@ function ContribuyentesPageContent() {
     }
     setIsSearchingServer(true);
     setIsShowingServerResults(true);
+    setTableSearchTerm('');
+    setSearchResetCounter(prev => prev + 1);
     try {
       const term = serverSearchTerm.trim();
       const rawDigits = term.replace(/[^0-9]/g, '');
@@ -2181,13 +2184,16 @@ function ContribuyentesPageContent() {
       });
 
       const sortedInms = [...(allFoundInmuebles || [])].sort((a: any, b: any) => {
+        const aIsCondoChild = Boolean(a.condominio_padre_id);
+        const bIsCondoChild = Boolean(b.condominio_padre_id);
+        if (aIsCondoChild !== bIsCondoChild) return aIsCondoChild ? 1 : -1;
         const aIsNA = a.actividad_principal === 'N/A';
         const bIsNA = b.actividad_principal === 'N/A';
         if (aIsNA !== bIsNA) return aIsNA ? -1 : 1;
         const aIsChild = Boolean(a.padre_id);
         const bIsChild = Boolean(b.padre_id);
         if (aIsChild !== bIsChild) return aIsChild ? 1 : -1;
-        return 0;
+        return String(a.inmueble || '').localeCompare(String(b.inmueble || ''));
       });
 
       const mapResults = new Map();
@@ -2206,6 +2212,12 @@ function ContribuyentesPageContent() {
         const condoPadreCod = row.condominio_padre_id || condoMatch?.codigo || null;
         const condoPadreNom = condoMatch?.nombre || (inmuebles || []).find((i: any) => i.inmueble === condoPadreCod)?.contribuyente || null;
         const isNAContainerWithChildDebt = !isSearchedChild && /^(N\/?A|NA)$/i.test(String(row.actividad_principal || '').trim()) && cod && padresConDeudaEnHijosSearch.has(String(cod).trim().toUpperCase());
+        const isCondoFacturablePadre = Boolean((condoPadreCod || row.es_condominio) && !isCondominioPagoIndividual(row));
+        const rowDeudaBsCalc = isNAContainerWithChildDebt
+          ? 0
+          : isCondoFacturablePadre
+          ? Math.round(((parseFloat(String(row.multa_bs || 0)) || 0) + (parseFloat(String(row.deuda_congelada_bs || 0)) || 0)) * 100) / 100
+          : calcRowDeudaCanonical(row, tcmmv);
 
         if (groupKey && !mapResults.has(groupKey)) {
           const rowEstado = row.estado || 'Activo';
@@ -2222,10 +2234,10 @@ function ContribuyentesPageContent() {
             Actividad: row.actividad_principal || 'No aplica',
             Clasificacion: row.clasificacion || (row.tipo?.toUpperCase().includes('COMERCIAL') ? 'Comercial' : 'Residencial'),
             SaldoFavor: parseFloat(row.saldo_favor_bs || '0'),
-            DeudaMMV: isNAContainerWithChildDebt ? 0 : parseFloat(row.deuda_mmv || 0),
+            DeudaMMV: (isNAContainerWithChildDebt || isCondoFacturablePadre) ? 0 : parseFloat(row.deuda_mmv || 0),
             DeudaCongelada: isNAContainerWithChildDebt ? 0 : parseFloat(row.deuda_congelada_bs || 0),
-            DeudaBs: isNAContainerWithChildDebt ? 0 : calcRowDeudaCanonical(row, tcmmv),
-            MesesDeuda: ((condoPadreCod || row.es_condominio) && !isCondominioPagoIndividual(row)) ? 0 : parseInt(row.meses_deuda || '0'),
+            DeudaBs: rowDeudaBsCalc,
+            MesesDeuda: isCondoFacturablePadre ? 0 : parseInt(row.meses_deuda || '0'),
             Estado: rowEstado,
             FechaRegistro: row.created_at || null,
             es_condominio: Boolean(row.es_condominio),
@@ -2233,22 +2245,33 @@ function ContribuyentesPageContent() {
             condominio_padre_id: condoPadreCod,
             condominio_padre_nombre: condoPadreNom,
             isCondoChild: Boolean(condoPadreCod),
+            isParentNormal: false,
+            childNormalCount: 0,
             condominiosAsociados: condoPadreCod ? [{ codigo: condoPadreCod, nombre: condoPadreNom || condoPadreCod, locales: cod ? [cod] : [] }] : []
           });
         } else if (groupKey && mapResults.has(groupKey)) {
           const existing = mapResults.get(groupKey);
           existing.SaldoFavor += parseFloat(row.saldo_favor_bs || '0');
           if (!isNAContainerWithChildDebt) {
-            existing.DeudaMMV += parseFloat(row.deuda_mmv || 0);
+            if (!isCondoFacturablePadre) {
+              existing.DeudaMMV += parseFloat(row.deuda_mmv || 0);
+            }
             existing.DeudaCongelada += parseFloat(row.deuda_congelada_bs || 0);
-            existing.DeudaBs = Math.round((existing.DeudaBs + calcRowDeudaCanonical(row, tcmmv)) * 100) / 100;
+            existing.DeudaBs = Math.round((existing.DeudaBs + rowDeudaBsCalc) * 100) / 100;
           }
           const rowEstado = row.estado || 'Activo';
           if (rowEstado === 'Activo') {
             existing.Estado = 'Activo';
           }
-          if ((!condoPadreCod && !row.es_condominio) || isCondominioPagoIndividual(row)) {
+          if (!isCondoFacturablePadre) {
             existing.MesesDeuda = Math.max(existing.MesesDeuda || 0, parseInt(row.meses_deuda || '0'));
+          }
+          if ((!existing.Actividad || existing.Actividad === 'No aplica' || existing.Actividad === 'N/A') && row.actividad_principal && row.actividad_principal !== 'N/A') {
+            existing.Actividad = row.actividad_principal;
+          }
+          if (row.padre_id && !condoPadreCod && !rowIsElim) {
+            existing.isParentNormal = true;
+            existing.childNormalCount = (existing.childNormalCount || 0) + 1;
           }
           if (condoPadreCod) {
             if (!existing.condominio_padre_id) {
@@ -2265,7 +2288,6 @@ function ContribuyentesPageContent() {
             }
             existing.condominiosAsociados = arr;
           }
-          const rowIsElim = ['eliminado', 'inactivo', 'desactivado', 'baja'].includes(String(row.estado || '').trim().toLowerCase());
           if (!isCodeFormat && cod && !rowIsElim && !existing.CodCont.includes(cod)) {
             existing.CodCont += " " + cod;
             existing.inmueble = undefined;
@@ -4875,6 +4897,8 @@ function ContribuyentesPageContent() {
                 setIsShowingServerResults(false);
                 setServerSearchTerm('');
                 setCondoSearchNotice([]);
+                setTableSearchTerm('');
+                setSearchResetCounter(prev => prev + 1);
               }}
               className="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
             >
@@ -4979,6 +5003,7 @@ function ContribuyentesPageContent() {
           columns={activeTab === 'Activos' ? columns : inactiveColumns}
           itemsPerPage={15}
           onSearchChange={(term) => setTableSearchTerm(term)}
+          resetSearchTrigger={searchResetCounter}
         />
       </div>
       </>)}

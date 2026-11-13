@@ -869,12 +869,15 @@ export default function CajaPage() {
         ? new Set(getIdentidadVariantsExact(`${activePrefix}-${inputClean}`).map(v => v.replace(/-/g, '').toUpperCase()))
         : new Set<string>();
 
-      user = contribuyentes.find((c: any) => c.Estado !== 'Eliminado' && c.Identidad && exactSet.has(String(c.Identidad).replace(/-/g, '').toUpperCase()))
-        || contribuyentes.find((c: any) => {
-          if (!c.Identidad || c.Estado === 'Eliminado') return false;
-          const idClean = String(c.Identidad).replace(/-/g, '').toUpperCase();
-          return searchVariantsSet.has(idClean);
-        });
+      const matchedExact = contribuyentes.filter((c: any) => c.Estado !== 'Eliminado' && c.Identidad && exactSet.has(String(c.Identidad).replace(/-/g, '').toUpperCase()));
+      const matchedVariant = contribuyentes.filter((c: any) => {
+        if (!c.Identidad || c.Estado === 'Eliminado') return false;
+        const idClean = String(c.Identidad).replace(/-/g, '').toUpperCase();
+        return searchVariantsSet.has(idClean);
+      });
+      const candidatePool = matchedExact.length > 0 ? matchedExact : matchedVariant;
+      const foundCandidate = candidatePool.find((c: any) => !c.condominio_padre_id && !c.isCondoChild) || candidatePool[0];
+      user = foundCandidate ? { ...foundCandidate } : undefined;
 
       // 3. Si no encontró por cédula, y se ingresó un nombre de más de 2 letras (no dígitos), buscar por nombre
       if (!user && !/^\d+$/.test(inputClean) && inputClean.length >= 3) {
@@ -1216,6 +1219,13 @@ export default function CajaPage() {
         user.CodCont = specificCode;
         user.cod_cont = specificCode;
         user.isSearchByCode = true;
+      } else {
+        const rootCodesFresh = Array.from(new Set(activeInmFresh.filter((i: any) => !i.padre_id).map((i: any) => i.inmueble).filter(Boolean)));
+        if (rootCodesFresh.length > 0) {
+          user.CodCont = rootCodesFresh.join(' ');
+          user.cod_cont = rootCodesFresh[0];
+        }
+        user.isSearchByCode = false;
       }
 
       // Recalcular variantes porque la Identidad pudo haber cambiado al tomarla de Supabase
@@ -1272,6 +1282,10 @@ export default function CajaPage() {
             user.condominio_padre_nombre = parentDb.contribuyente || parentDb.nombre;
           }
         }
+      } else {
+        user.condominio_padre_id = null;
+        user.condominio_padre_nombre = null;
+        user.isCondoChild = false;
       }
 
       // Guardar inmuebles frescos para que getReciboMonto los use
@@ -5137,7 +5151,10 @@ export default function CajaPage() {
                 {(() => {
                   const userInms = getUserInmuebles(freshInmuebles, condominioHijos, inmuebles, foundUser);
                   const activeInms = userInms.filter((i: any) => i.estado !== 'Eliminado');
-                  const distinctCodes = Array.from(new Set(activeInms.map((i: any) => i.inmueble).filter(Boolean)));
+                  const rootCodes = Array.from(new Set(activeInms.filter((i: any) => !i.padre_id).map((i: any) => i.inmueble).filter(Boolean)));
+                  const distinctCodes = rootCodes.length > 0
+                    ? rootCodes
+                    : Array.from(new Set(activeInms.map((i: any) => i.inmueble).filter(Boolean)));
                   
                   if (foundUser.isSearchByCode && (foundUser.CodCont || foundUser.cod_cont)) {
                     return (
@@ -5154,7 +5171,7 @@ export default function CajaPage() {
                   // Múltiples inmuebles registrados
                   return (
                     <span className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-800 border border-blue-200 px-2 py-0.5 rounded-md font-semibold text-xs" title={distinctCodes.join(', ')}>
-                      🏢 {distinctCodes.length} Inmuebles ({distinctCodes.slice(0, 3).join(', ')}{distinctCodes.length > 3 ? '...' : ''})
+                      🏢 {distinctCodes.length} Inmuebles ({distinctCodes.slice(0, 4).join(', ')}{distinctCodes.length > 4 ? '...' : ''})
                     </span>
                   );
                 })()}

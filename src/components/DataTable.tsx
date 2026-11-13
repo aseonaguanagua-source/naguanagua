@@ -14,13 +14,23 @@ interface DataTableProps<T> {
   itemsPerPage?: number;
   searchable?: boolean;
   onSearchChange?: (term: string) => void;
+  resetSearchTrigger?: any;
 }
 
-export function DataTable<T extends Record<string, any>>({ data, columns, itemsPerPage: defaultPerPage = 25, searchable = true, onSearchChange }: DataTableProps<T>) {
+export function DataTable<T extends Record<string, any>>({ data, columns, itemsPerPage: defaultPerPage = 25, searchable = true, onSearchChange, resetSearchTrigger }: DataTableProps<T>) {
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [perPage, setPerPage] = useState(defaultPerPage);
+
+  React.useEffect(() => {
+    if (resetSearchTrigger !== undefined) {
+      setSearchTerm('');
+      setDebouncedSearchTerm('');
+      setCurrentPage(1);
+      if (onSearchChange) onSearchChange('');
+    }
+  }, [resetSearchTrigger]);
 
   React.useEffect(() => {
     const handler = setTimeout(() => {
@@ -34,9 +44,15 @@ export function DataTable<T extends Record<string, any>>({ data, columns, itemsP
   const filteredData = React.useMemo(() => {
     return data.filter((item) => {
       if (!debouncedSearchTerm) return true;
-      return Object.values(item).some((val) =>
-        String(val).toLowerCase().includes(debouncedSearchTerm.toLowerCase())
-      );
+      const q = debouncedSearchTerm.toLowerCase().trim();
+      const qClean = q.replace(/[-.\s]/g, '');
+      return Object.values(item).some((val) => {
+        if (val === null || val === undefined || typeof val === 'object') return false;
+        const s = String(val).toLowerCase();
+        if (s.includes(q)) return true;
+        if (qClean.length >= 3 && s.replace(/[-.\s]/g, '').includes(qClean)) return true;
+        return false;
+      });
     });
   }, [data, debouncedSearchTerm]);
 
@@ -57,7 +73,7 @@ export function DataTable<T extends Record<string, any>>({ data, columns, itemsP
             onChange={(e) => { setPerPage(Number(e.target.value)); setCurrentPage(1); }}
             className="border border-slate-300 rounded px-2 py-1 text-slate-700 bg-white text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
           >
-            {[10, 25, 50, 100].map(n => <option key={n} value={n}>{n}</option>)}
+            {[10, 15, 25, 50, 100].map(n => <option key={n} value={n}>{n}</option>)}
           </select>
           <span>registros</span>
           {filteredData.length !== data.length && (
