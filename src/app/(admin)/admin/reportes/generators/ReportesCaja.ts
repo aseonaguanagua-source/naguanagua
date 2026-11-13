@@ -177,7 +177,16 @@ export async function generarTotalPuntosVenta(pagos: any[], fechaInicio: string,
         const mt = montosPago(p, det, inmMap, 0);
         const fd = det.factura_digital || {};
         const recs = Array.isArray(det.recibos) ? det.recibos : [];
-        const nroDoc = fd.numero_documento || det.recibo_caja?.[0]?.controlWeb || det.recibo_caja?.[0]?.reciboNo || det.recibo_no || recs[0] || '';
+        const rawDoc = fd.numero_documento || det.recibo_caja?.[0]?.controlWeb || det.recibo_caja?.[0]?.reciboNo || det.recibo_no || '';
+        const esClaveInternaDoc = (s: any) => !s || /^(CONDO-|RECIB-|RC-|MULTA-|CM-|RECH-|SER-|SRV-|TP-|DUMMY)/i.test(String(s).trim()) || String(s).includes('M');
+        const nroDoc = !esClaveInternaDoc(rawDoc) ? String(rawDoc).trim() : obtenerNroReciboWeb(p, det);
+        const aseoCondoLineas = Array.isArray(det?.condominio?.lineas)
+          ? r2(det.condominio.lineas.reduce((acc: number, l: any) => acc + (Number(l?.aseoBs) || 0), 0))
+          : 0;
+        const esSoloMulta = Boolean(det?.solo_multas || det?.soloMultas || det?.condominio?.solo_multas);
+        const montoAseo = mt.base > 0
+          ? mt.base
+          : (esSoloMulta ? 0 : (aseoCondoLineas > 0 ? Math.min(mt.exento || Number(p.monto) || 0, aseoCondoLineas) : mt.exento));
         const codigosList = codigosDePago(det, p);
         const codPrincipalRaw = codigosList[0] || det.codigo_inmueble || det.cod_inmueble || p.inmueble || '';
         const codPrincipal = resolverCodigoPrincipalInm(codPrincipalRaw, inmMap);
@@ -191,7 +200,7 @@ export async function generarTotalPuntosVenta(pagos: any[], fechaInicio: string,
           caja,
           cajero || det.cajero || '',
           limpiarBancoPunto(p, det),
-          p.referencia || recs[0] || '',
+          p.referencia || (!esClaveInternaDoc(recs[0]) ? recs[0] : '') || '',
           det.aprobacion || '',
           det.lote || '',
           formaPagoLim,
@@ -200,7 +209,7 @@ export async function generarTotalPuntosVenta(pagos: any[], fechaInicio: string,
           codPrincipal,
           p.identidad || '',
           nombreDe(p.identidad, det, p),
-          mt.base,
+          montoAseo,
           mt.iva > 0 ? 16 : 0,
           mt.iva,
           mt.exento
@@ -225,12 +234,12 @@ export async function generarTotalPuntosVenta(pagos: any[], fechaInicio: string,
           subCajaDeb += mPagado;
           granSoloDebito += mPagado;
         }
-        subDiaBase += mt.base;
+        subDiaBase += montoAseo;
         subDiaIva += mt.iva;
         subDiaExento += mt.exento;
 
         subCaja += mPagado;
-        subBase += mt.base;
+        subBase += montoAseo;
         subIva += mt.iva;
         subExento += mt.exento;
       });
@@ -939,7 +948,7 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
                      det.recibo_digital?.numero ||
                      '';
 
-        if (nroDoc && (String(nroDoc).includes('M') || String(nroDoc).startsWith('RC-'))) {
+        if (nroDoc && (String(nroDoc).includes('M') || /^(CONDO-|RECIB-|RC-|MULTA-|CM-|RECH-|SER-|SRV-|TP-|DUMMY)/i.test(String(nroDoc).trim()))) {
           nroDoc = '';
         }
 
@@ -982,12 +991,19 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
           '';
         const codPrincipal = resolverCodigoPrincipalInm(codPrincipalRaw, inmMap);
 
+        const aseoCondoLineas = Array.isArray(det?.condominio?.lineas)
+          ? r2(det.condominio.lineas.reduce((acc: number, l: any) => acc + (Number(l?.aseoBs) || 0), 0))
+          : 0;
+        const esSoloMulta = Boolean(det?.solo_multas || det?.soloMultas || det?.condominio?.solo_multas);
+        const montoAseoBan = mt.base > 0
+          ? mt.base
+          : (esSoloMulta ? 0 : (aseoCondoLineas > 0 ? Math.min(mt.exento || mPagado, aseoCondoLineas) : mt.exento));
         const bancoEmisor = paMatch?.banco || fpMatch?.banco || det.banco || p.banco || '';
         const vals: any[] = [
           dmy(fPagoDisplay || fPago), bancoEmisor, bDestLabel, refTexto, p.tipo || 'Transferencia', mPagado, dmy(fFactura || fechaVE(p.created_at)),
           nroDoc, codPrincipal, nombreDe(p.identidad, det, codPrincipal || codPrincipalRaw),
           cajero,
-          mt.base, mt.iva > 0 ? 16 : 0, mt.iva, mt.ret, r2(nc), mt.exento,
+          montoAseoBan, mt.iva > 0 ? 16 : 0, mt.iva, mt.ret, r2(nc), mt.exento,
         ];
         vals.forEach((v, i) => { const c = row.getCell(i + 2); c.value = v; c.border = BORDE; c.font = { size: 9 }; if ([5, 11, 13, 14, 15, 16].includes(i)) c.numFmt = '#,##0.00'; });
         subGrupo += mPagado;
