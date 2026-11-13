@@ -561,19 +561,35 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
           }
         }
 
-        // Si pertenece a un padre N/A, sincronizar meses_deuda en el padre
+        // Si pertenece a un padre N/A, sincronizar meses_deuda y períodos en todos los hermanos del local y en el padre N/A
         if (inm.padre_id) {
           const { data: hermanosNA } = await supabase
             .from('inmuebles')
-            .select('deuda_mmv, meses_deuda')
+            .select('id, inmueble, mmv_mes, deuda_mmv, meses_deuda, notas')
             .eq('padre_id', inm.padre_id)
             .neq('estado', 'Eliminado');
           if (hermanosNA && hermanosNA.length > 0) {
-            const maxMesesHermanos = hermanosNA.reduce((max, h) => Math.max(max, parseInt(String(h.meses_deuda || 0))), 0);
+            for (const h of hermanosNA) {
+              if (h.id === inm.id) continue;
+              const hMmv = parseFloat(String(h.mmv_mes || 0)) || 0;
+              await supabase.from('inmuebles').update({
+                meses_deuda: selectedCount,
+                deuda_mmv: parseFloat((selectedCount * hMmv).toFixed(5)),
+                notas: nuevaNota,
+                ...(selectedCount === 0 ? { multa_bs: 0, deuda_congelada_bs: 0, deuda_mmv: 0 } : {})
+              }).eq('id', h.id);
+            }
+            const sumDeudaHermanos = hermanosNA.reduce((s, h: any) => {
+              const hMmv = parseFloat(String(h.mmv_mes || 0)) || 0;
+              return s + (selectedCount * hMmv);
+            }, 0);
             await supabase
               .from('inmuebles')
               .update({
-                meses_deuda: maxMesesHermanos
+                meses_deuda: selectedCount,
+                deuda_mmv: parseFloat(sumDeudaHermanos.toFixed(5)),
+                notas: nuevaNota,
+                ...(selectedCount === 0 ? { multa_bs: 0, deuda_congelada_bs: 0, deuda_mmv: 0 } : {})
               })
               .eq('inmueble', inm.padre_id);
           }

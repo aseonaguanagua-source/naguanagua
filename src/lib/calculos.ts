@@ -908,7 +908,7 @@ export const extraerPeriodosExcluidosDeNotas = (notas?: any): Set<string> => {
 export const resolverPeriodosPendientesInmueble = (
   inm: any,
   numMesesOverride?: number,
-  pagosInfo?: any,
+  _pagosInfo?: any,
   hoy: Date = new Date()
 ): string[] => {
   const numMeses = Math.max(
@@ -919,8 +919,7 @@ export const resolverPeriodosPendientesInmueble = (
   );
   if (numMeses <= 0) return [];
 
-  const excluidos = extraerPeriodosPagadosDePagos(pagosInfo, inm?.inmueble);
-  extraerPeriodosExcluidosDeNotas(inm?.notas).forEach(k => excluidos.add(k));
+  const excluidos = extraerPeriodosExcluidosDeNotas(inm?.notas);
 
   const guardados = extraerPeriodosPendientesDeNotas(inm?.notas);
   if (guardados && guardados.length > 0) {
@@ -959,7 +958,7 @@ export const resolverPeriodosPendientesInmueble = (
     return Array.from(setVig).sort();
   }
 
-  // Sin [PERIODOS_PENDIENTES:...]: retroceder desde el último mes vencido saltando meses ya pagados/excluidos
+  // Sin [PERIODOS_PENDIENTES:...]: retroceder desde el último mes vencido saltando meses explícitamente excluidos en notas
   let y = hoy.getFullYear();
   let m0 = hoy.getMonth();
   try {
