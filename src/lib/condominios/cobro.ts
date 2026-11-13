@@ -269,7 +269,8 @@ export async function prepararCobro(sol: SolicitudCobro): Promise<Cobro & { _dat
             for (const items of grupos.values()) {
                 const cBase = r2(items.reduce((acc, h) => r2(acc + conv(Number(h.baseBs) || 0)), 0));
                 const cMulta = r2(items.reduce((acc, h) => r2(acc + conv((Number(h.multaBs) || 0) + (Number(h.multasAparteBs) || 0))), 0));
-                const cIva = items.length > 1 && !items[0].residencial
+                const esParHomogeneo = items.length === 2 && !items[0].residencial && Math.abs((Number(items[0].baseBs) || 0) - (Number(items[1].baseBs) || 0)) < 0.01;
+                const cIva = esParHomogeneo
                     ? r2(cBase * 0.16)
                     : r2(items.reduce((acc, h) => r2(acc + conv(Number(h.ivaBs) || 0)), 0));
                 sumBaseEur = r2(sumBaseEur + cBase);

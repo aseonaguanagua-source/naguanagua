@@ -397,7 +397,6 @@ function Caja() {
   /** unidad + todos=false → solo ese local; todos=true → todos los locales de ese dueño */
   const elegir = (cod: string, unidad?: any, todos = false) => {
     setCodigo(cod); setRes(null); setQ(''); setClaves([]); setAbonoLocales(false); setMeses(''); setRecibo(null); setSoloMultas(false); setIncluirMultas(true); setOmitirMultaSeptiembre(false); setContactoOmitido(false);
-    setTasaOverrideStr(''); setTasaFechaInfo(''); setFechaOverrideStr(hoyCaracas());
     if (unidad && todos && unidad.identidad) {
       setModo('CONTRIBUYENTE'); setIdentidad(String(unidad.identidad).toUpperCase());
       router.replace(`/admin/condominios/caja?codigo=${cod}&cedula=${encodeURIComponent(unidad.identidad)}`);

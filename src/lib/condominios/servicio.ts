@@ -167,7 +167,6 @@ export async function guardarTasaCongeladaCondominio(params: {
     {
       id: CONFIG_ID_TASAS_CONGELADAS,
       valor: JSON.stringify(mapa),
-      updated_at: ahoraIso,
     },
     { onConflict: 'id' }
   );
@@ -550,7 +549,8 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasaRaw: numb
     for (const items of grupos.values()) {
       const cBase = r2(items.reduce((acc, h) => r2(acc + conv(Number(h.deuda?.baseBs) || 0)), 0));
       const cMulta = r2(items.reduce((acc, h) => r2(acc + conv((Number(h.deuda?.multaBs) || 0) + (Number(h.multaExtraBs) || 0))) + conv(Number(h.multasManualesBs) || 0), 0));
-      const cIva = items.length > 1 && !items[0].residencial
+      const esParHomogeneo = items.length === 2 && !items[0].residencial && Math.abs((Number(items[0].deuda?.baseBs) || 0) - (Number(items[1].deuda?.baseBs) || 0)) < 0.01;
+      const cIva = esParHomogeneo
         ? r2(cBase * 0.16)
         : r2(items.reduce((acc, h) => r2(acc + conv(Number(h.deuda?.ivaBs) || 0)), 0));
       sumBaseEur = r2(sumBaseEur + cBase);

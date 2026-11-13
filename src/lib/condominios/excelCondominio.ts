@@ -293,7 +293,8 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
       mesesMulta = Math.max(mesesMulta, ...hijos.map(h => Number(h.multaMeses) || 0));
       cBase = rnd(cBase + hijos.reduce((acc, h) => rnd(acc + conv(Number(h.deuda?.baseBs) || 0)), 0));
       cMulta = rnd(cMulta + hijos.reduce((acc, h) => rnd(acc + conv((Number(h.deuda?.multaBs) || 0) + (Number(h.multaExtraBs) || 0))), 0));
-      cIva = (enEUR || enUCD) && !r.residencial
+      const esParHomogeneo = (enEUR || enUCD) && !r.residencial && Number(r.deuda?.baseBs || 0) === 0 && hijos.length === 2 && Math.abs((Number(hijos[0].deuda?.baseBs) || 0) - (Number(hijos[1].deuda?.baseBs) || 0)) < 0.01;
+      cIva = esParHomogeneo
         ? rnd(cBase * 0.16)
         : rnd(cIva + hijos.reduce((acc, h) => rnd(acc + conv(Number(h.deuda?.ivaBs) || 0)), 0));
       cManuales = rnd(cManuales + hijos.reduce((acc, h) => rnd(acc + conv(Number(h.multasManualesBs) || 0)), 0));
