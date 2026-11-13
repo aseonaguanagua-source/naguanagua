@@ -239,7 +239,29 @@ export async function GET(request: Request) {
     const abonosAbsorbidosIds = new Set<string>();
     const abonosInfoPorPagoPrincipal = new Map<string, { montoTotal: number; referencias: string[]; formasPago: any[]; ids: string[] }>();
 
-    // Ordenar para evaluar primero los pagos ya emitidos, luego los pagos principales reales (no adicionales) y luego los más recientes
+    const deduplicarFormasPagoList = (lista: any[]): any[] => {
+      if (!Array.isArray(lista)) return [];
+      const seen = new Set<string>();
+      const result: any[] = [];
+      for (const fp of lista) {
+        if (!fp || typeof fp !== 'object') continue;
+        const desc = String(fp.descripcion || fp.tipo || fp.metodo || '').toLowerCase();
+        const esSf = desc.includes('saldo a favor') || desc.includes('nota de credito');
+        const refClean = String(fp.referencia || '')
+          .replace(/\s*\(\+[^)]*\)/g, '')
+          .trim()
+          .replace(/^0+/, '') || String(fp.referencia || '').trim();
+        const montoCents = Math.round((parseFloat(String(fp.monto ?? 0).replace(',', '.')) || 0) * 100);
+        const key = esSf ? `SF_${montoCents}` : `${refClean.toUpperCase()}_${montoCents}`;
+        if (refClean && seen.has(key)) continue;
+        if (refClean || esSf) seen.add(key);
+        result.push(fp);
+      }
+      return result;
+    };
+
+    // Ordenar para evaluar primero los pagos ya emitidos, luego los pagos principales reales (no adicionales),
+    // priorizando el pago consolidador final (con factura preparada/pendiente, desglose múltiple o mayor abono previo descontado)
     const candidatosPrincipales = [...(rawPagos || [])].sort((a, b) => {
       const dA = parseDetalles(a.detalles);
       const dB = parseDetalles(b.detalles);
@@ -249,7 +271,21 @@ export async function GET(request: Request) {
       const esSecA = Boolean(dA?.es_pago_adicional || (dA?.pago_principal_id && dA.pago_principal_id !== a.id) || (a.grupo_pago && a.grupo_pago !== a.id)) ? 1 : 0;
       const esSecB = Boolean(dB?.es_pago_adicional || (dB?.pago_principal_id && dB.pago_principal_id !== b.id) || (b.grupo_pago && b.grupo_pago !== b.id)) ? 1 : 0;
       if (esSecA !== esSecB) return esSecA - esSecB;
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      const pendA = Boolean(dA?.factura_digital?.pendiente || dA?.factura_digital?.preparada_at) ? 1 : 0;
+      const pendB = Boolean(dB?.factura_digital?.pendiente || dB?.factura_digital?.preparada_at) ? 1 : 0;
+      if (pendB !== pendA) return pendB - pendA;
+      const multiFpA = Math.max(Array.isArray(dA?.formasPago) ? dA.formasPago.length : 0, Array.isArray(dA?.pagos_agregados) ? dA.pagos_agregados.length : 0);
+      const multiFpB = Math.max(Array.isArray(dB?.formasPago) ? dB.formasPago.length : 0, Array.isArray(dB?.pagos_agregados) ? dB.pagos_agregados.length : 0);
+      if ((multiFpB > 1 ? multiFpB : 0) !== (multiFpA > 1 ? multiFpA : 0)) {
+        return (multiFpB > 1 ? multiFpB : 0) - (multiFpA > 1 ? multiFpA : 0);
+      }
+      const abonoPrevA = parseFloat(String(dA?.abono_previo_descontado || 0)) || 0;
+      const abonoPrevB = parseFloat(String(dB?.abono_previo_descontado || 0)) || 0;
+      const diffTime = new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      if (Math.abs(diffTime) < 1000 * 3600 * 12 && Math.abs(abonoPrevB - abonoPrevA) > 0.05) {
+        return abonoPrevB - abonoPrevA;
+      }
+      return diffTime;
     });
 
     candidatosPrincipales.forEach(pPrincipal => {
@@ -378,7 +414,10 @@ export async function GET(request: Request) {
             const fechaAbono = dA?.fecha_transaccion || dA?.fecha_banco || String(pAbono.created_at || '').slice(0, 10);
             const tipoAbono = pAbono.tipo || (Array.isArray(dA?.formasPago) && dA.formasPago[0]?.descripcion) || 'Transferencia';
             const bancoAbono = pAbono.banco || (Array.isArray(dA?.formasPago) && dA.formasPago[0]?.banco) || '';
-            if (Array.isArray(dA?.formasPago) && dA.formasPago.length > 1) {
+            const sumFpAbono = Array.isArray(dA?.formasPago) && dA.formasPago.length > 1
+              ? dA.formasPago.reduce((s: number, fp: any) => s + (parseFloat(String(fp?.monto || 0)) || 0), 0)
+              : 0;
+            if (Array.isArray(dA?.formasPago) && dA.formasPago.length > 1 && Math.abs(sumFpAbono - montoSoloA) < 1.00) {
               current.formasPago.push(...dA.formasPago);
             } else {
               current.formasPago.push({
@@ -392,6 +431,7 @@ export async function GET(request: Request) {
                 fecha: fechaAbono,
               });
             }
+            current.formasPago = deduplicarFormasPagoList(current.formasPago);
           }
           abonosInfoPorPagoPrincipal.set(pPrincipal.id, current);
         }
@@ -1097,6 +1137,12 @@ export async function GET(request: Request) {
         : (fd?.retencion?.estado || (retRow ? (retRow.estado === 'Pendiente' ? 'planilla_recibida' : String(retRow.estado).toLowerCase()) : null));
 
       const infoAbonos = abonosInfoPorPagoPrincipal.get(pago.id);
+      if (Array.isArray(det.formasPago) && det.formasPago.length > 1) {
+        det.formasPago = deduplicarFormasPagoList(det.formasPago);
+      }
+      if (Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1) {
+        det.pagos_agregados = deduplicarFormasPagoList(det.pagos_agregados);
+      }
       const sumFormasPagoBancarias = Array.isArray(det.formasPago) && det.formasPago.length > 1
         ? det.formasPago
             .filter((fp: any) => !String(fp?.descripcion || fp?.tipo || fp?.metodo || '').toLowerCase().includes('saldo a favor') && !String(fp?.descripcion || fp?.tipo || fp?.metodo || '').toLowerCase().includes('nota de credito'))
@@ -1117,25 +1163,39 @@ export async function GET(request: Request) {
 
       if (infoAbonos && Array.isArray(infoAbonos.formasPago) && infoAbonos.formasPago.length > 0) {
         const tieneMultiReal = Array.isArray(det.formasPago) && det.formasPago.length > 1;
+        const montoPropio = parseFloat(String(pago.monto || 0)) || 0;
+        const fechaPropio = det.fecha_transaccion || det.fecha_banco || String(pago.created_at || '').slice(0, 10);
+        const tipoPropio = pago.tipo || (Array.isArray(det.formasPago) && det.formasPago[0]?.descripcion) || 'Transferencia';
+        const bancoPropio = pago.banco || (Array.isArray(det.formasPago) && det.formasPago[0]?.banco) || '';
+        const itemPropio = {
+          forma: /d[eé]bito|punto/i.test(String(tipoPropio)) ? '05' : '03',
+          descripcion: String(tipoPropio).trim(),
+          tipo: String(tipoPropio).trim(),
+          metodo: String(tipoPropio).trim(),
+          monto: montoPropio,
+          banco: bancoPropio,
+          referencia: refBaseClean,
+          fecha: fechaPropio,
+        };
         if (!tieneMultiReal) {
-          const montoPropio = parseFloat(String(pago.monto || 0)) || 0;
-          const fechaPropio = det.fecha_transaccion || det.fecha_banco || String(pago.created_at || '').slice(0, 10);
-          const tipoPropio = pago.tipo || (Array.isArray(det.formasPago) && det.formasPago[0]?.descripcion) || 'Transferencia';
-          const bancoPropio = pago.banco || (Array.isArray(det.formasPago) && det.formasPago[0]?.banco) || '';
-          const desgloseReal = [
-            {
-              forma: /d[eé]bito|punto/i.test(String(tipoPropio)) ? '05' : '03',
-              descripcion: String(tipoPropio).trim(),
-              tipo: String(tipoPropio).trim(),
-              metodo: String(tipoPropio).trim(),
-              monto: montoPropio,
-              banco: bancoPropio,
-              referencia: refBaseClean,
-              fecha: fechaPropio,
-            },
+          det.pagos_agregados = deduplicarFormasPagoList([
+            itemPropio,
             ...infoAbonos.formasPago,
-          ];
-          det.pagos_agregados = desgloseReal;
+          ]);
+        } else {
+          const refsExistentes = new Set(
+            det.formasPago.map((fp: any) =>
+              String(fp?.referencia || '').replace(/\s*\(\+[^)]*\)/g, '').trim().replace(/^0+/, '').toUpperCase()
+            ).filter(Boolean)
+          );
+          const faltantes = [itemPropio, ...infoAbonos.formasPago].filter((fp: any) => {
+            const r = String(fp?.referencia || '').replace(/\s*\(\+[^)]*\)/g, '').trim().replace(/^0+/, '').toUpperCase();
+            return r && !refsExistentes.has(r);
+          });
+          if (faltantes.length > 0) {
+            det.formasPago = deduplicarFormasPagoList([...det.formasPago, ...faltantes]);
+          }
+          det.pagos_agregados = deduplicarFormasPagoList(det.formasPago);
         }
       }
 

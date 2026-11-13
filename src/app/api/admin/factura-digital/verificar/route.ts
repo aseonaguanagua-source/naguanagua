@@ -107,16 +107,27 @@ export async function POST(request: Request) {
         }
         if (u === 0 && det.monto_factura) {
           const mFactura = parseFloat(String(det.monto_factura)) || 0;
+          const dedupFp = (arr: any[]) => {
+            const seen = new Set<string>();
+            return arr.filter((x: any) => {
+              const r = String(x?.referencia || '').replace(/\s*\(\+[^)]*\)/g, '').trim().replace(/^0+/, '').toUpperCase();
+              const m = Math.round((parseFloat(String(x?.monto || 0)) || 0) * 100);
+              const k = `${r}_${m}`;
+              if (r && seen.has(k)) return false;
+              if (r) seen.add(k);
+              return true;
+            });
+          };
           const mPago = (() => {
             if (Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 0) {
-              return det.pagos_agregados
-                .filter((pa: any) => !String(pa?.metodo || pa?.tipo || '').toLowerCase().includes('saldo a favor') && !String(pa?.metodo || pa?.tipo || '').toLowerCase().includes('nota de credito'))
-                .reduce((sum: number, pa: any) => sum + (parseFloat(String(pa.monto || 0)) || 0), 0);
+              return dedupFp(
+                det.pagos_agregados.filter((pa: any) => !String(pa?.metodo || pa?.tipo || '').toLowerCase().includes('saldo a favor') && !String(pa?.metodo || pa?.tipo || '').toLowerCase().includes('nota de credito'))
+              ).reduce((sum: number, pa: any) => sum + (parseFloat(String(pa.monto || 0)) || 0), 0);
             }
             if (Array.isArray(det.formasPago) && det.formasPago.length > 0) {
-              return det.formasPago
-                .filter((fp: any) => !String(fp?.descripcion || fp?.tipo || fp?.metodo || '').toLowerCase().includes('saldo a favor') && !String(fp?.descripcion || fp?.tipo || fp?.metodo || '').toLowerCase().includes('nota de credito'))
-                .reduce((sum: number, fp: any) => sum + (parseFloat(String(fp.monto || 0)) || 0), 0);
+              return dedupFp(
+                det.formasPago.filter((fp: any) => !String(fp?.descripcion || fp?.tipo || fp?.metodo || '').toLowerCase().includes('saldo a favor') && !String(fp?.descripcion || fp?.tipo || fp?.metodo || '').toLowerCase().includes('nota de credito'))
+              ).reduce((sum: number, fp: any) => sum + (parseFloat(String(fp.monto || 0)) || 0), 0);
             }
             return parseFloat(String(pagoData?.monto || 0)) || 0;
           })();

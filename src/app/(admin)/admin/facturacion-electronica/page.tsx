@@ -375,6 +375,25 @@ export default function FacturacionElectronicaPage() {
     return 'Transferencia';
   };
 
+  const deduplicarFormasPagoUI = (lista: any[]): any[] => {
+    if (!Array.isArray(lista)) return [];
+    const seen = new Set<string>();
+    const result: any[] = [];
+    for (const fp of lista) {
+      if (!fp || typeof fp !== 'object') continue;
+      const refClean = String(fp.referencia || '')
+        .replace(/\s*\(\+[^)]*\)/g, '')
+        .trim()
+        .replace(/^0+/, '') || String(fp.referencia || '').trim();
+      const montoCents = Math.round((parseFloat(String(fp.monto ?? 0).replace(',', '.')) || 0) * 100);
+      const key = `${refClean.toUpperCase()}_${montoCents}`;
+      if (refClean && seen.has(key)) continue;
+      if (refClean) seen.add(key);
+      result.push(fp);
+    }
+    return result;
+  };
+
   const activarModoPagoMultiple = () => {
     const fDef = emitFechaPago || emitFechaEmision || hoyCaracas();
     const rawGuardadosAll = Array.isArray(selectedPagoForEmit?.detalles?.formasPago) && selectedPagoForEmit.detalles.formasPago.length > 1
@@ -382,7 +401,9 @@ export default function FacturacionElectronicaPage() {
       : Array.isArray(selectedPagoForEmit?.detalles?.pagos_agregados) && selectedPagoForEmit.detalles.pagos_agregados.length > 1
       ? selectedPagoForEmit.detalles.pagos_agregados
       : null;
-    const rawGuardados = rawGuardadosAll ? rawGuardadosAll.filter((fp: any) => !esItemSaldoFavorFP(fp)) : null;
+    const rawGuardados = rawGuardadosAll
+      ? deduplicarFormasPagoUI(rawGuardadosAll.filter((fp: any) => !esItemSaldoFavorFP(fp)))
+      : null;
 
     if (rawGuardados && rawGuardados.length > 1) {
       setEmitFormasPagoMultiples(
@@ -762,9 +783,13 @@ export default function FacturacionElectronicaPage() {
     // Si pagaron por encima, el monto de la factura NO debe incluir el saldo a favor / sobrante
     const netoTransferido = (() => {
       if (Array.isArray(pago.detalles?.pagos_agregados) && pago.detalles.pagos_agregados.length > 0) {
-        return pago.detalles.pagos_agregados
-          .filter((p: any) => !String(p?.metodo || p?.tipo || '').toLowerCase().includes('saldo a favor') && !String(p?.metodo || p?.tipo || '').toLowerCase().includes('nota de credito'))
-          .reduce((s: number, p: any) => s + (parseFloat(String(p?.monto || 0)) || 0), 0);
+        return deduplicarFormasPagoUI(
+          pago.detalles.pagos_agregados.filter(
+            (p: any) =>
+              !String(p?.metodo || p?.tipo || '').toLowerCase().includes('saldo a favor') &&
+              !String(p?.metodo || p?.tipo || '').toLowerCase().includes('nota de credito')
+          )
+        ).reduce((s: number, p: any) => s + (parseFloat(String(p?.monto || 0)) || 0), 0);
       }
       return parseFloat(String(pago.montoPagado || pago.monto || 0)) || 0;
     })();
@@ -1026,7 +1051,9 @@ export default function FacturacionElectronicaPage() {
       : Array.isArray(pago.detalles?.pagos_agregados) && pago.detalles.pagos_agregados.length > 1
       ? pago.detalles.pagos_agregados
       : null;
-    const rawFps = rawFpsAll ? rawFpsAll.filter((fp: any) => !esItemSaldoFavorFP(fp)) : null;
+    const rawFps = rawFpsAll
+      ? deduplicarFormasPagoUI(rawFpsAll.filter((fp: any) => !esItemSaldoFavorFP(fp)))
+      : null;
 
     const todosTienenMontoReal = Boolean(
       rawFps &&
