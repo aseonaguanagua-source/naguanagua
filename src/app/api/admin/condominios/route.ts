@@ -141,9 +141,11 @@ export async function PATCH(req: Request) {
     }
     if (cambios && 'meses' in cambios) {
       const nuevo = pendienteDesdeParaMeses(Math.max(0, parseInt(cambios.meses) || 0));
+      const mesesAntes = mesesPendientes(antes.aseo_pendiente_desde);
       const mesesDespues = mesesPendientes(nuevo);
-      if (mesesDespues > 0 && nuevo) {
-        const periodosNuevos = periodosPendientes(nuevo);
+      if (mesesDespues > 0 && mesesDespues > mesesAntes && nuevo) {
+        const periodosAntesSet = new Set(periodosPendientes(antes.aseo_pendiente_desde));
+        const periodosNuevos = periodosPendientes(nuevo).filter(p => !periodosAntesSet.has(p));
         const hist = await obtenerHistorialPagosMultasYPeriodos({
           inmueble: antes.codigo,
           condominio_id: antes.id,

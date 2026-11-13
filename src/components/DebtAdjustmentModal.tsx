@@ -180,8 +180,22 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
             (item: any) => item && (item.tipo === 'MES' || item.tipo === 'MES_CON_MULTA')
           );
           setListaPagosPeriodo(listaSoloMeses);
-          // Excluir automáticamente cualquier mes que ya haya sido cancelado
-          setSelectedMonths(prev => prev.filter(k => !esMesCancelado(k, mapa)));
+          // Si ya tenía meses de deuda cargados, seleccionar exactamente esa cantidad de meses disponibles (no cancelados)
+          const currentMonthsCount = Math.max(
+            0,
+            parseInt(String(activeInm?.meses_deuda || row?.meses_deuda || row?.MesesDeuda || 0), 10)
+          );
+          if (currentMonthsCount > 0) {
+            const disponibles = allMonths.filter(m => !esMesCancelado(m.key, mapa)).map(m => m.key);
+            const preselected = disponibles.slice(-currentMonthsCount);
+            setSelectedMonths(preselected);
+            if (preselected.length > 0) {
+              setRangeStartKey(preselected[0]);
+              setRangeEndKey(preselected[preselected.length - 1]);
+            }
+          } else {
+            setSelectedMonths(prev => prev.filter(k => !esMesCancelado(k, mapa)));
+          }
         } else {
           setPagosPorPeriodo({});
           setListaPagosPeriodo([]);
@@ -261,16 +275,15 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
     applyRangeSelection(rangeStartKey, newEnd);
   };
 
-  // Presets de selección rápida
+  // Presets de selección rápida (toma los últimos `count` meses NO cancelados)
   const selectPreset = (count: number) => {
-    if (count <= 0) {
+    const n = Math.max(0, Math.floor(Number(count) || 0));
+    if (n <= 0) {
       setSelectedMonths([]);
       return;
     }
-    const chosen = allMonths
-      .slice(-count)
-      .map(m => m.key)
-      .filter(k => !esMesCancelado(k));
+    const disponibles = allMonths.filter(m => !esMesCancelado(m.key)).map(m => m.key);
+    const chosen = disponibles.slice(-n);
     setSelectedMonths(chosen);
     if (chosen.length > 0) {
       setRangeStartKey(chosen[0]);
@@ -378,11 +391,14 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
       return;
     }
 
-    // Verificar en memoria si alguno de los meses seleccionados o los últimos N meses ya fue cancelado
-    const effectivePeriodsToCheck = selectedMonths.length > 0
-      ? Array.from(new Set([...selectedMonths, ...allMonths.slice(-selectedMonths.length).map(m => m.key)]))
-      : [];
-    const conflictoLocal = effectivePeriodsToCheck.find(k => esMesCancelado(k));
+    // Verificar en memoria únicamente si alguno de los meses explícitamente seleccionados ya fue cancelado
+    // (Cuando se están quitando/reduciendo meses nunca bloquear por meses ya pagados fuera de la selección)
+    const currentMonthsActual = Math.max(
+      0,
+      parseInt(String(activeInm?.meses_deuda || row?.meses_deuda || row?.MesesDeuda || 0), 10)
+    );
+    const isReducingOrEqual = selectedMonths.length <= currentMonthsActual;
+    const conflictoLocal = !isReducingOrEqual ? selectedMonths.find(k => esMesCancelado(k)) : undefined;
     if (conflictoLocal) {
       const infoPago = pagosPorPeriodo[conflictoLocal];
       const mLabel = allMonths.find(m => m.key === conflictoLocal)?.label || conflictoLocal;
@@ -408,16 +424,19 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
         throw new Error('No se encontraron inmuebles asociados para actualizar.');
       }
 
-      // Verificación en servidor antes de guardar para evitar agregar meses que ya fueron cancelados en el sistema
+      // Verificación en servidor antes de guardar SOLO si se están aumentando meses y hay algún período explícitamente seleccionado que ya fue cancelado
       let inmsValidos = [...targetInms];
-      if (selectedCount > 0) {
-        const periodosEfectivosServidor = Array.from(
-          new Set([...selectedMonths, ...allMonths.slice(-selectedCount).map(m => m.key)])
-        );
+      if (selectedCount > 0 && !isReducingOrEqual) {
+        const periodosEfectivosServidor = Array.from(new Set(selectedMonths));
         const inmsOmitidos: string[] = [];
         const inmsFiltrados: any[] = [];
 
         for (const inm of targetInms) {
+          const mesesInmActual = Math.max(0, parseInt(String(inm?.meses_deuda || 0), 10) || 0);
+          if (selectedCount <= mesesInmActual) {
+            inmsFiltrados.push(inm);
+            continue;
+          }
           const qsCheck = new URLSearchParams();
           if (inm?.inmueble) qsCheck.set('inmueble', String(inm.inmueble));
           if (identProp) qsCheck.set('identidad', String(identProp));
@@ -749,9 +768,48 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
             </div>
           )}
 
-          {/* Botones de Selección Rápida */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
+          {/* Botones de Selección Rápida y Ajuste Directo de Cantidad de Meses */}
+          <div className="space-y-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2 bg-orange-50/70 border border-orange-200 rounded-xl p-2.5">
+              <div>
+                <span className="text-[11px] font-black text-orange-950 uppercase tracking-wide block">
+                  Cantidad de Meses Pendientes
+                </span>
+                <span className="text-[10px] text-orange-800">
+                  Use <b>−</b> / <b>+</b> o escriba el número para quitar o ajustar meses directamente
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => selectPreset(Math.max(0, selectedMonths.length - 1))}
+                  className="w-8 h-8 rounded-lg bg-white hover:bg-orange-100 border border-orange-300 text-orange-900 font-black text-base flex items-center justify-center cursor-pointer shadow-2xs"
+                  title="Quitar 1 mes"
+                >
+                  −
+                </button>
+                <input
+                  type="number"
+                  min={0}
+                  max={allMonths.length}
+                  value={selectedMonths.length}
+                  onChange={e => selectPreset(parseInt(e.target.value || '0', 10) || 0)}
+                  className="w-16 h-8 text-center bg-white border border-orange-300 rounded-lg font-black text-sm text-orange-950 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => selectPreset(selectedMonths.length + 1)}
+                  className="w-8 h-8 rounded-lg bg-white hover:bg-orange-100 border border-orange-300 text-orange-900 font-black text-base flex items-center justify-center cursor-pointer shadow-2xs"
+                  title="Agregar 1 mes"
+                >
+                  +
+                </button>
+                <span className="text-xs font-black text-orange-700 ml-1">
+                  mes(es)
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
               <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">
                 Selección Rápida de Períodos
               </span>

@@ -271,7 +271,9 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
 
   const conflictoPeriodoMeses = useMemo(() => {
     const numMesesNuevos = Math.max(0, parseInt(f.meses) || 0);
-    if (numMesesNuevos <= 0) return null;
+    const mesesActuales = unidad ? Math.max(0, renglon?.deuda?.meses ?? 0) : 0;
+    // Si está quitando o manteniendo meses, nunca bloquear por períodos pagados intermedios
+    if (numMesesNuevos <= 0 || (!nueva && numMesesNuevos <= mesesActuales)) return null;
     const desdeCalc = pendienteDesdeParaMeses(numMesesNuevos);
     const periodosNuevos = periodosPendientes(desdeCalc);
     const perConflicto = periodosNuevos.find(p => {
@@ -285,7 +287,7 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
       numMeses: numMesesNuevos,
       info,
     };
-  }, [f.meses, pagosPorPeriodo]);
+  }, [f.meses, pagosPorPeriodo, unidad, renglon, nueva]);
 
   const guardar = async () => {
     setErr('');

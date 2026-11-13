@@ -218,11 +218,14 @@ export async function PATCH(req: Request) {
       if (ya) return NextResponse.json({ error: `El inmueble ${upd.inmueble} ya está registrado en otra unidad.` }, { status: 409 });
     }
 
-    // Bloquear siempre si se intenta colocar o mantener un período cuyo mes ya fue facturado/pagado en el sistema (en la unidad o en cualquiera de sus unidades hijas)
+    // Bloquear solo si se están AUMENTANDO meses y se intenta agregar un período cuyo mes ya fue facturado/pagado
+    // Cuando se están quitando/reduciendo meses (ej. abonó meses intermedios con facturas), NUNCA bloquear la reducción
     if ('aseo_pendiente_desde' in upd && upd.aseo_pendiente_desde) {
+      const mesesAntes = mesesPendientes(antes.aseo_pendiente_desde || (antes as any).condominios?.aseo_pendiente_desde);
       const mesesDespues = mesesPendientes(upd.aseo_pendiente_desde);
-      if (mesesDespues > 0) {
-        const periodosNuevos = periodosPendientes(upd.aseo_pendiente_desde);
+      if (mesesDespues > 0 && mesesDespues > mesesAntes) {
+        const periodosAntesSet = new Set(periodosPendientes(antes.aseo_pendiente_desde || (antes as any).condominios?.aseo_pendiente_desde));
+        const periodosNuevos = periodosPendientes(upd.aseo_pendiente_desde).filter(p => !periodosAntesSet.has(p));
         const { data: hijasCheck } = await sb
           .from('condominio_unidades')
           .select('id, inmueble, numero, identidad')
