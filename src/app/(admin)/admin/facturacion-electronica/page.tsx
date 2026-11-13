@@ -508,9 +508,10 @@ export default function FacturacionElectronicaPage() {
 
     setIsLoading(true);
     try {
-      // Se cargan los pagos según el tab; si es 'anuladas' y no hay búsqueda, se consulta filter=anuladas
-      const filterParam = filterTab === 'anuladas' && !debouncedSearchTerm ? 'anuladas' : 'todos';
-      const fechaParam = filterTab === 'anuladas' && !debouncedSearchTerm ? '' : fecha;
+      // Se cargan todos los documentos del día seleccionado (incluyendo emitidas, pendientes, anuladas y previas)
+      // para que las pestañas Emitidas, Anuladas (NC) y Todas las facturas coincidan al 100% con el Libro de Ventas del día.
+      const filterParam = !fecha && filterTab === 'anuladas' && !debouncedSearchTerm ? 'anuladas' : 'todos';
+      const fechaParam = fecha;
       const res = await fetch(`/api/admin/factura-digital/listar?filter=${filterParam}&fecha=${fechaParam}&q=${encodeURIComponent(debouncedSearchTerm)}&_t=${Date.now()}`, {
         cache: 'no-store',
         signal: controller.signal
@@ -544,7 +545,7 @@ export default function FacturacionElectronicaPage() {
         setIsLoading(false);
       }
     }
-  }, [fecha, debouncedSearchTerm, filterTab]);
+  }, [fecha, debouncedSearchTerm]);
 
   useEffect(() => {
     loadConfig();
@@ -568,12 +569,14 @@ export default function FacturacionElectronicaPage() {
   const retencionesDia = pagosList.filter(p => p.conRetencion && pasaModulo(p));
   const retencionesPorRevisarCount = retencionesDia.filter(p => p.retencionEstado === 'planilla_recibida').length;
   
-  const anuladasDia = (filterTab === 'anuladas' ? pagosList : (docTab === 'factura' ? facturasDia : recibosDia))
+  const esItemAnulado = (p: any) =>
+    Boolean(p.procesado && (p.facturaAnulada || p.notaCredito || p.estado === 'Anulado' || p.estado === 'Rechazado'));
+  const anuladasDia = (docTab === 'factura' ? facturasDia : recibosDia)
     .filter(p => pasaModulo(p))
-    .filter(p => p.facturaAnulada || p.notaCredito || p.estado === 'Anulado' || p.detalles?.factura_digital?.anulada || p.detalles?.factura_digital?.nota_credito);
-  const totalAnuladas = (filterTab === 'anuladas' ? pagosList : facturasDia)
+    .filter(esItemAnulado);
+  const totalAnuladas = facturasDia
     .filter(p => pasaModulo(p))
-    .filter(p => p.facturaAnulada || p.notaCredito || p.estado === 'Anulado' || p.detalles?.factura_digital?.anulada || p.detalles?.factura_digital?.nota_credito).length;
+    .filter(esItemAnulado).length;
 
   const delTipo = filterTab === 'retenciones' 
     ? retencionesDia 

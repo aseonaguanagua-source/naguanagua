@@ -388,6 +388,17 @@ export const generarLibroVentas = async (pagosFiltrados: any[], contribuyentes: 
     console.warn('No se pudo cargar auditoría/retenciones:', errAudit);
   }
 
+  const esPreviaValidaFiscal = (prev: any): boolean => {
+    if (!prev || typeof prev !== 'object') return false;
+    if (String(prev.url || '').includes('democonsulta.thefactoryhka.com.ve')) return false;
+    if (prev.nota_descarte || String(prev?.raw_response?.codigo || '') === '201') return false;
+    const docPrev = String(prev?.numero_documento || prev?.tfhka_seq || '').trim();
+    const ctrlPrev = String(prev?.numero_control || '').trim();
+    if (!docPrev && !ctrlPrev) return false;
+    if (!docPrev && /^00-[0-9A-F]{8}$/i.test(ctrlPrev)) return false;
+    return Boolean(prev.emitida || docPrev || ctrlPrev || prev.anulada || prev.nota_credito);
+  };
+
   const ventasBase = basePagos
     .filter(p => {
       if (esRetencion(p)) return false;
@@ -401,7 +412,10 @@ export const generarLibroVentas = async (pagosFiltrados: any[], contribuyentes: 
       );
       const tieneDocFiscal = Boolean(fd?.emitida || fd?.numero_documento || fd?.numero_control || ncFiscalReal || infoAudit?.numero_factura);
       const esAnuladaAudit = Boolean(infoAudit && tieneDocFiscal);
-      const tienePrevias = Array.isArray(det.facturas_digitales_previas) && det.facturas_digitales_previas.length > 0;
+      const previasValidas = Array.isArray(det.facturas_digitales_previas)
+        ? det.facturas_digitales_previas.filter(esPreviaValidaFiscal)
+        : [];
+      const tienePrevias = previasValidas.length > 0;
 
       // Requisito: En el Libro de Ventas van todas las operaciones que tengan Factura Digital emitida o anulada/rechazada con número fiscal
       return Boolean(
@@ -421,14 +435,28 @@ export const generarLibroVentas = async (pagosFiltrados: any[], contribuyentes: 
   ventasBase.forEach(p => {
     const det = parseDet(p);
     const fd = det.factura_digital || {};
-    const previas = Array.isArray(det.facturas_digitales_previas) ? det.facturas_digitales_previas : [];
+    const previas = Array.isArray(det.facturas_digitales_previas)
+      ? det.facturas_digitales_previas.filter(esPreviaValidaFiscal)
+      : [];
+
+    const docActual = String(fd.numero_documento || '').trim();
+    const ctrlActual = String(fd.numero_control || '').trim();
+    const infoAudit = mapaAnulacionesAudit.get(String(p.id));
+    const ncFiscalActual = Boolean(
+      (fd?.nota_credito && !fd.nota_credito.manual && fd.nota_credito.numero_documento !== 'ANULADA-MANUAL') ||
+      (det.nota_credito_digital && !det.nota_credito_digital.manual)
+    );
+    if (docActual || ctrlActual || fd.emitida || ncFiscalActual || infoAudit?.numero_factura) {
+      const keyActual = `${docActual}::${ctrlActual}`;
+      if (!(docActual || ctrlActual) || !docsYaIncluidos.has(keyActual)) {
+        if (docActual || ctrlActual) docsYaIncluidos.add(keyActual);
+        ventas.push(p);
+      }
+    }
 
     previas.forEach((prev: any, idxPrev: number) => {
-      if (!prev) return;
-      if (String(prev.url || '').includes('democonsulta.thefactoryhka.com.ve')) return;
       const docPrev = String(prev?.numero_documento || prev?.tfhka_seq || '').trim();
       const ctrlPrev = String(prev?.numero_control || '').trim();
-      if (!docPrev && !ctrlPrev) return;
       const keyPrev = `${docPrev}::${ctrlPrev}`;
       if (docsYaIncluidos.has(keyPrev)) return;
 
@@ -454,15 +482,6 @@ export const generarLibroVentas = async (pagosFiltrados: any[], contribuyentes: 
         },
       });
     });
-
-    const docActual = String(fd.numero_documento || '').trim();
-    const ctrlActual = String(fd.numero_control || '').trim();
-    const infoAudit = mapaAnulacionesAudit.get(String(p.id));
-    if (docActual || ctrlActual || fd.emitida || infoAudit?.numero_factura) {
-      const keyActual = `${docActual}::${ctrlActual}`;
-      if (docActual || ctrlActual) docsYaIncluidos.add(keyActual);
-      ventas.push(p);
-    }
   });
 
   ventas.sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
@@ -564,12 +583,15 @@ export const generarLibroVentas = async (pagosFiltrados: any[], contribuyentes: 
       )
     );
     const infoAudit = auditAplicaActual ? rawAudit : null;
+    const ncFiscalRow = Boolean(
+      (fd?.nota_credito && !fd.nota_credito.manual && fd.nota_credito.numero_documento !== 'ANULADA-MANUAL') ||
+      (det.nota_credito_digital && !det.nota_credito_digital.manual)
+    );
     const esAnulada = Boolean(
       infoAudit ||
       fd.anulada ||
       fd.rechazada ||
-      fd.nota_credito ||
-      det.nota_credito_digital ||
+      ncFiscalRow ||
       /anulad|rechaz/i.test(String(p.estado || ''))
     );
     const ncInfo = fd.nota_credito || det.nota_credito_digital;
@@ -583,7 +605,7 @@ export const generarLibroVentas = async (pagosFiltrados: any[], contribuyentes: 
       '';
     if (esAnulada) {
       facturasAnuladasCount++;
-    } else if (nroDoc) {
+    } else {
       facturas++;
     }
     (m.iva > 0 ? usuariosCom : usuariosRes).add(String(p.identidad || ''));
@@ -683,9 +705,11 @@ export const generarLibroVentas = async (pagosFiltrados: any[], contribuyentes: 
       if ([12, 13, 14, 15, 17, 18, 20, 21, 24].includes(k + 1)) c.numFmt = '#,##0.00;[Red]-#,##0.00;0.00';
       if ([16, 19].includes(k + 1)) c.numFmt = '0%';
     });
-    T.total += totalVentas; T.exento += exentoVentas;
-    if (contrib) { T.baseC += baseC; T.ivaC += ivaC; } else { T.baseN += baseN; T.ivaN += ivaN; }
-    T.ret += retFiscal;
+    if (!esAnulada) {
+      T.total += totalVentas; T.exento += exentoVentas;
+      if (contrib) { T.baseC += baseC; T.ivaC += ivaC; } else { T.baseN += baseN; T.ivaN += ivaN; }
+      T.ret += retFiscal;
+    }
   });
 
   const tot = ws.getRow(rowIdx);
@@ -743,9 +767,9 @@ export const generarLibroVentas = async (pagosFiltrados: any[], contribuyentes: 
 
   const anuladas = facturasAnuladasCount;
   put(25, ['ESTADÍSTICAS DEL PERÍODO', '', '', ''], { bold: true, fill: 'FFD9E1F2' });
-  put(26, ['FACTURAS EMITIDAS', facturas + anuladas, '', '']);
-  put(27, ['FACTURAS ANULADAS', anuladas, '', '']);
-  put(28, ['TOTAL FACTURAS GENERADAS', facturas, '', '']);
+  put(26, ['FACTURAS EMITIDAS (VIGENTES SENIAT)', facturas, '', '']);
+  put(27, ['FACTURAS ANULADAS (NOTA DE CRÉDITO)', anuladas, '', '']);
+  put(28, ['TOTAL FACTURAS GENERADAS (EMITIDAS + ANULADAS)', facturas + anuladas, '', '']);
   put(29, ['DOCUMENTOS (FACTURAS + RECIBOS) REGISTRADOS', ventas.length, '', '']);
   put(30, ['USUARIOS RESIDENCIALES ATENDIDOS INCLUYENDO CONDOMINIOS', usuariosRes.size, '', '']);
   put(31, ['USUARIOS COMERCIALES ATENDIDOS INCLUYENDO CENTROS COMERCIALES', usuariosCom.size, '', '']);

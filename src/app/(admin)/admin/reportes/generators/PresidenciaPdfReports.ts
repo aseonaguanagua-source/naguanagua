@@ -3,6 +3,7 @@ import autoTable from 'jspdf-autotable';
 import { logos } from '@/lib/logosBase64';
 import { clasificarBancoDestino } from '@/lib/cuentasBancarias';
 import { isResidencialInm } from '@/lib/calculos';
+import { supabase } from '@/lib/supabase';
 import { descargarPdfBlob } from './PdfReports';
 import { parseDet, montosPago, cargarInmMapPagos, codigosDePago, resolverCodigoPrincipalInm } from './LibroVentas';
 import { obtenerNroReciboWeb, obtenerRecibosPagosUnificados } from './ReporteRecibosPagos';
@@ -336,9 +337,41 @@ export async function generarLibroVentasPDF(
   fechaInicio: string,
   fechaFin: string
 ) {
-  const inmMap = await cargarInmMapPagos(pagosFiltrados);
+  const fIni = String(fechaInicio || '').slice(0, 10);
+  const fFin = String(fechaFin || '').slice(0, 10);
+  let basePagos: any[] = Array.isArray(pagosFiltrados) ? pagosFiltrados : [];
+  if (fIni && fFin) {
+    try {
+      const desdeIso = new Date(`${fIni}T00:00:00.000-04:00`).toISOString();
+      const hastaIso = new Date(`${fFin}T23:59:59.999-04:00`).toISOString();
+      const fetched: any[] = [];
+      let from = 0;
+      const step = 1000;
+      while (true) {
+        const { data: chunk, error } = await supabase
+          .from('pagos_reportados')
+          .select('*')
+          .gte('created_at', desdeIso)
+          .lte('created_at', hastaIso)
+          .order('created_at', { ascending: true })
+          .range(from, from + step - 1);
+        if (error || !chunk || chunk.length === 0) break;
+        fetched.push(...chunk);
+        if (chunk.length < step) break;
+        from += step;
+      }
+      if (fetched.length > 0) {
+        basePagos = fetched.filter(
+          (p) => !['Reversado', 'Condonado'].includes(String(p.estado || ''))
+        );
+      }
+    } catch (errFetch) {
+      console.warn('No se pudo consultar pagos del período directo en LibroVentas PDF:', errFetch);
+    }
+  }
+
   const retPorPago = new Map<string, { monto: number; ref: string; fecha: string }>();
-  pagosFiltrados.filter(esRetencion).forEach((p) => {
+  basePagos.filter(esRetencion).forEach((p) => {
     const d = parseDet(p);
     if (d.pago_vinculado) {
       retPorPago.set(String(d.pago_vinculado), {
@@ -349,26 +382,48 @@ export async function generarLibroVentasPDF(
     }
   });
 
-  // Filtrar operaciones con factura digital (incluyendo facturas previas anuladas) para el Libro de Ventas
-  const fIni = String(fechaInicio || '').slice(0, 10);
-  const fFin = String(fechaFin || '').slice(0, 10);
-  const docsYaIncluidos = new Set<string>();
-  let ventas: any[] = [];
+  const esPreviaValidaFiscal = (prev: any): boolean => {
+    if (!prev || typeof prev !== 'object') return false;
+    if (String(prev.url || '').includes('democonsulta.thefactoryhka.com.ve')) return false;
+    if (prev.nota_descarte || String(prev?.raw_response?.codigo || '') === '201') return false;
+    const docPrev = String(prev?.numero_documento || prev?.tfhka_seq || '').trim();
+    const ctrlPrev = String(prev?.numero_control || '').trim();
+    if (!docPrev && !ctrlPrev) return false;
+    if (!docPrev && /^00-[0-9A-F]{8}$/i.test(ctrlPrev)) return false;
+    return Boolean(prev.emitida || docPrev || ctrlPrev || prev.anulada || prev.nota_credito);
+  };
 
-  pagosFiltrados
+  // Filtrar operaciones con factura digital (incluyendo facturas previas anuladas) para el Libro de Ventas
+  const docsYaIncluidos = new Set<string>();
+  const ventas: any[] = [];
+
+  basePagos
     .filter((p) => !esRetencion(p))
     .forEach((p) => {
       const det = parseDet(p);
       if (det.es_pago_adicional || det.factura_digital?.es_pago_adicional) return;
       const fd = det.factura_digital || {};
-      const previas = Array.isArray(det.facturas_digitales_previas) ? det.facturas_digitales_previas : [];
+      const previas = Array.isArray(det.facturas_digitales_previas)
+        ? det.facturas_digitales_previas.filter(esPreviaValidaFiscal)
+        : [];
+
+      const docActual = String(fd.numero_documento || '').trim();
+      const ctrlActual = String(fd.numero_control || '').trim();
+      const ncFiscalActual = Boolean(
+        (fd?.nota_credito && !fd.nota_credito.manual && fd.nota_credito.numero_documento !== 'ANULADA-MANUAL') ||
+        (det.nota_credito_digital && !det.nota_credito_digital.manual)
+      );
+      if (docActual || ctrlActual || fd.emitida || ncFiscalActual) {
+        const keyActual = `${docActual}::${ctrlActual}`;
+        if (!(docActual || ctrlActual) || !docsYaIncluidos.has(keyActual)) {
+          if (docActual || ctrlActual) docsYaIncluidos.add(keyActual);
+          ventas.push(p);
+        }
+      }
 
       previas.forEach((prev: any, idxPrev: number) => {
-        if (!prev) return;
-        if (String(prev.url || '').includes('democonsulta.thefactoryhka.com.ve')) return;
         const docPrev = String(prev?.numero_documento || prev?.tfhka_seq || '').trim();
         const ctrlPrev = String(prev?.numero_control || '').trim();
-        if (!docPrev && !ctrlPrev) return;
         const keyPrev = `${docPrev}::${ctrlPrev}`;
         if (docsYaIncluidos.has(keyPrev)) return;
         const fPagoIso = fechaVE(p.created_at);
@@ -391,15 +446,9 @@ export async function generarLibroVentasPDF(
           },
         });
       });
-
-      const docActual = String(fd.numero_documento || '').trim();
-      const ctrlActual = String(fd.numero_control || '').trim();
-      if (docActual || ctrlActual || fd.emitida || fd.nota_credito || det.nota_credito_digital) {
-        const keyActual = `${docActual}::${ctrlActual}`;
-        if (docActual || ctrlActual) docsYaIncluidos.add(keyActual);
-        ventas.push(p);
-      }
     });
+
+  const inmMap = await cargarInmMapPagos(ventas);
 
   ventas.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
@@ -430,7 +479,11 @@ export async function generarLibroVentasPDF(
     const retMonto = Number(retVinc?.monto || fd.retencion?.retenido || det.monto_retencion_iva || 0);
     const mt = montosPago(p, det, inmMap, retMonto);
 
-    const anulada = Boolean(fd.anulada || esAnulado(p));
+    const ncFiscalRow = Boolean(
+      (fd?.nota_credito && !fd.nota_credito.manual && fd.nota_credito.numero_documento !== 'ANULADA-MANUAL') ||
+      (det.nota_credito_digital && !det.nota_credito_digital.manual)
+    );
+    const anulada = Boolean(fd.anulada || fd.rechazada || ncFiscalRow || /anulad|rechaz/i.test(String(p.estado || '')));
     const nroFactura =
       fd.numero_documento ||
       det.recibo_caja?.[0]?.controlWeb ||

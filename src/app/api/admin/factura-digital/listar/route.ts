@@ -176,10 +176,20 @@ export async function GET(request: Request) {
       });
       pagosQuery = pagosQuery.or(orParts.join(',')).limit(500);
     } else if (filter === 'anuladas') {
-      // Vista específica de facturas anuladas / notas de crédito (incluye facturas previas anuladas o con NC)
-      pagosQuery = pagosQuery
-        .or('estado.eq.Anulado,detalles->>factura_digital.ilike.%anulad%,detalles->>factura_digital.ilike.%nota_credito%,detalles->>facturas_digitales_previas.ilike.%anulad%,detalles->>facturas_digitales_previas.ilike.%nota_credito%')
-        .limit(1000);
+      // Vista específica de facturas anuladas / notas de crédito (si tiene fecha o rango, filtra exactamente ese período; si no, trae todas las anuladas)
+      pagosQuery = pagosQuery.not('estado', 'in', '(Reversado,Condonado)');
+      if (/^\d{4}-\d{2}-\d{2}$/.test(fechaInicioParam) && /^\d{4}-\d{2}-\d{2}$/.test(fechaFinParam)) {
+        const { desde } = rangoDiaCaracas(fechaInicioParam);
+        const { hasta } = rangoDiaCaracas(fechaFinParam);
+        pagosQuery = pagosQuery.gte('created_at', desde).lt('created_at', hasta);
+      } else if (/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+        const { desde, hasta } = rangoDiaCaracas(fecha);
+        pagosQuery = pagosQuery.gte('created_at', desde).lt('created_at', hasta);
+      } else {
+        pagosQuery = pagosQuery
+          .or('estado.eq.Anulado,estado.eq.Rechazado,detalles->>factura_digital.ilike.%anulad%,detalles->>factura_digital.ilike.%nota_credito%,detalles->>facturas_digitales_previas.not.is.null')
+          .limit(1000);
+      }
     } else {
       // En vista regular sin búsqueda, excluir reversados o condonados automáticos
       pagosQuery = pagosQuery.not('estado', 'in', '(Reversado,Condonado)');
@@ -197,7 +207,6 @@ export async function GET(request: Request) {
 
     const tieneRangoFecha =
       !query &&
-      filter !== 'anuladas' &&
       ((/^\d{4}-\d{2}-\d{2}$/.test(fechaInicioParam) && /^\d{4}-\d{2}-\d{2}$/.test(fechaFinParam)) ||
         /^\d{4}-\d{2}-\d{2}$/.test(fecha));
 
@@ -518,12 +527,26 @@ export async function GET(request: Request) {
         d?.factura_digital?.numero_control
       );
 
-      const tienePrevias = Array.isArray(d?.facturas_digitales_previas) && d.facturas_digitales_previas.length > 0;
+      const esPreviaValida = (prevFd: any): boolean => {
+        if (!prevFd || typeof prevFd !== 'object') return false;
+        if (String(prevFd.url || '').includes('democonsulta.thefactoryhka.com.ve')) return false;
+        if (prevFd.nota_descarte || String(prevFd?.raw_response?.codigo || '') === '201') return false;
+        const docPrev = String(prevFd.numero_documento || prevFd.tfhka_seq || '').trim();
+        const ctrlPrev = String(prevFd.numero_control || '').trim();
+        if (!docPrev && !ctrlPrev) return false;
+        if (!docPrev && /^00-[0-9A-F]{8}$/i.test(ctrlPrev)) return false;
+        return Boolean(prevFd.emitida || docPrev || ctrlPrev || prevFd.anulada || prevFd.nota_credito);
+      };
+
+      const previasValidas = Array.isArray(d?.facturas_digitales_previas)
+        ? d.facturas_digitales_previas.filter(esPreviaValida)
+        : [];
+      const tienePrevias = previasValidas.length > 0;
 
       const esAnulada = (p.estado === 'Anulado' && teniaFactura) || 
         (Boolean(d?.factura_digital?.anulada || ncFiscalReal) && teniaFactura) ||
         (Boolean(d?.factura_digital?.rechazada || p.estado === 'Rechazado') && teniaFactura) ||
-        (tienePrevias && d.facturas_digitales_previas.some((f: any) => f.anulada || f.nota_credito));
+        tienePrevias;
 
       // Si el pago fue anulado, rechazado, reversado o condonado en caja/conciliación y NUNCA se le emitió factura fiscal,
       // no tiene nada que hacer en Facturación Electrónica (ni como pendiente ni como emitida/anulada).
@@ -1238,16 +1261,27 @@ export async function GET(request: Request) {
           fechaEmisionOverride: det.fecha_emision_override || null,
           fechaAsignacionOverride: det.fecha_asignacion_override || det.fecha_emision_override || null,
           error: det.factura_digital_error || null,
-          facturaAnulada: Boolean(
-            ((fd?.anulada || pago.estado === 'Anulado' || det?.estado === 'Anulado' || fd?.rechazada || pago.estado === 'Rechazado') &&
-              Boolean(fd?.numero_documento || fd?.numero_control || emitida || fd?.nota_credito)) ||
-            fd?.nota_credito
-          ),
-          notaCredito: fd?.nota_credito || null,
-          notaCreditoUrl: fd?.nota_credito?.url || null,
-          notaCreditoControl: fd?.nota_credito?.numero_control || 
-            fd?.nota_credito?.numero_documento || 
-            ((fd?.anulada && Boolean(fd?.numero_documento || fd?.numero_control || emitida)) ? 'ANULADA' : ((fd?.rechazada || pago.estado === 'Rechazado') && (fd?.numero_documento || fd?.numero_control || emitida) ? 'ANULADA EN CAJA' : ((pago.estado === 'Anulado' && Boolean(fd?.numero_documento || fd?.numero_control || emitida)) ? 'ANULADA' : null))),
+          ...(() => {
+            const ncFiscalRealItem = Boolean(
+              (fd?.nota_credito && !fd.nota_credito.manual && fd.nota_credito.numero_documento !== 'ANULADA-MANUAL') ||
+              (det.nota_credito_digital && !det.nota_credito_digital.manual)
+            );
+            const tieneDocFiscalItem = Boolean(fd?.numero_documento || fd?.numero_control || emitida || ncFiscalRealItem);
+            const ncObj = tieneDocFiscalItem ? (fd?.nota_credito || det.nota_credito_digital || null) : null;
+            return {
+              facturaAnulada: Boolean(
+                ((fd?.anulada || pago.estado === 'Anulado' || det?.estado === 'Anulado' || fd?.rechazada || pago.estado === 'Rechazado') &&
+                  tieneDocFiscalItem) ||
+                ncFiscalRealItem
+              ),
+              notaCredito: ncObj,
+              notaCreditoUrl: ncObj?.url || null,
+              notaCreditoControl: ncObj?.numero_control || 
+                ncObj?.numero_documento || 
+                ((fd?.anulada && tieneDocFiscalItem) ? 'ANULADA' : ((fd?.rechazada || pago.estado === 'Rechazado') && tieneDocFiscalItem ? 'ANULADA EN CAJA' : ((pago.estado === 'Anulado' && tieneDocFiscalItem) ? 'ANULADA' : null))),
+              _tieneDocFiscalItem: tieneDocFiscalItem,
+            };
+          })(),
           // Agente de retención: la factura se envía solo al aprobar su comprobante
           conRetencion: tieneRetencion,
           esRetencion: tieneRetencion,
@@ -1301,7 +1335,7 @@ export async function GET(request: Request) {
           // Recibo impreso en Caja (original guardado en el pago; si no, se reconstruye al descargar)
           reciboCajaGuardado: Array.isArray(det.recibo_caja) && det.recibo_caja.length > 0,
           // Procesado = factura emitida (facturas) o recibo enviado (recibos)
-          procesado: docFinal === 'factura' ? Boolean(emitida || fd?.nota_credito) : reciboEnviado,
+          procesado: docFinal === 'factura' ? Boolean(emitida || fd?.numero_documento || fd?.numero_control || (fd?.nota_credito && !fd.nota_credito.manual && fd.nota_credito.numero_documento !== 'ANULADA-MANUAL') || (det.nota_credito_digital && !det.nota_credito_digital.manual)) : reciboEnviado,
           conciliado: pago.estado === 'Aprobado',
         };
       });
@@ -1313,6 +1347,17 @@ export async function GET(request: Request) {
       // NO deben agrupar ni absorber pagos aprobados, ni ser elegidos como pago principal.
       const dedupedItems: any[] = [];
       const processedIds = new Set<string>();
+      const seenFiscalDocs = new Set<string>();
+      const esPreviaValidaFiscal = (prevFd: any): boolean => {
+        if (!prevFd || typeof prevFd !== 'object') return false;
+        if (String(prevFd.url || '').includes('democonsulta.thefactoryhka.com.ve')) return false;
+        if (prevFd.nota_descarte || String(prevFd?.raw_response?.codigo || '') === '201') return false;
+        const docPrev = String(prevFd.numero_documento || prevFd.tfhka_seq || '').trim();
+        const ctrlPrev = String(prevFd.numero_control || '').trim();
+        if (!docPrev && !ctrlPrev) return false;
+        if (!docPrev && /^00-[0-9A-F]{8}$/i.test(ctrlPrev)) return false;
+        return Boolean(prevFd.emitida || docPrev || ctrlPrev || prevFd.anulada || prevFd.nota_credito);
+      };
 
       for (const item of items) {
         if (processedIds.has(item.id)) continue;
@@ -1363,30 +1408,43 @@ export async function GET(request: Request) {
           }
         }
 
-        const previas = Array.isArray(item.detalles?.facturas_digitales_previas) ? item.detalles.facturas_digitales_previas : [];
+        const previas = Array.isArray(item.detalles?.facturas_digitales_previas)
+          ? item.detalles.facturas_digitales_previas.filter(esPreviaValidaFiscal)
+          : [];
         const tieneFacturaActual = Boolean(
           item.facturaEmitida ||
           item.numeroControl ||
           item.numeroDocumento ||
-          item.detalles?.factura_digital?.anulada ||
-          item.detalles?.factura_digital?.nota_credito
+          item._tieneDocFiscalItem
         );
         const omitirItemVacioPorPrevia = previas.length > 0 && !tieneFacturaActual && (item.estado === 'Rechazado' || item.estado === 'Anulado');
 
         processedIds.add(item.id);
+
         if (!omitirItemVacioPorPrevia) {
-          dedupedItems.push(item);
+          const docAct = String(item.numeroDocumento || '').trim();
+          const ctrlAct = String(item.numeroControl || '').trim();
+          const keyAct = `${docAct}::${ctrlAct}`;
+          if (item.documento === 'factura' && (docAct || ctrlAct)) {
+            if (!seenFiscalDocs.has(keyAct)) {
+              seenFiscalDocs.add(keyAct);
+              dedupedItems.push(item);
+            }
+          } else {
+            dedupedItems.push(item);
+          }
         }
 
         // Si el pago contiene facturas digitales previas (emitidas y luego anuladas con o sin NC),
         // se agregan como ítems independientes para que aparezcan en la pestaña de Anuladas (NC)
         previas.forEach((prevFd: any, pIdx: number) => {
-          if (!prevFd) return;
-          if (String(prevFd.url || '').includes('democonsulta.thefactoryhka.com.ve')) return;
-          const esPrevAnulada = true;
-          const prevEmitida = Boolean(prevFd.emitida || prevFd.numero_documento || prevFd.numero_control);
-          if (!prevEmitida && !prevFd.anulada && !prevFd.nota_credito) return;
+          const docPrev = String(prevFd.numero_documento || prevFd.tfhka_seq || '').trim();
+          const ctrlPrev = String(prevFd.numero_control || '').trim();
+          const keyPrev = `${docPrev}::${ctrlPrev}`;
+          if ((docPrev || ctrlPrev) && seenFiscalDocs.has(keyPrev)) return;
+          if (docPrev || ctrlPrev) seenFiscalDocs.add(keyPrev);
 
+          const prevEmitida = Boolean(prevFd.emitida || docPrev || ctrlPrev);
           const prevNCControl = prevFd.nota_credito?.numero_control ||
             prevFd.nota_credito?.numero_documento ||
             'ANULADA / REEMPLAZADA';
@@ -1396,13 +1454,13 @@ export async function GET(request: Request) {
             id: `${item.id}_previa_${pIdx}`,
             pagoId: item.pagoId,
             esFacturaPrevia: true,
-            referencia: `${item.referencia || 'N/A'} (Factura Previa #${prevFd.numero_control || prevFd.numero_documento || pIdx + 1})`,
+            referencia: `${item.referencia || 'N/A'} (Factura Previa #${ctrlPrev || docPrev || pIdx + 1})`,
             facturaEmitida: prevEmitida,
             facturaUrl: prevFd.url || null,
-            numeroControl: prevFd.numero_control || null,
-            numeroDocumento: prevFd.numero_documento || null,
+            numeroControl: ctrlPrev || null,
+            numeroDocumento: docPrev || null,
             fechaEmision: prevFd.fecha_emision || item.fechaEmision,
-            facturaAnulada: esPrevAnulada,
+            facturaAnulada: true,
             notaCredito: prevFd.nota_credito || null,
             notaCreditoUrl: prevFd.nota_credito?.url || null,
             notaCreditoControl: prevNCControl,
@@ -1421,7 +1479,7 @@ export async function GET(request: Request) {
       } else if (filter === 'emitidas') {
         filtered = filtered.filter(i => i.procesado && !i.facturaAnulada && i.estado !== 'Anulado' && i.estado !== 'Rechazado');
       } else if (filter === 'anuladas') {
-        filtered = filtered.filter(i => i.facturaAnulada || i.notaCredito || i.estado === 'Anulado' || i.estado === 'Rechazado');
+        filtered = filtered.filter(i => i.procesado && (i.facturaAnulada || i.notaCredito || i.estado === 'Anulado' || i.estado === 'Rechazado'));
       } else if (filter === 'retenciones' || filter === 'retenciones_pendientes') {
         filtered = filtered.filter(i => i.conRetencion && (i.retencionEstado === 'planilla_recibida' || i.retencionEstado === 'esperando_planilla' || (!i.facturaEmitida && i.conRetencion)));
       }
