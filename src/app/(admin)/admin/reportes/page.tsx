@@ -166,7 +166,7 @@ export default function ReportesPage() {
     let pf = pagos;
     if (fechaInicio && fechaFin) {
       const s = new Date(fechaInicio + 'T00:00:00.000-04:00'), e = new Date(fechaFin + 'T23:59:59.999-04:00');
-      pf = pagos.filter((p: any) => { const d = fechaEfectivaPago(p); return d >= s && d <= e; });
+      pf = pagos.filter((p: any) => { const d = new Date(p.created_at); return !isNaN(d.getTime()) && d >= s && d <= e; });
     }
     generarLibroVentasExcel(pf, contribuyentes, tipo, fechaInicio, fechaFin);
   };

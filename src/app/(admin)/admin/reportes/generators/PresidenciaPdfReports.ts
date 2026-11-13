@@ -349,23 +349,59 @@ export async function generarLibroVentasPDF(
     }
   });
 
-  // Filtrar operaciones con factura digital o comerciales para el Libro de Ventas
-  let ventas = pagosFiltrados
-    .filter((p) => !esRetencion(p) && !esSaldoFavor(p))
-    .filter((p) => {
-      const det = parseDet(p);
-      const fd = det.factura_digital || {};
-      if (fd.emitida || fd.numero_documento || fd.numero_control || fd.anulada) return true;
-      const id = String(p.identidad || '').trim();
-      return /^[JG]/i.test(id);
-    })
-    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  // Filtrar operaciones con factura digital (incluyendo facturas previas anuladas) para el Libro de Ventas
+  const fIni = String(fechaInicio || '').slice(0, 10);
+  const fFin = String(fechaFin || '').slice(0, 10);
+  const docsYaIncluidos = new Set<string>();
+  let ventas: any[] = [];
 
-  if (ventas.length === 0) {
-    ventas = pagosFiltrados
-      .filter((p) => !esRetencion(p) && !esSaldoFavor(p))
-      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-  }
+  pagosFiltrados
+    .filter((p) => !esRetencion(p))
+    .forEach((p) => {
+      const det = parseDet(p);
+      if (det.es_pago_adicional || det.factura_digital?.es_pago_adicional) return;
+      const fd = det.factura_digital || {};
+      const previas = Array.isArray(det.facturas_digitales_previas) ? det.facturas_digitales_previas : [];
+
+      previas.forEach((prev: any, idxPrev: number) => {
+        if (!prev) return;
+        if (String(prev.url || '').includes('democonsulta.thefactoryhka.com.ve')) return;
+        const docPrev = String(prev?.numero_documento || prev?.tfhka_seq || '').trim();
+        const ctrlPrev = String(prev?.numero_control || '').trim();
+        if (!docPrev && !ctrlPrev) return;
+        const keyPrev = `${docPrev}::${ctrlPrev}`;
+        if (docsYaIncluidos.has(keyPrev)) return;
+        const fPagoIso = fechaVE(p.created_at);
+        if (fIni && fFin && fPagoIso && (fPagoIso < fIni || fPagoIso > fFin)) return;
+        docsYaIncluidos.add(keyPrev);
+        ventas.push({
+          ...p,
+          id: `${p.id}_prev_${idxPrev}`,
+          _pagoOriginalId: p.id,
+          estado: 'Anulado',
+          created_at: p.created_at,
+          detalles: {
+            ...det,
+            ...(prev?.monto_total ? { monto_factura: prev.monto_total } : {}),
+            factura_digital: {
+              ...prev,
+              anulada: true,
+              nota_credito: prev?.nota_credito || det.nota_credito_digital || { numero_documento: 'ANULADA-REEMITIDA' },
+            },
+          },
+        });
+      });
+
+      const docActual = String(fd.numero_documento || '').trim();
+      const ctrlActual = String(fd.numero_control || '').trim();
+      if (docActual || ctrlActual || fd.emitida || fd.nota_credito || det.nota_credito_digital) {
+        const keyActual = `${docActual}::${ctrlActual}`;
+        if (docActual || ctrlActual) docsYaIncluidos.add(keyActual);
+        ventas.push(p);
+      }
+    });
+
+  ventas.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
   const nombreDe = (id: string, det: any, p: any) => {
     const cid = cleanId(id);

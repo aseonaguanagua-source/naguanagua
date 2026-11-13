@@ -263,14 +263,49 @@ export function montosPago(p: any, det: any, inmMap: Map<string, any>, retConoci
 }
 
 export const generarLibroVentas = async (pagosFiltrados: any[], contribuyentes: any[], tipo: 'Diario' | 'Semanal' | 'Mensual', fechaInicio: string, fechaFin: string) => {
-  if (pagosFiltrados.length === 0) {
+  const fIni = String(fechaInicio || '').slice(0, 10);
+  const fFin = String(fechaFin || '').slice(0, 10);
+
+  // Asegurar la carga completa de pagos_reportados del período en horario Caracas (-04:00),
+  // incluyendo pagos Anulados o Rechazados que posean factura fiscal o nota de crédito,
+  // para que el Libro de Ventas coincida 100% con Facturación Electrónica sin importar desde qué vista se invoque.
+  let basePagos = pagosFiltrados;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(fIni) && /^\d{4}-\d{2}-\d{2}$/.test(fFin)) {
+    try {
+      const desdeIso = new Date(`${fIni}T00:00:00.000-04:00`).toISOString();
+      const hastaIso = new Date(`${fFin}T23:59:59.999-04:00`).toISOString();
+      const fetched: any[] = [];
+      let from = 0;
+      const step = 1000;
+      while (true) {
+        const { data: chunk, error } = await supabase
+          .from('pagos_reportados')
+          .select('*')
+          .gte('created_at', desdeIso)
+          .lte('created_at', hastaIso)
+          .order('created_at', { ascending: true })
+          .range(from, from + step - 1);
+        if (error || !chunk || chunk.length === 0) break;
+        fetched.push(...chunk);
+        if (chunk.length < step) break;
+        from += step;
+      }
+      if (fetched.length > 0) {
+        basePagos = fetched;
+      }
+    } catch (e) {
+      console.warn('Fallback a pagosFiltrados en generarLibroVentas:', e);
+    }
+  }
+
+  if (basePagos.length === 0) {
     alert('No hay pagos para exportar.');
     return;
   }
 
   // Retenciones por pago vinculado
   const retPorPago = new Map<string, { monto: number; ref: string; fecha: string }>();
-  pagosFiltrados.filter(esRetencion).forEach(p => {
+  basePagos.filter(esRetencion).forEach(p => {
     const d = parseDet(p);
     if (d.pago_vinculado) retPorPago.set(String(d.pago_vinculado), { monto: Number(p.monto) || 0, ref: String(p.referencia || ''), fecha: fechaISO(p.created_at) });
   });
@@ -353,27 +388,33 @@ export const generarLibroVentas = async (pagosFiltrados: any[], contribuyentes: 
     console.warn('No se pudo cargar auditoría/retenciones:', errAudit);
   }
 
-  const ventasBase = pagosFiltrados
+  const ventasBase = basePagos
     .filter(p => {
       if (esRetencion(p)) return false;
       const det = parseDet(p);
-      if (det.es_pago_adicional) return false;
+      if (det.es_pago_adicional || det.factura_digital?.es_pago_adicional) return false;
       const fd = det.factura_digital;
       const infoAudit = mapaAnulacionesAudit.get(String(p.id));
-      const esAnuladaAudit = Boolean(infoAudit && (infoAudit.numero_nota_credito || infoAudit.numero_factura));
+      const ncFiscalReal = Boolean(
+        (fd?.nota_credito && !fd.nota_credito.manual && fd.nota_credito.numero_documento !== 'ANULADA-MANUAL') ||
+        (det.nota_credito_digital && !det.nota_credito_digital.manual)
+      );
+      const tieneDocFiscal = Boolean(fd?.emitida || fd?.numero_documento || fd?.numero_control || ncFiscalReal || infoAudit?.numero_factura);
+      const esAnuladaAudit = Boolean(infoAudit && tieneDocFiscal);
       const tienePrevias = Array.isArray(det.facturas_digitales_previas) && det.facturas_digitales_previas.length > 0;
 
       // Requisito: En el Libro de Ventas van todas las operaciones que tengan Factura Digital emitida o anulada/rechazada con número fiscal
       return Boolean(
         esAnuladaAudit ||
         tienePrevias ||
-        det.nota_credito_digital ||
-        (fd && (fd.emitida || fd.numero_documento || fd.numero_control || fd.anulada || fd.nota_credito || (fd.rechazada && (fd.numero_documento || fd.numero_control)))) ||
-        (/anulad|rechaz/i.test(String(p.estado || '')) && (fd?.numero_documento || fd?.numero_control || infoAudit?.numero_factura))
+        ncFiscalReal ||
+        (fd && (fd.emitida || fd.numero_documento || fd.numero_control || ncFiscalReal || ((fd.anulada || fd.rechazada) && tieneDocFiscal))) ||
+        (/anulad|rechaz/i.test(String(p.estado || '')) && tieneDocFiscal)
       );
     });
 
-  // Expandir también las facturas anuladas previas (facturas_digitales_previas) que fueron reemplazadas por una reemisión
+  // Expandir también las facturas anuladas previas (facturas_digitales_previas) que fueron reemplazadas por una reemisión.
+  // Se conserva created_at del pago original para que el día de cobro coincida 100% con Facturación Electrónica y con los reportes diarios/mensuales.
   const docsYaIncluidos = new Set<string>();
   const ventas: any[] = [];
 
@@ -383,14 +424,16 @@ export const generarLibroVentas = async (pagosFiltrados: any[], contribuyentes: 
     const previas = Array.isArray(det.facturas_digitales_previas) ? det.facturas_digitales_previas : [];
 
     previas.forEach((prev: any, idxPrev: number) => {
+      if (!prev) return;
+      if (String(prev.url || '').includes('democonsulta.thefactoryhka.com.ve')) return;
       const docPrev = String(prev?.numero_documento || prev?.tfhka_seq || '').trim();
       const ctrlPrev = String(prev?.numero_control || '').trim();
       if (!docPrev && !ctrlPrev) return;
       const keyPrev = `${docPrev}::${ctrlPrev}`;
       if (docsYaIncluidos.has(keyPrev)) return;
 
-      const fPrevIso = fechaISO(prev?.fecha_emision || prev?.fecha_asignacion || p.created_at);
-      if (fechaInicio && fechaFin && fPrevIso && (fPrevIso < fechaInicio || fPrevIso > fechaFin)) {
+      const fPagoIso = fechaISO(p.created_at);
+      if (fIni && fFin && fPagoIso && (fPagoIso < fIni || fPagoIso > fFin)) {
         return;
       }
       docsYaIncluidos.add(keyPrev);
@@ -399,7 +442,7 @@ export const generarLibroVentas = async (pagosFiltrados: any[], contribuyentes: 
         id: `${p.id}_prev_${idxPrev}`,
         _pagoOriginalId: p.id,
         estado: 'Anulado',
-        created_at: prev?.fecha_emision || prev?.fecha_asignacion || p.created_at,
+        created_at: p.created_at,
         detalles: {
           ...det,
           ...(prev?.monto_total ? { monto_factura: prev.monto_total } : {}),
@@ -414,7 +457,8 @@ export const generarLibroVentas = async (pagosFiltrados: any[], contribuyentes: 
 
     const docActual = String(fd.numero_documento || '').trim();
     const ctrlActual = String(fd.numero_control || '').trim();
-    if (docActual || ctrlActual || mapaAnulacionesAudit.has(String(p.id))) {
+    const infoAudit = mapaAnulacionesAudit.get(String(p.id));
+    if (docActual || ctrlActual || fd.emitida || infoAudit?.numero_factura) {
       const keyActual = `${docActual}::${ctrlActual}`;
       if (docActual || ctrlActual) docsYaIncluidos.add(keyActual);
       ventas.push(p);
@@ -505,7 +549,21 @@ export const generarLibroVentas = async (pagosFiltrados: any[], contribuyentes: 
     const m = montosPago(p, det, inmMap, r2(ret?.monto ?? Number(det.monto_retencion_iva || 0)));
     const retMonto = m.ret;
     const fd = det.factura_digital || {};
-    const infoAudit = !p._pagoOriginalId ? mapaAnulacionesAudit.get(String(p.id)) : null;
+    const rawAudit = !p._pagoOriginalId ? mapaAnulacionesAudit.get(String(p.id)) : null;
+    // Si la factura actual fue reemitida y está activa (no anulada), un registro viejo de auditoría de una factura previa no debe marcarla como anulada
+    const auditAplicaActual = Boolean(
+      rawAudit &&
+      !(
+        fd.emitida &&
+        !fd.anulada &&
+        !fd.rechazada &&
+        !fd.nota_credito &&
+        !det.nota_credito_digital &&
+        p.estado === 'Aprobado' &&
+        (!rawAudit.numero_factura || String(rawAudit.numero_factura).trim() !== String(fd.numero_documento || '').trim())
+      )
+    );
+    const infoAudit = auditAplicaActual ? rawAudit : null;
     const esAnulada = Boolean(
       infoAudit ||
       fd.anulada ||

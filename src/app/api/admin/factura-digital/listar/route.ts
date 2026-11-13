@@ -465,12 +465,15 @@ export async function GET(request: Request) {
         return false;
       }
 
-      // Una factura solo se considera anulada fiscalmente si fue emitida (o tiene documento/control) y luego anulada/rechazada,
-      // o si el pago fue marcado como 'Anulado' tras haber sido procesado.
+      // Una factura solo se considera anulada fiscalmente si fue emitida (o tiene documento/control/NC fiscal real) y luego anulada/rechazada,
+      // o si el pago fue marcado como 'Anulado' tras haber tenido documento fiscal.
+      const ncFiscalReal = Boolean(
+        (d?.factura_digital?.nota_credito && !d.factura_digital.nota_credito.manual && d.factura_digital.nota_credito.numero_documento !== 'ANULADA-MANUAL') ||
+        (d?.nota_credito_digital && !d.nota_credito_digital.manual)
+      );
       const teniaFactura = Boolean(
         d?.factura_digital?.emitida ||
-        d?.factura_digital?.anulada ||
-        d?.factura_digital?.nota_credito ||
+        ncFiscalReal ||
         d?.factura_digital?.numero_documento ||
         d?.factura_digital?.numero_control
       );
@@ -478,13 +481,13 @@ export async function GET(request: Request) {
       const tienePrevias = Array.isArray(d?.facturas_digitales_previas) && d.facturas_digitales_previas.length > 0;
 
       const esAnulada = (p.estado === 'Anulado' && teniaFactura) || 
-        Boolean(d?.factura_digital?.anulada || d?.factura_digital?.nota_credito) ||
+        (Boolean(d?.factura_digital?.anulada || ncFiscalReal) && teniaFactura) ||
         (Boolean(d?.factura_digital?.rechazada || p.estado === 'Rechazado') && teniaFactura) ||
         (tienePrevias && d.facturas_digitales_previas.some((f: any) => f.anulada || f.nota_credito));
 
-      // Si el pago fue rechazado, reversado o condonado en caja/conciliación y NUNCA se le emitió factura fiscal,
-      // no tiene nada que hacer en Facturación Electrónica (ni como pendiente ni como emitida).
-      if (['Rechazado', 'Reversado', 'Condonado'].includes(String(p?.estado || '')) && !teniaFactura && !tienePrevias) {
+      // Si el pago fue anulado, rechazado, reversado o condonado en caja/conciliación y NUNCA se le emitió factura fiscal,
+      // no tiene nada que hacer en Facturación Electrónica (ni como pendiente ni como emitida/anulada).
+      if (['Anulado', 'Rechazado', 'Reversado', 'Condonado'].includes(String(p?.estado || '')) && !teniaFactura && !tienePrevias) {
         return false;
       }
 
@@ -1176,18 +1179,15 @@ export async function GET(request: Request) {
           fechaAsignacionOverride: det.fecha_asignacion_override || det.fecha_emision_override || null,
           error: det.factura_digital_error || null,
           facturaAnulada: Boolean(
-            fd?.anulada || 
-            fd?.nota_credito ||
-            pago.estado === 'Anulado' ||
-            det?.estado === 'Anulado' ||
-            // Si fue rechazada la factura pero había sido emitida
-            (Boolean(fd?.rechazada || pago.estado === 'Rechazado') && Boolean(fd?.numero_documento || fd?.numero_control || emitida))
+            ((fd?.anulada || pago.estado === 'Anulado' || det?.estado === 'Anulado' || fd?.rechazada || pago.estado === 'Rechazado') &&
+              Boolean(fd?.numero_documento || fd?.numero_control || emitida || fd?.nota_credito)) ||
+            fd?.nota_credito
           ),
           notaCredito: fd?.nota_credito || null,
           notaCreditoUrl: fd?.nota_credito?.url || null,
           notaCreditoControl: fd?.nota_credito?.numero_control || 
             fd?.nota_credito?.numero_documento || 
-            (fd?.anulada ? 'ANULADA' : ((fd?.rechazada || pago.estado === 'Rechazado') && (fd?.numero_documento || fd?.numero_control || emitida) ? 'ANULADA EN CAJA' : (pago.estado === 'Anulado' ? 'ANULADA' : null))),
+            ((fd?.anulada && Boolean(fd?.numero_documento || fd?.numero_control || emitida)) ? 'ANULADA' : ((fd?.rechazada || pago.estado === 'Rechazado') && (fd?.numero_documento || fd?.numero_control || emitida) ? 'ANULADA EN CAJA' : ((pago.estado === 'Anulado' && Boolean(fd?.numero_documento || fd?.numero_control || emitida)) ? 'ANULADA' : null))),
           // Agente de retención: la factura se envía solo al aprobar su comprobante
           conRetencion: tieneRetencion,
           esRetencion: tieneRetencion,
@@ -1241,7 +1241,7 @@ export async function GET(request: Request) {
           // Recibo impreso en Caja (original guardado en el pago; si no, se reconstruye al descargar)
           reciboCajaGuardado: Array.isArray(det.recibo_caja) && det.recibo_caja.length > 0,
           // Procesado = factura emitida (facturas) o recibo enviado (recibos)
-          procesado: docFinal === 'factura' ? (emitida || Boolean(fd?.anulada)) : reciboEnviado,
+          procesado: docFinal === 'factura' ? Boolean(emitida || fd?.nota_credito) : reciboEnviado,
           conciliado: pago.estado === 'Aprobado',
         };
       });

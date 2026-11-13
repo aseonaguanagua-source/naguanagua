@@ -602,10 +602,14 @@ export default function FacturacionElectronicaPage() {
   const totalEmitidas = (docTab === 'factura' ? facturasDia : recibosDia).filter(p => p.procesado && !p.facturaAnulada && p.estado !== 'Anulado' && p.estado !== 'Rechazado').length;
   const resumen = (lista: any[]) => {
     const activas = lista.filter(p => !p.facturaAnulada && !p.notaCredito && p.estado !== 'Anulado' && p.estado !== 'Rechazado');
+    const anuladas = lista.filter(p => p.procesado && (p.facturaAnulada || p.notaCredito || p.estado === 'Anulado' || p.estado === 'Rechazado'));
+    const procesados = activas.filter(p => p.procesado).length;
     return {
       total: activas.length,
       pendientes: activas.filter(p => !p.procesado && p.estado === 'Aprobado').length,
-      procesados: activas.filter(p => p.procesado).length,
+      procesados,
+      anuladas: anuladas.length,
+      totalConAnuladas: procesados + anuladas.length,
       monto: activas.reduce((s, p) => s + (p.monto || 0), 0),
     };
   };
@@ -1483,6 +1487,9 @@ export default function FacturacionElectronicaPage() {
             <div className="text-xs text-slate-600 space-x-3">
               <span><strong className="text-amber-700 text-base">{resFact.pendientes}</strong> pendientes</span>
               <span><strong className="text-emerald-700 text-base">{resFact.procesados}</strong> emitidas</span>
+              {resFact.anuladas > 0 && (
+                <span><strong className="text-rose-700 text-base">{resFact.anuladas}</strong> anuladas <span className="text-[11px] text-slate-500">({resFact.totalConAnuladas} total)</span></span>
+              )}
             </div>
             <span className="font-mono font-black text-slate-900">Bs {fmtBs(resFact.monto)}</span>
           </div>
