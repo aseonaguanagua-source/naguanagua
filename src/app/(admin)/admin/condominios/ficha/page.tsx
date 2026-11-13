@@ -8,7 +8,7 @@ import {
   ChevronDown, ChevronRight, Save, X, History, Users, Download, Building, Wallet as WalletIcon, Plus, Pencil, FileText, Ban, Trash2, StickyNote, Award, Sliders, CreditCard, Receipt, ExternalLink, Handshake, LogOut, Snowflake, UserCheck
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { clearIndexedDB } from '@/lib/indexedDbCache';
+import { clearAllIndexedDB } from '@/lib/indexedDbCache';
 import EditorUnidad from './EditorUnidad';
 import ModalAjusteMeses from './ModalAjusteMeses';
 import ModalCongelarTasaCondominio from '@/components/condominios/ModalCongelarTasaCondominio';
@@ -335,7 +335,7 @@ function Ficha() {
       });
       const j = await r.json();
       if (!r.ok || !j.ok) throw new Error(j.error || 'Error al extraer unidad como contribuyente independiente');
-      await clearIndexedDB().catch(() => {});
+      await clearAllIndexedDB().catch(() => {});
       alert(`✅ ${j.mensaje}`);
       await cargar();
     } catch (err: any) {

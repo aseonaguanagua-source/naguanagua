@@ -102,3 +102,5 @@ export async function clearAllIndexedDB(): Promise<void> {
     console.warn('[IndexedDB] Error al limpiar la base de datos:', err);
   }
 }
+
+export const clearIndexedDB = clearAllIndexedDB;

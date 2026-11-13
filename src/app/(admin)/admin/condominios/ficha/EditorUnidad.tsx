@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { Save, X, RefreshCw, Plus, Trash2, Home, Store, AlertTriangle, Award, FileText, Sliders, LogOut, UserCheck } from 'lucide-react';
-import { clearIndexedDB } from '@/lib/indexedDbCache';
+import { clearAllIndexedDB } from '@/lib/indexedDbCache';
 import { ordenanzaData } from '@/data/ordenanza';
 import { actividadConNivel, nivelActividad, quitarNivelActividad, resolverFOComercial } from '@/lib/calculos';
 import { mesesPendientes, pendienteDesdeParaMeses, periodosPendientes } from '@/lib/condominios/motor';
@@ -505,7 +505,7 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
       });
       const j = await res.json();
       if (!res.ok || !j.ok) throw new Error(j.error || 'No se pudo extraer la unidad como contribuyente independiente.');
-      await clearIndexedDB().catch(() => {});
+      await clearAllIndexedDB().catch(() => {});
       alert(`✅ ${j.mensaje}`);
       onSaved(true);
     } catch (e: any) {
