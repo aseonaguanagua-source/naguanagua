@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { Save, X, RefreshCw, Plus, Trash2, Home, Store, AlertTriangle, Award, FileText, Sliders, LogOut } from 'lucide-react';
+import { Save, X, RefreshCw, Plus, Trash2, Home, Store, AlertTriangle, Award, FileText, Sliders, LogOut, UserCheck } from 'lucide-react';
+import { clearIndexedDB } from '@/lib/indexedDbCache';
 import { ordenanzaData } from '@/data/ordenanza';
 import { actividadConNivel, nivelActividad, quitarNivelActividad, resolverFOComercial } from '@/lib/calculos';
 import { mesesPendientes, pendienteDesdeParaMeses, periodosPendientes } from '@/lib/condominios/motor';
@@ -459,6 +460,62 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
     } catch (e: any) { setErr(e.message); } finally { setGuardando(false); }
   };
 
+  const extraerComoContribuyenteIndependiente = async () => {
+    if (!unidad) return;
+    const codActual = String(f.inmueble || unidad.inmueble || '').trim().toUpperCase();
+    if (!codActual) {
+      alert('Esta unidad no tiene un código de inmueble asignado (ej. URB / AURI). Asígnele y guarde un código primero.');
+      return;
+    }
+    const hijasActivas = unidades.filter(h => h.padre_unidad_id === unidad.id && h.estado !== 'Eliminada');
+    const msgHijas = hijasActivas.length > 0
+      ? `\n• También se mantendrán vinculadas sus ${hijasActivas.length} actividad(es) hija(s) bajo la matriz ${codActual}.`
+      : '';
+    if (!confirm(
+      `¿Desea SACAR el código "${codActual}" (${f.propietario || unidad.propietario || 'Sin propietario'}) del condominio "${condo.nombre}" (${condo.codigo}) y convertirlo en un CONTRIBUYENTE INDEPENDIENTE por fuera?\n\n• Se excluirá de la ficha y cobro de este condominio.\n• Quedará activo por fuera como contribuyente independiente en Contribuyentes y Caja General.${msgHijas}`
+    )) return;
+
+    let mot = motivo.trim();
+    if (mot.length < 5) {
+      const promptMot = prompt(
+        `Indique el motivo para excluir "${codActual}" del condominio y pasarlo a contribuyente independiente (mínimo 5 caracteres):`,
+        'Excluido del condominio para facturación y cobro como contribuyente independiente'
+      );
+      if (!promptMot || promptMot.trim().length < 5) {
+        alert('Debe indicar un motivo válido de al menos 5 caracteres para la auditoría.');
+        return;
+      }
+      mot = promptMot.trim();
+    }
+
+    setGuardando(true);
+    setErr('');
+    try {
+      const uActual = usuario || (typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('admin_user_data') || '{}').usuario : '') || 'Administrador';
+      const res = await fetch('/api/admin/condominios/extraer-contribuyente', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          unidad_id: unidad.id,
+          inmueble: codActual,
+          condominio_codigo: condo.codigo,
+          usuario: uActual,
+          motivo: mot,
+        }),
+      });
+      const j = await res.json();
+      if (!res.ok || !j.ok) throw new Error(j.error || 'No se pudo extraer la unidad como contribuyente independiente.');
+      await clearIndexedDB().catch(() => {});
+      alert(`✅ ${j.mensaje}`);
+      onSaved(true);
+    } catch (e: any) {
+      setErr(e.message);
+      alert('Error: ' + e.message);
+    } finally {
+      setGuardando(false);
+    }
+  };
+
   const inp = 'mt-1 w-full border border-slate-300 rounded-xl px-3 py-2 text-sm';
   const lbl = 'text-xs font-bold text-slate-700';
 
@@ -704,6 +761,29 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
               </label>
             </div>
           </div>
+
+          {/* Independizar / Excluir del Condominio y convertir en Contribuyente */}
+          {!nueva && (
+            <div className="rounded-xl border border-rose-200 bg-rose-50/70 p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <span className="text-xs font-black uppercase tracking-wider text-rose-900 block">
+                  ¿Sacar este código del condominio y dejarlo por fuera?
+                </span>
+                <span className="text-[11px] text-rose-800">
+                  Excluye a <b>{f.inmueble || unidad?.inmueble || 'esta unidad'}</b> de <b>{condo.nombre}</b> y lo convierte en un contribuyente independiente en el módulo de Contribuyentes y Caja General.
+                </span>
+              </div>
+              <button
+                id="btn-extraer-contribuyente-panel"
+                type="button"
+                onClick={extraerComoContribuyenteIndependiente}
+                disabled={guardando}
+                className="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs cursor-pointer shadow-xs inline-flex items-center gap-1.5 shrink-0 disabled:opacity-50"
+              >
+                <UserCheck className="w-4 h-4" /> Sacar y Convertir en Contribuyente
+              </button>
+            </div>
+          )}
 
           {/* Multas */}
           <div className="rounded-xl border border-amber-200 bg-amber-50/40 p-4 space-y-3">
@@ -1065,6 +1145,18 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
                 title="Mover esta unidad a otro condominio"
               >
                 <Store className="w-4 h-4 text-indigo-600" /> Mover a Otro Condominio
+              </button>
+            )}
+            {!nueva && (
+              <button
+                id="btn-extraer-contribuyente-footer"
+                type="button"
+                onClick={extraerComoContribuyenteIndependiente}
+                disabled={guardando}
+                className="px-3 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 border border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-900 cursor-pointer disabled:opacity-50 shadow-2xs"
+                title="Excluir este código del condominio y convertirlo en un contribuyente independiente por fuera"
+              >
+                <UserCheck className="w-4 h-4 text-rose-600" /> Sacar a Contribuyente
               </button>
             )}
             {!nueva && (unidad.padre_unidad_id || f.padre_unidad_id) && (

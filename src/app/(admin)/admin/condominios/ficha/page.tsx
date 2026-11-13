@@ -5,9 +5,10 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
   ArrowLeft, Building2, RefreshCw, AlertTriangle, Wallet, CalendarClock, Layers, Settings, Search,
-  ChevronDown, ChevronRight, Save, X, History, Users, Download, Building, Wallet as WalletIcon, Plus, Pencil, FileText, Ban, Trash2, StickyNote, Award, Sliders, CreditCard, Receipt, ExternalLink, Handshake, LogOut, Snowflake
+  ChevronDown, ChevronRight, Save, X, History, Users, Download, Building, Wallet as WalletIcon, Plus, Pencil, FileText, Ban, Trash2, StickyNote, Award, Sliders, CreditCard, Receipt, ExternalLink, Handshake, LogOut, Snowflake, UserCheck
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { clearIndexedDB } from '@/lib/indexedDbCache';
 import EditorUnidad from './EditorUnidad';
 import ModalAjusteMeses from './ModalAjusteMeses';
 import ModalCongelarTasaCondominio from '@/components/condominios/ModalCongelarTasaCondominio';
@@ -303,6 +304,44 @@ function Ficha() {
       alert(`✅ La unidad "${cod}" ha sido desvinculada exitosamente y ahora es directa e independiente dentro del condominio.`);
       await cargar();
     } catch (err: any) { alert(err.message); } finally { setCargando(false); }
+  };
+
+  const extraerContribuyenteUnidad = async (u: any) => {
+    const cod = String(u.inmueble || '').trim().toUpperCase();
+    if (!cod) {
+      alert('Esta unidad no posee un código de inmueble asignado (ej. URB / AURI). Edítela y asígnele un código antes de convertirla en contribuyente independiente.');
+      return;
+    }
+    if (!confirm(
+      `¿Desea SACAR el código "${cod}" (${u.propietario || 'Sin propietario'}) del condominio "${c?.nombre}" (${c?.codigo}) y convertirlo en un CONTRIBUYENTE INDEPENDIENTE por fuera?\n\n• Quedará excluido de este condominio.\n• Quedará activo por fuera en Contribuyentes y Caja General.`
+    )) return;
+    const mot = prompt(
+      `Escriba el motivo para sacar "${cod}" del condominio y pasarlo a contribuyente independiente (obligatorio, mín. 5 letras):`,
+      'Excluido del condominio para facturación y cobro como contribuyente independiente'
+    );
+    if (!mot || mot.trim().length < 5) return alert('Debe ingresar un motivo válido de al menos 5 caracteres.');
+    setCargando(true);
+    try {
+      const r = await fetch('/api/admin/condominios/extraer-contribuyente', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          unidad_id: u.id,
+          inmueble: cod,
+          condominio_codigo: c?.codigo,
+          usuario: usuarioActual(),
+          motivo: mot.trim(),
+        }),
+      });
+      const j = await r.json();
+      if (!r.ok || !j.ok) throw new Error(j.error || 'Error al extraer unidad como contribuyente independiente');
+      await clearIndexedDB().catch(() => {});
+      alert(`✅ ${j.mensaje}`);
+      await cargar();
+    } catch (err: any) {
+      alert(err.message);
+      setCargando(false);
+    }
   };
 
   const exportar = async (moneda: 'BS' | 'EUR' = 'BS') => {
@@ -890,6 +929,9 @@ function Ficha() {
                                     {admin && u && (
                                       <button title="Editar unidad" onClick={() => setEditorU(u)} className="p-1.5 rounded-md text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 cursor-pointer border border-transparent hover:border-emerald-200 bg-white shadow-sm"><Pencil className="w-3.5 h-3.5" /></button>
                                     )}
+                                    {admin && u && u.inmueble && (
+                                      <button title="Sacar del condominio y convertir en contribuyente independiente" onClick={() => extraerContribuyenteUnidad(u)} className="p-1.5 rounded-md text-rose-600 hover:text-rose-800 hover:bg-rose-50 cursor-pointer border border-transparent hover:border-rose-200 bg-white shadow-sm"><UserCheck className="w-3.5 h-3.5" /></button>
+                                    )}
                                     {admin && u && u.estado !== 'Desocupada' && (
                                       <button title="Marcar como desocupada" onClick={() => desocuparUnidad(u)} className="p-1.5 rounded-md text-slate-500 hover:text-amber-700 hover:bg-amber-50 cursor-pointer border border-transparent hover:border-amber-200 bg-white shadow-sm"><Ban className="w-3.5 h-3.5" /></button>
                                     )}
@@ -1084,6 +1126,9 @@ function Ficha() {
                             </button>
                           )}
                           <button id={`editar-${u.inmueble || u.id}`} onClick={() => setEditorU(u)} title="Editar" className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:text-emerald-800 hover:border-emerald-300 hover:bg-emerald-50 cursor-pointer bg-white shadow-sm"><Pencil className="w-3.5 h-3.5" /></button>
+                          {u.inmueble && (
+                            <button onClick={() => extraerContribuyenteUnidad(u)} title="Sacar del condominio y convertir en contribuyente independiente" className="p-1.5 rounded-lg border border-rose-200 text-rose-700 hover:text-rose-900 hover:border-rose-300 hover:bg-rose-50 cursor-pointer bg-white shadow-sm"><UserCheck className="w-3.5 h-3.5" /></button>
+                          )}
                           {u.estado !== 'Desocupada' && <button onClick={() => desocuparUnidad(u)} title="Marcar desocupada" className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:text-amber-800 hover:border-amber-300 hover:bg-amber-50 cursor-pointer bg-white shadow-sm"><Ban className="w-3.5 h-3.5" /></button>}
                           <button onClick={() => eliminarUnidad(u)} title="Eliminar" className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:text-red-800 hover:border-red-300 hover:bg-red-50 cursor-pointer bg-white shadow-sm"><Trash2 className="w-3.5 h-3.5" /></button>
                         </div>
