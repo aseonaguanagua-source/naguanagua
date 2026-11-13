@@ -5,7 +5,7 @@ import { clasificarBancoDestino } from '@/lib/cuentasBancarias';
 import { isResidencialInm } from '@/lib/calculos';
 import { descargarPdfBlob } from './PdfReports';
 import { parseDet, montosPago, cargarInmMapPagos, codigosDePago, resolverCodigoPrincipalInm } from './LibroVentas';
-import { obtenerNroReciboWeb } from './ReporteRecibosPagos';
+import { obtenerNroReciboWeb, obtenerRecibosPagosUnificados } from './ReporteRecibosPagos';
 
 const r2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
 const fmtBs = (n: number) =>
@@ -853,50 +853,27 @@ export async function generarReporteRecibosPagosPDF(
   fechaInicio: string,
   fechaFin: string
 ) {
-  const recibos = pagos
-    .filter((p) => !esAnulado(p) && !esRetencion(p) && !esSaldoFavor(p))
-    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-
-  const nombreDe = (id: string, det: any, p: any) => {
-    const cid = cleanId(id);
-    const raw =
-      (contribuyentes || []).find((x: any) => cleanId(x.Identidad || x.identidad) === cid)?.Contribuyente ||
-      (contribuyentes || []).find((x: any) => cleanId(x.Identidad || x.identidad) === cid)?.contribuyente ||
-      det.contribuyente_nombre ||
-      p.contribuyenteNombre ||
-      p.contribuyente ||
-      id;
-    return String(raw || '').replace(/^\d+\s*-\s*(?=[A-Za-z])/, '').trim();
-  };
+  const recibos = await obtenerRecibosPagosUnificados(pagos, contribuyentes, fechaInicio, fechaFin);
 
   let totalAseo = 0;
   let totalMultas = 0;
   let totalGeneral = 0;
 
-  const body = recibos.map((p, idx) => {
-    const det = parseDet(p);
-    const montoTotal = r2(Number(p.monto) || 0);
-    const multa = r2(Number(det.monto_multas || det.multa || 0));
-    const aseo = r2(Math.max(0, montoTotal - multa));
-
-    totalAseo += aseo;
-    totalMultas += multa;
-    totalGeneral += montoTotal;
-
-    const cods = codigosDePago(det, p);
-    const codInm = cods[0] || p.codInmueble || det.codigo_inmueble || '—';
-    const nroRecibo = obtenerNroReciboWeb(p, det);
+  const body = recibos.map((r, idx) => {
+    totalAseo += r.montoAseo;
+    totalMultas += r.montoMultas;
+    totalGeneral += r.montoTotal;
 
     return [
       idx + 1,
-      String(codInm),
-      dmy(fechaVE(p.created_at)),
-      String(p.identidad || '—'),
-      nombreDe(p.identidad, det, p).slice(0, 42),
-      nroRecibo,
-      fmtBs(aseo),
-      fmtBs(multa),
-      fmtBs(montoTotal),
+      String(r.codigoPrincipal || '—'),
+      dmy(r.fechaDoc),
+      String(r.rifCi || '—'),
+      String(r.nombre || '—').slice(0, 42),
+      r.nroRecibo,
+      fmtBs(r.montoAseo),
+      fmtBs(r.montoMultas),
+      fmtBs(r.montoTotal),
     ];
   });
 

@@ -600,12 +600,15 @@ export default function FacturacionElectronicaPage() {
 
   const totalPendientes = (docTab === 'factura' ? facturasDia : recibosDia).filter(p => !p.procesado && !p.facturaAnulada && p.estado === 'Aprobado').length;
   const totalEmitidas = (docTab === 'factura' ? facturasDia : recibosDia).filter(p => p.procesado && !p.facturaAnulada && p.estado !== 'Anulado' && p.estado !== 'Rechazado').length;
-  const resumen = (lista: any[]) => ({
-    total: lista.length,
-    pendientes: lista.filter(p => !p.procesado).length,
-    procesados: lista.filter(p => p.procesado).length,
-    monto: lista.reduce((s, p) => s + (p.monto || 0), 0),
-  });
+  const resumen = (lista: any[]) => {
+    const activas = lista.filter(p => !p.facturaAnulada && !p.notaCredito && p.estado !== 'Anulado' && p.estado !== 'Rechazado');
+    return {
+      total: activas.length,
+      pendientes: activas.filter(p => !p.procesado && p.estado === 'Aprobado').length,
+      procesados: activas.filter(p => p.procesado).length,
+      monto: activas.reduce((s, p) => s + (p.monto || 0), 0),
+    };
+  };
   const resFact = resumen(facturasDia);
   const resRec = resumen(recibosDia);
 

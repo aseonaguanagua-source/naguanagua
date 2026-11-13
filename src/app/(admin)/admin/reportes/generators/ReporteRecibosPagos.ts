@@ -2,7 +2,22 @@ import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import { supabase } from '@/lib/supabase';
 import { isResidencialInm } from '@/lib/calculos';
+import { clasificarPago } from '@/lib/documentoPago';
 import { codigosDePago, cargarInmMapPagos, parseDet } from './LibroVentas';
+
+export interface ReciboPagoRow {
+  id: string;
+  created_at: string;
+  codigoPrincipal: string;
+  fechaDoc: string;
+  rifCi: string;
+  nombre: string;
+  nroRecibo: string;
+  montoAseo: number;
+  montoMultas: number;
+  montoTotal: number;
+  raw: any;
+}
 
 const r2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
 const cleanId = (s: any) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -72,14 +87,55 @@ const BORDE: Partial<ExcelJS.Borders> = {
  * TOTAL MULTAS
  * TOTAL CONCILIADO
  */
-export async function generarReporteRecibosPagos(
+export async function obtenerRecibosPagosUnificados(
   pagos: any[],
   contribuyentes: any[],
   fechaInicio: string,
   fechaFin: string
-) {
-  // Cargar mapa de inmuebles y condominios para identificar código principal y excluir comerciales
-  const inmMap = await cargarInmMapPagos(pagos);
+): Promise<ReciboPagoRow[]> {
+  const fIni = String(fechaInicio || '').slice(0, 10);
+  const fFin = String(fechaFin || '').slice(0, 10);
+
+  let itemsApi: any[] | null = null;
+  if (typeof window !== 'undefined' && /^\d{4}-\d{2}-\d{2}$/.test(fIni) && /^\d{4}-\d{2}-\d{2}$/.test(fFin)) {
+    try {
+      const res = await fetch(
+        `/api/admin/factura-digital/listar?filter=todos&documento=recibo&fechaInicio=${encodeURIComponent(fIni)}&fechaFin=${encodeURIComponent(fFin)}&_t=${Date.now()}`,
+        { cache: 'no-store' }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data?.items)) {
+          itemsApi = data.items
+            .filter(
+              (i: any) =>
+                !i.facturaAnulada &&
+                !i.notaCredito &&
+                i.estado !== 'Anulado' &&
+                i.estado !== 'Rechazado' &&
+                (i.procesado || i.estado === 'Aprobado')
+            )
+            .sort((a: any, b: any) => String(a.created_at).localeCompare(String(b.created_at)))
+            .map((i: any) => ({
+              ...i,
+              _montoOficial: r2(Number(i.monto) || 0),
+              _nombreOficial: i.contribuyente,
+              _identidadOficial: i.identidad,
+              _inmueblesOficial: Array.isArray(i.inmuebles) ? i.inmuebles : [],
+              _condominioOficial: i.condominio || null,
+              detalles: i.detalles || {},
+            }));
+        }
+      }
+    } catch (e) {
+      console.warn('Fallback local en obtenerRecibosPagosUnificados:', e);
+    }
+  }
+
+  const basePagos = itemsApi || pagos;
+
+  // Cargar mapa de inmuebles y condominios para identificar código principal y clasificar en modo fallback
+  const inmMap = await cargarInmMapPagos(basePagos);
   const condoByIdentidad = new Map<string, any>();
   const condoByCodigo = new Map<string, any>();
   const inmByIdentidad = new Map<string, any>();
@@ -91,12 +147,14 @@ export async function generarReporteRecibosPagos(
       if (c.codigo) condoByCodigo.set(String(c.codigo).trim().toUpperCase(), c);
     });
 
-    const idsSinCodigo = [...new Set(
-      pagos
-        .filter(p => codigosDePago(parseDet(p), p).length === 0)
-        .map(p => String(p.identidad || '').trim())
-        .filter(Boolean)
-    )];
+    const idsSinCodigo = [
+      ...new Set(
+        basePagos
+          .filter((p: any) => codigosDePago(parseDet(p), p).length === 0 && !(Array.isArray(p._inmueblesOficial) && p._inmueblesOficial.length > 0))
+          .map((p: any) => String(p.identidad || '').trim())
+          .filter(Boolean)
+      ),
+    ];
     if (idsSinCodigo.length > 0) {
       for (let i = 0; i < idsSinCodigo.length; i += 200) {
         const { data: inmsExtra } = await supabase
@@ -119,24 +177,38 @@ export async function generarReporteRecibosPagos(
   const resolverCodigo = (p: any, det: any): string => {
     const codigos = codigosDePago(det, p);
     if (codigos[0]) return codigos[0];
-    const directo = det.codigo_inmueble || det.cod_inmueble || p.inmueble;
+    if (Array.isArray(p._inmueblesOficial) && p._inmueblesOficial[0]) {
+      return String(p._inmueblesOficial[0]).trim().toUpperCase();
+    }
+    const directo =
+      det.codigo_inmueble ||
+      det.cod_inmueble ||
+      p.inmueble ||
+      p._condominioOficial?.codigo ||
+      det.condominio?.codigo ||
+      det.recibo_caja?.[0]?.codContribuyente;
     if (directo) return String(directo).trim().toUpperCase();
     const cid = cleanId(p.identidad);
     if (cid) {
       const cnd = condoByIdentidad.get(cid);
       if (cnd?.codigo) return String(cnd.codigo).trim().toUpperCase();
-      const cnt = contribuyentes.find((x: any) => cleanId(x.Identidad || x.identidad) === cid);
+      const cnt = (contribuyentes || []).find((x: any) => cleanId(x.Identidad || x.identidad) === cid);
       const codCnt = cnt?.CodCont || cnt?.cod_cont || cnt?.inmueble;
       if (codCnt) return String(codCnt).trim().toUpperCase();
       const inm = inmByIdentidad.get(cid);
       if (inm?.inmueble) return String(inm.inmueble).trim().toUpperCase();
     }
+    const srv = (Array.isArray(det.servicios) && det.servicios[0]) || (Array.isArray(det.tala_poda) && det.tala_poda[0]);
+    if (srv) return String(srv).trim().toUpperCase();
     return '-';
   };
 
-  const nombreDe = (id: string, det: any) => {
+  const nombreDe = (id: string, det: any, p?: any) => {
+    if (p?._nombreOficial && String(p._nombreOficial).trim() && p._nombreOficial !== id) {
+      return String(p._nombreOficial).replace(/^\d+\s*-\s*(?=[A-Za-z])/, '').trim();
+    }
     const cid = cleanId(id);
-    const c = contribuyentes.find((x: any) => cleanId(x.Identidad || x.identidad) === cid);
+    const c = (contribuyentes || []).find((x: any) => cleanId(x.Identidad || x.identidad) === cid);
     const cnd = condoByIdentidad.get(cid);
     const inm = inmByIdentidad.get(cid);
     const raw =
@@ -152,131 +224,219 @@ export async function generarReporteRecibosPagos(
     return String(raw || '').replace(/^\d+\s*-\s*(?=[A-Za-z])/, '').trim();
   };
 
-  // Filtrar pagos que sean recibos residenciales / condominios residenciales
-  // (excluir pagos anulados, retenciones, facturas emitidas, contribuyentes comerciales y filas de transferencias secundarias)
-  const candidatosRecibos = pagos.filter(p => {
-    const estado = String(p.estado || '').toLowerCase();
-    if (estado.includes('anulad') || estado.includes('rechaz') || estado.includes('revers')) return false;
-    if (/retenci|nota de cr[eé]dito|saldo a favor/i.test(String(p.tipo || ''))) return false;
-    const det = parseDet(p);
-    const fd = det.factura_digital || {};
-    // Excluir filas secundarias de pagos múltiples (el recibo sale una sola vez por su monto total en el pago principal)
-    if (det.es_pago_adicional || fd.es_pago_adicional) return false;
-    // Si tiene factura digital formal o control fiscal, va al Libro de Ventas
-    if (fd.emitida || fd.numero_documento || fd.numero_control || fd.anulada) {
-      return false;
-    }
-    // Excluir si tiene IVA o retención o recibo marcado como Comercial
-    if (Number(det.iva || det.monto_iva || det.monto_retencion_iva || 0) > 0) return false;
-    if (Array.isArray(det.recibo_caja) && det.recibo_caja.some((rc: any) => String(rc?.tipoContribuyente || '').toLowerCase() === 'comercial' || Number(rc?.iva || 0) > 0)) {
-      return false;
-    }
-    if (det.condominio?.tipo && String(det.condominio.tipo).toUpperCase().includes('COMERCIAL')) {
-      return false;
-    }
+  let recibosList: any[] = [];
 
-    const cod = resolverCodigo(p, det);
-    const cnd = (cod !== '-' ? condoByCodigo.get(cod) : null) || condoByIdentidad.get(cleanId(p.identidad));
-    if (cnd) {
-      if (String(cnd.tipo || '').toUpperCase().includes('COMERCIAL')) return false;
-      return true; // Condominio residencial
-    }
+  if (itemsApi) {
+    recibosList = itemsApi;
+  } else {
+    const candidatosRecibos = pagos
+      .filter((p) => {
+        if (fIni && fFin) {
+          const fDoc = fechaISO(p.created_at);
+          if (fDoc < fIni || fDoc > fFin) return false;
+        }
+        const estado = String(p.estado || '').toLowerCase();
+        if (estado.includes('anulad') || estado.includes('rechaz') || estado.includes('revers')) return false;
+        const det = parseDet(p);
+        const rd = det.recibo_digital || {};
+        if (!rd.enviado && p.estado !== 'Aprobado') return false;
+        if (/retenci|nota de cr[eé]dito/i.test(String(p.tipo || ''))) return false;
+        const fd = det.factura_digital || {};
+        if (det.es_pago_adicional || fd.es_pago_adicional) return false;
+        if (fd.emitida || fd.numero_documento || fd.numero_control || fd.anulada) return false;
 
-    const inm = (cod !== '-' ? inmMap.get(cod) : null) || inmByIdentidad.get(cleanId(p.identidad));
-    if (inm) {
-      if (inm.es_condominio || String(inm.clasificacion || '').toLowerCase().includes('condominio')) {
-        return !String(inm.tipo || '').toUpperCase().includes('COMERCIAL');
+        const cod = resolverCodigo(p, det);
+        const inm = (cod !== '-' ? inmMap.get(cod) : null) || inmByIdentidad.get(cleanId(p.identidad)) || null;
+        const cnd = (cod !== '-' ? condoByCodigo.get(cod) : null) || condoByIdentidad.get(cleanId(p.identidad)) || null;
+        const clasif = clasificarPago(p, inm, cnd);
+        return clasif.documento === 'recibo';
+      })
+      .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
+
+    const recibosConCompletador = new Set<string>();
+    const idsPrincipales = new Set<string>();
+    const refsSecundariasPorIdentidad = new Map<string, Set<string>>();
+
+    candidatosRecibos.forEach((p) => {
+      const det = parseDet(p);
+      const cid = cleanId(p.identidad);
+      const recs = Array.isArray(det.recibos) ? [...det.recibos].sort().join('|') : '';
+      if (recs && !det.es_abono && Number(det.abono_previo_descontado || 0) > 0) {
+        recibosConCompletador.add(`${cid}::${recs}`);
       }
-      if (!isResidencialInm(inm)) return false;
+      if (det.pago_principal_id) {
+        idsPrincipales.add(String(det.pago_principal_id));
+      }
+      if (Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1) {
+        const refPropia = String(p.referencia || '').trim().toUpperCase();
+        det.pagos_agregados.forEach((pa: any) => {
+          const rPa = String(pa?.referencia || '').trim().toUpperCase();
+          if (rPa && rPa !== refPropia && !/SALDO|FAVOR|CREDITO/i.test(rPa)) {
+            if (!refsSecundariasPorIdentidad.has(cid)) refsSecundariasPorIdentidad.set(cid, new Set());
+            refsSecundariasPorIdentidad.get(cid)!.add(rPa);
+          }
+        });
+      }
+    });
+
+    const vistosAbonoCompletado = new Set<string>();
+    const vistosNroRecibo = new Set<string>();
+    const vistosGrupoPago = new Set<string>();
+
+    recibosList = candidatosRecibos.filter((p) => {
+      const det = parseDet(p);
+      const cid = cleanId(p.identidad);
+
+      if (det.pago_principal_id && String(det.pago_principal_id) !== String(p.id)) {
+        return false;
+      }
+
+      const refActual = String(p.referencia || '').trim().toUpperCase();
+      if (refActual && !idsPrincipales.has(String(p.id)) && refsSecundariasPorIdentidad.get(cid)?.has(refActual)) {
+        return false;
+      }
+
+      const grp = String(p.grupo_pago || det.grupo_pago || '').trim();
+      if (grp) {
+        if (vistosGrupoPago.has(grp)) return false;
+        vistosGrupoPago.add(grp);
+      }
+
+      const rc0 = Array.isArray(det.recibo_caja) ? det.recibo_caja[0] : null;
+      const rcWebExplicito = String(rc0?.controlWeb || rc0?.reciboNo || det.recibo_no || '').trim().toUpperCase();
+      if (rcWebExplicito) {
+        const keyRecibo = `${cid}::${rcWebExplicito}`;
+        if (vistosNroRecibo.has(keyRecibo)) return false;
+        vistosNroRecibo.add(keyRecibo);
+      }
+
+      const recs = Array.isArray(det.recibos) ? [...det.recibos].sort().join('|') : '';
+      if (!recs) return true;
+      const key = `${cid}::${recs}`;
+      if (det.es_abono && det.abono_completado) {
+        if (recibosConCompletador.has(key)) return false;
+        if (vistosAbonoCompletado.has(key)) return false;
+        vistosAbonoCompletado.add(key);
+      }
       return true;
-    }
+    });
+  }
 
-    // Si no se encontró inmueble ni condominio pero el RIF es J/G y el nombre no es de condominio/residencia, es comercial
-    const nom = nombreDe(p.identidad, det);
-    if (/^[JG]/i.test(String(p.identidad || '').trim()) && !/condominio|residencia|conjunto|asociaci[oó]n|junta/i.test(nom)) {
-      return false;
-    }
-    return true;
-  }).sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
-
-  // Consolidar recibos pagados con múltiples transferencias (abono_completado + pago completador del mismo recibo,
-  // o múltiples transferencias que comparten el mismo N° de recibo WEB-XXXXXXX / grupo_pago / pagos_agregados)
-  // para que cada recibo salga una sola vez por el monto total del recibo y no desglosado por transferencias.
-  const recibosConCompletador = new Set<string>();
-  const idsPrincipales = new Set<string>();
-  const refsSecundariasPorIdentidad = new Map<string, Set<string>>();
-
-  candidatosRecibos.forEach(p => {
+  return recibosList.map((p) => {
     const det = parseDet(p);
-    const cid = cleanId(p.identidad);
-    const recs = Array.isArray(det.recibos) ? [...det.recibos].sort().join('|') : '';
-    if (recs && !det.es_abono && Number(det.abono_previo_descontado || 0) > 0) {
-      recibosConCompletador.add(`${cid}::${recs}`);
+    let montoTotal = 0;
+
+    if (typeof p._montoOficial === 'number' && p._montoOficial > 0) {
+      montoTotal = r2(p._montoOficial);
+    } else {
+      const sumRc =
+        Array.isArray(det.recibo_caja) && det.recibo_caja.length > 0
+          ? r2(det.recibo_caja.reduce((s: number, rc: any) => s + (Number(rc.total || rc.subTotal || 0) || 0), 0))
+          : 0;
+      const sumLineas =
+        Array.isArray(det.condominio?.lineas) && det.condominio.lineas.length > 0
+          ? r2(det.condominio.lineas.reduce((s: number, l: any) => s + (Number(l.totalBs || l.totalBrutoBs || 0) || 0), 0))
+          : 0;
+      const fdTotalGuardado = r2(Number(det.factura_digital?.total || 0));
+      const mFacGuardado = r2(Number(det.monto_factura || 0));
+      const mNetoGuardado = r2(Number(det.monto_neto_factura || 0));
+      const mSel = r2(Number(det.total_seleccionado || det.montoTotal || 0));
+      const esCondo = Boolean(det.modulo === 'condominios' || det.es_condominio || det.isCondominio || det.condominio);
+      const esAbonoIncompleto = Boolean(det.es_abono && !det.abono_completado && !esCondo);
+
+      montoTotal = esAbonoIncompleto
+        ? r2(Number(p.monto) || 0)
+        : esCondo
+          ? fdTotalGuardado > 0
+            ? fdTotalGuardado
+            : sumRc > 0
+              ? sumRc
+              : mFacGuardado > 0
+                ? mFacGuardado
+                : sumLineas > 0
+                  ? sumLineas
+                  : mNetoGuardado > 0
+                    ? mNetoGuardado
+                    : mSel > 0
+                      ? mSel
+                      : r2(Number(p.monto) || 0)
+          : fdTotalGuardado > 0
+            ? fdTotalGuardado
+            : mFacGuardado > 0
+              ? mFacGuardado
+              : sumRc > 0
+                ? sumRc
+                : mNetoGuardado > 0
+                  ? mNetoGuardado
+                  : mSel > 0
+                    ? mSel
+                    : r2(Number(p.monto) || 0);
     }
-    if (det.pago_principal_id) {
-      idsPrincipales.add(String(det.pago_principal_id));
-    }
-    if (Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1) {
-      const refPropia = String(p.referencia || '').trim().toUpperCase();
-      det.pagos_agregados.forEach((pa: any) => {
-        const rPa = String(pa?.referencia || '').trim().toUpperCase();
-        if (rPa && rPa !== refPropia && !/SALDO|FAVOR|CREDITO/i.test(rPa)) {
-          if (!refsSecundariasPorIdentidad.has(cid)) refsSecundariasPorIdentidad.set(cid, new Set());
-          refsSecundariasPorIdentidad.get(cid)!.add(rPa);
+
+    let montoMultas = 0;
+    if (Array.isArray(det.recibo_caja) && det.recibo_caja.length > 0) {
+      let sumMulta = 0;
+      det.recibo_caja.forEach((rc: any) => {
+        if (Array.isArray(rc.conceptos)) {
+          rc.conceptos.forEach((c: any) => {
+            const m = Number(c.monto || c.total || c.precioUnit) || 0;
+            if (/multa/i.test(String(c.descripcion || c.concepto || ''))) {
+              sumMulta += m;
+            }
+          });
         }
       });
+      if (sumMulta > 0) {
+        montoMultas = r2(sumMulta);
+      }
     }
+
+    if (!montoMultas) {
+      if (Number(det.monto_multas || det.multa || 0) > 0) {
+        montoMultas = r2(Number(det.monto_multas || det.multa));
+      } else if (det.condominio && Array.isArray(det.condominio.lineas)) {
+        let sumCondoMulta = 0;
+        det.condominio.lineas.forEach((l: any) => {
+          if (Number(l.multaBs || 0) > 0) sumCondoMulta += Number(l.multaBs);
+        });
+        if (sumCondoMulta > 0) montoMultas = r2(sumCondoMulta);
+      } else if (Array.isArray(det.deuda_previa) && det.deuda_previa.length > 0) {
+        let sumPrevMulta = 0;
+        det.deuda_previa.forEach((dp: any) => {
+          if (Number(dp.multa_bs || 0) > 0) sumPrevMulta += Number(dp.multa_bs);
+        });
+        if (sumPrevMulta > 0) montoMultas = r2(Math.min(sumPrevMulta, montoTotal));
+      }
+    }
+
+    if (montoMultas > montoTotal) montoMultas = montoTotal;
+    const montoAseo = r2(Math.max(0, montoTotal - montoMultas));
+
+    return {
+      id: String(p.id || ''),
+      created_at: String(p.created_at || ''),
+      codigoPrincipal: resolverCodigo(p, det),
+      fechaDoc: fechaISO(p.created_at),
+      rifCi: String(p._identidadOficial || p.identidad || '-'),
+      nombre: nombreDe(p._identidadOficial || p.identidad, det, p),
+      nroRecibo: obtenerNroReciboWeb(p, det),
+      montoAseo,
+      montoMultas,
+      montoTotal,
+      raw: p,
+    };
   });
+}
 
-  const vistosAbonoCompletado = new Set<string>();
-  const vistosNroRecibo = new Set<string>();
-  const vistosGrupoPago = new Set<string>();
+export async function generarReporteRecibosPagos(
+  pagos: any[],
+  contribuyentes: any[],
+  fechaInicio: string,
+  fechaFin: string
+) {
+  const recibosRows = await obtenerRecibosPagosUnificados(pagos, contribuyentes, fechaInicio, fechaFin);
 
-  const recibosList = candidatosRecibos.filter(p => {
-    const det = parseDet(p);
-    const cid = cleanId(p.identidad);
-
-    // 1. Excluir si tiene pago_principal_id (es fila hija de un multipago)
-    if (det.pago_principal_id && String(det.pago_principal_id) !== String(p.id)) {
-      return false;
-    }
-
-    // 2. Excluir si su referencia bancaria ya figura como transferencia secundaria dentro de pagos_agregados de otro pago del mismo contribuyente
-    const refActual = String(p.referencia || '').trim().toUpperCase();
-    if (refActual && !idsPrincipales.has(String(p.id)) && refsSecundariasPorIdentidad.get(cid)?.has(refActual)) {
-      return false;
-    }
-
-    // 3. Consolidar por grupo_pago si existe
-    const grp = String(p.grupo_pago || det.grupo_pago || '').trim();
-    if (grp) {
-      if (vistosGrupoPago.has(grp)) return false;
-      vistosGrupoPago.add(grp);
-    }
-
-    // 4. Consolidar por N° de recibo explícito en recibo_caja (ej. WEB-5333008)
-    const rc0 = Array.isArray(det.recibo_caja) ? det.recibo_caja[0] : null;
-    const rcWebExplicito = String(rc0?.controlWeb || rc0?.reciboNo || det.recibo_no || '').trim().toUpperCase();
-    if (rcWebExplicito) {
-      const keyRecibo = `${cid}::${rcWebExplicito}`;
-      if (vistosNroRecibo.has(keyRecibo)) return false;
-      vistosNroRecibo.add(keyRecibo);
-    }
-
-    const recs = Array.isArray(det.recibos) ? [...det.recibos].sort().join('|') : '';
-    if (!recs) return true;
-    const key = `${cid}::${recs}`;
-    if (det.es_abono && det.abono_completado) {
-      // Si en la lista ya está el recibo completador final, omitir las transferencias parciales previas
-      if (recibosConCompletador.has(key)) return false;
-      // Si solo están las partes con abono_completado, dejar solo una fila con el total del recibo
-      if (vistosAbonoCompletado.has(key)) return false;
-      vistosAbonoCompletado.add(key);
-    }
-    return true;
-  });
-
-  if (recibosList.length === 0) {
+  if (recibosRows.length === 0) {
     alert('No se encontraron recibos de pago en el rango seleccionado.');
     return;
   }
@@ -341,95 +501,18 @@ export async function generarReporteRecibosPagos(
   let totalMultas = 0;
   let totalGeneral = 0;
 
-  recibosList.forEach((p, idx) => {
-    const det = parseDet(p);
-    const sumRc = Array.isArray(det.recibo_caja) && det.recibo_caja.length > 0
-      ? r2(det.recibo_caja.reduce((s: number, rc: any) => s + (Number(rc.total || rc.subTotal || 0) || 0), 0))
-      : 0;
-    const sumLineas = Array.isArray(det.condominio?.lineas) && det.condominio.lineas.length > 0
-      ? r2(det.condominio.lineas.reduce((s: number, l: any) => s + (Number(l.totalBs || l.totalBrutoBs || 0) || 0), 0))
-      : 0;
-    const mFac = r2(Number(det.monto_factura || det.total_seleccionado || det.montoTotal || 0));
-    const esCondo = Boolean(det.modulo === 'condominios' || det.es_condominio || det.isCondominio || det.condominio);
-    const esAbonoIncompleto = Boolean(det.es_abono && !det.abono_completado && !esCondo);
-
-    // Usar siempre el monto total del recibo (sin desglosarlo por transferencias ni inflarlo con sobrepagos bancarios)
-    const montoTotal = esAbonoIncompleto
-      ? r2(Number(p.monto) || 0)
-      : esCondo
-        ? (sumRc > 0 ? sumRc : (mFac > 0 ? mFac : (sumLineas > 0 ? sumLineas : r2(Number(p.monto) || 0))))
-        : (mFac > 0 ? mFac : (sumRc > 0 ? sumRc : r2(Number(p.monto) || 0)));
-
-    // Calcular desglose de multas y aseo
-    let montoMultas = 0;
-    let montoAseo = montoTotal;
-
-    // 1. Si tiene detalle de recibos de caja con desglose de conceptos
-    if (Array.isArray(det.recibo_caja) && det.recibo_caja.length > 0) {
-      let sumMulta = 0;
-      let sumBase = 0;
-      det.recibo_caja.forEach((rc: any) => {
-        if (Array.isArray(rc.conceptos)) {
-          rc.conceptos.forEach((c: any) => {
-            const m = Number(c.monto || c.total || c.precioUnit) || 0;
-            if (/multa/i.test(String(c.descripcion || c.concepto || ''))) {
-              sumMulta += m;
-            } else {
-              sumBase += m;
-            }
-          });
-        }
-      });
-      if (sumMulta > 0) {
-        montoMultas = r2(sumMulta);
-      }
-    }
-
-    // 2. Si no se obtuvo de recibo_caja, revisar campos directos o líneas de condominio
-    if (!montoMultas) {
-      if (Number(det.monto_multas || det.multa || 0) > 0) {
-        montoMultas = r2(Number(det.monto_multas || det.multa));
-      } else if (det.condominio && Array.isArray(det.condominio.lineas)) {
-        let sumCondoMulta = 0;
-        det.condominio.lineas.forEach((l: any) => {
-          if (Number(l.multaBs || 0) > 0) sumCondoMulta += Number(l.multaBs);
-        });
-        if (sumCondoMulta > 0) montoMultas = r2(sumCondoMulta);
-      } else if (Array.isArray(det.deuda_previa) && det.deuda_previa.length > 0) {
-        // En deuda previa del pago registrado en caja
-        let sumPrevMulta = 0;
-        det.deuda_previa.forEach((dp: any) => {
-          if (Number(dp.multa_bs || 0) > 0) sumPrevMulta += Number(dp.multa_bs);
-        });
-        if (sumPrevMulta > 0) montoMultas = r2(Math.min(sumPrevMulta, montoTotal));
-      }
-    }
-
-    // Asegurar que multas no exceda el total pagado y calcular aseo
-    if (montoMultas > montoTotal) montoMultas = montoTotal;
-    montoAseo = r2(Math.max(0, montoTotal - montoMultas));
-
-    // Código del inmueble o condominio principal (sin desglosar hijos)
-    const codigoPrincipal = resolverCodigo(p, det);
-
-    // Número de recibo limpio (WEB-XXXXXXX)
-    const nroRecibo = obtenerNroReciboWeb(p, det);
-
-    const fechaDoc = fechaISO(p.created_at);
-    const rifCi = p.identidad || '-';
-    const nombre = nombreDe(p.identidad, det);
-
+  recibosRows.forEach((r, idx) => {
     const row = ws.getRow(rowIdx++);
     const vals = [
       idx + 1,
-      codigoPrincipal,
-      dmy(fechaDoc),
-      rifCi,
-      nombre,
-      nroRecibo,
-      montoAseo,
-      montoMultas,
-      montoTotal
+      r.codigoPrincipal,
+      dmy(r.fechaDoc),
+      r.rifCi,
+      r.nombre,
+      r.nroRecibo,
+      r.montoAseo,
+      r.montoMultas,
+      r.montoTotal
     ];
 
     vals.forEach((v, cIdx) => {
@@ -446,9 +529,9 @@ export async function generarReporteRecibosPagos(
       }
     });
 
-    totalAseo += montoAseo;
-    totalMultas += montoMultas;
-    totalGeneral += montoTotal;
+    totalAseo += r.montoAseo;
+    totalMultas += r.montoMultas;
+    totalGeneral += r.montoTotal;
   });
 
   // Espacio antes de los totales del pie

@@ -17,6 +17,8 @@ export async function GET(request: Request) {
     const documentoFiltro = searchParams.get('documento') || ''; // '' | 'factura' | 'recibo'
     const moduloFiltro = searchParams.get('modulo') || 'Todos'; // Todos | Contribuyentes | Condominios | Condominios residenciales | Condominios comerciales
     const fecha = (searchParams.get('fecha') || '').trim(); // YYYY-MM-DD (hora Venezuela)
+    const fechaInicioParam = (searchParams.get('fechaInicio') || '').trim().slice(0, 10);
+    const fechaFinParam = (searchParams.get('fechaFin') || '').trim().slice(0, 10);
 
     // Si hay un término de búsqueda (cédula, referencia, código de inmueble, etc.),
     // buscamos directamente en la base de datos sin restringir por fecha del día.
@@ -181,17 +183,40 @@ export async function GET(request: Request) {
     } else {
       // En vista regular sin búsqueda, excluir reversados o condonados automáticos
       pagosQuery = pagosQuery.not('estado', 'in', '(Reversado,Condonado)');
-      if (/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(fechaInicioParam) && /^\d{4}-\d{2}-\d{2}$/.test(fechaFinParam)) {
+        const { desde } = rangoDiaCaracas(fechaInicioParam);
+        const { hasta } = rangoDiaCaracas(fechaFinParam);
+        pagosQuery = pagosQuery.gte('created_at', desde).lt('created_at', hasta);
+      } else if (/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
         const { desde, hasta } = rangoDiaCaracas(fecha);
-        pagosQuery = pagosQuery.gte('created_at', desde).lt('created_at', hasta).limit(2000);
+        pagosQuery = pagosQuery.gte('created_at', desde).lt('created_at', hasta);
       } else {
         pagosQuery = pagosQuery.limit(500);
       }
     }
-    const { data: rawPagos, error: pagosErr } = await pagosQuery;
 
-    if (pagosErr) {
-      throw pagosErr;
+    const tieneRangoFecha =
+      !query &&
+      filter !== 'anuladas' &&
+      ((/^\d{4}-\d{2}-\d{2}$/.test(fechaInicioParam) && /^\d{4}-\d{2}-\d{2}$/.test(fechaFinParam)) ||
+        /^\d{4}-\d{2}-\d{2}$/.test(fecha));
+
+    let rawPagos: any[] = [];
+    if (tieneRangoFecha) {
+      let from = 0;
+      const step = 1000;
+      while (true) {
+        const { data: chunk, error: chunkErr } = await pagosQuery.range(from, from + step - 1);
+        if (chunkErr) throw chunkErr;
+        if (!chunk || chunk.length === 0) break;
+        rawPagos.push(...chunk);
+        if (chunk.length < step) break;
+        from += step;
+      }
+    } else {
+      const { data, error: pagosErr } = await pagosQuery;
+      if (pagosErr) throw pagosErr;
+      rawPagos = data || [];
     }
 
     // 1) Separar pagos de retención (tipo 'Retencion de IVA') que son comprobantes vinculados al pago principal
