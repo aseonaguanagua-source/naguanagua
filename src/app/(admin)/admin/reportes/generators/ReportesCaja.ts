@@ -45,6 +45,23 @@ const esTransferencia = (p: any) => {
 };
 const esRetencion = (p: any) => /retenci/i.test(String(p.tipo || ''));
 
+function limpiarRefVisible(p: any, det?: any): string {
+  const d = det || parseDet(p);
+  let s = String(p?.referencia || '').trim();
+  if (/^RECH-/i.test(s)) {
+    const orig = String(d?.referencia_original || d?.referencia || d?.formasPago?.[0]?.referencia || d?.recibo_caja?.[0]?.referencia || '').trim();
+    s = (orig && !/^RECH-/i.test(orig)) ? orig : s.replace(/^RECH-([^-]+)-[a-f0-9]+$/i, '$1');
+  }
+  if (!s) {
+    s = String(d?.referencia || d?.formasPago?.[0]?.referencia || d?.recibo_caja?.[0]?.referencia || '').trim();
+  }
+  if (/\(\+/.test(s)) {
+    s = s.replace(/\s*\(\+[^)]*\)/g, '').trim();
+  }
+  s = s.replace(/^(\d{4,20})-[0-9a-zA-Z]{3,6}$/, '$1');
+  return s.trim();
+}
+
 /** "M-valentina" -> { caja: 'CAJA M', cajero: 'VALENTINA' } */
 function cajaDe(det: any) {
   const raw = String(det.cajero || det.analista || '').trim();
@@ -200,7 +217,7 @@ export async function generarTotalPuntosVenta(pagos: any[], fechaInicio: string,
           caja,
           cajero || det.cajero || '',
           limpiarBancoPunto(p, det),
-          p.referencia || (!esClaveInternaDoc(recs[0]) ? recs[0] : '') || '',
+          limpiarRefVisible(p, det) || (!esClaveInternaDoc(recs[0]) ? recs[0] : '') || '',
           det.aprobacion || '',
           det.lote || '',
           formaPagoLim,
@@ -908,16 +925,13 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
         const bClass = clasificarBancoDestino(p);
         const bDestLabel = bClass === 'Banesco' ? 'Banesco' : bClass === 'Bancamiga' ? 'Bancamiga' : (det.banco_destino || det.banco_receptor || 'Otro');
         
-        let refTexto = String(p.referencia || '').trim();
-        if (yaExistenComoFilasSeparadas && /\(\+/.test(refTexto)) {
-          refTexto = refTexto.replace(/\s*\(\+[^)]*\)/g, '').trim();
-        }
+        let refTexto = limpiarRefVisible(p, det);
         if (!esSubPago && !yaExistenComoFilasSeparadas && Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1) {
           const todasRefs = [
             ...new Set(
               det.pagos_agregados
                 .filter((pa: any) => !/saldo\s*a\s*favor|nota\s*de\s*cr[eé]dito/i.test(String(pa?.metodo || pa?.tipo || pa?.referencia || '')))
-                .map((pa: any) => String(pa.referencia || '').trim())
+                .map((pa: any) => String(pa.referencia || '').replace(/\s*\(\+[^)]*\)/g, '').trim().replace(/^(\d{4,20})-[0-9a-zA-Z]{3,6}$/, '$1'))
                 .filter(Boolean)
             )
           ];

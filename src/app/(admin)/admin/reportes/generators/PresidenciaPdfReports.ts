@@ -567,7 +567,11 @@ export async function generarTotalPuntosVentaPDF(
       const cods = codigosDePago(det, p);
       const codInm = cods[0] || p.codInmueble || det.codigo_inmueble || '—';
       const lote = det.lote || det.pos_lote || '001';
-      const ref = p.referencia || det.aprobacion || '—';
+      const rawRefP = String(p.referencia || det.aprobacion || '—')
+        .replace(/\s*\(\+[^)]*\)/g, '')
+        .trim()
+        .replace(/^(\d{4,20})-[0-9a-zA-Z]{3,6}$/, '$1');
+      const ref = rawRefP || '—';
       const titularTarjeta = det.titular_tarjeta_cedula
         ? `${det.titular_tarjeta_cedula}${det.titular_tarjeta_nombre ? ' (' + det.titular_tarjeta_nombre + ')' : ''}`
         : String(p.identidad || 'Propia');

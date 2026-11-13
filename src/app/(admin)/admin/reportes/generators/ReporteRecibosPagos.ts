@@ -24,7 +24,10 @@ export function obtenerNroReciboWeb(p: any, det: any): string {
       return `WEB-${onlyDigits.slice(-7).padStart(7, '0')}`;
     }
   }
-  const ref = String(p?.referencia || '').trim();
+  const ref = String(p?.referencia || '')
+    .replace(/\s*\(\+[^)]*\)/g, '')
+    .trim()
+    .replace(/^(\d{4,20})-[0-9a-zA-Z]{3,6}$/, '$1');
   if (ref && !ref.toUpperCase().startsWith('RECIB-')) {
     const digits = ref.replace(/\D/g, '').slice(-7);
     if (digits.length >= 3) {

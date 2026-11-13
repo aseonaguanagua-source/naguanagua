@@ -319,13 +319,18 @@ export const generarCorteCajaPDF = (
   };
   const limpiarRef = (p: any, det?: any): string => {
     const d = det || getDet(p);
-    const rawRef = String(p?.referencia || '').trim();
+    let rawRef = String(p?.referencia || '').trim();
     if (/^RECH-/i.test(rawRef)) {
-      const orig = String(d?.referencia_original || d?.referencia || d?.formasPago?.[0]?.referencia || '').trim();
-      if (orig && !/^RECH-/i.test(orig)) return orig;
-      return rawRef.replace(/^RECH-([^-]+)-[a-f0-9]+$/i, '$1');
+      const orig = String(d?.referencia_original || d?.referencia || d?.formasPago?.[0]?.referencia || d?.recibo_caja?.[0]?.referencia || '').trim();
+      rawRef = (orig && !/^RECH-/i.test(orig)) ? orig : rawRef.replace(/^RECH-([^-]+)-[a-f0-9]+$/i, '$1');
     }
-    return rawRef || String(d?.referencia || d?.formasPago?.[0]?.referencia || '').trim();
+    if (!rawRef) {
+      rawRef = String(d?.referencia || d?.formasPago?.[0]?.referencia || d?.recibo_caja?.[0]?.referencia || '').trim();
+    }
+    if (/\(\+/.test(rawRef)) {
+      rawRef = rawRef.replace(/\s*\(\+[^)]*\)/g, '').trim();
+    }
+    return rawRef.replace(/^(\d{4,20})-[0-9a-zA-Z]{3,6}$/, '$1').trim();
   };
   const getNumeroRecibo = (p: any, det?: any): string => {
     const d = det || getDet(p);
@@ -353,7 +358,7 @@ export const generarCorteCajaPDF = (
   const getAprobacion = (p: any, det?: any): string => {
     const d = det || getDet(p);
     const rc0 = Array.isArray(d?.recibo_caja) ? d.recibo_caja[0] : d?.recibo_caja;
-    return String(d?.aprobacion || limpiarRef(p, d) || rc0?.referencia || 'N/A').trim() || 'N/A';
+    return String(limpiarRef(p, d) || d?.aprobacion || rc0?.referencia || 'N/A').trim() || 'N/A';
   };
   const getLote = (p: any, det?: any): string => {
     const d = det || getDet(p);
@@ -434,7 +439,7 @@ export const generarCorteCajaPDF = (
       safeDT(p.created_at),
       bancoOrigen,
       bancoDestino,
-      String(p.referencia || 'N/A'),
+      String(limpiarRef(p, det) || 'N/A'),
       montoNum.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       montoEur
     ];
@@ -710,13 +715,18 @@ export const generarIngresoBancarioPDF = (
   };
   const limpiarRefCorte = (p: any, det?: any): string => {
     const d = det || getDetCorte(p);
-    const rawRef = String(p?.referencia || '').trim();
+    let rawRef = String(p?.referencia || '').trim();
     if (/^RECH-/i.test(rawRef)) {
-      const orig = String(d?.referencia_original || d?.referencia || d?.formasPago?.[0]?.referencia || '').trim();
-      if (orig && !/^RECH-/i.test(orig)) return orig;
-      return rawRef.replace(/^RECH-([^-]+)-[a-f0-9]+$/i, '$1');
+      const orig = String(d?.referencia_original || d?.referencia || d?.formasPago?.[0]?.referencia || d?.recibo_caja?.[0]?.referencia || '').trim();
+      rawRef = (orig && !/^RECH-/i.test(orig)) ? orig : rawRef.replace(/^RECH-([^-]+)-[a-f0-9]+$/i, '$1');
     }
-    return rawRef || String(d?.referencia || d?.formasPago?.[0]?.referencia || '').trim();
+    if (!rawRef) {
+      rawRef = String(d?.referencia || d?.formasPago?.[0]?.referencia || d?.recibo_caja?.[0]?.referencia || '').trim();
+    }
+    if (/\(\+/.test(rawRef)) {
+      rawRef = rawRef.replace(/\s*\(\+[^)]*\)/g, '').trim();
+    }
+    return rawRef.replace(/^(\d{4,20})-[0-9a-zA-Z]{3,6}$/, '$1').trim();
   };
   const getNumeroReciboCorte = (p: any, det?: any): string => {
     const d = det || getDetCorte(p);
@@ -744,7 +754,7 @@ export const generarIngresoBancarioPDF = (
   const getAprobacionCorte = (p: any, det?: any): string => {
     const d = det || getDetCorte(p);
     const rc0 = Array.isArray(d?.recibo_caja) ? d.recibo_caja[0] : d?.recibo_caja;
-    return String(d?.aprobacion || limpiarRefCorte(p, d) || rc0?.referencia || 'N/A').trim() || 'N/A';
+    return String(limpiarRefCorte(p, d) || d?.aprobacion || rc0?.referencia || 'N/A').trim() || 'N/A';
   };
   const getLoteCorte = (p: any, det?: any): string => {
     const d = det || getDetCorte(p);
