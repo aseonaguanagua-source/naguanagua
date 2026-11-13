@@ -12,7 +12,7 @@
  *    por inmueble: meses_deuda (o 1 si solo tiene deuda_mmv) menos sus recibos formales (CM-…).
  *  - Un inmueble sin deuda NO genera meses.
  */
-import { calcularMensualidad, isResidencialInm, isTerrenoInm, isCondominioPagoIndividual, isMesExoneradoMulta } from './calculos';
+import { calcularMensualidad, isResidencialInm, isTerrenoInm, isCondominioPagoIndividual, isMesExoneradoMulta, fechasIsoPeriodosPendientesInmueble } from './calculos';
 import { codigosContenedoresNA, mesesTranscurridos, r2 } from './deudaMensual';
 
 const num = (v: any) => parseFloat(String(v ?? 0).replace(/[^\d.-]/g, '')) || 0;
@@ -148,8 +148,9 @@ export function construirRecibosContribuyente(params: {
         }
       } else {
         // La multa por mora se une a cada mes correspondiente dentro de cada RECIB-HIST-
+        const fechasIso = fechasIsoPeriodosPendientesInmueble(inm, n, (params as any).pagos, hoy);
         for (let i = 1; i <= n; i++) {
-          const d = new Date(hoy.getFullYear(), hoy.getMonth() - n + i - 1, 1, 12, 0, 0).toISOString();
+          const d = fechasIso[i - 1] || new Date(hoy.getFullYear(), hoy.getMonth() - n + i - 1, 1, 12, 0, 0).toISOString();
           recibos.push({
             id: `dummy-hist-${inm.inmueble}-${i}`,
             referencia: `RECIB-HIST-${inm.inmueble}-M${i}`,

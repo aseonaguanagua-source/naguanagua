@@ -14,7 +14,7 @@ import { resolverConceptoPeriodoPago } from '@/lib/facturaPeriodoHelper';
 import {
   calcularMensualidad, isResidencialInm, isTerrenoInm, isExoneradoTotalMultas,
   isMesExoneradoMulta, getMesesExoneradosCount, cleanClasificacionActividad,
-  extractNivelZona
+  extractNivelZona, resolverPeriodosPendientesInmueble
 } from '@/lib/calculos';
 import { codigosDePago } from '@/app/(admin)/admin/reportes/generators/LibroVentas';
 import { sanitizeNAParentLinks } from '@/lib/cajaHelpers';
@@ -557,7 +557,13 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
           .or(idVariants.map(v => `identidad.eq.${v}`).join(','))
           .order('emision', { ascending: true });
 
-        if (isMounted) setFacturasDb(data || []);
+        if (isMounted) {
+          const validFacturas = (data || []).filter((f: any) => {
+            const ref = String(f.referencia || '').toUpperCase();
+            return ref.startsWith('CM-') || ref.startsWith('RECIB-') || ref.startsWith('MULTA-');
+          });
+          setFacturasDb(validFacturas);
+        }
       } catch (err) {
         console.error('Error cargando facturas:', err);
       }
@@ -1138,15 +1144,24 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
         multaMes = esExon ? 0 : Math.round((baseMes * moraTasa) * 100) / 100;
       }
 
-      // Si el contribuyente ya pagó OCTUBRE 2026 pero debe 1 mes (ej. transferencia de SEPTIEMBRE 2026 rechazada), el mes pendiente parte desde SEPTIEMBRE 2026
+      const periodosPendientes = resolverPeriodosPendientesInmueble(inm, meses, pagosAprobados);
       const endMonthIdx = (meses === 1 && tieneOctubrePagado && !tieneSeptiembrePagado) ? 8 : 9; // 8 = SEPTIEMBRE, 9 = OCTUBRE
       for (let i = 0; i < meses; i++) {
-        const offsetFromEnd = (meses - 1) - i;
-        let mIdx = endMonthIdx - offsetFromEnd;
-        let yr = 2026;
-        while (mIdx < 0) {
-          mIdx += 12;
-          yr -= 1;
+        let mIdx: number;
+        let yr: number;
+        const perKey = periodosPendientes[i];
+        if (perKey && /^\d{4}-\d{2}$/.test(perKey)) {
+          const [yy, mm] = perKey.split('-').map(n => parseInt(n, 10));
+          yr = yy;
+          mIdx = (mm || 1) - 1;
+        } else {
+          const offsetFromEnd = (meses - 1) - i;
+          mIdx = endMonthIdx - offsetFromEnd;
+          yr = 2026;
+          while (mIdx < 0) {
+            mIdx += 12;
+            yr -= 1;
+          }
         }
         const llevaMulta = i < mesesConMulta;
         const montoMes = Math.round((baseMes + ivaMes + (llevaMulta ? multaMes : 0)) * 100) / 100;

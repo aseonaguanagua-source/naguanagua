@@ -684,6 +684,327 @@ export const extractNivelZona = (str?: string | null): { nivel: string | null; z
   return { nivel, zona };
 };
 
+const MESES_NOMBRES_ES: Record<string, number> = {
+  ENERO: 1,
+  FEBRERO: 2,
+  MARZO: 3,
+  ABRIL: 4,
+  MAYO: 5,
+  JUNIO: 6,
+  JULIO: 7,
+  AGOSTO: 8,
+  SEPTIEMBRE: 9,
+  SETIEMBRE: 9,
+  OCTUBRE: 10,
+  NOVIEMBRE: 11,
+  DICIEMBRE: 12,
+};
+
+const extraerPeriodosDeTextoLibre = (texto?: string | null): string[] => {
+  if (!texto) return [];
+  const s = String(texto).toUpperCase();
+  const out = new Set<string>();
+
+  // 1. Rango explícito: DESDE <MES> [DE] <AÑO> HASTA <MES> [DE] <AÑO>
+  const regexRango = /DESDE\s+(ENERO|FEBRERO|MARZO|ABRIL|MAYO|JUNIO|JULIO|AGOSTO|SEPTIEMBRE|SETIEMBRE|OCTUBRE|NOVIEMBRE|DICIEMBRE)\s+(?:DE\s+)?(20\d{2})\s+(?:HASTA|A)\s+(ENERO|FEBRERO|MARZO|ABRIL|MAYO|JUNIO|JULIO|AGOSTO|SEPTIEMBRE|SETIEMBRE|OCTUBRE|NOVIEMBRE|DICIEMBRE)\s+(?:DE\s+)?(20\d{2})/g;
+  let mRango: RegExpExecArray | null;
+  while ((mRango = regexRango.exec(s)) !== null) {
+    const m1 = MESES_NOMBRES_ES[mRango[1]];
+    const y1 = parseInt(mRango[2], 10);
+    const m2 = MESES_NOMBRES_ES[mRango[3]];
+    const y2 = parseInt(mRango[4], 10);
+    if (m1 && m2 && y1 && y2) {
+      let cy = y1;
+      let cm = m1;
+      let safety = 0;
+      while ((cy < y2 || (cy === y2 && cm <= m2)) && safety < 60) {
+        out.add(`${cy}-${String(cm).padStart(2, '0')}`);
+        cm++;
+        if (cm > 12) {
+          cm = 1;
+          cy++;
+        }
+        safety++;
+      }
+    }
+  }
+
+  // 2. Menciones individuales: <MES> [DE] <AÑO> (ignorando si es solo multa aislada sin base imponible)
+  const regexMes = /\b(ENERO|FEBRERO|MARZO|ABRIL|MAYO|JUNIO|JULIO|AGOSTO|SEPTIEMBRE|SETIEMBRE|OCTUBRE|NOVIEMBRE|DICIEMBRE)\s+(?:DE\s+)?(20\d{2})\b/g;
+  let mMes: RegExpExecArray | null;
+  while ((mMes = regexMes.exec(s)) !== null) {
+    const mm = MESES_NOMBRES_ES[mMes[1]];
+    const yy = parseInt(mMes[2], 10);
+    if (mm && yy) {
+      out.add(`${yy}-${String(mm).padStart(2, '0')}`);
+    }
+  }
+
+  return Array.from(out);
+};
+
+/**
+ * Extrae el conjunto de períodos YYYY-MM ya pagados a partir de:
+ * - Un mapa `porPeriodo` devuelto por `/api/admin/multas/verificar-pagos`, o
+ * - Un arreglo de filas de `pagos_reportados`.
+ */
+export const extraerPeriodosPagadosDePagos = (pagosInfo?: any, codigoInmueble?: string | null): Set<string> => {
+  const paid = new Set<string>();
+  if (!pagosInfo) return paid;
+  const targetCode = String(codigoInmueble || '').trim().toUpperCase();
+
+  // Caso 1: Mapa Record<string, { tipo?: string }>
+  if (!Array.isArray(pagosInfo) && typeof pagosInfo === 'object') {
+    for (const [k, val] of Object.entries(pagosInfo)) {
+      if (!/^\d{4}-\d{2}$/.test(k)) continue;
+      if (val && typeof val === 'object') {
+        const tipo = String((val as any).tipo || '').toUpperCase();
+        if (!tipo || tipo === 'MES' || tipo === 'MES_CON_MULTA') {
+          paid.add(k);
+        }
+      } else if (val) {
+        paid.add(k);
+      }
+    }
+    return paid;
+  }
+
+  // Caso 2: Arreglo de pagos_reportados
+  if (Array.isArray(pagosInfo)) {
+    for (const p of pagosInfo) {
+      if (!p) continue;
+      const st = String(p.estado || '').trim().toLowerCase();
+      if (st && st !== 'aprobado' && st !== 'conciliado' && st !== 'procesado') continue;
+      const det = typeof p.detalles === 'string'
+        ? (() => { try { return JSON.parse(p.detalles); } catch { return {}; } })()
+        : (p.detalles || {});
+      if (det?.anulado || det?.factura_digital?.anulada || det?.factura_anulada) continue;
+      if (det?.es_abono === true && det?.abono_completado !== true) continue;
+
+      // Si hay un código de inmueble objetivo y el pago especifica explícitamente otro código distinto, omitir
+      if (targetCode) {
+        const codesEnPago = new Set<string>();
+        [det?.cod_inmueble, det?.codigo_inmueble, det?.inmueble, p.cod_inmueble, p.inmueble].forEach((c: any) => {
+          if (c) codesEnPago.add(String(c).trim().toUpperCase());
+        });
+        if (Array.isArray(det?.recibos)) {
+          det.recibos.forEach((r: any) => {
+            const m = String(r || '').toUpperCase().match(/(URB\d+|AURI\d+)/);
+            if (m?.[1]) codesEnPago.add(m[1]);
+          });
+        }
+        if (Array.isArray(det?.deuda_previa)) {
+          det.deuda_previa.forEach((dp: any) => {
+            if (dp?.inmueble) codesEnPago.add(String(dp.inmueble).trim().toUpperCase());
+          });
+        }
+        if (codesEnPago.size > 0 && !codesEnPago.has(targetCode)) continue;
+      }
+
+      if (p.concepto) {
+        extraerPeriodosDeTextoLibre(p.concepto).forEach(k => paid.add(k));
+      }
+      if (det?.periodo) {
+        extraerPeriodosDeTextoLibre(det.periodo).forEach(k => paid.add(k));
+      }
+      if (Array.isArray(det?.periodos_pagados)) {
+        det.periodos_pagados.forEach((per: any) => {
+          const sp = String(per || '').trim();
+          if (/^\d{4}-\d{2}$/.test(sp)) paid.add(sp);
+          else extraerPeriodosDeTextoLibre(sp).forEach(k => paid.add(k));
+        });
+      }
+      if (Array.isArray(det?.recibo_caja)) {
+        det.recibo_caja.forEach((rc: any) => {
+          if (rc?.periodo) extraerPeriodosDeTextoLibre(rc.periodo).forEach(k => paid.add(k));
+          if (Array.isArray(rc?.conceptos)) {
+            rc.conceptos.forEach((c: any) => {
+              const desc = String(c?.descripcion || '');
+              if (/ASEO\s+URBANO/i.test(desc) && !/SOLO\s+MULTA/i.test(desc)) {
+                extraerPeriodosDeTextoLibre(desc).forEach(k => paid.add(k));
+              }
+            });
+          }
+        });
+      }
+    }
+  }
+
+  return paid;
+};
+
+/**
+ * Extrae la lista explícita de períodos pendientes guardada en `inm.notas` por el modal de Ajustar Deuda
+ * (`[PERIODOS_PENDIENTES:2025-11,2025-12,...]`) o desde `periodos_custom`.
+ */
+export const extraerPeriodosPendientesDeNotas = (notas?: any): string[] | null => {
+  if (!notas) return null;
+  const s = typeof notas === 'string' ? notas : JSON.stringify(notas);
+
+  // Tomar la última etiqueta [PERIODOS_PENDIENTES:...] registrada en las notas
+  const regex = /\[PERIODOS_PENDIENTES:([^\]]+)\]/gi;
+  let match: RegExpExecArray | null;
+  let lastRaw: string | null = null;
+  while ((match = regex.exec(s)) !== null) {
+    lastRaw = match[1];
+  }
+  if (lastRaw !== null) {
+    const keys = Array.from(
+      new Set(
+        lastRaw
+          .split(',')
+          .map(k => k.trim())
+          .filter(k => /^\d{4}-\d{2}$/.test(k))
+      )
+    ).sort();
+    return keys;
+  }
+
+  if (s.includes('periodos_custom')) {
+    try {
+      const parsed = typeof notas === 'object' ? notas : JSON.parse(s);
+      if (parsed?.periodos_custom && typeof parsed.periodos_custom === 'object') {
+        const keys = Object.keys(parsed.periodos_custom)
+          .filter(k => /^\d{4}-\d{2}$/.test(k))
+          .sort();
+        if (keys.length > 0) return keys;
+      }
+    } catch {}
+  }
+
+  return null;
+};
+
+/**
+ * Extrae los períodos explícitamente excluidos/desmarcados en Ajustar Deuda (`[PERIODOS_EXCLUIDOS:2026-07,2026-08,...]`).
+ */
+export const extraerPeriodosExcluidosDeNotas = (notas?: any): Set<string> => {
+  const excl = new Set<string>();
+  if (!notas) return excl;
+  const s = typeof notas === 'string' ? notas : JSON.stringify(notas);
+  const regex = /\[PERIODOS_EXCLUIDOS:([^\]]+)\]/gi;
+  let match: RegExpExecArray | null;
+  let lastRaw: string | null = null;
+  while ((match = regex.exec(s)) !== null) {
+    lastRaw = match[1];
+  }
+  if (lastRaw) {
+    lastRaw
+      .split(',')
+      .map(k => k.trim())
+      .filter(k => /^\d{4}-\d{2}$/.test(k))
+      .forEach(k => excl.add(k));
+  }
+  return excl;
+};
+
+/**
+ * Resuelve la lista exacta y ordenada (ascendente) de períodos `YYYY-MM` pendientes de un inmueble,
+ * respetando:
+ * 1) Los períodos específicos seleccionados en Ajustar Deuda (`[PERIODOS_PENDIENTES:...]`),
+ * 2) Los períodos desmarcados/excluidos (`[PERIODOS_EXCLUIDOS:...]`), y
+ * 3) Los períodos que ya figuran como pagados en `pagos_reportados` / `porPeriodo`.
+ */
+export const resolverPeriodosPendientesInmueble = (
+  inm: any,
+  numMesesOverride?: number,
+  pagosInfo?: any,
+  hoy: Date = new Date()
+): string[] => {
+  const numMeses = Math.max(
+    0,
+    numMesesOverride !== undefined
+      ? numMesesOverride
+      : parseInt(String(inm?.meses_deuda ?? 0), 10) || 0
+  );
+  if (numMeses <= 0) return [];
+
+  const excluidos = extraerPeriodosPagadosDePagos(pagosInfo, inm?.inmueble);
+  extraerPeriodosExcluidosDeNotas(inm?.notas).forEach(k => excluidos.add(k));
+
+  const guardados = extraerPeriodosPendientesDeNotas(inm?.notas);
+  if (guardados && guardados.length > 0) {
+    const vigentes = guardados.filter(k => !excluidos.has(k));
+    if (vigentes.length === numMeses) return vigentes;
+    if (vigentes.length > numMeses) {
+      // Si pagó meses en Caja después del ajuste, conservar los `numMeses` más recientes pendientes
+      return vigentes.slice(-numMeses);
+    }
+    // Si vigentes.length < numMeses (ej. se sumó un nuevo mes de facturación), completar con meses no excluidos
+    const setVig = new Set(vigentes);
+    let y = hoy.getFullYear();
+    let m0 = hoy.getMonth();
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/Caracas',
+        year: 'numeric',
+        month: 'numeric',
+      }).formatToParts(hoy);
+      const py = parseInt(parts.find(p => p.type === 'year')?.value || '0', 10);
+      const pm = parseInt(parts.find(p => p.type === 'month')?.value || '0', 10);
+      if (py > 2000 && pm >= 1 && pm <= 12) {
+        y = py;
+        m0 = pm - 1;
+      }
+    } catch {}
+    let step = 1;
+    while (setVig.size < numMeses && step <= 60) {
+      const d = new Date(y, m0 - step, 1, 12, 0, 0);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (!excluidos.has(key) && !setVig.has(key)) {
+        setVig.add(key);
+      }
+      step++;
+    }
+    return Array.from(setVig).sort();
+  }
+
+  // Sin [PERIODOS_PENDIENTES:...]: retroceder desde el último mes vencido saltando meses ya pagados/excluidos
+  let y = hoy.getFullYear();
+  let m0 = hoy.getMonth();
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Caracas',
+      year: 'numeric',
+      month: 'numeric',
+    }).formatToParts(hoy);
+    const py = parseInt(parts.find(p => p.type === 'year')?.value || '0', 10);
+    const pm = parseInt(parts.find(p => p.type === 'month')?.value || '0', 10);
+    if (py > 2000 && pm >= 1 && pm <= 12) {
+      y = py;
+      m0 = pm - 1;
+    }
+  } catch {}
+
+  const result: string[] = [];
+  let step = 1;
+  while (result.length < numMeses && step <= 72) {
+    const d = new Date(y, m0 - step, 1, 12, 0, 0);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    if (!excluidos.has(key)) {
+      result.push(key);
+    }
+    step++;
+  }
+  return result.sort();
+};
+
+/**
+ * Devuelve las fechas ISO (`YYYY-MM-01T16:00:00.000Z`) correspondientes a `resolverPeriodosPendientesInmueble`.
+ */
+export const fechasIsoPeriodosPendientesInmueble = (
+  inm: any,
+  numMesesOverride?: number,
+  pagosInfo?: any,
+  hoy: Date = new Date()
+): string[] => {
+  const keys = resolverPeriodosPendientesInmueble(inm, numMesesOverride, pagosInfo, hoy);
+  return keys.map(k => {
+    const [yr, mo] = k.split('-').map(n => parseInt(n, 10));
+    return new Date(yr, (mo || 1) - 1, 1, 12, 0, 0).toISOString();
+  });
+};
+
 export { calcularDeudaInmueble } from './deudaMensual';
 
 

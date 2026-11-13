@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Calculator, X, AlertCircle, Calendar, CheckSquare, Square, Building, Check, RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAppContext } from '@/store/AppContext';
-import { calcularMensualidad, isResidencialInm, isTerrenoInm, getFO, resolverFOComercial } from '@/lib/calculos';
+import { calcularMensualidad, isResidencialInm, isTerrenoInm, getFO, resolverFOComercial, extraerPeriodosPendientesDeNotas, resolverPeriodosPendientesInmueble } from '@/lib/calculos';
 import { logAudit } from '@/lib/audit';
 import { getIdentidadVariantsExact as getIdentidadVariants } from '@/lib/formatters';
 
@@ -180,14 +180,22 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
             (item: any) => item && (item.tipo === 'MES' || item.tipo === 'MES_CON_MULTA')
           );
           setListaPagosPeriodo(listaSoloMeses);
-          // Si ya tenía meses de deuda cargados, seleccionar exactamente esa cantidad de meses disponibles (no cancelados)
+          // Si ya tenía meses de deuda cargados, respetar los períodos guardados en notas o la ventana de meses pendientes
           const currentMonthsCount = Math.max(
             0,
             parseInt(String(activeInm?.meses_deuda || row?.meses_deuda || row?.MesesDeuda || 0), 10)
           );
           if (currentMonthsCount > 0) {
-            const disponibles = allMonths.filter(m => !esMesCancelado(m.key, mapa)).map(m => m.key);
-            const preselected = disponibles.slice(-currentMonthsCount);
+            const guardadosNotas = extraerPeriodosPendientesDeNotas(activeInm?.notas || row?.notas);
+            let preselected: string[];
+            if (guardadosNotas && guardadosNotas.length > 0) {
+              preselected = resolverPeriodosPendientesInmueble(activeInm || row, currentMonthsCount, mapa);
+            } else {
+              preselected = allMonths
+                .slice(-currentMonthsCount)
+                .map(m => m.key)
+                .filter(k => !esMesCancelado(k, mapa));
+            }
             setSelectedMonths(preselected);
             if (preselected.length > 0) {
               setRangeStartKey(preselected[0]);
@@ -232,11 +240,13 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
     );
 
     if (currentMonthsCount > 0 && allMonths.length > 0) {
-      // Tomar los últimos N meses disponibles que no estén ya cancelados
-      const preselected = allMonths
-        .slice(-currentMonthsCount)
-        .map(m => m.key)
-        .filter(k => !esMesCancelado(k));
+      const guardadosNotas = extraerPeriodosPendientesDeNotas(activeInm?.notas || row?.notas);
+      const preselected = (guardadosNotas && guardadosNotas.length > 0)
+        ? resolverPeriodosPendientesInmueble(activeInm || row, currentMonthsCount, pagosPorPeriodo)
+        : allMonths
+            .slice(-currentMonthsCount)
+            .map(m => m.key)
+            .filter(k => !esMesCancelado(k));
       setSelectedMonths(preselected);
       if (preselected.length > 0) {
         setRangeStartKey(preselected[0]);
@@ -471,7 +481,17 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
       }
 
       const fechaHoy = new Date().toLocaleDateString('es-VE');
-      const registroNota = `[${fechaHoy}] AJUSTE DE DEUDA: Asignados ${selectedCount} meses (${financialSummary.periodoTexto}). Total estimado: Bs. ${financialSummary.totalGeneral.toFixed(2)}. Motivo: ${nota.trim()} (Autorizado por: ${claveLimpia})`;
+      const sortedSelectedKeys = [...selectedMonths].sort();
+      const firstSelectedIdx = sortedSelectedKeys.length > 0 ? allMonths.findIndex(m => m.key === sortedSelectedKeys[0]) : -1;
+      const excluidosEnVentana = firstSelectedIdx >= 0
+        ? allMonths
+            .slice(firstSelectedIdx)
+            .map(m => m.key)
+            .filter(k => !sortedSelectedKeys.includes(k))
+        : [];
+      const tagPeriodosPendientes = sortedSelectedKeys.length > 0 ? ` [PERIODOS_PENDIENTES:${sortedSelectedKeys.join(',')}]` : '';
+      const tagPeriodosExcluidos = excluidosEnVentana.length > 0 ? ` [PERIODOS_EXCLUIDOS:${excluidosEnVentana.join(',')}]` : '';
+      const registroNota = `[${fechaHoy}] AJUSTE DE DEUDA: Asignados ${selectedCount} meses (${financialSummary.periodoTexto})${tagPeriodosPendientes}${tagPeriodosExcluidos}. Total estimado: Bs. ${financialSummary.totalGeneral.toFixed(2)}. Motivo: ${nota.trim()} (Autorizado por: ${claveLimpia})`;
 
       // Respaldo de los valores anteriores (para auditoría y posible reverso)
       const valoresPrevios = inmsValidos.map((i: any) => ({

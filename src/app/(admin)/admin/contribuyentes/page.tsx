@@ -31,7 +31,7 @@ import { exportToExcelWithLogos } from '@/lib/excelExport';
 import { supabase } from '@/lib/supabase';
 import economicActivitiesBase from '@/lib/economicActivitiesBase.json';
 import { logAudit } from '@/lib/audit';
-import { calcularMensualidad, getFO, getFAR, isResidencialInm, isTerrenoInm, isExoneradoTotalMultas, isMesExoneradoMulta, getMesesExoneradosCount, cleanClasificacionActividad, actividadYNivelDeInmueble, isCondominioPagoIndividual } from '@/lib/calculos';
+import { calcularMensualidad, getFO, getFAR, isResidencialInm, isTerrenoInm, isExoneradoTotalMultas, isMesExoneradoMulta, getMesesExoneradosCount, cleanClasificacionActividad, actividadYNivelDeInmueble, isCondominioPagoIndividual, fechasIsoPeriodosPendientesInmueble } from '@/lib/calculos';
 import { isSameLocal, getShortAddress, sanitizeNAParentLinks } from '@/lib/cajaHelpers';
 import { valorUCD } from '@/lib/tasaHistorica';
 
@@ -821,9 +821,10 @@ function ContribuyentesPageContent() {
                   if (deudaMMV > 0 || congelada > 0 || multa > 0 || meses > 0) {
                     const numMeses = Math.max(1, meses);
                     const now = new Date();
+                    const fechasIso = fechasIsoPeriodosPendientesInmueble(inm, numMeses, undefined, now);
                     for (let i = 1; i <= numMeses; i++) {
                       const targetDate = new Date(now.getFullYear(), now.getMonth() - numMeses + i - 1, 1, 12, 0, 0);
-                      const dateIso = targetDate.toISOString();
+                      const dateIso = fechasIso[i - 1] || targetDate.toISOString();
                       combined.push({
                         id: `dummy-hist-${inm.inmueble}-${i}`,
                         referencia: `RECIB-HIST-${inm.inmueble}-M${i}`,
@@ -1208,15 +1209,17 @@ function ContribuyentesPageContent() {
       userInms.forEach((inm: any) => {
         const meses = parseInt(String(inm.meses_deuda || 0), 10);
         if (meses > 0) {
+          const fechasIso = fechasIsoPeriodosPendientesInmueble(inm, meses, undefined, now);
           for (let i = 1; i <= meses; i++) {
             const targetDate = new Date(now.getFullYear(), now.getMonth() - meses + i - 1, 1, 12, 0, 0);
+            const dateIso = fechasIso[i - 1] || targetDate.toISOString();
             deudas.push({
               id: `dummy-hist-${inm.inmueble}-${i}`,
               referencia: `RECIB-HIST-${inm.inmueble}-M${i}`,
               identidad: viewData.Identidad,
               contribuyente: viewData.Contribuyente,
-              emision: targetDate.toISOString(),
-              vencimiento: targetDate.toISOString(),
+              emision: dateIso,
+              vencimiento: dateIso,
               estado: 'Pendiente',
               monto: '0'
             });

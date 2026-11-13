@@ -11,7 +11,7 @@ import { getIdentidadVariantsExact, sanitizarDireccionFiscal } from '@/lib/forma
 import { ReciboImprimible } from '@/components/ReciboImprimible';
 import { ModalComprobante } from '@/components/caja/ModalComprobante';
 import { logAudit } from '@/lib/audit';
-import { calcularMensualidad, getFO, getFAR, isResidencialInm, isTerrenoInm, isCondominioPagoIndividual, isMesExoneradoMulta, cleanClasificacionActividad } from '@/lib/calculos';
+import { calcularMensualidad, getFO, getFAR, isResidencialInm, isTerrenoInm, isCondominioPagoIndividual, isMesExoneradoMulta, cleanClasificacionActividad, resolverPeriodosPendientesInmueble, fechasIsoPeriodosPendientesInmueble, extraerPeriodosPendientesDeNotas } from '@/lib/calculos';
 import { getUserInmuebles, getCajeroId, isSameLocal, clusterInmueblesByLocal, getShortAddress, sanitizeNAParentLinks } from '@/lib/cajaHelpers';
 import { acreditarSaldoFavor, descontarSaldoFavor } from '@/lib/saldoFavor';
 import { useCajaCalculations } from './hooks/useCajaCalculations';
@@ -1554,6 +1554,25 @@ export default function CajaPage() {
         const hasDeuda = billableInms.some((i: any) => parseFloat(i.deuda_mmv || '0') > 0 || parseFloat(i.deuda_congelada_bs || '0') > 0 || parseInt(i.meses_deuda || '0') > 0);
         if (hasDeuda) {
           const now = new Date();
+          // Consultar pagos aprobados del contribuyente para nunca volver a generar en Caja meses que ya fueron cancelados (ej. Septiembre 2026)
+          let pagosAprobadosHist: any[] = [];
+          try {
+            const identOrsHist = [
+              ...userIdentVariants.map(v => `identidad.eq.${v}`),
+              ...(user.Identidad ? [`identidad.eq.${user.Identidad}`] : []),
+            ].filter(Boolean);
+            if (identOrsHist.length > 0) {
+              const { data: pAprob } = await supabase
+                .from('pagos_reportados')
+                .select('id, identidad, estado, detalles')
+                .eq('estado', 'Aprobado')
+                .or(identOrsHist.join(','))
+                .order('created_at', { ascending: false })
+                .limit(100);
+              if (pAprob) pagosAprobadosHist = pAprob;
+            }
+          } catch (_) {}
+
           billableInms.forEach((inm: any) => {
             if (isTerrenoInm(inm)) return; // Terrenos no pagan ni generan multas
             const esCondoPagoInd = isPagoIndInm(inm);
@@ -1637,10 +1656,11 @@ export default function CajaPage() {
             }
 
             if (numMeses > 0) {
-              // Generar un recibo dummy por cada mes de mora con fecha uniforme de calendario
+              // Generar un recibo dummy por cada mes pendiente respetando los meses ya pagados y los períodos ajustados
+              const fechasPendientesIso = fechasIsoPeriodosPendientesInmueble(inm, numMeses, pagosAprobadosHist, now);
               for (let i = 1; i <= numMeses; i++) {
                 const targetDate = new Date(now.getFullYear(), now.getMonth() - numMeses + i - 1, 1, 12, 0, 0);
-                const dateIso = targetDate.toISOString();
+                const dateIso = fechasPendientesIso[i - 1] || targetDate.toISOString();
                 combined.push({
                   id: `dummy-hist-${inm.inmueble}-${i}`,
                   referencia: `RECIB-HIST-${inm.inmueble}-M${i}`,
@@ -2753,6 +2773,9 @@ export default function CajaPage() {
         if (m) {
           const inmR = userInmsRec.find((i: any) => i.inmueble === m[1]);
           const total = Math.max(1, parseInt(inmR?.meses_deuda || '0') || 0);
+          const perKeys = resolverPeriodosPendientesInmueble(inmR, total);
+          const idxM = parseInt(m[2], 10) - 1;
+          if (perKeys[idxM]) return perKeys[idxM];
           const hoyR = new Date();
           const d = new Date(hoyR.getFullYear(), hoyR.getMonth() - total + parseInt(m[2]) - 1, 1);
           return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -3644,12 +3667,26 @@ export default function CajaPage() {
                 const m = parseFloat(String(inm.multa_bs || 0));
                 const nuevaDeudaMMV = nuevoMeses === 0 ? 0 : parseFloat(((d * nuevoMeses) / (numMesesInm || 1)).toFixed(6));
                 const nuevaMultaBs = nuevoMeses === 0 ? 0 : parseFloat(((m * nuevoMeses) / (numMesesInm || 1)).toFixed(2));
-                await supabase.from('inmuebles').update({
+                const updPartial: any = {
                   meses_deuda: nuevoMeses,
                   deuda_mmv: nuevaDeudaMMV,
                   multa_bs: nuevaMultaBs,
                   ...(nuevoMeses === 0 ? { deuda_congelada_bs: 0 } : {})
-                }).eq('id', inm.id);
+                };
+                const perGuardados = extraerPeriodosPendientesDeNotas(inm.notas);
+                if (perGuardados && perGuardados.length > 0) {
+                  const pagadosSet = new Set(
+                    histRefsThisInm
+                      .map(refH => {
+                        const fRec = recibos.find((r: any) => r.referencia === refH);
+                        return fRec?.emision ? String(fRec.emision).slice(0, 7) : '';
+                      })
+                      .filter(Boolean)
+                  );
+                  const restantes = perGuardados.filter(k => !pagadosSet.has(k));
+                  updPartial.notas = `${String(inm.notas || '').trim()}\n[PERIODOS_PENDIENTES:${restantes.join(',')}]`;
+                }
+                await supabase.from('inmuebles').update(updPartial).eq('id', inm.id);
               }
             }
 

@@ -1,4 +1,4 @@
-import { calcularMensualidad, isResidencialInm, isTerrenoInm, isMesExoneradoMulta, isCondominioPagoIndividual, getFAR } from './calculos';
+import { calcularMensualidad, isResidencialInm, isTerrenoInm, isMesExoneradoMulta, isCondominioPagoIndividual, getFAR, resolverPeriodosPendientesInmueble } from './calculos';
 
 /**
  * CÁLCULO ÚNICO DE DEUDA MENSUAL (referencia: Caja).
@@ -175,24 +175,17 @@ export function porMesConRetencion(d: DeudaInmueble): (DesgloseMes & { retencion
  */
 export function mesesHistoricos(inm: any, hoy: Date = new Date()): { ref: string; emision: string; mes: number; esUltimo: boolean }[] {
   const numMeses = Math.max(1, parseInt(String(inm?.meses_deuda || 0)) || 0);
-  let y = hoy.getFullYear();
-  let m0 = hoy.getMonth();
-  try {
-    const parts = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'America/Caracas',
-      year: 'numeric',
-      month: 'numeric',
-    }).formatToParts(hoy);
-    const py = parseInt(parts.find(p => p.type === 'year')?.value || '0', 10);
-    const pm = parseInt(parts.find(p => p.type === 'month')?.value || '0', 10);
-    if (py > 2000 && pm >= 1 && pm <= 12) {
-      y = py;
-      m0 = pm - 1;
-    }
-  } catch {}
+  const periodos = resolverPeriodosPendientesInmueble(inm, numMeses, undefined, hoy);
   const out = [];
   for (let i = 1; i <= numMeses; i++) {
-    const d = new Date(Date.UTC(y, m0 - numMeses + i - 1, 1, 16, 0, 0));
+    const key = periodos[i - 1];
+    let d: Date;
+    if (key && /^\d{4}-\d{2}$/.test(key)) {
+      const [yy, mm] = key.split('-').map(n => parseInt(n, 10));
+      d = new Date(Date.UTC(yy, (mm || 1) - 1, 1, 16, 0, 0));
+    } else {
+      d = new Date(Date.UTC(hoy.getFullYear(), hoy.getMonth() - numMeses + i - 1, 1, 16, 0, 0));
+    }
     out.push({ ref: `RECIB-HIST-${inm.inmueble}-M${i}`, emision: d.toISOString(), mes: i, esUltimo: i >= numMeses });
   }
   return out;
