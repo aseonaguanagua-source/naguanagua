@@ -780,16 +780,26 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
     const fRcPadre = normalizarFechaYMD(rcPadre0?.fechaEmision);
     const fConciliadoRaw = normalizarFechaYMD(det.fecha_conciliado ? fechaVE(det.fecha_conciliado) : '');
     const fTxDirecta = normalizarFechaYMD(det.fecha_transaccion);
+    const fEmisionPadre =
+      normalizarFechaYMD(detPadre?.fecha_emision_override) ||
+      ((fdPadre?.emitida || fdPadre?.numero_documento || fdPadre?.numero_control) ? normalizarFechaYMD(fdPadre.fecha_emision) : '');
+    const hijoEsDeMesPosteriorAlPadre = Boolean(
+      fEmisionPadre &&
+      fTxDirecta &&
+      fRegistro &&
+      fTxDirecta.slice(0, 7) > fEmisionPadre.slice(0, 7) &&
+      fRegistro.slice(0, 7) > fEmisionPadre.slice(0, 7)
+    );
     let fFacturaRaw =
       normalizarFechaYMD(det.fecha_emision_override) ||
       ((fd.emitida || fd.numero_documento || fd.numero_control) ? normalizarFechaYMD(fd.fecha_emision) : '') ||
-      normalizarFechaYMD(detPadre?.fecha_emision_override) ||
-      ((fdPadre?.emitida || fdPadre?.numero_documento || fdPadre?.numero_control) ? normalizarFechaYMD(fdPadre.fecha_emision) : '') ||
+      (!hijoEsDeMesPosteriorAlPadre ? fEmisionPadre : '') ||
       fRc ||
-      fRcPadre ||
-      fTxDirecta ||
+      (!hijoEsDeMesPosteriorAlPadre ? fRcPadre : '') ||
       normalizarFechaYMD(rc0?.fechaIngresoCaja) ||
-      normalizarFechaYMD(rcPadre0?.fechaIngresoCaja) ||
+      (!hijoEsDeMesPosteriorAlPadre ? normalizarFechaYMD(rcPadre0?.fechaIngresoCaja) : '') ||
+      normalizarFechaYMD(det.fecha_ingreso_caja) ||
+      (fRegistro && fTxDirecta && fRegistro.slice(0, 7) > fTxDirecta.slice(0, 7) ? fTxDirecta : '') ||
       fRegistro;
     // Si el pago fue registrado en septiembre pero recibió su recibo/conciliación en octubre o después, reflejar la fecha real de conciliación/recibo en Fecha Factura
     if (fFacturaRaw && fFacturaRaw < '2026-10-01') {

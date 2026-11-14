@@ -307,11 +307,19 @@ function ModalComprobante({ pago, onClose }: { pago: Pago; onClose: () => void }
             <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
               <div className="flex items-center justify-between mb-1">
                 <p className="text-xs font-bold text-slate-500 uppercase">Monto Reportado</p>
-                {((pago.grupo_pago || (!det.vinculado_a_referencia && (det.pago_principal_id || det.es_pago_adicional))) || (Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1)) && (
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${(det.es_pago_adicional && (pago.grupo_pago || !det.vinculado_a_referencia)) ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-indigo-100 text-indigo-700'}`}>
-                    {(det.es_pago_adicional && (pago.grupo_pago || !det.vinculado_a_referencia)) ? 'Diferencia' : (Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1 ? 'Anticipo' : 'Transferencia')}
-                  </span>
-                )}
+                {(() => {
+                  const pagsBancarios = Array.isArray(det.pagos_agregados)
+                    ? det.pagos_agregados.filter((x: any) => !/saldo a favor|nota de cr[eé]dito/i.test(String(x?.metodo || x?.tipo || x?.banco || '')))
+                    : [];
+                  const esMultiReal = Boolean(pago.grupo_pago || (!det.vinculado_a_referencia && (det.pago_principal_id || det.es_pago_adicional)) || pagsBancarios.length > 1);
+                  if (!esMultiReal) return null;
+                  const esDif = Boolean(det.es_pago_adicional && (pago.grupo_pago || !det.vinculado_a_referencia));
+                  return (
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${esDif ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-indigo-100 text-indigo-700'}`}>
+                      {esDif ? 'Diferencia' : (pagsBancarios.length > 1 ? 'Anticipo' : 'Transferencia')}
+                    </span>
+                  );
+                })()}
               </div>
               <p className="text-lg font-black text-slate-800">
                 Bs. {parseFloat(String(pago.monto || '0').replace(/[^0-9.]/g, '')).toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2})}
@@ -2991,11 +2999,19 @@ export default function ConciliacionPage() {
         <td className="px-3 py-2 text-xs font-mono text-slate-600">
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="font-bold text-slate-800">{pago.referencia || '---'}</span>
-            {((pago.grupo_pago || (!det.vinculado_a_referencia && (det.pago_principal_id || det.es_pago_adicional))) || (Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1)) && (
-              <span className={`px-1 py-0.2 rounded font-sans text-[9px] font-bold ${(det.es_pago_adicional && (pago.grupo_pago || !det.vinculado_a_referencia)) ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-indigo-100 text-indigo-700'}`} title="Parte de un pago con múltiples transferencias">
-                {(det.es_pago_adicional && (pago.grupo_pago || !det.vinculado_a_referencia)) ? 'Diferencia' : (Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1 ? 'Anticipo' : '🔗 Multi')}
-              </span>
-            )}
+            {(() => {
+              const pagsBancarios = Array.isArray(det.pagos_agregados)
+                ? det.pagos_agregados.filter((x: any) => !/saldo a favor|nota de cr[eé]dito/i.test(String(x?.metodo || x?.tipo || x?.banco || '')))
+                : [];
+              const esMultiReal = Boolean(pago.grupo_pago || (!det.vinculado_a_referencia && (det.pago_principal_id || det.es_pago_adicional)) || pagsBancarios.length > 1);
+              if (!esMultiReal) return null;
+              const esDif = Boolean(det.es_pago_adicional && (pago.grupo_pago || !det.vinculado_a_referencia));
+              return (
+                <span className={`px-1 py-0.2 rounded font-sans text-[9px] font-bold ${esDif ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-indigo-100 text-indigo-700'}`} title="Parte de un pago con múltiples transferencias">
+                  {esDif ? 'Diferencia' : (pagsBancarios.length > 1 ? 'Anticipo' : '🔗 Multi')}
+                </span>
+              );
+            })()}
           </div>
         </td>
         <td className="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">{fmtFecha(pago.created_at)}</td>

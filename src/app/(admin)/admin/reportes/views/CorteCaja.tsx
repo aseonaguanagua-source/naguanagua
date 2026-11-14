@@ -25,11 +25,16 @@ const fmtDateTime = (d: string) => {
 };
 const fmtDate = (d: string) => {
   if (!d) return '-';
+  const s = String(d).trim();
+  if (/^\d{4}-\d{2}-\d{2}(T00:00:00(\.000)?(Z|\+00:00)?)?$/i.test(s)) {
+    const [y, m, day] = s.slice(0, 10).split('-');
+    return `${day}/${m}/${y}`;
+  }
   try {
-    const dt = new Date(d);
-    if (isNaN(dt.getTime())) return String(d);
-    return dt.toLocaleDateString('es-VE');
-  } catch { return String(d || '-'); }
+    const dt = new Date(s);
+    if (isNaN(dt.getTime())) return s;
+    return dt.toLocaleDateString('es-VE', { timeZone: 'America/Caracas' });
+  } catch { return s || '-'; }
 };
 
 function parseDet(p: any): any {

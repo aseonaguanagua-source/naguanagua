@@ -351,6 +351,31 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
     </td>
   );
 
+  const pagoPorId = useMemo(() => {
+    const m = new Map<string, any>();
+    for (const p of (pagos || [])) {
+      if (p?.id) m.set(String(p.id), p);
+    }
+    return m;
+  }, [pagos]);
+
+  const parseFechaCaracas = (raw: any): Date | null => {
+    if (!raw) return null;
+    const str = String(raw).trim();
+    const dmyMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+    if (dmyMatch) {
+      const ymd = `${dmyMatch[3]}-${dmyMatch[2].padStart(2, '0')}-${dmyMatch[1].padStart(2, '0')}`;
+      const d = new Date(`${ymd}T12:00:00-04:00`);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    if (/^\d{4}-\d{2}-\d{2}(T00:00:00(\.000)?(Z|\+00:00)?)?$/i.test(str)) {
+      const d = new Date(`${str.slice(0, 10)}T12:00:00-04:00`);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    const d = new Date(str);
+    return isNaN(d.getTime()) ? null : d;
+  };
+
   const obtenerFechaEfectivaCuadre = (p: any, det: any) => {
     const corrList = Array.isArray(det.correcciones_reporte) ? det.correcciones_reporte : [];
     const lastCorr = corrList.length > 0 ? corrList[corrList.length - 1] : null;
@@ -358,21 +383,45 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
       lastCorr?.fecha_nueva &&
       String(lastCorr.fecha_anterior || '').slice(0, 10) !== String(lastCorr.fecha_nueva).slice(0, 10)
     );
-    if (det.fecha_emision_override) {
-      const dOv = new Date(`${String(det.fecha_emision_override).slice(0, 10)}T12:00:00-04:00`);
-      if (!isNaN(dOv.getTime())) return dOv;
-    }
     if (corrTieneFecha && lastCorr?.fecha_nueva) {
-      const dCorr = new Date(`${String(lastCorr.fecha_nueva).slice(0, 10)}T12:00:00-04:00`);
-      if (!isNaN(dCorr.getTime())) return dCorr;
+      const dCorr = parseFechaCaracas(lastCorr.fecha_nueva);
+      if (dCorr) return dCorr;
     }
-    // Para transferencias y depósitos, guiarse siempre por la Fecha de Emisión (o Fecha Transacción si fue editada en conciliación);
-    // para tarjetas (Débito/Crédito POS), conservar la fecha real del pase por punto (created_at).
+    // Para tarjetas (Débito/Crédito POS), conservar siempre la fecha real del pase por punto (created_at);
+    // para transferencias y depósitos, usar la misma jerarquía de Fecha de Emisión (Factura o Recibo) que la Conciliación de Transferencias.
     if (!isDebitoPago(p) && !isCreditoPago(p)) {
-      const fEmision = det.factura_digital?.fecha_emision || (det.fecha_transaccion ? `${String(det.fecha_transaccion).slice(0, 10)}T12:00:00-04:00` : '');
-      if (fEmision) {
-        const dEmis = new Date(fEmision);
-        if (!isNaN(dEmis.getTime())) return dEmis;
+      const fd = det.factura_digital || {};
+      const pagoPadre = det.pago_principal_id ? pagoPorId.get(String(det.pago_principal_id)) : null;
+      const detPadre = pagoPadre ? parseDet(pagoPadre) : null;
+      const fdPadre = detPadre?.factura_digital || {};
+      const rc0 = Array.isArray(det.recibo_caja) ? det.recibo_caja[0] : det.recibo_caja;
+      const rcPadre0 = Array.isArray(detPadre?.recibo_caja) ? detPadre.recibo_caja[0] : detPadre?.recibo_caja;
+
+      const fRegYmd = (() => {
+        const dReg = new Date(p.created_at);
+        if (isNaN(dReg.getTime())) return '';
+        return dReg.toLocaleDateString('en-CA', { timeZone: 'America/Caracas' });
+      })();
+      const fTxYmd = (() => {
+        const dTx = parseFechaCaracas(det.fecha_transaccion);
+        return dTx ? dTx.toLocaleDateString('en-CA', { timeZone: 'America/Caracas' }) : '';
+      })();
+
+      const candidatos = [
+        det.fecha_emision_override,
+        (fd.emitida || fd.numero_documento || fd.numero_control) ? fd.fecha_emision : '',
+        detPadre?.fecha_emision_override,
+        (fdPadre?.emitida || fdPadre?.numero_documento || fdPadre?.numero_control) ? fdPadre.fecha_emision : '',
+        rc0?.fechaEmision,
+        rcPadre0?.fechaEmision,
+        rc0?.fechaIngresoCaja,
+        rcPadre0?.fechaIngresoCaja,
+        det.fecha_ingreso_caja,
+        (fRegYmd && fTxYmd && fRegYmd.slice(0, 7) > fTxYmd.slice(0, 7)) ? det.fecha_transaccion : '',
+      ];
+      for (const c of candidatos) {
+        const dCand = parseFechaCaracas(c);
+        if (dCand) return dCand;
       }
       const createdStr = String(p.created_at || '');
       if (createdStr.includes('T16:00:00') && det.recibo_caja_at) {
@@ -384,8 +433,6 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
   };
 
   const getFilteredPagos = () => {
-    const s = new Date(fecha + 'T00:00:00');
-    const e = new Date(fecha + 'T23:59:59');
     const hasSearch = !!searchTerm.trim();
     return pagos.filter(p => {
       // Excluir pagos anulados o rechazados
@@ -400,7 +447,7 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
       } catch {
         fechaCorteCaracas = !isNaN(d.getTime()) ? d.toISOString().slice(0, 10) : (p.created_at ? p.created_at.slice(0, 10) : '');
       }
-      const fechaCoincide = fechaCorteCaracas === fecha || (d >= s && d <= e);
+      const fechaCoincide = fechaCorteCaracas === fecha;
       if (!fechaCoincide && !(buscarEnTodoHistorial && hasSearch)) return false;
 
       const pCajero = det.cajero || det.analista || '';

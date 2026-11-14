@@ -165,15 +165,31 @@ export const generarCorteCajaPDF = (
     return b !== 'Banesco' && b !== 'Bancamiga';
   });
 
+  const obtenerMontoTransf = (p: any): number => {
+    let d: any = {};
+    try { d = (typeof p.detalles === 'string' ? JSON.parse(p.detalles) : p.detalles) || {}; } catch {}
+    const mBase = parseFloat(p?.monto || '0') || 0;
+    const mConc = parseFloat(d?.monto_conciliado || '0') || 0;
+    const esMultiple = Boolean(
+      d?.es_pago_adicional ||
+      d?.abono_completado ||
+      (Array.isArray(d?.pagos_agregados) && d.pagos_agregados.filter((x: any) => !/saldo\s*a\s*favor|nota\s*de\s*cr[eé]dito/i.test(String(x?.metodo || x?.tipo || x?.referencia || ''))).length > 1) ||
+      (Array.isArray(d?.formasPago) && d.formasPago.filter((x: any) => !/saldo\s*a\s*favor|nota\s*de\s*cr[eé]dito/i.test(String(x?.metodo || x?.tipo || x?.referencia || ''))).length > 1)
+    );
+    if (esMultiple && mBase > 0 && mConc > mBase + 1) return mBase;
+    if (mConc > 0 && (!Array.isArray(d?.pagos_agregados) || !d.pagos_agregados.some((x: any) => /saldo\s*a\s*favor/i.test(String(x?.referencia || x?.metodo || ''))))) return mConc;
+    return mBase || mConc;
+  };
+
   const totalDebito = debitos.reduce((acc: number, p: any) => acc + parseFloat(p.monto || '0'), 0);
   const totalCredito = creditos.reduce((acc: number, p: any) => acc + parseFloat(p.monto || '0'), 0);
-  const totalTransf = transferencias.reduce((acc: number, p: any) => acc + parseFloat(p.monto || '0'), 0);
-  const totalTransfBanesco = transfBanesco.reduce((acc: number, p: any) => acc + parseFloat(p.monto || '0'), 0);
-  const totalTransfBancamiga = transfBancamiga.reduce((acc: number, p: any) => acc + parseFloat(p.monto || '0'), 0);
-  const totalTransfOtros = transfOtros.reduce((acc: number, p: any) => acc + parseFloat(p.monto || '0'), 0);
+  const totalTransf = transferencias.reduce((acc: number, p: any) => acc + obtenerMontoTransf(p), 0);
+  const totalTransfBanesco = transfBanesco.reduce((acc: number, p: any) => acc + obtenerMontoTransf(p), 0);
+  const totalTransfBancamiga = transfBancamiga.reduce((acc: number, p: any) => acc + obtenerMontoTransf(p), 0);
+  const totalTransfOtros = transfOtros.reduce((acc: number, p: any) => acc + obtenerMontoTransf(p), 0);
   const totalSaldo = saldosAFavor.reduce((acc: number, p: any) => acc + parseFloat(p.monto || '0'), 0);
   const totalRetenciones = retenciones.reduce((acc: number, p: any) => acc + parseFloat(p.monto || '0'), 0);
-  const totalGeneral = totalDebito + totalCredito + totalTransf + totalSaldo;
+  const totalGeneral = totalDebito + totalCredito + totalTransf;
 
   const totalPorPunto = debitos.length + creditos.length;
   const totalPorTransf = transferencias.length;
