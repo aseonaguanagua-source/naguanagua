@@ -31,6 +31,7 @@ const fechaVE = (d: any) => {
 
 const esAnulado = (p: any) => {
   if (['Anulado', 'Reversado', 'Condonado', 'Rechazado'].includes(String(p.estado || ''))) return true;
+  if (String(p.estado || '') === 'Aprobado') return false;
   let det: any = {};
   try { det = typeof p.detalles === 'string' ? JSON.parse(p.detalles) : (p.detalles || {}); } catch {}
   const caj = String(det?.cajero || det?.analista || '').trim();

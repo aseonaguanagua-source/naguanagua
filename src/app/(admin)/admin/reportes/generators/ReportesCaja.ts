@@ -723,6 +723,10 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
   const normalizarFechaYMD = (raw: any): string => {
     if (!raw) return '';
     const str = String(raw).trim();
+    if (/^\d{4}-\d{2}-\d{2}T(?!00:00:00)/i.test(str)) {
+      const ve = fechaVE(str);
+      if (ve) return ve;
+    }
     const dmyMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
     const s = dmyMatch
       ? `${dmyMatch[3]}-${dmyMatch[2].padStart(2, '0')}-${dmyMatch[1].padStart(2, '0')}`
@@ -775,22 +779,23 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
     const fRc = normalizarFechaYMD(rc0?.fechaEmision);
     const fRcPadre = normalizarFechaYMD(rcPadre0?.fechaEmision);
     const fConciliadoRaw = normalizarFechaYMD(det.fecha_conciliado ? fechaVE(det.fecha_conciliado) : '');
+    const fTxDirecta = normalizarFechaYMD(det.fecha_transaccion);
     let fFacturaRaw =
       normalizarFechaYMD(det.fecha_emision_override) ||
-      normalizarFechaYMD(fd.fecha_emision) ||
+      ((fd.emitida || fd.numero_documento || fd.numero_control) ? normalizarFechaYMD(fd.fecha_emision) : '') ||
       normalizarFechaYMD(detPadre?.fecha_emision_override) ||
-      normalizarFechaYMD(fdPadre.fecha_emision) ||
-      normalizarFechaYMD(rc0?.fechaIngresoCaja) ||
-      normalizarFechaYMD(rcPadre0?.fechaIngresoCaja) ||
-      (fRc && fRegistro && fRc.slice(0, 7) < fRegistro.slice(0, 7) ? fRc : '') ||
-      (fRcPadre && fRegistro && fRcPadre.slice(0, 7) < fRegistro.slice(0, 7) ? fRcPadre : '') ||
+      ((fdPadre?.emitida || fdPadre?.numero_documento || fdPadre?.numero_control) ? normalizarFechaYMD(fdPadre.fecha_emision) : '') ||
       fRc ||
       fRcPadre ||
+      fTxDirecta ||
+      normalizarFechaYMD(rc0?.fechaIngresoCaja) ||
+      normalizarFechaYMD(rcPadre0?.fechaIngresoCaja) ||
       fRegistro;
     // Si el pago fue registrado en septiembre pero recibió su recibo/conciliación en octubre o después, reflejar la fecha real de conciliación/recibo en Fecha Factura
     if (fFacturaRaw && fFacturaRaw < '2026-10-01') {
       if (fRc && fRc >= '2026-10-01') fFacturaRaw = fRc;
       else if (fRcPadre && fRcPadre >= '2026-10-01') fFacturaRaw = fRcPadre;
+      else if (fTxDirecta && fTxDirecta >= '2026-10-01') fFacturaRaw = fTxDirecta;
       else if (fConciliadoRaw && fConciliadoRaw >= '2026-10-01') fFacturaRaw = fConciliadoRaw;
     }
     const fFactura = fFacturaRaw || fRegistro;
@@ -801,7 +806,6 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
     const fPagoPropia = normalizarFechaYMD(fpExacto?.fecha || paExacto?.fecha || paExacto?.fechaTransaccion);
     const fOverrideDirecta = normalizarFechaYMD(det.fecha_pago_override);
     const fBancoDirecta = normalizarFechaYMD(det.fecha_banco);
-    const fTxDirecta = normalizarFechaYMD(det.fecha_transaccion);
     const esPagoUnico = Boolean(yaExistenComoFilasSeparadas) || ((!Array.isArray(det.formasPago) || det.formasPago.length <= 1) && (!Array.isArray(det.pagos_agregados) || det.pagos_agregados.length <= 1));
     // Si fecha_banco quedó igual a la fecha de registro/conciliación pero fecha_transaccion tiene la fecha real anterior del comprobante (o viceversa), priorizar la fecha real del comprobante
     const fBancoOTxPreferida = (() => {
@@ -815,30 +819,29 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
     const fEditadaPreferida = fOverrideDirecta || (esPagoUnico && fBancoOTxPreferida ? fBancoOTxPreferida : '');
     const fPagoBancaria = fBancoOTxPreferida || (Array.isArray(det.formasPago) && det.formasPago[0]?.fecha ? normalizarFechaYMD(det.formasPago[0].fecha) : '');
     let fPago = fEditadaPreferida || fPagoPropia || fPagoBancaria || fTxDirecta || fFactura || fRegistro;
-    // Solo acotar si por error de tipeo la fecha del pago fue guardada en un año futuro (ej. 2027)
-    if (fPago > '2026-12-31' && (fFactura || fRegistro)) {
+    // Si la fecha bancaria supera la fecha de emisión de la factura/recibo (ej. error de tipeo de mes o año en fecha_banco), acotar a la fecha de transacción o emisión
+    if (fFactura && fPago > fFactura) {
+      fPago = fTxDirecta && fTxDirecta <= fFactura ? fTxDirecta : fFactura;
+    } else if (fPago > '2026-12-31' && (fFactura || fRegistro)) {
       const limiteFecha = fFactura && fFactura < fRegistro ? fFactura : fRegistro;
       if (limiteFecha) fPago = limiteFecha;
     }
 
-    const fechasConciliacion = [fRegistro, fFactura, fConciliado, fRc, fRcPadre, fTxDirecta, fBancoDirecta, fPago].filter(Boolean);
-    const esMesAnteriorConciliado = Boolean(fIni && fPago && fPago < fIni && (!fFin || fPago <= fFin));
-    const dentroDeRangoConciliacion = esMesAnteriorConciliado || fechasConciliacion.some(
-      fc => (!fIni || fc >= fIni) && (!fFin || fc <= fFin)
-    );
+    // Todo lo facturado o con recibo cuya fecha de emisión (fFactura) esté en el mes consultado debe salir en la conciliación de ese mes (incluyendo pagos de meses anteriores conciliados/facturados en el mes)
+    const dentroDeRangoConciliacion = (!fIni || fFactura >= fIni) && (!fFin || fFactura <= fFin);
     if (!dentroDeRangoConciliacion) return;
 
     if (pagsAgregados && pagsAgregados.length > 1 && !yaExistenComoFilasSeparadas) {
       const totalBase = pagsAgregados.reduce((acc: number, x: any) => acc + (Number(x.monto) || 0), 0) || Number(p.monto) || 1;
       pagsAgregados.forEach((pa: any) => {
         let fPagoSub = normalizarFechaYMD(pa.fecha || pa.fechaTransaccion || det.fecha_transaccion || det.fecha_banco || fFactura || fRegistro);
-        // Solo acotar si por error de tipeo la fecha del pago fue guardada en un año futuro (ej. 2027)
-        if (fPagoSub > '2026-12-31' && (fFactura || fRegistro)) {
+        if (fFactura && fPagoSub > fFactura) {
+          fPagoSub = fTxDirecta && fTxDirecta <= fFactura ? fTxDirecta : fFactura;
+        } else if (fPagoSub > '2026-12-31' && (fFactura || fRegistro)) {
           const limiteFecha = fFactura && fFactura < fRegistro ? fFactura : fRegistro;
           if (limiteFecha) fPagoSub = limiteFecha;
         }
-        if (fFin && fPagoSub > fFin) return;
-        const keySub = fPagoSub.slice(0, 7);
+        const keySub = (fFactura || fPagoSub).slice(0, 7);
         if (!porMes.has(keySub)) porMes.set(keySub, []);
         const subDet = pa.bancoDestino && !det.banco_receptor
           ? { ...det, banco_destino: pa.bancoDestino }
@@ -860,8 +863,7 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
         });
       });
     } else {
-      if (fFin && fPago > fFin) return;
-      const key = fPago.slice(0, 7);
+      const key = (fFactura || fPago).slice(0, 7);
       if (!porMes.has(key)) porMes.set(key, []);
       porMes.get(key)!.push({ p, det, fPago, fPagoDisplay: det.fecha_pago_excel || fPago, fFactura, esSubPago: false, montoTotalReportado: Number(p.monto) || 1, yaExistenComoFilasSeparadas: !!yaExistenComoFilasSeparadas });
     }
