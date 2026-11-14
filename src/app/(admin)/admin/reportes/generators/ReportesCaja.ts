@@ -796,10 +796,10 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
       (!hijoEsDeMesPosteriorAlPadre ? fEmisionPadre : '') ||
       fRc ||
       (!hijoEsDeMesPosteriorAlPadre ? fRcPadre : '') ||
+      fTxDirecta ||
       normalizarFechaYMD(rc0?.fechaIngresoCaja) ||
       (!hijoEsDeMesPosteriorAlPadre ? normalizarFechaYMD(rcPadre0?.fechaIngresoCaja) : '') ||
       normalizarFechaYMD(det.fecha_ingreso_caja) ||
-      (fRegistro && fTxDirecta && fRegistro.slice(0, 7) > fTxDirecta.slice(0, 7) ? fTxDirecta : '') ||
       fRegistro;
     // Si el pago fue registrado en septiembre pero recibió su recibo/conciliación en octubre o después, reflejar la fecha real de conciliación/recibo en Fecha Factura
     if (fFacturaRaw && fFacturaRaw < '2026-10-01') {

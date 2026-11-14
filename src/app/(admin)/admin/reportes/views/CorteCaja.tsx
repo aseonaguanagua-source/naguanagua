@@ -348,9 +348,9 @@ export default function CorteCaja({ pagos, cajeros, isAdmin, currentUser, onBack
                         <tr key={p.id} className="hover:bg-emerald-50/30">
                           <td className={tdCls}>{i+1}</td>
                           <td className={tdCls}>{fmtDateTime(p.created_at)}</td>
-                          <td className={tdCls}>{det.fecha_banco || '-'}</td>
+                          <td className={tdCls}>{fmtDate(det.fecha_banco || det.fecha_transaccion || p.created_at)}</td>
                           <td className={`${tdCls} font-semibold`}>{p.tipo}</td>
-                          <td className={tdCls}>{det.fecha_banco ? fmtDate(det.fecha_banco) : ((p.identidad?.startsWith('V-') || p.identidad?.startsWith('V') || p.identidad?.startsWith('E-') || p.tipoContribuyente?.toLowerCase().includes('residencial')) ? 'RECIBO' : 'NO FACTURADO')}</td>
+                          <td className={tdCls}>{fmtDate(det.fecha_emision_override || det.factura_digital?.fecha_emision || det.recibo_caja?.[0]?.fechaEmision || det.fecha_transaccion || det.fecha_banco || p.created_at)}</td>
                           <td className={tdCls}>{det.cajero || '-'}</td>
                           <td className={tdCls}>{formatContribuyente(p, det)}</td>
                           <td className={tdCls}>{getNumeroRecibo(p, det)}</td>
@@ -399,9 +399,9 @@ export default function CorteCaja({ pagos, cajeros, isAdmin, currentUser, onBack
                         <tr key={p.id} className="hover:bg-sky-50/30">
                           <td className={tdCls}>{i+1}</td>
                           <td className={tdCls}>{fmtDateTime(p.created_at)}</td>
-                          <td className={tdCls}>{det.fecha_banco || '-'}</td>
+                          <td className={tdCls}>{fmtDate(det.fecha_banco || det.fecha_transaccion || p.created_at)}</td>
                           <td className={`${tdCls} font-semibold`}>{p.tipo}</td>
-                          <td className={tdCls}>{det.fecha_banco ? fmtDate(det.fecha_banco) : ((p.identidad?.startsWith('V-') || p.identidad?.startsWith('V') || p.identidad?.startsWith('E-') || p.tipoContribuyente?.toLowerCase().includes('residencial')) ? 'RECIBO' : 'NO FACTURADO')}</td>
+                          <td className={tdCls}>{fmtDate(det.fecha_emision_override || det.factura_digital?.fecha_emision || det.recibo_caja?.[0]?.fechaEmision || det.fecha_transaccion || det.fecha_banco || p.created_at)}</td>
                           <td className={tdCls}>{det.cajero || '-'}</td>
                           <td className={tdCls}>{formatContribuyente(p, det)}</td>
                           <td className={tdCls}>{getNumeroRecibo(p, det)}</td>
@@ -450,9 +450,9 @@ export default function CorteCaja({ pagos, cajeros, isAdmin, currentUser, onBack
                         <tr key={p.id} className="hover:bg-slate-50">
                           <td className={tdCls}>{i+1}</td>
                           <td className={tdCls}>{fmtDateTime(p.created_at)}</td>
-                          <td className={tdCls}>{det.fecha_banco || '-'}</td>
+                          <td className={tdCls}>{fmtDate(det.fecha_banco || det.fecha_transaccion || p.created_at)}</td>
                           <td className={`${tdCls} font-semibold`}>{p.tipo}</td>
-                          <td className={tdCls}>{det.fecha_banco ? fmtDate(det.fecha_banco) : ((p.identidad?.startsWith('V-') || p.identidad?.startsWith('V') || p.identidad?.startsWith('E-') || p.tipoContribuyente?.toLowerCase().includes('residencial')) ? 'RECIBO' : 'NO FACTURADO')}</td>
+                          <td className={tdCls}>{fmtDate(det.fecha_emision_override || det.factura_digital?.fecha_emision || det.recibo_caja?.[0]?.fechaEmision || det.fecha_transaccion || det.fecha_banco || p.created_at)}</td>
                           <td className={tdCls}>{det.cajero || '-'}</td>
                           <td className={tdCls}>{formatContribuyente(p, det)}</td>
                           <td className={tdCls}>{getNumeroRecibo(p, det)}</td>

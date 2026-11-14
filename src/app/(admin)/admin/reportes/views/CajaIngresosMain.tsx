@@ -359,16 +359,6 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
       const rc0 = Array.isArray(det.recibo_caja) ? det.recibo_caja[0] : det.recibo_caja;
       const rcPadre0 = Array.isArray(detPadre?.recibo_caja) ? detPadre.recibo_caja[0] : detPadre?.recibo_caja;
 
-      const fRegYmd = (() => {
-        const dReg = new Date(p.created_at);
-        if (isNaN(dReg.getTime())) return '';
-        return dReg.toLocaleDateString('en-CA', { timeZone: 'America/Caracas' });
-      })();
-      const fTxYmd = (() => {
-        const dTx = parseFechaCaracas(det.fecha_transaccion);
-        return dTx ? dTx.toLocaleDateString('en-CA', { timeZone: 'America/Caracas' }) : '';
-      })();
-
       const candidatos = [
         det.fecha_emision_override,
         (fd.emitida || fd.numero_documento || fd.numero_control) ? fd.fecha_emision : '',
@@ -376,10 +366,10 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
         (fdPadre?.emitida || fdPadre?.numero_documento || fdPadre?.numero_control) ? fdPadre.fecha_emision : '',
         rc0?.fechaEmision,
         rcPadre0?.fechaEmision,
+        det.fecha_transaccion,
         rc0?.fechaIngresoCaja,
         rcPadre0?.fechaIngresoCaja,
         det.fecha_ingreso_caja,
-        (fRegYmd && fTxYmd && fRegYmd.slice(0, 7) > fTxYmd.slice(0, 7)) ? det.fecha_transaccion : '',
       ];
       for (const c of candidatos) {
         const dCand = parseFechaCaracas(c);
@@ -730,7 +720,7 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
                 const bDest = clasificarBancoDestino(p);
                 return (<tr key={p.id} style={{ background: i % 2 === 0 ? '#fff' : '#f9fafe' }}>
                   <td style={S.td}>{i + 1}</td>
-                  {showDT ? <><td style={S.td}>{fmtDT(obtenerFechaEfectivaRegistro(p, det).toISOString())}</td><td style={S.td}>{det.fecha_banco || '-'}</td><td style={{ ...S.td, fontWeight: 700 }}>{p.tipo}</td><td style={S.td}>{(det.fecha_emision_override || det.factura_digital?.fecha_emision) ? fmtDate(det.fecha_emision_override || det.factura_digital.fecha_emision) : (det.fecha_banco ? fmtDate(det.fecha_banco) : ((p.identidad?.startsWith('V-') || p.identidad?.startsWith('V') || p.identidad?.startsWith('E-') || p.tipoContribuyente?.toLowerCase().includes('residencial')) ? 'RECIBO' : 'NO FACTURADO'))}</td></>
+                  {showDT ? <><td style={S.td}>{fmtDT(obtenerFechaEfectivaRegistro(p, det).toISOString())}</td><td style={S.td}>{fmtDate(det.fecha_banco || det.fecha_transaccion || p.created_at)}</td><td style={{ ...S.td, fontWeight: 700 }}>{p.tipo}</td><td style={S.td}>{fmtDate(obtenerFechaEfectivaRegistro(p, det).toISOString())}</td></>
                     : <><td style={S.td}>{conc ? <b style={{ color: '#1a7a1a' }}>{det.fecha_transaccion || det.fecha_banco || fmtDate(obtenerFechaEfectivaRegistro(p, det).toISOString())}</b> : <span style={{ color: '#aaa' }}>-</span>}</td><td style={S.td}>{fmtDate(obtenerFechaEfectivaRegistro(p, det).toISOString())}</td><td style={{ ...S.td, fontWeight: 700 }}>{p.tipo}</td></>}
                   <td style={S.td}>{det.cajero || '-'}</td><td style={{ ...S.td, color: '#2a5298' }}>
                     <div style={{ fontWeight: 600 }}>{p.identidad}</div>

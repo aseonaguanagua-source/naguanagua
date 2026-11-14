@@ -426,12 +426,12 @@ export const generarCuadreCajaPDF = (
     const det = getDet(p);
     const bDestRaw = det.banco_destino || det.banco_receptor || p.banco_destino || 'N/A';
     const bDestLabel = bClass === 'Banesco' ? 'BANESCO' : bClass === 'Bancamiga' ? 'BANCAMIGA' : String(bDestRaw).substring(0, 15);
-    const fEmision = det.fecha_emision_override
-      ? `${String(det.fecha_emision_override).slice(0, 10)}T12:00:00-04:00`
-      : (det.factura_digital?.fecha_emision || (det.fecha_transaccion ? `${String(det.fecha_transaccion).slice(0, 10)}T12:00:00-04:00` : ''));
-    const fechaLibroLabel = fEmision
-      ? safeD(det.fecha_emision_override || det.factura_digital?.fecha_emision || det.fecha_transaccion)
-      : ((p.identidad?.startsWith('V-') || p.identidad?.startsWith('V') || p.identidad?.startsWith('E-') || (c?.tipo && String(c.tipo).toLowerCase().includes('residencial'))) ? "RECIBO" : "NO FACTURADO");
+    const rc0 = Array.isArray(det.recibo_caja) ? det.recibo_caja[0] : det.recibo_caja;
+    const rawEmis = det.fecha_emision_override || det.factura_digital?.fecha_emision || rc0?.fechaEmision || det.fecha_transaccion || det.fecha_banco || p.created_at;
+    const fEmision = rawEmis
+      ? (/^\d{4}-\d{2}-\d{2}$/.test(String(rawEmis).trim()) ? `${String(rawEmis).trim()}T12:00:00-04:00` : String(rawEmis))
+      : p.created_at;
+    const fechaLibroLabel = safeD(rawEmis || p.created_at);
     return [
       safeDT(fEmision || p.created_at),
       safeD(det.fecha_banco || det.fecha_transaccion || p.fecha_pago || p.created_at),
