@@ -1256,7 +1256,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
             }));
           }
         }
-        if (Array.isArray(updatedDet.recibo_caja) && updatedDet.recibo_caja.length > 0 && !updatedDet.factura_digital?.emitida) {
+        if (Array.isArray(updatedDet.recibo_caja) && updatedDet.recibo_caja.length > 0 && (!updatedDet.factura_digital?.emitida || (pago.estado === 'Aprobado' && estatus === 'Aprobado'))) {
           updatedDet.recibo_caja = updatedDet.recibo_caja.map((rc: any) => ({
             ...rc,
             fechaEmision: fechaTxConciliada,
@@ -1294,11 +1294,14 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
 
       // Si el pago ya estaba aprobado y se confirma en Aprobado, es una edición de datos / corrección de referencia
       if (pago.estado === 'Aprobado' && estatus === 'Aprobado') {
+        const createdYmdActual = String(pago.created_at || '').slice(0, 10);
+        const timePartActual = String(pago.created_at || '').split('T')[1] || '14:00:00.000Z';
         const payloadEdicion: any = {
           tipo: tipoPagoEdit || pago.tipo,
           banco: bancoEmisor,
           referencia: refFinal,
           ...(montoConciliadoNum > 0 ? { monto: montoConciliadoNum } : {}),
+          ...(fechaTxConciliada && fechaTxConciliada !== createdYmdActual ? { created_at: `${fechaTxConciliada}T${timePartActual}` } : {}),
           detalles: updatedDet
         };
         await actualizarPago(pago.id, payloadEdicion);

@@ -435,8 +435,11 @@ export const generarCorteCajaPDF = (
     const montoNum = parseFloat(det.monto_conciliado || p.monto || '0') || 0;
     const tasaPagoEuro = det.tasa_euro || det.tasa_bcv_conciliacion || tasaEuro || 0;
     const montoEur = tasaPagoEuro > 0 ? (montoNum / tasaPagoEuro).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : 'N/A';
+    const fEfectiva = det.fecha_emision_override
+      ? `${String(det.fecha_emision_override).slice(0, 10)}T12:00:00-04:00`
+      : (det.factura_digital?.fecha_emision || (det.fecha_transaccion ? `${String(det.fecha_transaccion).slice(0, 10)}T12:00:00-04:00` : p.created_at));
     return [
-      safeDT(p.created_at),
+      safeDT(fEfectiva || p.created_at),
       bancoOrigen,
       bancoDestino,
       String(limpiarRef(p, det) || 'N/A'),

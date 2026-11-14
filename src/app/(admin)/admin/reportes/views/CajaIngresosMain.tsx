@@ -322,10 +322,16 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
       lastCorr?.fecha_nueva &&
       String(lastCorr.fecha_anterior || '').slice(0, 10) !== String(lastCorr.fecha_nueva).slice(0, 10)
     );
-    if (!corrTieneFecha && !isDebito(p) && !isCredito(p)) {
-      const fEmision = det.fecha_emision_override
-        ? `${String(det.fecha_emision_override).slice(0, 10)}T12:00:00-04:00`
-        : (det.factura_digital?.fecha_emision || (det.fecha_transaccion ? `${String(det.fecha_transaccion).slice(0, 10)}T12:00:00-04:00` : ''));
+    if (det.fecha_emision_override) {
+      const dOv = new Date(`${String(det.fecha_emision_override).slice(0, 10)}T12:00:00-04:00`);
+      if (!isNaN(dOv.getTime())) return dOv;
+    }
+    if (corrTieneFecha && lastCorr?.fecha_nueva) {
+      const dCorr = new Date(`${String(lastCorr.fecha_nueva).slice(0, 10)}T12:00:00-04:00`);
+      if (!isNaN(dCorr.getTime())) return dCorr;
+    }
+    if (!isDebito(p) && !isCredito(p)) {
+      const fEmision = det.factura_digital?.fecha_emision || (det.fecha_transaccion ? `${String(det.fecha_transaccion).slice(0, 10)}T12:00:00-04:00` : '');
       if (fEmision) {
         const dEmis = new Date(fEmision);
         if (!isNaN(dEmis.getTime())) return dEmis;
@@ -336,41 +342,42 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
         if (!isNaN(dReal.getTime())) return dReal;
       }
     }
-    if (corrTieneFecha && lastCorr?.fecha_nueva) {
-      const dCorr = new Date(`${String(lastCorr.fecha_nueva).slice(0, 10)}T12:00:00-04:00`);
-      if (!isNaN(dCorr.getTime())) return dCorr;
-    }
     return new Date(p.created_at);
   };
 
   const getFilteredPagos = () => {
-    const s = new Date(fechaInicio), e = new Date(fechaFin);
+    const s = new Date(fechaInicio.length === 16 ? `${fechaInicio}:00` : fechaInicio);
+    const e = new Date(fechaFin.length === 16 ? `${fechaFin}:59.999` : fechaFin);
+    const sYmd = String(fechaInicio || '').slice(0, 10);
+    const eYmd = String(fechaFin || '').slice(0, 10);
     const hasSearch = !!searchTerm.trim();
     return pagos.filter(p => {
       // Excluir pagos anulados, reversados, condonados, rechazados o aún pendientes de verificar
       if (p.estado === 'Anulado' || p.estado === 'Reversado' || p.estado === 'Condonado' || p.estado === 'Rechazado' || p.estado === 'Por Verificar' || p.estado === 'Pendiente') return false;
       const det = parseDet(p);
       // Filtrar según el criterio seleccionado:
-      // - "registro": Fecha real en que se cobró/registró en Caja (o fecha de facturación/conciliación si fue re-facturado)
-      // - "banco": Fecha bancaria del comprobante (fTxDate)
+      // - "registro": Fecha efectiva única del pago en Caja/Cuadre (respeta fecha_emision_override y correcciones de fecha)
+      // - "banco": Fecha bancaria del comprobante (salvo que tenga corrección explícita de fecha en reporte/conciliación)
       const d = obtenerFechaEfectivaRegistro(p, det);
-      const fEmisStr = det.fecha_emision_override
-        ? `${String(det.fecha_emision_override).slice(0, 10)}T12:00:00-04:00`
-        : (det.factura_digital?.fecha_emision || '');
-      const dFac = fEmisStr ? new Date(fEmisStr) : null;
-      const dConc = det.fecha_conciliado ? new Date(det.fecha_conciliado) : null;
-      const fTx = det.fecha_transaccion || det.fecha_banco || '';
+      let dYmd = '';
+      try {
+        dYmd = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' }).format(d);
+      } catch {
+        dYmd = !isNaN(d.getTime()) ? d.toISOString().slice(0, 10) : String(p.created_at || '').slice(0, 10);
+      }
+      const registroEnRango = (sYmd && eYmd && dYmd >= sYmd && dYmd <= eYmd) || (d >= s && d <= e);
+
+      const tieneOverrideFecha = Boolean(
+        det.fecha_emision_override ||
+        (Array.isArray(det.correcciones_reporte) && det.correcciones_reporte.some((c: any) => c?.fecha_nueva))
+      );
+      const fTx = tieneOverrideFecha ? (det.fecha_emision_override || det.fecha_transaccion || det.fecha_banco || '') : (det.fecha_banco || det.fecha_transaccion || '');
       const fTxYmd = fTx ? String(fTx).slice(0, 10) : '';
-      const fTxDate = /^\d{4}-\d{2}-\d{2}$/.test(fTxYmd) ? new Date(fTxYmd + 'T12:00:00') : (fTx ? new Date(fTx) : null);
+      const fTxDate = /^\d{4}-\d{2}-\d{2}$/.test(fTxYmd) ? new Date(fTxYmd + 'T12:00:00-04:00') : (fTx ? new Date(fTx) : null);
       const validFTxDate = fTxDate && !isNaN(fTxDate.getTime()) ? fTxDate : null;
-      
-      const registroEnRango =
-        (d >= s && d <= e) ||
-        (dFac && !isNaN(dFac.getTime()) && dFac >= s && dFac <= e) ||
-        (dConc && !isNaN(dConc.getTime()) && dConc >= s && dConc <= e);
 
       const fechaCoincide = criterioFecha === 'banco'
-        ? (validFTxDate ? (validFTxDate >= s && validFTxDate <= e) : registroEnRango)
+        ? (validFTxDate ? ((sYmd && eYmd && fTxYmd >= sYmd && fTxYmd <= eYmd) || (validFTxDate >= s && validFTxDate <= e)) : registroEnRango)
         : registroEnRango;
 
       if (!fechaCoincide && !(buscarEnTodoHistorial && hasSearch)) return false;
@@ -453,7 +460,7 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
 
   const libroRows = pagosFiltrados.map(p => {
     const det = parseDet(p);
-    return { fecha: p.created_at, rif: p.identidad, nombre: getNombre(p, contribMap, det) || p.contribuyente, tipoDoc: isTarjeta(p) ? 'REC' : (p.tipo || 'AOC'), recibo: getNumeroRecibo(p, det), total: parseFloat(p.monto) || 0 };
+    return { fecha: obtenerFechaEfectivaRegistro(p, det).toISOString(), rif: p.identidad, nombre: getNombre(p, contribMap, det) || p.contribuyente, tipoDoc: isTarjeta(p) ? 'REC' : (p.tipo || 'AOC'), recibo: getNumeroRecibo(p, det), total: parseFloat(p.monto) || 0 };
   });
   const totalLibro = libroRows.reduce((s, r) => s + r.total, 0);
 
@@ -586,7 +593,7 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
       {showExcel && (
         <button
           id="btn-conciliacion-transferencias"
-          onClick={() => generarConciliacionTransferencias(getFilteredPagos(), contribuyentes, fechaInicio, fechaFin)}
+          onClick={() => generarConciliacionTransferencias(pagos, contribuyentes, fechaInicio, fechaFin)}
           style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#7c3aed', color: '#fff', border: 'none', padding: '4px 10px', borderRadius: 4, fontWeight: 600, cursor: 'pointer', fontSize: 12 }}
           title="Conciliación de transferencias por mes del pago + conciliación del punto (Excel)"
         >
@@ -674,8 +681,8 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
                 const bDest = clasificarBancoDestino(p);
                 return (<tr key={p.id} style={{ background: i % 2 === 0 ? '#fff' : '#f9fafe' }}>
                   <td style={S.td}>{i + 1}</td>
-                  {showDT ? <><td style={S.td}>{fmtDT(p.created_at)}</td><td style={S.td}>{det.fecha_banco || '-'}</td><td style={{ ...S.td, fontWeight: 700 }}>{p.tipo}</td><td style={S.td}>{det.fecha_banco ? fmtDate(det.fecha_banco) : ((p.identidad?.startsWith('V-') || p.identidad?.startsWith('V') || p.identidad?.startsWith('E-') || p.tipoContribuyente?.toLowerCase().includes('residencial')) ? 'RECIBO' : 'NO FACTURADO')}</td></>
-                    : <><td style={S.td}>{conc ? <b style={{ color: '#1a7a1a' }}>{det.fecha_banco || fmtDate(p.created_at)}</b> : <span style={{ color: '#aaa' }}>-</span>}</td><td style={S.td}>{fmtDate(p.created_at)}</td><td style={{ ...S.td, fontWeight: 700 }}>{p.tipo}</td></>}
+                  {showDT ? <><td style={S.td}>{fmtDT(obtenerFechaEfectivaRegistro(p, det).toISOString())}</td><td style={S.td}>{det.fecha_banco || '-'}</td><td style={{ ...S.td, fontWeight: 700 }}>{p.tipo}</td><td style={S.td}>{(det.fecha_emision_override || det.factura_digital?.fecha_emision) ? fmtDate(det.fecha_emision_override || det.factura_digital.fecha_emision) : (det.fecha_banco ? fmtDate(det.fecha_banco) : ((p.identidad?.startsWith('V-') || p.identidad?.startsWith('V') || p.identidad?.startsWith('E-') || p.tipoContribuyente?.toLowerCase().includes('residencial')) ? 'RECIBO' : 'NO FACTURADO'))}</td></>
+                    : <><td style={S.td}>{conc ? <b style={{ color: '#1a7a1a' }}>{det.fecha_transaccion || det.fecha_banco || fmtDate(obtenerFechaEfectivaRegistro(p, det).toISOString())}</b> : <span style={{ color: '#aaa' }}>-</span>}</td><td style={S.td}>{fmtDate(obtenerFechaEfectivaRegistro(p, det).toISOString())}</td><td style={{ ...S.td, fontWeight: 700 }}>{p.tipo}</td></>}
                   <td style={S.td}>{det.cajero || '-'}</td><td style={{ ...S.td, color: '#2a5298' }}>
                     <div style={{ fontWeight: 600 }}>{p.identidad}</div>
                     <div style={{ fontSize: '0.78em', color: '#555' }}>{getNombre(p, contribMap, det)}</div>

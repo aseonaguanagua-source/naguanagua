@@ -358,12 +358,18 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
       lastCorr?.fecha_nueva &&
       String(lastCorr.fecha_anterior || '').slice(0, 10) !== String(lastCorr.fecha_nueva).slice(0, 10)
     );
+    if (det.fecha_emision_override) {
+      const dOv = new Date(`${String(det.fecha_emision_override).slice(0, 10)}T12:00:00-04:00`);
+      if (!isNaN(dOv.getTime())) return dOv;
+    }
+    if (corrTieneFecha && lastCorr?.fecha_nueva) {
+      const dCorr = new Date(`${String(lastCorr.fecha_nueva).slice(0, 10)}T12:00:00-04:00`);
+      if (!isNaN(dCorr.getTime())) return dCorr;
+    }
     // Para transferencias y depósitos, guiarse siempre por la Fecha de Emisión (o Fecha Transacción si fue editada en conciliación);
     // para tarjetas (Débito/Crédito POS), conservar la fecha real del pase por punto (created_at).
-    if (!corrTieneFecha && !isDebitoPago(p) && !isCreditoPago(p)) {
-      const fEmision = det.fecha_emision_override
-        ? `${String(det.fecha_emision_override).slice(0, 10)}T12:00:00-04:00`
-        : (det.factura_digital?.fecha_emision || (det.fecha_transaccion ? `${String(det.fecha_transaccion).slice(0, 10)}T12:00:00-04:00` : ''));
+    if (!isDebitoPago(p) && !isCreditoPago(p)) {
+      const fEmision = det.factura_digital?.fecha_emision || (det.fecha_transaccion ? `${String(det.fecha_transaccion).slice(0, 10)}T12:00:00-04:00` : '');
       if (fEmision) {
         const dEmis = new Date(fEmision);
         if (!isNaN(dEmis.getTime())) return dEmis;
@@ -373,10 +379,6 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
         const dReal = new Date(det.recibo_caja_at);
         if (!isNaN(dReal.getTime())) return dReal;
       }
-    }
-    if (corrTieneFecha && lastCorr?.fecha_nueva) {
-      const dCorr = new Date(`${String(lastCorr.fecha_nueva).slice(0, 10)}T12:00:00-04:00`);
-      if (!isNaN(dCorr.getTime())) return dCorr;
     }
     return new Date(p.created_at);
   };

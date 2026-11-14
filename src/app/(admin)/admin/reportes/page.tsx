@@ -244,8 +244,6 @@ export default function ReportesPage() {
   );
 
   if (activeView === 'recibos-pagos') {
-    const s = new Date(fechaInicio + 'T00:00:00.000-04:00'), e = new Date(fechaFin + 'T23:59:59.999-04:00');
-    const pf = pagos.filter((p: any) => { const d = new Date(p.created_at); return !isNaN(d.getTime()) && d >= s && d <= e; });
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-3">
@@ -262,7 +260,7 @@ export default function ReportesPage() {
             <div className="flex flex-col flex-1"><label className="text-xs text-slate-500 mb-1">Hasta</label><input type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)} className="border rounded-lg px-3 py-2 text-sm" /></div>
           </div>
           <button
-            onClick={() => generarReporteRecibosPagos(pf, contribuyentes, fechaInicio, fechaFin)}
+            onClick={() => generarReporteRecibosPagos(pagos, contribuyentes, fechaInicio, fechaFin)}
             className="w-full flex items-center justify-between px-4 py-3 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg text-sm font-semibold text-teal-900 transition-colors"
           >
             Descargar REPORTE DE RECIBOS DE PAGOS (Excel) <Download className="w-4 h-4 text-teal-700" />

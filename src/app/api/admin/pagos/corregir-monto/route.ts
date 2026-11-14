@@ -34,12 +34,18 @@ export async function POST(req: Request) {
     const quien = `${trab.nombre || trab.usuario} (${trab.usuario})`;
 
     const fechaValida = fechaNueva && /^\d{4}-\d{2}-\d{2}$/.test(fechaNueva) ? fechaNueva : null;
-    const fechaActualYmd = String(det.fecha_transaccion || pago.created_at || '').slice(0, 10);
-    const cambioFechaReal = Boolean(fechaValida && fechaValida !== fechaActualYmd);
+    const createdYmd = String(pago.created_at || '').slice(0, 10);
+    const txYmd = String(det.fecha_transaccion || '').slice(0, 10);
+    const ovYmd = String(det.fecha_emision_override || '').slice(0, 10);
+    const cambioFechaReal = Boolean(fechaValida && (fechaValida !== createdYmd || fechaValida !== txYmd || fechaValida !== ovYmd));
 
     const nuevoDet: any = {
       ...det,
-      ...(cambioFechaReal && fechaValida ? { fecha_transaccion: fechaValida, fecha_banco: fechaValida } : {}),
+      ...(fechaValida ? { fecha_transaccion: fechaValida, fecha_emision_override: fechaValida } : {}),
+      ...(cambioFechaReal && fechaValida ? { fecha_banco: fechaValida } : {}),
+      ...(fechaValida && Array.isArray(det.recibo_caja) && det.recibo_caja.length > 0 ? {
+        recibo_caja: det.recibo_caja.map((rc: any) => ({ ...rc, fechaEmision: fechaValida, fechaTransaccion: fechaValida }))
+      } : {}),
       correcciones_reporte: [
         ...(Array.isArray(det.correcciones_reporte) ? det.correcciones_reporte : []),
         {
@@ -47,7 +53,7 @@ export async function POST(req: Request) {
           despues: quitar ? real : nuevo,
           quitada: quitar || undefined,
           fecha_anterior: pago.created_at,
-          fecha_nueva: cambioFechaReal ? fechaValida : undefined,
+          fecha_nueva: fechaValida || undefined,
           motivo: String(motivo).trim(),
           usuario: quien,
           fecha: new Date().toISOString()
@@ -58,7 +64,7 @@ export async function POST(req: Request) {
     else nuevoDet.monto_reporte = nuevo;
 
     const updateFields: any = { detalles: nuevoDet };
-    if (cambioFechaReal && fechaValida) {
+    if (fechaValida && fechaValida !== createdYmd) {
       // Ajustar fecha para que el pago caiga en el cuadre del día deseado
       const timePart = pago.created_at?.split('T')[1] || '12:00:00.000Z';
       updateFields.created_at = `${fechaValida}T${timePart}`;
