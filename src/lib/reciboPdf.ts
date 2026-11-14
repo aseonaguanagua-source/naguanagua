@@ -153,8 +153,12 @@ export function construirReciboPdf(d: DatosRecibo): Buffer {
   );
   if (fps && fps.length > 1) {
     if (y + 25 > H - 30) { doc.addPage(); y = 20; }
+    const todasTransfPdf = fps.every((fp: any) => {
+      const m = String(fp?.descripcion || fp?.metodo || fp?.tipo || '').toLowerCase();
+      return !m || /transfer|m[oó]vil/i.test(m);
+    });
     doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(15, 23, 42);
-    doc.text('DESGLOSE DE PAGOS / TRANSFERENCIAS REALIZADAS', M, y); y += 4.5;
+    doc.text(todasTransfPdf ? 'DESGLOSE DE PAGOS / TRANSFERENCIAS REALIZADAS' : 'DESGLOSE DE PAGOS REALIZADOS', M, y); y += 4.5;
     const wFp = [24, ancho - 24 - 38 - 30, 38, 30];
     tabla(
       ['Fecha', 'Método / Banco', 'Referencia', 'Monto'],

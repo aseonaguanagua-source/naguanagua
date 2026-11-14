@@ -25,11 +25,16 @@ type SubTipo = 'General de Ingresos' | 'Corte de Caja' | 'Ingresos por Banco' | 
 const fmtBs = (n: number) => (Number(n) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtDate = (d: string) => {
   if (!d) return '-';
+  const s = String(d).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    const [y, m, day] = s.split('-');
+    return `${Number(day)}/${Number(m)}/${y}`;
+  }
   try {
-    const dt = new Date(d);
-    if (isNaN(dt.getTime())) return String(d);
-    return dt.toLocaleDateString('es-VE');
-  } catch { return String(d || '-'); }
+    const dt = new Date(s);
+    if (isNaN(dt.getTime())) return s;
+    return dt.toLocaleDateString('es-VE', { timeZone: 'America/Caracas' });
+  } catch { return s || '-'; }
 };
 const fmtDT = (d: string) => {
   if (!d) return '-';
@@ -310,6 +315,34 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
 
   const [criterioFecha, setCriterioFecha] = useState<'registro' | 'banco'>('registro');
 
+  const obtenerFechaEfectivaRegistro = (p: any, det: any) => {
+    const corrList = Array.isArray(det.correcciones_reporte) ? det.correcciones_reporte : [];
+    const lastCorr = corrList.length > 0 ? corrList[corrList.length - 1] : null;
+    const corrTieneFecha = Boolean(
+      lastCorr?.fecha_nueva &&
+      String(lastCorr.fecha_anterior || '').slice(0, 10) !== String(lastCorr.fecha_nueva).slice(0, 10)
+    );
+    if (!corrTieneFecha && !isDebito(p) && !isCredito(p)) {
+      const fEmision = det.fecha_emision_override
+        ? `${String(det.fecha_emision_override).slice(0, 10)}T12:00:00-04:00`
+        : (det.factura_digital?.fecha_emision || (det.fecha_transaccion ? `${String(det.fecha_transaccion).slice(0, 10)}T12:00:00-04:00` : ''));
+      if (fEmision) {
+        const dEmis = new Date(fEmision);
+        if (!isNaN(dEmis.getTime())) return dEmis;
+      }
+      const createdStr = String(p.created_at || '');
+      if (createdStr.includes('T16:00:00') && det.recibo_caja_at) {
+        const dReal = new Date(det.recibo_caja_at);
+        if (!isNaN(dReal.getTime())) return dReal;
+      }
+    }
+    if (corrTieneFecha && lastCorr?.fecha_nueva) {
+      const dCorr = new Date(`${String(lastCorr.fecha_nueva).slice(0, 10)}T12:00:00-04:00`);
+      if (!isNaN(dCorr.getTime())) return dCorr;
+    }
+    return new Date(p.created_at);
+  };
+
   const getFilteredPagos = () => {
     const s = new Date(fechaInicio), e = new Date(fechaFin);
     const hasSearch = !!searchTerm.trim();
@@ -318,17 +351,27 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
       if (p.estado === 'Anulado' || p.estado === 'Reversado' || p.estado === 'Condonado' || p.estado === 'Rechazado' || p.estado === 'Por Verificar' || p.estado === 'Pendiente') return false;
       const det = parseDet(p);
       // Filtrar según el criterio seleccionado:
-      // - "registro": Fecha real en que se cobró/registró en Caja (p.created_at)
+      // - "registro": Fecha real en que se cobró/registró en Caja (o fecha de facturación/conciliación si fue re-facturado)
       // - "banco": Fecha bancaria del comprobante (fTxDate)
-      const d = new Date(p.created_at);
+      const d = obtenerFechaEfectivaRegistro(p, det);
+      const fEmisStr = det.fecha_emision_override
+        ? `${String(det.fecha_emision_override).slice(0, 10)}T12:00:00-04:00`
+        : (det.factura_digital?.fecha_emision || '');
+      const dFac = fEmisStr ? new Date(fEmisStr) : null;
+      const dConc = det.fecha_conciliado ? new Date(det.fecha_conciliado) : null;
       const fTx = det.fecha_transaccion || det.fecha_banco || '';
       const fTxYmd = fTx ? String(fTx).slice(0, 10) : '';
       const fTxDate = /^\d{4}-\d{2}-\d{2}$/.test(fTxYmd) ? new Date(fTxYmd + 'T12:00:00') : (fTx ? new Date(fTx) : null);
       const validFTxDate = fTxDate && !isNaN(fTxDate.getTime()) ? fTxDate : null;
       
+      const registroEnRango =
+        (d >= s && d <= e) ||
+        (dFac && !isNaN(dFac.getTime()) && dFac >= s && dFac <= e) ||
+        (dConc && !isNaN(dConc.getTime()) && dConc >= s && dConc <= e);
+
       const fechaCoincide = criterioFecha === 'banco'
-        ? (validFTxDate ? (validFTxDate >= s && validFTxDate <= e) : (d >= s && d <= e))
-        : (d >= s && d <= e);
+        ? (validFTxDate ? (validFTxDate >= s && validFTxDate <= e) : registroEnRango)
+        : registroEnRango;
 
       if (!fechaCoincide && !(buscarEnTodoHistorial && hasSearch)) return false;
 

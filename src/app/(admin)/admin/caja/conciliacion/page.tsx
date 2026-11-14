@@ -1247,6 +1247,15 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
       const fechaBancoConciliada = normalizarFechaYMD(fechaBanco) || fechaTxConciliada;
       if (fechaTxConciliada) {
         updatedDet.fecha_transaccion = fechaTxConciliada;
+        if (pago.estado === 'Aprobado' && estatus === 'Aprobado') {
+          updatedDet.fecha_emision_override = fechaTxConciliada;
+          if (Array.isArray(updatedDet.correcciones_reporte) && updatedDet.correcciones_reporte.length > 0) {
+            updatedDet.correcciones_reporte = updatedDet.correcciones_reporte.map((c: any) => ({
+              ...c,
+              fecha_nueva: fechaTxConciliada,
+            }));
+          }
+        }
         if (Array.isArray(updatedDet.recibo_caja) && updatedDet.recibo_caja.length > 0 && !updatedDet.factura_digital?.emitida) {
           updatedDet.recibo_caja = updatedDet.recibo_caja.map((rc: any) => ({
             ...rc,
@@ -2788,6 +2797,16 @@ export default function ConciliacionPage() {
     const m = parseFloat(String(pago.monto||'0').replace(/[^0-9.]/g,''));
     if (condo) { totalCondo += m || 0; cantCondo++; }
     const mismoGrupoQueAnterior = condo?.grupo && idx > 0 && infoCondominioPago(pagos[idx - 1], condos)?.grupo?.id === condo.grupo.id;
+    const pagsBancariosReales = Array.isArray(det.pagos_agregados)
+      ? det.pagos_agregados.filter((pa: any) => {
+          const m = String(pa?.metodo || pa?.tipo || pa?.descripcion || pa?.referencia || '').toLowerCase();
+          return !m.includes('saldo a favor') && !m.includes('saldo favor') && !m.includes('nota de credito') && !m.includes('desc. saldo');
+        })
+      : [];
+    const esMultiTransfReal = Boolean(
+      /transfer/i.test(String(pago.tipo || '')) &&
+      ((pago.grupo_pago || (!det.vinculado_a_referencia && (det.pago_principal_id || det.es_pago_adicional))) || pagsBancariosReales.length > 1)
+    );
     filas.push(
       <tr key={'doc'+idx} className={`${condo ? 'bg-emerald-50' : 'bg-slate-100'} border-t ${mismoGrupoQueAnterior ? 'border-dashed border-sky-300' : 'border-slate-200'}`}>
         <td colSpan={10} className="px-3 py-1 text-xs text-slate-600 font-mono truncate">
@@ -2799,17 +2818,17 @@ export default function ConciliacionPage() {
                 Factura a: {condo.facturaA === 'CONTRIBUYENTE' ? 'el contribuyente' : 'el condominio'}
               </span>
               {condo.grupo && <span className="px-1.5 py-0.5 rounded bg-sky-600 text-white text-[10px] font-black">Pago repartido · parte {condo.grupo.parte} de {condo.grupo.partes} · total Bs {fmt(condo.grupo.montoTotal)}</span>}
-              {((pago.grupo_pago || (!det.vinculado_a_referencia && (det.pago_principal_id || det.es_pago_adicional))) || (Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1)) && (
+              {esMultiTransfReal && (
                 <span className="px-1.5 py-0.5 rounded bg-indigo-600 text-white text-[10px] font-black">
-                  🔗 MULTI-TRANSFERENCIA {(det.es_pago_adicional && (pago.grupo_pago || !det.vinculado_a_referencia)) ? '· DIFERENCIA' : (Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1 ? '· ANTICIPO' : '')}
+                  🔗 MULTI-TRANSFERENCIA {(det.es_pago_adicional && (pago.grupo_pago || !det.vinculado_a_referencia)) ? '· DIFERENCIA' : (pagsBancariosReales.length > 1 ? '· ANTICIPO' : '')}
                 </span>
               )}
             </span>
           )}
-          {!condo && ((pago.grupo_pago || (!det.vinculado_a_referencia && (det.pago_principal_id || det.es_pago_adicional))) || (Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1)) && (
+          {!condo && esMultiTransfReal && (
             <span className="inline-flex items-center gap-1.5 mr-2 font-sans align-middle">
               <span className="px-1.5 py-0.5 rounded bg-indigo-600 text-white text-[10px] font-black">
-                🔗 MULTI-TRANSFERENCIA {(det.es_pago_adicional && (pago.grupo_pago || !det.vinculado_a_referencia)) ? '· DIFERENCIA' : (Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1 ? '· ANTICIPO' : '')}
+                🔗 MULTI-TRANSFERENCIA {(det.es_pago_adicional && (pago.grupo_pago || !det.vinculado_a_referencia)) ? '· DIFERENCIA' : (pagsBancariosReales.length > 1 ? '· ANTICIPO' : '')}
               </span>
               {(det.es_pago_adicional && (pago.grupo_pago || !det.vinculado_a_referencia)) && (
                 <span className="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 border border-indigo-300 text-[10px] font-bold">Transferencia Adicional</span>

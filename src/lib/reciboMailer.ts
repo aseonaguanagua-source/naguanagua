@@ -255,9 +255,13 @@ export function construirReciboHtml(d: DatosRecibo, opts: { esCopiaInterna?: boo
               : (Array.isArray(d.det?.pagos_agregados) && d.det.pagos_agregados.length > 1 ? d.det.pagos_agregados : null)
           );
           if (!fps) return '';
+          const todasTransf = fps.every((fp: any) => {
+            const m = String(fp?.descripcion || fp?.metodo || fp?.tipo || '').toLowerCase();
+            return !m || /transfer|m[oó]vil/i.test(m);
+          });
           return `
             <div style="margin-bottom:20px;">
-              <p style="margin:0 0 8px;font-size:12px;font-weight:bold;color:#0f172a;text-transform:uppercase;">Desglose de Pagos / Transferencias Realizadas</p>
+              <p style="margin:0 0 8px;font-size:12px;font-weight:bold;color:#0f172a;text-transform:uppercase;">${todasTransf ? 'Desglose de Pagos / Transferencias Realizadas' : 'Desglose de Pagos Realizados'}</p>
               <table width="100%" cellpadding="0" cellspacing="0" style="font-size:12px;border:1px solid #e2e8f0;border-radius:8px;">
                 <tr style="background:#f1f5f9;">
                   <th style="padding:7px 8px;text-align:left;color:#475569;">Fecha</th>

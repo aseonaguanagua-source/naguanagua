@@ -23,6 +23,26 @@ const fechaISO = (d: any) => {
   const x = new Date(d);
   return isNaN(x.getTime()) ? '' : new Date(x.getTime() - 4 * 3600 * 1000).toISOString().slice(0, 10);
 };
+export const fechaEmisionDoc = (p: any, det?: any): string => {
+  const d = det || parseDet(p);
+  const fd = d?.factura_digital || {};
+  // Si no es una factura previa anulada, priorizar fecha_emision_override
+  if (!p?._pagoOriginalId && d?.fecha_emision_override && /^\d{4}-\d{2}-\d{2}/.test(String(d.fecha_emision_override).trim())) {
+    return String(d.fecha_emision_override).trim().slice(0, 10);
+  }
+  if (fd.fecha_emision) {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(String(fd.fecha_emision).trim())) return String(fd.fecha_emision).trim();
+    const f = fechaISO(fd.fecha_emision);
+    if (f) return f;
+  }
+  const rawEmis = fd.raw_response?.resultado?.fechaEmision;
+  if (rawEmis && typeof rawEmis === 'string') {
+    const m = rawEmis.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+    if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+    if (/^\d{4}-\d{2}-\d{2}/.test(rawEmis.trim())) return rawEmis.trim().slice(0, 10);
+  }
+  return fechaISO(p?.created_at);
+};
 const dmy = (iso: string) => { const [y, m, d] = String(iso || '').split('-'); return d ? `${d}/${m}/${y}` : iso; };
 
 const cleanId = (s: any) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -682,7 +702,7 @@ export const generarLibroVentas = async (pagosFiltrados: any[], contribuyentes: 
         det.fecha_comprobante_retencion ||
         fd.retencion?.fecha_comprobante ||
         ret?.fecha ||
-        fechaISO(p.created_at)
+        fechaEmisionDoc(p, det)
       );
     }
 
@@ -690,7 +710,7 @@ export const generarLibroVentas = async (pagosFiltrados: any[], contribuyentes: 
     const fechaCompRet = esAnulada ? '' : fechaCompRetFinal;
 
     const vals: any[] = [
-      i + 1, fechaISO(p.created_at), p.identidad || '', nombreDe(p.identidad, det), '', nroDoc, fd.numero_control || '',
+      i + 1, fechaEmisionDoc(p, det), p.identidad || '', nombreDe(p.identidad, det), '', nroDoc, fd.numero_control || '',
       '', nroNotaCredito, tipoTransac, nroDocAfectado, totalVentas, exentoVentas, 0,
       baseC, 0.16, ivaC,
       baseN, 0.16, ivaN,

@@ -29,6 +29,7 @@ const fechaVE = (d: any) => { const x = new Date(d); return isNaN(x.getTime()) ?
 const dmy = (iso: string) => { const [y, m, d] = String(iso || '').slice(0, 10).split('-'); return d ? `${d}/${m}/${y}` : iso; };
 const esAnulado = (p: any) => {
   if (['Anulado', 'Reversado', 'Condonado', 'Rechazado'].includes(String(p.estado || ''))) return true;
+  if (String(p.estado || '') === 'Aprobado') return false;
   const det = parseDet(p);
   const caj = String(det?.cajero || det?.analista || '').trim();
   if (/^(dz-)?dzara$|^c-dzara$/i.test(caj)) return true;
@@ -36,7 +37,7 @@ const esAnulado = (p: any) => {
 };
 const esDebito = (p: any) => /^(d[eé]bito|cr[eé]dito|tmd|tvd)\b|punto|tarjeta/i.test(String(p.tipo || '').trim());
 const esTransferencia = (p: any) => {
-  if (!/transfer|m[oó]vil|pago m/i.test(String(p.tipo || ''))) return false;
+  if (!/transfer|m[oó]vil|pago m|dep[oó]sito/i.test(String(p.tipo || ''))) return false;
   const ref = String(p.referencia || '').trim();
   const det = parseDet(p);
   const tieneTransfAgregada = Array.isArray(det?.pagos_agregados) && det.pagos_agregados.some((pa: any) => /transfer|m[oó]vil|pago m/i.test(String(pa?.metodo || pa?.tipo || '')));
@@ -720,12 +721,20 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
   });
 
   const normalizarFechaYMD = (raw: any): string => {
-    const s = String(raw || '').trim().slice(0, 10);
+    if (!raw) return '';
+    const str = String(raw).trim();
+    const dmyMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+    const s = dmyMatch
+      ? `${dmyMatch[3]}-${dmyMatch[2].padStart(2, '0')}-${dmyMatch[1].padStart(2, '0')}`
+      : str.slice(0, 10);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return '';
     const yr = parseInt(s.slice(0, 4), 10);
     if (yr < 2020 || yr > 2035) return `2026${s.slice(4)}`;
     return s;
   };
+
+  const fIni = normalizarFechaYMD(fechaInicio);
+  const fFin = normalizarFechaYMD(fechaFin);
 
   // Mes del PAGO (fecha de la transferencia), no del registro
   const porMes = new Map<string, any[]>();
@@ -734,16 +743,28 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
     const fRegistro = normalizarFechaYMD(fechaVE(p.created_at));
     // Si la lista de pagos ya contiene las filas individuales de cada pago adicional,
     // NO debemos re-expandir pagos_agregados en el padre porque duplicaría las filas y sumaría varias veces el mismo pago.
+    // Además, NUNCA incluir pagos de Punto de Venta (Tarjeta de débito / crédito) dentro de la Conciliación de Transferencias.
     const pagsAgregados = Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1
-      ? det.pagos_agregados.filter((pa: any) => pa && Number(pa.monto) > 0 && pa.metodo !== 'Saldo a Favor')
+      ? det.pagos_agregados.filter((pa: any) => {
+          if (!pa || !(Number(pa.monto) > 0)) return false;
+          const m = String(pa.metodo || pa.tipo || pa.descripcion || '').trim();
+          if (/saldo\s*a\s*favor|nota\s*de\s*cr[eé]dito/i.test(m)) return false;
+          if (/^(d[eé]bito|cr[eé]dito|tmd|tvd)\b|punto|tarjeta/i.test(m)) return false;
+          return true;
+        })
       : null;
 
-    // Solo se expande si ninguna de las referencias de pagos_agregados existe ya como otra fila en transf
-    const yaExistenComoFilasSeparadas = det.es_pago_adicional || (pagsAgregados && pagsAgregados.length > 1 && pagsAgregados.some((pa: any) => {
-      const paRef = String(pa?.referencia || '').trim().toLowerCase();
-      const pRef = String(p?.referencia || '').trim().toLowerCase();
-      return paRef && paRef !== pRef && transf.some((otro: any) => String(otro?.referencia || '').trim().toLowerCase() === paRef);
-    }));
+    // Solo se expande si ninguna de las referencias de pagos_agregados existe ya como otra fila en vivos (ni es un abono integrado)
+    const yaExistenComoFilasSeparadas = Boolean(
+      det.es_pago_adicional ||
+      det.abono_completado ||
+      (Array.isArray(det.pagos_integrados_ids) && det.pagos_integrados_ids.length > 0) ||
+      (Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1 && det.pagos_agregados.some((pa: any) => {
+        const paRef = String(pa?.referencia || '').trim().toLowerCase();
+        const pRef = String(p?.referencia || '').trim().toLowerCase();
+        return paRef && paRef !== pRef && vivos.some((otro: any) => String(otro?.referencia || '').trim().toLowerCase() === paRef);
+      }))
+    );
 
     const fd = det.factura_digital || {};
     const pagoPadre = det.pago_principal_id ? pagoPorId.get(String(det.pago_principal_id)) : null;
@@ -753,31 +774,70 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
     const rcPadre0 = Array.isArray(detPadre?.recibo_caja) ? detPadre.recibo_caja[0] : detPadre?.recibo_caja;
     const fRc = normalizarFechaYMD(rc0?.fechaEmision);
     const fRcPadre = normalizarFechaYMD(rcPadre0?.fechaEmision);
-    const fFacturaRaw =
+    const fConciliadoRaw = normalizarFechaYMD(det.fecha_conciliado ? fechaVE(det.fecha_conciliado) : '');
+    let fFacturaRaw =
       normalizarFechaYMD(det.fecha_emision_override) ||
-      normalizarFechaYMD(det.fecha_asignacion_override) ||
       normalizarFechaYMD(fd.fecha_emision) ||
-      normalizarFechaYMD(fd.fecha_asignacion) ||
       normalizarFechaYMD(detPadre?.fecha_emision_override) ||
       normalizarFechaYMD(fdPadre.fecha_emision) ||
-      normalizarFechaYMD(fdPadre.fecha_asignacion) ||
       normalizarFechaYMD(rc0?.fechaIngresoCaja) ||
       normalizarFechaYMD(rcPadre0?.fechaIngresoCaja) ||
       (fRc && fRegistro && fRc.slice(0, 7) < fRegistro.slice(0, 7) ? fRc : '') ||
       (fRcPadre && fRegistro && fRcPadre.slice(0, 7) < fRegistro.slice(0, 7) ? fRcPadre : '') ||
+      fRc ||
+      fRcPadre ||
       fRegistro;
+    // Si el pago fue registrado en septiembre pero recibió su recibo/conciliación en octubre o después, reflejar la fecha real de conciliación/recibo en Fecha Factura
+    if (fFacturaRaw && fFacturaRaw < '2026-10-01') {
+      if (fRc && fRc >= '2026-10-01') fFacturaRaw = fRc;
+      else if (fRcPadre && fRcPadre >= '2026-10-01') fFacturaRaw = fRcPadre;
+      else if (fConciliadoRaw && fConciliadoRaw >= '2026-10-01') fFacturaRaw = fConciliadoRaw;
+    }
     const fFactura = fFacturaRaw || fRegistro;
+    const fConciliado = fConciliadoRaw || fFactura || fRegistro;
+
+    const fpExacto = (Array.isArray(det.formasPago) ? det.formasPago : []).find((f: any) => String(f?.referencia || '').trim() === String(p.referencia || '').trim());
+    const paExacto = (Array.isArray(det.pagos_agregados) ? det.pagos_agregados : []).find((a: any) => String(a?.referencia || '').trim() === String(p.referencia || '').trim());
+    const fPagoPropia = normalizarFechaYMD(fpExacto?.fecha || paExacto?.fecha || paExacto?.fechaTransaccion);
+    const fOverrideDirecta = normalizarFechaYMD(det.fecha_pago_override);
+    const fBancoDirecta = normalizarFechaYMD(det.fecha_banco);
+    const fTxDirecta = normalizarFechaYMD(det.fecha_transaccion);
+    const esPagoUnico = Boolean(yaExistenComoFilasSeparadas) || ((!Array.isArray(det.formasPago) || det.formasPago.length <= 1) && (!Array.isArray(det.pagos_agregados) || det.pagos_agregados.length <= 1));
+    // Si fecha_banco quedó igual a la fecha de registro/conciliación pero fecha_transaccion tiene la fecha real anterior del comprobante (o viceversa), priorizar la fecha real del comprobante
+    const fBancoOTxPreferida = (() => {
+      if (fBancoDirecta && fTxDirecta) {
+        if ((fBancoDirecta === fRegistro || fBancoDirecta === fConciliado) && fTxDirecta < fBancoDirecta) return fTxDirecta;
+        if ((fTxDirecta === fRegistro || fTxDirecta === fConciliado) && fBancoDirecta < fTxDirecta) return fBancoDirecta;
+        return fBancoDirecta;
+      }
+      return fBancoDirecta || fTxDirecta;
+    })();
+    const fEditadaPreferida = fOverrideDirecta || (esPagoUnico && fBancoOTxPreferida ? fBancoOTxPreferida : '');
+    const fPagoBancaria = fBancoOTxPreferida || (Array.isArray(det.formasPago) && det.formasPago[0]?.fecha ? normalizarFechaYMD(det.formasPago[0].fecha) : '');
+    let fPago = fEditadaPreferida || fPagoPropia || fPagoBancaria || fTxDirecta || fFactura || fRegistro;
+    // Solo acotar si por error de tipeo la fecha del pago fue guardada en un año futuro (ej. 2027)
+    if (fPago > '2026-12-31' && (fFactura || fRegistro)) {
+      const limiteFecha = fFactura && fFactura < fRegistro ? fFactura : fRegistro;
+      if (limiteFecha) fPago = limiteFecha;
+    }
+
+    const fechasConciliacion = [fRegistro, fFactura, fConciliado, fRc, fRcPadre, fTxDirecta, fBancoDirecta, fPago].filter(Boolean);
+    const esMesAnteriorConciliado = Boolean(fIni && fPago && fPago < fIni && (!fFin || fPago <= fFin));
+    const dentroDeRangoConciliacion = esMesAnteriorConciliado || fechasConciliacion.some(
+      fc => (!fIni || fc >= fIni) && (!fFin || fc <= fFin)
+    );
+    if (!dentroDeRangoConciliacion) return;
 
     if (pagsAgregados && pagsAgregados.length > 1 && !yaExistenComoFilasSeparadas) {
       const totalBase = pagsAgregados.reduce((acc: number, x: any) => acc + (Number(x.monto) || 0), 0) || Number(p.monto) || 1;
       pagsAgregados.forEach((pa: any) => {
-        let fPagoSub = String(pa.fecha || pa.fechaTransaccion || det.fecha_transaccion || det.fecha_banco || fFactura || fRegistro).slice(0, 10);
+        let fPagoSub = normalizarFechaYMD(pa.fecha || pa.fechaTransaccion || det.fecha_transaccion || det.fecha_banco || fFactura || fRegistro);
         // Solo acotar si por error de tipeo la fecha del pago fue guardada en un año futuro (ej. 2027)
         if (fPagoSub > '2026-12-31' && (fFactura || fRegistro)) {
           const limiteFecha = fFactura && fFactura < fRegistro ? fFactura : fRegistro;
           if (limiteFecha) fPagoSub = limiteFecha;
         }
-        if ((fechaInicio && fPagoSub < fechaInicio) || (fechaFin && fPagoSub > fechaFin)) return;
+        if (fFin && fPagoSub > fFin) return;
         const keySub = fPagoSub.slice(0, 7);
         if (!porMes.has(keySub)) porMes.set(keySub, []);
         const subDet = pa.bancoDestino && !det.banco_receptor
@@ -800,24 +860,7 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
         });
       });
     } else {
-      const fpExacto = (Array.isArray(det.formasPago) ? det.formasPago : []).find((f: any) => String(f?.referencia || '').trim() === String(p.referencia || '').trim());
-      const paExacto = (Array.isArray(det.pagos_agregados) ? det.pagos_agregados : []).find((a: any) => String(a?.referencia || '').trim() === String(p.referencia || '').trim());
-      const fPagoPropia = String(fpExacto?.fecha || paExacto?.fecha || paExacto?.fechaTransaccion || '').slice(0, 10);
-      const fBancoDirecta = String(det.fecha_banco || '').slice(0, 10);
-      const fTxDirecta = String(det.fecha_transaccion || '').slice(0, 10);
-      const esPagoUnico = (!Array.isArray(det.formasPago) || det.formasPago.length <= 1) && (!Array.isArray(det.pagos_agregados) || det.pagos_agregados.length <= 1);
-      // Si el pago es único y el analista editó fecha_banco o fecha_transaccion en Conciliación, priorizar la fecha editada sobre formasPago[0].fecha
-      const fEditadaPreferida = esPagoUnico && (fBancoDirecta || fTxDirecta)
-        ? (fBancoDirecta || fTxDirecta)
-        : '';
-      const fPagoBancaria = fBancoDirecta || (Array.isArray(det.formasPago) && det.formasPago[0]?.fecha ? String(det.formasPago[0].fecha).slice(0, 10) : '');
-      let fPago = fEditadaPreferida || fPagoPropia || String(fPagoBancaria || fTxDirecta || fFactura || fRegistro).slice(0, 10);
-      // Solo acotar si por error de tipeo la fecha del pago fue guardada en un año futuro (ej. 2027)
-      if (fPago > '2026-12-31' && (fFactura || fRegistro)) {
-        const limiteFecha = fFactura && fFactura < fRegistro ? fFactura : fRegistro;
-        if (limiteFecha) fPago = limiteFecha;
-      }
-      if ((fechaInicio && fPago < fechaInicio) || (fechaFin && fPago > fechaFin)) return;
+      if (fFin && fPago > fFin) return;
       const key = fPago.slice(0, 7);
       if (!porMes.has(key)) porMes.set(key, []);
       porMes.get(key)!.push({ p, det, fPago, fPagoDisplay: det.fecha_pago_excel || fPago, fFactura, esSubPago: false, montoTotalReportado: Number(p.monto) || 1, yaExistenComoFilasSeparadas: !!yaExistenComoFilasSeparadas });
@@ -1062,8 +1105,10 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
   ] as any;
   const pto = new Map<string, Map<string, { monto: number; usuarios: number }>>();
   deb.forEach(p => {
-    const { caja } = cajaDe(parseDet(p));
-    const dia = fechaVE(p.created_at);
+    const det = parseDet(p);
+    const dia = normalizarFechaYMD(fechaVE(p.created_at));
+    if ((fIni && dia < fIni) || (fFin && dia > fFin)) return;
+    const { caja } = cajaDe(det);
     if (!pto.has(caja)) pto.set(caja, new Map());
     const m = pto.get(caja)!;
     if (!m.has(dia)) m.set(dia, { monto: 0, usuarios: 0 });
@@ -1136,7 +1181,7 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
   // Resumen
   wsRes.getColumn(1).width = 34; wsRes.getColumn(2).width = 22;
   wsRes.getCell('A1').value = 'RESUMEN DE CONCILIACIONES'; wsRes.getCell('A1').font = { bold: true, size: 12 };
-  wsRes.getCell('A2').value = `Período de registro: ${dmy(fechaInicio)} al ${dmy(fechaFin)}`;
+  wsRes.getCell('A2').value = `Período de registro: ${dmy(fIni || fechaInicio)} al ${dmy(fFin || fechaFin)}`;
   let fr = 4; let totalMes = 0;
   totalesMes.forEach(([k, v, vBan, vBga]) => {
     wsRes.getCell(fr, 1).value = k;

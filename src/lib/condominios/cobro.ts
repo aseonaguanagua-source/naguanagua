@@ -752,7 +752,7 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
             total: fTotalBruto,
             montoNeto: f.totalBs,
             montoCancelado: f.totalBs,
-            formaPago: formaPagoCodigo(metodoFila) === '03' ? 'TRANSFERENCIA' : metodoFila.toUpperCase(),
+            formaPago: metodoFila === 'Debito' ? 'PUNTO DE VENTA (DÉBITO)' : ['Credito', 'TMD', 'TVD'].includes(metodoFila) ? 'PUNTO DE VENTA (CRÉDITO)' : formaPagoCodigo(metodoFila) === '05' ? 'TRANSFERENCIA' : metodoFila.toUpperCase(),
             banco: (pago.pagosAgregados && pago.pagosAgregados.length > 1)
                 ? pago.pagosAgregados.map((pa: any) => pa.banco || pa.metodo).filter(Boolean).join(' / ')
                 : (bancoFila || 'Banco'),
@@ -763,7 +763,7 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
             historialPagos: (pago.pagosAgregados && pago.pagosAgregados.length > 1)
                 ? pago.pagosAgregados.map((pa: any, pidx: number) => ({
                     fecha: pa.fecha || fechaTransaccion,
-                    formaPago: pa.metodo || 'Transferencia',
+                    formaPago: pa.metodo || metodoFila || 'Transferencia',
                     banco: pa.banco || 'Banco',
                     referencia: pa.referencia || `Ref-${pidx + 1}`,
                     monto: Number(pa.monto) || 0,

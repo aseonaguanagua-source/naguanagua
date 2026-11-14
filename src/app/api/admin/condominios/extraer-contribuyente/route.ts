@@ -357,3 +357,4 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: error?.message || 'Error interno al extraer contribuyente' }, { status: 500 });
   }
 }
+

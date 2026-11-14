@@ -10,16 +10,22 @@ const formatBs = (num: number) => {
 
 const safeDT = (raw: any) => {
   if (!raw) return 'N/A';
-  const dt = new Date(raw);
-  if (isNaN(dt.getTime())) return String(raw);
-  return dt.toLocaleString('es-VE', { hour12: false, day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const s = String(raw).trim();
+  const dt = /^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(`${s}T12:00:00-04:00`) : new Date(s);
+  if (isNaN(dt.getTime())) return s;
+  return dt.toLocaleString('es-VE', { timeZone: 'America/Caracas', hour12: false, day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 };
 
 const safeD = (raw: any) => {
   if (!raw) return 'N/A';
-  const dt = new Date(raw);
-  if (isNaN(dt.getTime())) return String(raw);
-  return dt.toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const s = String(raw).trim();
+  if (/^\d{4}-\d{2}-\d{2}(T00:00:00(\.000)?(Z|\+00:00)?)?$/i.test(s)) {
+    const [y, m, d] = s.slice(0, 10).split('-');
+    return `${d}/${m}/${y}`;
+  }
+  const dt = new Date(s);
+  if (isNaN(dt.getTime())) return s;
+  return dt.toLocaleDateString('es-VE', { timeZone: 'America/Caracas', day: '2-digit', month: '2-digit', year: 'numeric' });
 };
 
 export const generarCuadreCajaPDF = (
@@ -404,11 +410,17 @@ export const generarCuadreCajaPDF = (
     const det = getDet(p);
     const bDestRaw = det.banco_destino || det.banco_receptor || p.banco_destino || 'N/A';
     const bDestLabel = bClass === 'Banesco' ? 'BANESCO' : bClass === 'Bancamiga' ? 'BANCAMIGA' : String(bDestRaw).substring(0, 15);
+    const fEmision = det.fecha_emision_override
+      ? `${String(det.fecha_emision_override).slice(0, 10)}T12:00:00-04:00`
+      : (det.factura_digital?.fecha_emision || (det.fecha_transaccion ? `${String(det.fecha_transaccion).slice(0, 10)}T12:00:00-04:00` : ''));
+    const fechaLibroLabel = fEmision
+      ? safeD(det.fecha_emision_override || det.factura_digital?.fecha_emision || det.fecha_transaccion)
+      : ((p.identidad?.startsWith('V-') || p.identidad?.startsWith('V') || p.identidad?.startsWith('E-') || (c?.tipo && String(c.tipo).toLowerCase().includes('residencial'))) ? "RECIBO" : "NO FACTURADO");
     return [
-      safeDT(p.created_at),
-      safeD(p.fecha_pago || p.created_at),
+      safeDT(fEmision || p.created_at),
+      safeD(det.fecha_banco || det.fecha_transaccion || p.fecha_pago || p.created_at),
       String(p.tipo || 'TRF').substring(0,3).toUpperCase(),
-      ((p.identidad?.startsWith('V-') || p.identidad?.startsWith('V') || p.identidad?.startsWith('E-') || (c?.tipo && String(c.tipo).toLowerCase().includes('residencial'))) ? "RECIBO" : "NO FACTURADO"),
+      fechaLibroLabel,
       getNumeroRecibo(p, det),
       String(p.banco_origen || p.banco || 'N/A').substring(0,15),
       limpiarRef(p, det) || 'N/A',

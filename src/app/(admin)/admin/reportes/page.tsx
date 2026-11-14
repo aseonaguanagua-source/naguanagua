@@ -155,7 +155,7 @@ export default function ReportesPage() {
   const fechaEfectivaPago = (p: any): Date => {
     const det = typeof p.detalles === 'string' ? (() => { try { return JSON.parse(p.detalles); } catch { return {}; } })() : (p.detalles || {});
     const fd = det.factura_digital || {};
-    const fOv = det.fecha_emision_override || det.fecha_asignacion_override || (fd.fecha_emision ? String(fd.fecha_emision).slice(0, 10) : '');
+    const fOv = det.fecha_emision_override || (fd.fecha_emision ? String(fd.fecha_emision).slice(0, 10) : '');
     if (fOv && /^\d{4}-\d{2}-\d{2}$/.test(String(fOv))) {
       return new Date(`${String(fOv)}T12:00:00`);
     }
@@ -557,9 +557,16 @@ export default function ReportesPage() {
     const getDetR = (p: any) => { try { return typeof p.detalles==='object'?p.detalles:JSON.parse(p.detalles||'{}'); } catch { return {}; } };
     const isDebitoR = (p: any) => p.tipo==='Debito'||p.tipo==='REC'||p.tipo==='Punto de Venta';
     const pagosR = pagos.filter(p => {
+      const det = getDetR(p);
       const d = new Date(p.created_at);
+      const dFac = det.factura_digital?.fecha_emision ? new Date(det.factura_digital.fecha_emision) : null;
+      const dConc = det.fecha_conciliado ? new Date(det.fecha_conciliado) : null;
       const s = new Date(tfecha+'T00:00:00.000-04:00'); const e = new Date(tfechaFin+'T23:59:59.999-04:00');
-      if (d < s || d > e) return false;
+      const enRango =
+        (d >= s && d <= e) ||
+        (dFac && !isNaN(dFac.getTime()) && dFac >= s && dFac <= e) ||
+        (dConc && !isNaN(dConc.getTime()) && dConc >= s && dConc <= e);
+      if (!enRango) return false;
       if (testado !== 'Todos' && p.estado !== testado) return false;
       return true;
     }).sort((a,b) => new Date(b.created_at).getTime()-new Date(a.created_at).getTime());

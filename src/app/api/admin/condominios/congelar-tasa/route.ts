@@ -127,3 +127,4 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: e?.message || 'Error guardando tasa congelada' }, { status: 400 });
   }
 }
+

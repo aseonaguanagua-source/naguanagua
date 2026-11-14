@@ -1039,7 +1039,6 @@ export default function FacturacionElectronicaPage() {
     const fechaEmisionGuardada = normYMD(
       pago.fechaEmisionOverride ||
       pago.detalles?.fecha_emision_override ||
-      pago.detalles?.fecha_asignacion_override ||
       (yaEmitidaVigente ? (pago.fechaEmision || pago.detalles?.factura_digital?.fecha_emision) : '') ||
       ''
     ) || hoyYMD;
@@ -1086,7 +1085,6 @@ export default function FacturacionElectronicaPage() {
     const fOrig = (
       pago.fechaEmisionOverride ||
       pago.detalles?.fecha_emision_override ||
-      pago.detalles?.fecha_asignacion_override ||
       (yaEmitidaVigente ? (pago.fechaEmision || pago.detalles?.factura_digital?.fecha_emision) : '') ||
       ''
     ).slice(0, 10);
@@ -1798,23 +1796,33 @@ export default function FacturacionElectronicaPage() {
                             Retención IVA (75%): Bs {fmtBs(pago.montoRetencion || pago.detalles?.monto_retencion_iva || 0)}
                           </div>
                         )}
-                        {/* Desglose de múltiples pagos (ej: anticipo + diferencia) */}
+                        {/* Desglose de múltiples pagos (ej: anticipo + diferencia o Saldo a Favor + Débito) */}
                         {(() => {
                           const fps = Array.isArray(pago.detalles?.formasPago) && pago.detalles.formasPago.length > 1
                             ? pago.detalles.formasPago
                             : (Array.isArray(pago.detalles?.pagos_agregados) && pago.detalles.pagos_agregados.length > 1 ? pago.detalles.pagos_agregados : null);
                           if (!fps) return null;
+                          const todasSonTransf = fps.every((fp: any) => {
+                            const desc = String(fp?.descripcion || fp?.metodo || fp?.tipo || '').toLowerCase();
+                            return !desc || /transfer|m[oó]vil/i.test(desc);
+                          });
                           return (
                             <div className="mt-1 space-y-0.5 bg-slate-50 p-1.5 rounded border border-slate-200">
-                              <span className="text-[9px] font-bold text-slate-500 uppercase block tracking-wider font-sans">Desglose de transferencias:</span>
+                              <span className="text-[9px] font-bold text-slate-500 uppercase block tracking-wider font-sans">
+                                {todasSonTransf ? 'Desglose de transferencias:' : 'Desglose de pagos:'}
+                              </span>
                               {fps.map((fp: any, fidx: number) => {
                                 const m = Number(fp.monto) || 0;
                                 const r = fp.referencia || `Parte ${fidx + 1}`;
                                 const f = fp.fecha ? String(fp.fecha).slice(0, 10) : '';
+                                const descRaw = String(fp?.descripcion || fp?.metodo || fp?.tipo || '').trim();
+                                const labelFp = todasSonTransf
+                                  ? (fidx === 0 ? 'Anticipo' : 'Diferencia')
+                                  : (/saldo/i.test(descRaw) ? 'Saldo a Favor' : /d[eé]bito/i.test(descRaw) ? 'Débito' : /cr[eé]dito|tmd|tvd/i.test(descRaw) ? 'Crédito' : (descRaw || 'Pago'));
                                 return (
                                   <div key={fidx} className="flex items-center justify-between gap-1 text-[10px] text-slate-700">
-                                    <span className="truncate max-w-[110px]" title={`Ref: ${r} (${f})`}>
-                                      {fidx === 0 ? 'Anticipo' : 'Diferencia'} <span className="font-mono text-[9px] text-slate-500">({r})</span>:
+                                    <span className="truncate max-w-[130px]" title={`Ref: ${r} (${f})`}>
+                                      {labelFp} <span className="font-mono text-[9px] text-slate-500">({r})</span>:
                                     </span>
                                     <span className="font-bold text-emerald-800 shrink-0">Bs {fmtBs(m)}</span>
                                   </div>
@@ -1827,6 +1835,8 @@ export default function FacturacionElectronicaPage() {
                           <div className="text-[10px] text-slate-500 font-semibold mt-0.5">
                             {(String(pago.tipo || '').toLowerCase().includes('saldo') || String(pago.tipo || '').toLowerCase().includes('nota') || pago.detalles?.es_nota_credito || pago.detalles?.es_saldo_a_favor)
                               ? `Nota de Crédito: Bs ${fmtBs(pago.montoPagado)}`
+                              : /^(d[eé]bito|cr[eé]dito|tmd|tvd)\b|punto|tarjeta/i.test(String(pago.tipo || ''))
+                              ? `Cobrado en POS (${pago.tipo}): Bs ${fmtBs(pago.montoPagado)}`
                               : `Transferido: Bs ${fmtBs(pago.montoPagado)}`}
                           </div>
                         )}

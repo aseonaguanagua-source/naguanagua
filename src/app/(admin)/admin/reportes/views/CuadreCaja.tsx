@@ -18,11 +18,16 @@ interface Props {
 const fmtBs = (n: number) => (Number(n) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtDate = (d: string) => {
   if (!d) return '-';
+  const s = String(d).trim();
+  if (/^\d{4}-\d{2}-\d{2}(T00:00:00(\.000)?(Z|\+00:00)?)?$/i.test(s)) {
+    const [y, m, day] = s.slice(0, 10).split('-');
+    return `${Number(day)}/${Number(m)}/${y}`;
+  }
   try {
-    const dt = new Date(d);
-    if (isNaN(dt.getTime())) return String(d);
-    return dt.toLocaleDateString('es-VE');
-  } catch { return String(d || '-'); }
+    const dt = new Date(s);
+    if (isNaN(dt.getTime())) return s;
+    return dt.toLocaleDateString('es-VE', { timeZone: 'America/Caracas' });
+  } catch { return s || '-'; }
 };
 const fmtDT = (d: string) => {
   if (!d) return '-';
@@ -72,6 +77,36 @@ function isRetencionPago(p: any) {
 }
 function isTransfPago(p: any) {
   return !isDebitoPago(p) && !isCreditoPago(p) && !isDepositoPago(p) && !isSaldoPago(p) && !isRetencionPago(p);
+}
+
+function parseMontoNumero(v: any): number {
+  if (typeof v === 'number') return isNaN(v) ? 0 : v;
+  if (!v) return 0;
+  const s = String(v).trim();
+  if (s.includes(',') && s.includes('.')) {
+    return Number(s.lastIndexOf(',') > s.lastIndexOf('.') ? s.replace(/\./g, '').replace(',', '.') : s.replace(/,/g, '')) || 0;
+  }
+  if (s.includes(',')) return Number(s.replace(',', '.')) || 0;
+  return Number(s) || 0;
+}
+
+function obtenerMontoTransfCuadre(p: any, det?: any): number {
+  const d = det || parseDet(p);
+  const mBase = parseMontoNumero(p?.monto);
+  const mConc = parseMontoNumero(d?.monto_conciliado);
+  const esMultiple = Boolean(
+    d?.es_pago_adicional ||
+    d?.abono_completado ||
+    (Array.isArray(d?.pagos_agregados) && d.pagos_agregados.filter((x: any) => !/saldo\s*a\s*favor|nota\s*de\s*cr[eé]dito/i.test(String(x?.metodo || x?.tipo || x?.referencia || ''))).length > 1) ||
+    (Array.isArray(d?.formasPago) && d.formasPago.filter((x: any) => !/saldo\s*a\s*favor|nota\s*de\s*cr[eé]dito/i.test(String(x?.metodo || x?.tipo || x?.referencia || ''))).length > 1)
+  );
+  if (esMultiple && mBase > 0 && mConc > mBase + 1) {
+    return mBase;
+  }
+  if (mConc > 0 && (!Array.isArray(d?.pagos_agregados) || !d.pagos_agregados.some((x: any) => /saldo\s*a\s*favor/i.test(String(x?.referencia || x?.metodo || ''))))) {
+    return mConc;
+  }
+  return mBase || mConc;
 }
 
 function esTokenInternoRecibo(val: any): boolean {
@@ -316,6 +351,36 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
     </td>
   );
 
+  const obtenerFechaEfectivaCuadre = (p: any, det: any) => {
+    const corrList = Array.isArray(det.correcciones_reporte) ? det.correcciones_reporte : [];
+    const lastCorr = corrList.length > 0 ? corrList[corrList.length - 1] : null;
+    const corrTieneFecha = Boolean(
+      lastCorr?.fecha_nueva &&
+      String(lastCorr.fecha_anterior || '').slice(0, 10) !== String(lastCorr.fecha_nueva).slice(0, 10)
+    );
+    // Para transferencias y depósitos, guiarse siempre por la Fecha de Emisión (o Fecha Transacción si fue editada en conciliación);
+    // para tarjetas (Débito/Crédito POS), conservar la fecha real del pase por punto (created_at).
+    if (!corrTieneFecha && !isDebitoPago(p) && !isCreditoPago(p)) {
+      const fEmision = det.fecha_emision_override
+        ? `${String(det.fecha_emision_override).slice(0, 10)}T12:00:00-04:00`
+        : (det.factura_digital?.fecha_emision || (det.fecha_transaccion ? `${String(det.fecha_transaccion).slice(0, 10)}T12:00:00-04:00` : ''));
+      if (fEmision) {
+        const dEmis = new Date(fEmision);
+        if (!isNaN(dEmis.getTime())) return dEmis;
+      }
+      const createdStr = String(p.created_at || '');
+      if (createdStr.includes('T16:00:00') && det.recibo_caja_at) {
+        const dReal = new Date(det.recibo_caja_at);
+        if (!isNaN(dReal.getTime())) return dReal;
+      }
+    }
+    if (corrTieneFecha && lastCorr?.fecha_nueva) {
+      const dCorr = new Date(`${String(lastCorr.fecha_nueva).slice(0, 10)}T12:00:00-04:00`);
+      if (!isNaN(dCorr.getTime())) return dCorr;
+    }
+    return new Date(p.created_at);
+  };
+
   const getFilteredPagos = () => {
     const s = new Date(fecha + 'T00:00:00');
     const e = new Date(fecha + 'T23:59:59');
@@ -324,14 +389,14 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
       // Excluir pagos anulados o rechazados
       if (p.estado === 'Anulado' || p.estado === 'Reversado' || p.estado === 'Condonado' || p.estado === 'Rechazado') return false;
       const det = parseDet(p);
-      const d = new Date(p.created_at);
+      const d = obtenerFechaEfectivaCuadre(p, det);
       // En el Cuadre de Caja se audita lo cobrado por el cajero en ese turno/día específico.
       // Se evalúa la fecha de corte en hora de Caracas (America/Caracas).
       let fechaCorteCaracas = '';
       try {
         fechaCorteCaracas = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' }).format(d);
       } catch {
-        fechaCorteCaracas = p.created_at ? p.created_at.slice(0, 10) : '';
+        fechaCorteCaracas = !isNaN(d.getTime()) ? d.toISOString().slice(0, 10) : (p.created_at ? p.created_at.slice(0, 10) : '');
       }
       const fechaCoincide = fechaCorteCaracas === fecha || (d >= s && d <= e);
       if (!fechaCoincide && !(buscarEnTodoHistorial && hasSearch)) return false;
@@ -398,10 +463,10 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
 
   const totalDebito = debitos.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
   const totalCredito = creditos.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
-  const totalTransf = transferencias.reduce((s, p) => { const d = parseDet(p); return s + (parseFloat(d.monto_conciliado || p.monto) || 0); }, 0);
-  const totalTransfBanesco = transfBanesco.reduce((s, p) => { const d = parseDet(p); return s + (parseFloat(d.monto_conciliado || p.monto) || 0); }, 0);
-  const totalTransfBancamiga = transfBancamiga.reduce((s, p) => { const d = parseDet(p); return s + (parseFloat(d.monto_conciliado || p.monto) || 0); }, 0);
-  const totalTransfOtros = transfOtros.reduce((s, p) => { const d = parseDet(p); return s + (parseFloat(d.monto_conciliado || p.monto) || 0); }, 0);
+  const totalTransf = transferencias.reduce((s, p) => s + obtenerMontoTransfCuadre(p), 0);
+  const totalTransfBanesco = transfBanesco.reduce((s, p) => s + obtenerMontoTransfCuadre(p), 0);
+  const totalTransfBancamiga = transfBancamiga.reduce((s, p) => s + obtenerMontoTransfCuadre(p), 0);
+  const totalTransfOtros = transfOtros.reduce((s, p) => s + obtenerMontoTransfCuadre(p), 0);
   const totalDeposito = depositos.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
   const totalSaldo = saldosAFavor.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
   const totalRetenciones = retenciones.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
@@ -429,16 +494,16 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
             <tbody>
               {items.map((p, i) => {
                 const det = parseDet(p);
-                const mC = parseFloat(det.monto_conciliado || p.monto) || 0;
+                const mC = obtenerMontoTransfCuadre(p, det);
                 const bancoDestClass = clasificarBancoDestino(p);
                 const bDestTexto = det.banco_destino || det.banco_receptor || p.banco || '-';
                 return (
                   <tr key={p.id} style={{ background: i % 2 === 0 ? '#fff' : '#f9fafe' }}>
                     <td style={S.td}>{i + 1}</td>
-                    <td style={S.td}>{fmtDT(p.created_at)}</td>
+                    <td style={S.td}>{fmtDT(obtenerFechaEfectivaCuadre(p, det).toISOString())}</td>
                     <td style={S.td}>{det.fecha_banco || '-'}</td>
                     <td style={{ ...S.td, fontWeight: 700 }}>{p.tipo}</td>
-                    <td style={S.td}>{det.fecha_banco ? fmtDate(det.fecha_banco) : ((p.identidad?.startsWith('V-') || p.identidad?.startsWith('V') || p.identidad?.startsWith('E-') || p.tipoContribuyente?.toLowerCase().includes('residencial')) ? 'RECIBO' : 'NO FACTURADO')}</td>
+                    <td style={S.td}>{(det.fecha_emision_override || det.factura_digital?.fecha_emision) ? fmtDate(det.fecha_emision_override || det.factura_digital.fecha_emision) : (det.fecha_banco ? fmtDate(det.fecha_banco) : ((p.identidad?.startsWith('V-') || p.identidad?.startsWith('V') || p.identidad?.startsWith('E-') || p.tipoContribuyente?.toLowerCase().includes('residencial')) ? 'RECIBO' : 'NO FACTURADO'))}</td>
                     <td style={S.td}>{det.cajero || '-'}</td>
                     <td style={{ ...S.td, color: '#2a5298' }}>{formatContribuyente(p, contribMap, det)}</td>
                     <td style={S.td}>{getNumeroRecibo(p, det)}</td>

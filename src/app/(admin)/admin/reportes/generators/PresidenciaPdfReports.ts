@@ -5,7 +5,7 @@ import { clasificarBancoDestino } from '@/lib/cuentasBancarias';
 import { isResidencialInm } from '@/lib/calculos';
 import { supabase } from '@/lib/supabase';
 import { descargarPdfBlob } from './PdfReports';
-import { parseDet, montosPago, cargarInmMapPagos, codigosDePago, resolverCodigoPrincipalInm } from './LibroVentas';
+import { parseDet, montosPago, cargarInmMapPagos, codigosDePago, resolverCodigoPrincipalInm, fechaEmisionDoc } from './LibroVentas';
 import { obtenerNroReciboWeb, obtenerRecibosPagosUnificados } from './ReporteRecibosPagos';
 
 const r2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
@@ -505,7 +505,7 @@ export async function generarLibroVentasPDF(
 
     return [
       idx + 1,
-      dmy(fechaVE(p.created_at)),
+      dmy(fechaEmisionDoc(p, det)),
        String(p.identidad || '—'),
       nombreDe(p.identidad, det, p).slice(0, 36),
       nroFactura,

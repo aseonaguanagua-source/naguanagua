@@ -1567,7 +1567,7 @@ export async function POST(request: Request) {
       ).trim();
     }
 
-    const fechaEmisionFinal = fechaEmisionOverride || detPago?.fecha_emision_override || detPago?.fecha_asignacion_override || (fecha ? String(fecha).slice(0, 10) : '') || fechaActual.toISOString();
+    const fechaEmisionFinal = fechaEmisionOverride || detPago?.fecha_emision_override || (fecha ? String(fecha).slice(0, 10) : '') || fechaActual.toISOString();
     const fechaEmisionYMD = /^\d{4}-\d{2}-\d{2}$/.test(String(fechaEmisionFinal).trim())
       ? String(fechaEmisionFinal).trim()
       : new Date(fechaEmisionFinal).toLocaleDateString('en-CA', { timeZone: 'America/Caracas' });
@@ -2192,7 +2192,6 @@ export async function POST(request: Request) {
       console.log(`[SIMULACIÓN TFHKA] JSON generado:`, JSON.stringify(jsonTFHKA, null, 2));
 
       nuevosDetalles.fecha_emision_override = fechaEmisionYMD;
-      nuevosDetalles.fecha_asignacion_override = fechaEmisionYMD;
       nuevosDetalles.factura_digital = {
         emitida:          true,
         url:              "https://democonsulta.thefactoryhka.com.ve/?doc=GhQVet4Fbe+vAHltz47VsoKrQ1NOzTmiOLp4jVe5oz4U01Z9FA/OdGcGnU9nU1co",
@@ -2406,11 +2405,29 @@ export async function POST(request: Request) {
     }
     if (modulo) updatePayload.modulo = modulo;
     if (totalManualNum > 0) updatePayload.monto = totalManualNum;
-    // Si se emite la factura con fecha de un mes anterior (ej. cierre de Octubre facturado en Noviembre),
-    // sincronizar created_at del registro para que Conciliación, Libro de Ventas y Reportes lo ubiquen en ese mes.
-    if (fechaEmisionOverride && /^\d{4}-\d{2}-\d{2}$/.test(fechaEmisionYMD)) {
+    // Sincronizar created_at del registro para transferencias cuando la Fecha de Emisión difiera de la fecha de registro,
+    // para que Cuadre de Caja, Conciliación, Libro de Ventas y Reportes se guíen siempre por la Fecha de Emisión.
+    if (/^\d{4}-\d{2}-\d{2}$/.test(fechaEmisionYMD)) {
       const fRegActual = pagoRow?.created_at ? new Date(new Date(pagoRow.created_at).getTime() - 4 * 3600 * 1000).toISOString().slice(0, 10) : '';
-      if (!fRegActual || fechaEmisionYMD.slice(0, 7) < fRegActual.slice(0, 7)) {
+      const tPagoUpper = String(pagoRow?.tipo || tipoPago || '').toUpperCase().trim();
+      const esPosEmit =
+        tPagoUpper.includes('DEBITO') ||
+        tPagoUpper.includes('DÉBITO') ||
+        tPagoUpper.includes('CREDITO') ||
+        tPagoUpper.includes('CRÉDITO') ||
+        tPagoUpper.includes('TMD') ||
+        tPagoUpper.includes('TVD') ||
+        tPagoUpper === 'REC' ||
+        tPagoUpper === 'PUNTO DE VENTA';
+      if (!esPosEmit && fRegActual && fechaEmisionYMD !== fRegActual) {
+        if (!nuevosDetalles.created_at_original && pagoRow?.created_at) {
+          nuevosDetalles.created_at_original = pagoRow.created_at;
+        }
+        if (!nuevosDetalles.fecha_transaccion && !nuevosDetalles.fecha_banco) {
+          nuevosDetalles.fecha_transaccion = fRegActual;
+        }
+        updatePayload.created_at = `${fechaEmisionYMD}T16:00:00.000Z`;
+      } else if (fechaEmisionOverride && (!fRegActual || fechaEmisionYMD.slice(0, 7) < fRegActual.slice(0, 7)) && !esPosEmit) {
         updatePayload.created_at = `${fechaEmisionYMD}T16:00:00.000Z`;
       }
     }

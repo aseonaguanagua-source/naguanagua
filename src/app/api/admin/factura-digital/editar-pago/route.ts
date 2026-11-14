@@ -295,12 +295,30 @@ export async function POST(req: Request) {
       }
     }
 
+    const tipoPagoUpper = String(pago.tipo || '').toUpperCase().trim();
+    const esPosPago =
+      tipoPagoUpper.includes('DEBITO') ||
+      tipoPagoUpper.includes('DÉBITO') ||
+      tipoPagoUpper.includes('CREDITO') ||
+      tipoPagoUpper.includes('CRÉDITO') ||
+      tipoPagoUpper.includes('TMD') ||
+      tipoPagoUpper.includes('TVD') ||
+      tipoPagoUpper === 'REC' ||
+      tipoPagoUpper === 'PUNTO DE VENTA';
+
+    if (fechaEmisionClean && !esPosPago) {
+      if (!nuevosDetalles.created_at_original && pago.created_at) {
+        nuevosDetalles.created_at_original = pago.created_at;
+      }
+    }
+
     const updatePayload: any = {
       identidad: nuevaIdentidad,
       monto: montoCambio ? nuevoMonto : pago.monto,
       referencia: nuevaRef,
       modulo: nuevoModulo,
       detalles: nuevosDetalles,
+      ...(fechaEmisionClean && !esPosPago ? { created_at: `${fechaEmisionClean}T16:00:00.000Z` } : {}),
     };
 
     const { error: upErr } = await sb.from('pagos_reportados').update(updatePayload).eq('id', pagoId);

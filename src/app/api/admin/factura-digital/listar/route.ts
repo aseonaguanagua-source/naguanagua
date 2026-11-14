@@ -1256,10 +1256,10 @@ export async function GET(request: Request) {
           facturaUrl: fd?.url || fd?.raw_response?.resultado?.urlConsulta || retRow?.factura_url || null,
           numeroControl: fd?.numero_control || null,
           numeroDocumento: fd?.numero_documento || null,
-          fechaEmision: fd?.fecha_emision || (det.fecha_emision_override ? `${det.fecha_emision_override}T12:00:00-04:00` : null),
-          fechaAsignacion: fd?.fecha_asignacion || fd?.fecha_emision || (det.fecha_asignacion_override ? `${det.fecha_asignacion_override}T12:00:00-04:00` : (det.fecha_emision_override ? `${det.fecha_emision_override}T12:00:00-04:00` : null)),
+          fechaEmision: (det.fecha_emision_override ? `${String(det.fecha_emision_override).slice(0, 10)}T12:00:00-04:00` : null) || fd?.fecha_emision || null,
+          fechaAsignacion: (det.fecha_emision_override ? `${String(det.fecha_emision_override).slice(0, 10)}T12:00:00-04:00` : null) || fd?.fecha_emision || null,
           fechaEmisionOverride: det.fecha_emision_override || null,
-          fechaAsignacionOverride: det.fecha_asignacion_override || det.fecha_emision_override || null,
+          fechaAsignacionOverride: det.fecha_emision_override || null,
           error: det.factura_digital_error || null,
           ...(() => {
             const ncFiscalRealItem = Boolean(
