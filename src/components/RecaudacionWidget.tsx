@@ -64,7 +64,7 @@ export default function RecaudacionWidget() {
     if (a.includes('fabrica') || a.includes('industrial') || a.includes('embotelladora') ||
         a.includes('concretera') || a.includes('almacen') || a.includes('taller') ||
         c.includes('industrial')) return 'Industrial';
-    if (a.includes('residencial') || a.includes('condominio') || a.includes('apartamento') ||
+    if (a.includes('residencial') || (a.includes('condominio') && !a.includes('oficina')) || a.includes('apartamento') ||
         a.includes('casa') || a.includes('vivienda')) return 'Residencial';
     if (a.length > 3) return 'Comercial';
     return 'Residencial';

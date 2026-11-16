@@ -437,13 +437,15 @@ export function clusterInmueblesByLocal(userInms: InmuebleBasic[]): Map<string, 
       ? cluster.inms.filter(i => i.inmueble !== parentInm.inmueble && isActivo(i))
       : cluster.inms.filter(isActivo);
     const billableCount = effectiveInms.length;
-    const isCondoInm = (i: any) =>
-      Boolean(
+    const isCondoInm = (i: any) => {
+      const a = (i?.actividad_principal || '').toLowerCase();
+      return Boolean(
         i?.es_condominio ||
         i?.condominio_padre_id ||
-        (i?.actividad_principal || '').toLowerCase().includes('condominio') ||
-        (i?.actividad_principal || '').toLowerCase().includes('padre en sigyr: urb')
+        (a.includes('condominio') && !a.includes('oficina')) ||
+        a.includes('padre en sigyr: urb')
       );
+    };
     // Solo se bloquea como condominio si no es de pago individual
     const esCondominio = cluster.inms.some(isCondoInm) && !cluster.inms.some(i => isCondominioPagoIndividual(i) || ((i as any).condominio_padre_id && isCondominioPagoIndividual((i as any).condominio_padre_id)));
     const condoPadreInm = cluster.inms.find(isCondoInm);
@@ -616,13 +618,15 @@ export function groupInmueblesByLocal(userInms: InmuebleBasic[]): InmuebleCluste
       return sum + (mmv * cant);
     }, 0);
 
-    const isCondoInm = (i: any) =>
-      Boolean(
+    const isCondoInm = (i: any) => {
+      const a = (i?.actividad_principal || '').toLowerCase();
+      return Boolean(
         i?.es_condominio ||
         i?.condominio_padre_id ||
-        (i?.actividad_principal || '').toLowerCase().includes('condominio') ||
-        (i?.actividad_principal || '').toLowerCase().includes('padre en sigyr: urb')
+        (a.includes('condominio') && !a.includes('oficina')) ||
+        a.includes('padre en sigyr: urb')
       );
+    };
     // Solo se bloquea como condominio si no es de pago individual
     const esCondominio = c.inms.some(isCondoInm) && !c.inms.some(i => isCondominioPagoIndividual(i) || ((i as any).condominio_padre_id && isCondominioPagoIndividual((i as any).condominio_padre_id)));
     const condoPadreInm = c.inms.find(isCondoInm);

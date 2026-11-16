@@ -147,21 +147,23 @@ export async function esCondominioDoc(doc: string): Promise<boolean> {
       }
 
       // Identificar cuáles inmuebles del usuario son condominios o filiales de condominio
+      // NOTA: "OFICINAS DE CONDOMINIO" es una actividad económica comercial individual de la Ordenanza, NO un condominio.
       activos.forEach(i => {
         const code = String(i.inmueble || '').trim().toUpperCase();
         const clasif = String(i.clasificacion || '').toLowerCase();
         const act = String(i.actividad_principal || '').toLowerCase();
         const contrib = String(i.contribuyente || '').toLowerCase();
         const condoPadre = String(i.condominio_padre_id || '').trim();
+        const esActOficinaCondominio = act.includes('oficina');
+        const esActCondominioMatriz = act.includes('condominio') && !esActOficinaCondominio;
 
         if (
           i.es_condominio === true ||
           Boolean(condoPadre) ||
           clasif.includes('condominio') ||
-          act.includes('condominio') ||
+          esActCondominioMatriz ||
           act.includes('padre en sigyr: urb') ||
-          contrib.includes('condominio') ||
-          contrib.includes('junta de cond')
+          (!esActOficinaCondominio && (contrib.includes('condominio') || contrib.includes('junta de cond')))
         ) {
           if (code) condoCodesSet.add(code);
         }

@@ -38,7 +38,7 @@ function normSector(actividad?: string, clasificacion?: string, tipo?: string): 
   }
   if (
     a.includes('residencial') ||
-    a.includes('condominio') ||
+    (a.includes('condominio') && !a.includes('oficina')) ||
     a.includes('apartamento') ||
     a.includes('vivienda') ||
     a.includes('casa') ||

@@ -311,9 +311,13 @@ export default function DondePagarPage() {
         const reglaPorInm = new Map<string, 'completo' | 'solo_multa'>();
         validInms.forEach((inm: any) => reglaPorInm.set(inm.inmueble, reglaCobroInmueble(inm, rc.naCodes, portalDoc)));
         setReglasCobro(Object.fromEntries(reglaPorInm));
+        const esActCondoPortal = (i: any) => {
+          const a = (i?.actividad_principal || '').toLowerCase();
+          return (a.includes('condominio') && !a.includes('oficina')) || a.includes('padre en sigyr: urb');
+        };
         const allCondoCodes = new Set([
           ...(rc.condoInmCodes || []).map((c: string) => String(c).toUpperCase()),
-          ...validInms.filter((i: any) => i.es_condominio || i.condominio_padre_id || (i.actividad_principal || '').toLowerCase().includes('condominio') || (i.actividad_principal || '').toLowerCase().includes('padre en sigyr: urb')).map((i: any) => String(i.inmueble || '').toUpperCase())
+          ...validInms.filter((i: any) => i.es_condominio || i.condominio_padre_id || esActCondoPortal(i)).map((i: any) => String(i.inmueble || '').toUpperCase())
         ]);
         const isCondoRef = (ref: string): boolean => {
           const r = String(ref || '').toUpperCase();
@@ -520,13 +524,15 @@ export default function DondePagarPage() {
 
     return clusterOrder.map((clusterId) => {
       const c = clusterMapData[clusterId];
-      const isCondoInm = (i: any) =>
-        Boolean(
+      const isCondoInm = (i: any) => {
+        const a = (i?.actividad_principal || '').toLowerCase();
+        return Boolean(
           i?.es_condominio ||
           i?.condominio_padre_id ||
-          (i?.actividad_principal || '').toLowerCase().includes('condominio') ||
-          (i?.actividad_principal || '').toLowerCase().includes('padre en sigyr: urb')
+          (a.includes('condominio') && !a.includes('oficina')) ||
+          a.includes('padre en sigyr: urb')
         );
+      };
       // Cualquier inmueble o filial dentro de régimen de condominio se gestiona centralizado
       const isCondo = c.inms.some(isCondoInm);
       const condoPadreInm = c.inms.find(isCondoInm);
@@ -1266,13 +1272,15 @@ export default function DondePagarPage() {
   };
 
   if (bloqueadoPorCondominio && rawRecibos.length === 0 && serviciosPend.length === 0 && conveniosData.length === 0) {
-    const isCondoInm = (i: any) =>
-      Boolean(
+    const isCondoInm = (i: any) => {
+      const a = (i?.actividad_principal || '').toLowerCase();
+      return Boolean(
         i?.es_condominio ||
         i?.condominio_padre_id ||
-        (i?.actividad_principal || '').toLowerCase().includes('condominio') ||
-        (i?.actividad_principal || '').toLowerCase().includes('padre en sigyr: urb')
+        (a.includes('condominio') && !a.includes('oficina')) ||
+        a.includes('padre en sigyr: urb')
       );
+    };
     const condoInm = userInms.find(isCondoInm);
     const condoPadre = (condoInm as any)?.condominio_padre_id ||
       ((condoInm as any)?.actividad_principal?.match(/Padre en SIGYR:\s*(URB\d+)/i)?.[1]) ||

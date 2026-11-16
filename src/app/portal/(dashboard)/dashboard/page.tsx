@@ -98,7 +98,7 @@ export default function DatosContribuyentePage() {
           nombreComercial: (rInm?.actividad_principal && rInm.actividad_principal.trim().toUpperCase() !== 'N/A') 
             ? formatActividad(rInm.actividad_principal) 
             : (condoData?.actividad ? formatActividad(condoData.actividad) : freshNombre),
-          esCondominio: !!(rInm?.actividad_principal?.toLowerCase().includes('condominio') || condoData)
+          esCondominio: !!(rInm?.es_condominio || (rInm?.actividad_principal?.toLowerCase().includes('condominio') && !rInm?.actividad_principal?.toLowerCase().includes('oficina')) || condoData)
         }));
       }
     };

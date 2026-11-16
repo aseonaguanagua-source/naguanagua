@@ -62,7 +62,7 @@ export default function InmueblesPage() {
         let inmsFinal: InmuebleBasic[] = allInmsRaw.filter(isActivo);
 
         // Si es condominio, traer las unidades filiales asociadas
-        const isCondo = inmsFinal.some(i => i.es_condominio === true || (i.actividad_principal || '').toLowerCase().includes('condominio'));
+        const isCondo = inmsFinal.some(i => i.es_condominio === true || ((i.actividad_principal || '').toLowerCase().includes('condominio') && !(i.actividad_principal || '').toLowerCase().includes('oficina')));
         if (isCondo) {
           const condoCodes = inmsFinal.map(i => i.inmueble).filter(Boolean);
           if (condoCodes.length > 0) {
