@@ -839,8 +839,8 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
       if (limiteFecha) fPago = limiteFecha;
     }
 
-    // Todo lo facturado o con recibo cuya fecha de emisión (fFactura) esté en el mes consultado debe salir en la conciliación de ese mes (incluyendo pagos de meses anteriores conciliados/facturados en el mes)
-    const dentroDeRangoConciliacion = (!fIni || fFactura >= fIni) && (!fFin || fFactura <= fFin);
+    // Todo lo facturado o con recibo cuya fecha de emisión (fFactura) o fecha bancaria (fPago) esté en el rango consultado debe salir en la conciliación
+    const dentroDeRangoConciliacion = (!fIni || fFactura >= fIni || fPago >= fIni) && (!fFin || fFactura <= fFin || fPago <= fFin);
     if (!dentroDeRangoConciliacion) return;
 
     if (pagsAgregados && pagsAgregados.length > 1 && !yaExistenComoFilasSeparadas) {
@@ -853,7 +853,7 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
           const limiteFecha = fFactura && fFactura < fRegistro ? fFactura : fRegistro;
           if (limiteFecha) fPagoSub = limiteFecha;
         }
-        const keySub = (fFactura || fPagoSub).slice(0, 7);
+        const keySub = (fPagoSub && fPagoSub <= (fFin || '9999-99') && (!fIni || fPagoSub >= fIni) ? fPagoSub : (fFactura || fPagoSub)).slice(0, 7);
         if (!porMes.has(keySub)) porMes.set(keySub, []);
         const subDet = pa.bancoDestino && !det.banco_receptor
           ? { ...det, banco_destino: pa.bancoDestino }
@@ -875,7 +875,7 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
         });
       });
     } else {
-      const key = (fFactura || fPago).slice(0, 7);
+      const key = (fPago && fPago <= (fFin || '9999-99') && (!fIni || fPago >= fIni) ? fPago : (fFactura || fPago)).slice(0, 7);
       if (!porMes.has(key)) porMes.set(key, []);
       porMes.get(key)!.push({ p, det, fPago, fPagoDisplay: det.fecha_pago_excel || fPago, fFactura, esSubPago: false, montoTotalReportado: Number(p.monto) || 1, yaExistenComoFilasSeparadas: !!yaExistenComoFilasSeparadas });
     }

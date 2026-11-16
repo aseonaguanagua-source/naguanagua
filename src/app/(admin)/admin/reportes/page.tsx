@@ -559,11 +559,17 @@ export default function ReportesPage() {
       const d = new Date(p.created_at);
       const dFac = det.factura_digital?.fecha_emision ? new Date(det.factura_digital.fecha_emision) : null;
       const dConc = det.fecha_conciliado ? new Date(det.fecha_conciliado) : null;
+      const dTx = det.fecha_transaccion ? new Date(String(det.fecha_transaccion).slice(0, 10) + 'T12:00:00-04:00') : null;
+      const dBco = det.fecha_banco ? new Date(String(det.fecha_banco).slice(0, 10) + 'T12:00:00-04:00') : null;
+      const dOver = det.fecha_emision_override ? new Date(String(det.fecha_emision_override).slice(0, 10) + 'T12:00:00-04:00') : null;
       const s = new Date(tfecha+'T00:00:00.000-04:00'); const e = new Date(tfechaFin+'T23:59:59.999-04:00');
       const enRango =
         (d >= s && d <= e) ||
         (dFac && !isNaN(dFac.getTime()) && dFac >= s && dFac <= e) ||
-        (dConc && !isNaN(dConc.getTime()) && dConc >= s && dConc <= e);
+        (dConc && !isNaN(dConc.getTime()) && dConc >= s && dConc <= e) ||
+        (dTx && !isNaN(dTx.getTime()) && dTx >= s && dTx <= e) ||
+        (dBco && !isNaN(dBco.getTime()) && dBco >= s && dBco <= e) ||
+        (dOver && !isNaN(dOver.getTime()) && dOver >= s && dOver <= e);
       if (!enRango) return false;
       if (testado !== 'Todos' && p.estado !== testado) return false;
       return true;

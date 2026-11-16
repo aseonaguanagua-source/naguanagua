@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   CheckCheck, RefreshCw, Filter, Landmark, Eye, Download, X,
-  Pencil, Mail, Building2, Receipt
+  Pencil, Mail, Building2, Receipt, FileText
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAppContext } from '@/store/AppContext';
@@ -2831,7 +2831,8 @@ export default function ConciliacionPage() {
     const condo = infoCondominioPago(pago, condos);
     const cajeroStr = det.cajero || det.caja || det.usuario || '';
     const cajeroInfo = cajeroStr ? ' Cajero => ' + cajeroStr : '';
-    const docInfo = 'id pago => ' + pago.id + ' Documento Nro. => ' + (det.doc_nro || '') + cajeroInfo + ' Responsable => ' + (det.responsable || '') + ' Analista => ' + (det.analista || '');
+    const numDocReal = det.factura_digital?.numero_documento || det.factura_digital?.numero_control || det.doc_nro || det.numero_factura || det.recibo_caja?.[0]?.reciboNo || det.recibo_caja?.[0]?.controlWeb || det.recibo_no || '';
+    const docInfo = 'id pago => ' + pago.id + ' Documento Nro. => ' + (numDocReal || '---') + cajeroInfo + ' Responsable => ' + (det.responsable || '---') + ' Analista => ' + (det.analista || '---');
     const esPendiente = pago.estado === 'Por Verificar' || pago.estado === 'Pendiente';
     const esAprobado = pago.estado === 'Aprobado';
     const m = parseFloat(String(pago.monto||'0').replace(/[^0-9.]/g,''));
@@ -2892,6 +2893,18 @@ export default function ConciliacionPage() {
               </span>
             );
           })()}
+          {det.factura_digital?.url && (
+            <a
+              href={det.factura_digital.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 mr-2 px-1.5 py-0.5 rounded bg-emerald-100 hover:bg-emerald-200 text-emerald-900 border border-emerald-300 font-sans text-[10px] font-bold align-middle transition-colors cursor-pointer"
+              title="Ver Factura Digital Electrónica (SENIAT)"
+            >
+              <FileText size={11} className="text-emerald-700"/>
+              <span>Factura {det.factura_digital.numero_control || det.factura_digital.numero_documento || ''}</span>
+            </a>
+          )}
           {docInfo}
         </td>
       </tr>,
@@ -3077,6 +3090,18 @@ export default function ConciliacionPage() {
             return (
               <div className="flex items-center justify-end gap-2">
                 <span>{fmt(m)}</span>
+                {det.factura_digital?.url && (
+                  <a
+                    href={det.factura_digital.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={`Ver Factura Digital ${det.factura_digital.numero_control || det.factura_digital.numero_documento || ''}`}
+                    className="inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    <FileText size={13}/>
+                    <span>Factura</span>
+                  </a>
+                )}
                 {hasComp && (
                   <button
                     type="button"

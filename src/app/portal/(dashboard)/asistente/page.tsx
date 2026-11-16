@@ -18,6 +18,7 @@ import { getIdentidadVariantsExact } from '@/lib/formatters';
 import { isResidencialInm, isTerrenoInm, calcularMensualidad, cleanClasificacionActividad } from '@/lib/calculos';
 import { calcularDeudaInmueble, porMesConRetencion, esUltimoMesHist } from '@/lib/deudaMensual';
 import { construirRecibosContribuyente, desgloseReciboCM } from '@/lib/recibosContribuyente';
+import { logos } from '@/lib/logosBase64';
 
 interface AccionSugerida {
   label: string;
@@ -478,19 +479,16 @@ export default function AsistenteGlobalPage() {
         import('jspdf-autotable'),
       ]);
 
-      const [logoNaguanagua, logoInstituto, logoIamec] = await Promise.all([
-        loadBase64Image('/NAGUANAGUATEQUIERO.png'),
-        loadBase64Image('/INSTITUTO.png'),
-        loadBase64Image('/IAMEC.png'),
-      ]);
-
       const doc = new jsPDF();
       const pageWidth = doc.internal.pageSize.getWidth();
       const fechaHoy = new Date().toLocaleDateString('es-VE');
 
-      if (logoNaguanagua) doc.addImage(logoNaguanagua, 'PNG', 14, 8, 28, 16);
-      if (logoInstituto) doc.addImage(logoInstituto, 'PNG', pageWidth / 2 - 25, 8, 50, 14);
-      if (logoIamec) doc.addImage(logoIamec, 'PNG', pageWidth - 38, 8, 24, 16);
+      // ── LOGOS INSTITUCIONALES HEADER (Alcaldía, IAMEC e Instituto) ──
+      try {
+        if ((logos as any).alcaldia) doc.addImage((logos as any).alcaldia, 'PNG', 14, 8, 16, 20, undefined, 'FAST');
+        if ((logos as any).iamec) doc.addImage((logos as any).iamec, 'PNG', 32, 9, 30, 16, undefined, 'FAST');
+        if ((logos as any).instituto) doc.addImage((logos as any).instituto, 'PNG', pageWidth - 34, 8, 20, 20, undefined, 'FAST');
+      } catch (e) {}
 
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(12);
@@ -592,6 +590,28 @@ export default function AsistenteGlobalPage() {
       doc.setFontSize(11);
       doc.setTextColor(13, 42, 30);
       doc.text(`MONTO NETO A PAGAR: ${fmtBs(neto)}`, pageWidth - 18, finalY + 32, { align: 'right' });
+
+      // ── LOGOS GUBERNAMENTALES AL PIE (Lacava, Elizabeth, Naguanagua Te Quiero) ──
+      const totalPages = (doc.internal as any).getNumberOfPages();
+      for (let p = 1; p <= totalPages; p++) {
+        doc.setPage(p);
+        const yFoot = 282;
+        try {
+          if ((logos as any).lacava) {
+            doc.addImage((logos as any).lacava, 'PNG', 14, yFoot, 34, 8.5, undefined, 'FAST');
+          }
+        } catch {}
+        try {
+          if ((logos as any).elizabeth) {
+            doc.addImage((logos as any).elizabeth, 'PNG', 85, yFoot, 40, 7.5, undefined, 'FAST');
+          }
+        } catch {}
+        try {
+          if ((logos as any).naguanaguaTeQuiero) {
+            doc.addImage((logos as any).naguanaguaTeQuiero, 'PNG', 162, yFoot - 2, 34, 12, undefined, 'FAST');
+          }
+        } catch {}
+      }
 
       const fileName = `Estado_De_Cuenta_${String(contextoCuenta.doc || 'IAMEC').replace(/[^a-zA-Z0-9_-]/g, '')}.pdf`;
       const win = window as any;

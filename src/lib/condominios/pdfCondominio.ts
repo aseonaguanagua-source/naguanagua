@@ -55,8 +55,9 @@ export function generarPdfEstadoCuentaCondominio(
 
   const drawHeader = (pageNumber: number, totalPages: number) => {
     try {
-      if (logos.alcaldia) doc.addImage(logos.alcaldia, 'PNG', 14, 10, 20, 25, undefined, 'FAST');
-      if (logos.instituto) doc.addImage(logos.instituto, 'PNG', 174, 10, 22, 22, undefined, 'FAST');
+      if (logos.alcaldia) doc.addImage(logos.alcaldia, 'PNG', 14, 8, 16, 20, undefined, 'FAST');
+      if (logos.iamec) doc.addImage(logos.iamec, 'PNG', 32, 9, 30, 16, undefined, 'FAST');
+      if (logos.instituto) doc.addImage(logos.instituto, 'PNG', 174, 8, 20, 20, undefined, 'FAST');
     } catch (err) { }
 
     // ── TÍTULO ──
@@ -291,8 +292,9 @@ export function generarPdfMultasCondominio(c: any, e: EstadoCuenta, cajero: stri
 
   const drawHeader = (pageNumber: number, totalPages: number) => {
     try {
-      if (logos.alcaldia) doc.addImage(logos.alcaldia, 'PNG', 14, 10, 20, 25, undefined, 'FAST');
-      if (logos.instituto) doc.addImage(logos.instituto, 'PNG', 174, 10, 22, 22, undefined, 'FAST');
+      if (logos.alcaldia) doc.addImage(logos.alcaldia, 'PNG', 14, 8, 16, 20, undefined, 'FAST');
+      if (logos.iamec) doc.addImage(logos.iamec, 'PNG', 32, 9, 30, 16, undefined, 'FAST');
+      if (logos.instituto) doc.addImage(logos.instituto, 'PNG', 174, 8, 20, 20, undefined, 'FAST');
     } catch (err) { }
 
     doc.setFontSize(16);
@@ -456,8 +458,9 @@ export async function generarPdfEstadoCuentaUnidad(
 
   const drawHeader = (pageNumber: number, totalPages: number) => {
     try {
-      if (logos.alcaldia) doc.addImage(logos.alcaldia, 'PNG', 14, 10, 20, 25, undefined, 'FAST');
-      if (logos.instituto) doc.addImage(logos.instituto, 'PNG', 174, 10, 22, 22, undefined, 'FAST');
+      if (logos.alcaldia) doc.addImage(logos.alcaldia, 'PNG', 14, 8, 16, 20, undefined, 'FAST');
+      if (logos.iamec) doc.addImage(logos.iamec, 'PNG', 32, 9, 30, 16, undefined, 'FAST');
+      if (logos.instituto) doc.addImage(logos.instituto, 'PNG', 174, 8, 20, 20, undefined, 'FAST');
     } catch (err) { }
 
     doc.setFontSize(16);
