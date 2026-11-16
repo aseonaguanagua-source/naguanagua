@@ -311,12 +311,13 @@ function ModalComprobante({ pago, onClose }: { pago: Pago; onClose: () => void }
                   const pagsBancarios = Array.isArray(det.pagos_agregados)
                     ? det.pagos_agregados.filter((x: any) => !/saldo a favor|nota de cr[eé]dito/i.test(String(x?.metodo || x?.tipo || x?.banco || '')))
                     : [];
-                  const esMultiReal = Boolean(pago.grupo_pago || (!det.vinculado_a_referencia && (det.pago_principal_id || det.es_pago_adicional)) || pagsBancarios.length > 1);
+                  const esMultiReal = Boolean(pago.grupo_pago || (!det.vinculado_a_referencia && (det.pago_principal_id || det.es_pago_adicional || det.es_abono_integrado)) || pagsBancarios.length > 1);
                   if (!esMultiReal) return null;
-                  const esDif = Boolean(det.es_pago_adicional && (pago.grupo_pago || !det.vinculado_a_referencia));
+                  const esAnticipo = Boolean(det.tipo_registro_multi === 'ANTICIPO' || (det.es_abono && !(Number(det.abono_previo_descontado) > 0)));
+                  const esDif = !esAnticipo && Boolean(det.tipo_registro_multi === 'DIFERENCIA' || Number(det.abono_previo_descontado) > 0 || (det.es_pago_adicional && (pago.grupo_pago || !det.vinculado_a_referencia)));
                   return (
                     <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${esDif ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-indigo-100 text-indigo-700'}`}>
-                      {esDif ? 'Diferencia' : (pagsBancarios.length > 1 ? 'Anticipo' : 'Transferencia')}
+                      {esDif ? 'Diferencia' : 'Anticipo'}
                     </span>
                   );
                 })()}
@@ -2702,6 +2703,25 @@ export default function ConciliacionPage() {
         if (filtros.modulo === 'Contribuyentes') q = q.neq('modulo', 'condominios');
         const { data } = await q;
         result = data || [];
+        // Incluir todos los pagos hermanos del mismo contribuyente (ej. anticipo + diferencia + otros meses) para ver la trazabilidad completa de cada factura
+        const matchedIdentidades = Array.from(new Set(result.map((r: any) => r.identidad).filter(Boolean)));
+        if (matchedIdentidades.length > 0 && matchedIdentidades.length <= 25) {
+          let qSiblings = supabase
+            .from('pagos_reportados')
+            .select('*')
+            .neq('tipo', 'Retencion de IVA')
+            .in('identidad', matchedIdentidades)
+            .order('created_at', { ascending: false })
+            .limit(200);
+          if (filtros.modulo === 'Contribuyentes') qSiblings = qSiblings.neq('modulo', 'condominios');
+          const { data: siblingRows } = await qSiblings;
+          if (siblingRows && siblingRows.length > 0) {
+            const byId = new Map<string, any>();
+            result.forEach((r: any) => byId.set(r.id, r));
+            siblingRows.forEach((r: any) => { if (!byId.has(r.id)) byId.set(r.id, r); });
+            result = Array.from(byId.values()).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+          }
+        }
       } else if (filtros.modulo.startsWith('Condominios')) {
         // Pagos generales de condominios: del módulo / marcados, y por RIF del condominio (en lotes)
         const lotes = [armar().or(OR_CONDOMINIOS)];
@@ -2735,7 +2755,7 @@ export default function ConciliacionPage() {
 
       if (filtros.referencia && filtros.referencia.trim()) {
         const t = filtros.referencia.trim().toLowerCase();
-        result = result.filter((p: any) => {
+        const coincideDirecto = (p: any) => {
           const ref = (p.referencia || '').toLowerCase();
           const iden = (p.identidad || '').toLowerCase();
           const det = parseDetalles(p.detalles);
@@ -2744,9 +2764,18 @@ export default function ConciliacionPage() {
           const condoCod = (condo?.codigo || det.condominio?.codigo || det.codigo_inmueble || det.cod_inmueble || det.inmueble || '').toLowerCase();
           const cont = (det.contribuyente || det.contribuyente_nombre || p.contribuyente || '').toLowerCase();
           const recibosStr = Array.isArray(det.recibos) ? det.recibos.join(' ').toLowerCase() : '';
+          const refsAgregadas = [
+            ...(Array.isArray(det.pagos_agregados) ? det.pagos_agregados.map((x: any) => x?.referencia || '') : []),
+            ...(Array.isArray(det.formasPago) ? det.formasPago.map((x: any) => x?.referencia || '') : []),
+            det.referencias_integradas || '',
+          ].join(' ').toLowerCase();
           const matchExtra = extraMatchingIds.some(emId => iden.includes(emId.toLowerCase()));
-          return ref.includes(t) || iden.includes(t) || condoNom.includes(t) || condoCod.includes(t) || cont.includes(t) || recibosStr.includes(t) || matchExtra;
-        });
+          return ref.includes(t) || iden.includes(t) || condoNom.includes(t) || condoCod.includes(t) || cont.includes(t) || recibosStr.includes(t) || refsAgregadas.includes(t) || matchExtra;
+        };
+        const identidadesCoincidentes = new Set(
+          result.filter(coincideDirecto).map((p: any) => String(p.identidad || '').trim().toUpperCase()).filter(Boolean)
+        );
+        result = result.filter((p: any) => coincideDirecto(p) || identidadesCoincidentes.has(String(p.identidad || '').trim().toUpperCase()));
       }
       if (filtros.bancoDestino !== 'Todos') {
         result = result.filter((p: any) => {
@@ -2829,23 +2858,31 @@ export default function ConciliacionPage() {
                 Factura a: {condo.facturaA === 'CONTRIBUYENTE' ? 'el contribuyente' : 'el condominio'}
               </span>
               {condo.grupo && <span className="px-1.5 py-0.5 rounded bg-sky-600 text-white text-[10px] font-black">Pago repartido · parte {condo.grupo.parte} de {condo.grupo.partes} · total Bs {fmt(condo.grupo.montoTotal)}</span>}
-              {esMultiTransfReal && (
+              {esMultiTransfReal && (() => {
+                const esAnticipo = Boolean(det.tipo_registro_multi === 'ANTICIPO' || (det.es_abono && !(Number(det.abono_previo_descontado) > 0)));
+                const esDif = !esAnticipo && Boolean(det.tipo_registro_multi === 'DIFERENCIA' || Number(det.abono_previo_descontado) > 0 || (det.es_pago_adicional && (pago.grupo_pago || !det.vinculado_a_referencia)));
+                return (
+                  <span className="px-1.5 py-0.5 rounded bg-indigo-600 text-white text-[10px] font-black">
+                    🔗 MULTI-TRANSFERENCIA {esDif ? '· DIFERENCIA' : '· ANTICIPO'}
+                  </span>
+                );
+              })()}
+            </span>
+          )}
+          {!condo && esMultiTransfReal && (() => {
+            const esAnticipo = Boolean(det.tipo_registro_multi === 'ANTICIPO' || (det.es_abono && !(Number(det.abono_previo_descontado) > 0)));
+            const esDif = !esAnticipo && Boolean(det.tipo_registro_multi === 'DIFERENCIA' || Number(det.abono_previo_descontado) > 0 || (det.es_pago_adicional && (pago.grupo_pago || !det.vinculado_a_referencia)));
+            return (
+              <span className="inline-flex items-center gap-1.5 mr-2 font-sans align-middle">
                 <span className="px-1.5 py-0.5 rounded bg-indigo-600 text-white text-[10px] font-black">
-                  🔗 MULTI-TRANSFERENCIA {(det.es_pago_adicional && (pago.grupo_pago || !det.vinculado_a_referencia)) ? '· DIFERENCIA' : (pagsBancariosReales.length > 1 ? '· ANTICIPO' : '')}
+                  🔗 MULTI-TRANSFERENCIA {esDif ? '· DIFERENCIA' : '· ANTICIPO'}
                 </span>
-              )}
-            </span>
-          )}
-          {!condo && esMultiTransfReal && (
-            <span className="inline-flex items-center gap-1.5 mr-2 font-sans align-middle">
-              <span className="px-1.5 py-0.5 rounded bg-indigo-600 text-white text-[10px] font-black">
-                🔗 MULTI-TRANSFERENCIA {(det.es_pago_adicional && (pago.grupo_pago || !det.vinculado_a_referencia)) ? '· DIFERENCIA' : (pagsBancariosReales.length > 1 ? '· ANTICIPO' : '')}
+                {esDif && (
+                  <span className="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 border border-indigo-300 text-[10px] font-bold">Transferencia Adicional</span>
+                )}
               </span>
-              {(det.es_pago_adicional && (pago.grupo_pago || !det.vinculado_a_referencia)) && (
-                <span className="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 border border-indigo-300 text-[10px] font-bold">Transferencia Adicional</span>
-              )}
-            </span>
-          )}
+            );
+          })()}
           {(() => {
             const pTexto = resolverPeriodoFactura(pago, det);
             if (!pTexto || pTexto === 'Servicio de Aseo Urbano Comercial') return null;
@@ -3003,12 +3040,13 @@ export default function ConciliacionPage() {
               const pagsBancarios = Array.isArray(det.pagos_agregados)
                 ? det.pagos_agregados.filter((x: any) => !/saldo a favor|nota de cr[eé]dito/i.test(String(x?.metodo || x?.tipo || x?.banco || '')))
                 : [];
-              const esMultiReal = Boolean(pago.grupo_pago || (!det.vinculado_a_referencia && (det.pago_principal_id || det.es_pago_adicional)) || pagsBancarios.length > 1);
+              const esMultiReal = Boolean(pago.grupo_pago || (!det.vinculado_a_referencia && (det.pago_principal_id || det.es_pago_adicional || det.es_abono_integrado)) || pagsBancarios.length > 1);
               if (!esMultiReal) return null;
-              const esDif = Boolean(det.es_pago_adicional && (pago.grupo_pago || !det.vinculado_a_referencia));
+              const esAnticipo = Boolean(det.tipo_registro_multi === 'ANTICIPO' || (det.es_abono && !(Number(det.abono_previo_descontado) > 0)));
+              const esDif = !esAnticipo && Boolean(det.tipo_registro_multi === 'DIFERENCIA' || Number(det.abono_previo_descontado) > 0 || (det.es_pago_adicional && (pago.grupo_pago || !det.vinculado_a_referencia)));
               return (
                 <span className={`px-1 py-0.2 rounded font-sans text-[9px] font-bold ${esDif ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-indigo-100 text-indigo-700'}`} title="Parte de un pago con múltiples transferencias">
-                  {esDif ? 'Diferencia' : (pagsBancarios.length > 1 ? 'Anticipo' : '🔗 Multi')}
+                  {esDif ? 'Diferencia' : 'Anticipo'}
                 </span>
               );
             })()}

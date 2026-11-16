@@ -1693,7 +1693,19 @@ export default function FacturacionElectronicaPage() {
                         {pago.referencia && (
                           <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                             <span className="text-[10px] text-slate-600 font-mono bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
-                              Ref: {pago.referencia}
+                              Ref: {(() => {
+                                const fpsRef = Array.isArray(pago.detalles?.formasPago) && pago.detalles.formasPago.length > 1
+                                  ? pago.detalles.formasPago
+                                  : (Array.isArray(pago.detalles?.pagos_agregados) && pago.detalles.pagos_agregados.length > 1 ? pago.detalles.pagos_agregados : null);
+                                if (!fpsRef) return pago.referencia;
+                                const refsUnicas = Array.from(new Set(
+                                  fpsRef
+                                    .filter((fp: any) => !/saldo|nota/i.test(String(fp?.descripcion || fp?.metodo || fp?.tipo || fp?.referencia || '')))
+                                    .map((fp: any) => String(fp?.referencia || '').trim())
+                                    .filter(Boolean)
+                                ));
+                                return refsUnicas.length > 1 ? refsUnicas.join(' / ') : pago.referencia;
+                              })()}
                             </span>
                             <button
                               onClick={() => handleOpenEditModal(pago)}
@@ -1820,9 +1832,9 @@ export default function FacturacionElectronicaPage() {
                                   ? (fidx === 0 ? 'Anticipo' : 'Diferencia')
                                   : (/saldo/i.test(descRaw) ? 'Saldo a Favor' : /d[eé]bito/i.test(descRaw) ? 'Débito' : /cr[eé]dito|tmd|tvd/i.test(descRaw) ? 'Crédito' : (descRaw || 'Pago'));
                                 return (
-                                  <div key={fidx} className="flex items-center justify-between gap-1 text-[10px] text-slate-700">
-                                    <span className="truncate max-w-[130px]" title={`Ref: ${r} (${f})`}>
-                                      {labelFp} <span className="font-mono text-[9px] text-slate-500">({r})</span>:
+                                  <div key={fidx} className="flex items-center justify-between gap-2 text-[10px] text-slate-700 whitespace-nowrap">
+                                    <span title={`Ref: ${r} (${f})`}>
+                                      {labelFp} <span className="font-mono text-[9.5px] font-semibold text-slate-600">({r})</span>:
                                     </span>
                                     <span className="font-bold text-emerald-800 shrink-0">Bs {fmtBs(m)}</span>
                                   </div>

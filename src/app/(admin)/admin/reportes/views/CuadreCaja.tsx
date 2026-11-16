@@ -209,7 +209,12 @@ function coincideBusqueda(p: any, term: string, contribMap?: Map<string, string>
 
   // 3. Referencia bancaria y número de recibo
   const nroRecibo = getNumeroRecibo(p, det).toLowerCase();
-  const refRaw = `${String(p.referencia || det.referencia || '')} ${nroRecibo}`.toLowerCase();
+  const refsExtra = [
+    ...(Array.isArray(det.pagos_agregados) ? det.pagos_agregados.map((x: any) => x?.referencia || '') : []),
+    ...(Array.isArray(det.formasPago) ? det.formasPago.map((x: any) => x?.referencia || '') : []),
+    det.referencias_integradas || '',
+  ].join(' ');
+  const refRaw = `${String(p.referencia || det.referencia || '')} ${nroRecibo} ${refsExtra}`.toLowerCase();
   const refClean = refRaw.replace(/[^a-z0-9]/gi, '');
   if (refRaw.includes(q)) return true;
   if (qClean && refClean.includes(qClean)) return true;
