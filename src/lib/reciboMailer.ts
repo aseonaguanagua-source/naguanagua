@@ -181,9 +181,23 @@ export async function cargarDatosRecibo(pagoId: string): Promise<DatosRecibo> {
     : [];
   const referenciaTexto = refsMulti.length > 1 ? refsMulti.join(' / ') : String(pago.referencia || 'N/A');
 
+  const computeRefNum = (p: any) => {
+    const ref = String(p?.referencia || '').trim();
+    if (ref && !ref.toUpperCase().startsWith('RECIB-')) {
+      const digits = ref.replace(/\D/g, '').slice(-7);
+      if (digits.length >= 3) return digits.padStart(7, '0');
+    }
+    return String(p?.id || '').replace(/\D/g, '').slice(0, 7).padStart(7, '0');
+  };
+  const refNumWeb = computeRefNum(pago);
+  const rcCtrl = String(det.recibo_caja?.[0]?.controlWeb || det.recibo_caja?.[0]?.reciboNo || det.recibo_digital?.numero || '').trim();
+  const numeroReciboUnificado = rcCtrl && !rcCtrl.startsWith('RC-') && !rcCtrl.includes('M')
+    ? (rcCtrl.startsWith('WEB-') ? rcCtrl : `WEB-${rcCtrl}`)
+    : `WEB-${refNumWeb}`;
+
   return {
     pago, det, contribuyente, identidad: pago.identidad, correoCliente, clasif, lineas,
-    numeroRecibo: `RC-${String(pago.id).replace(/-/g, '').slice(0, 8).toUpperCase()}`,
+    numeroRecibo: numeroReciboUnificado,
     fechaPago: fechaCaracas(det.fecha_transaccion || pago.created_at),
     desglose,
     montoTotal,

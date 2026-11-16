@@ -342,17 +342,34 @@ export async function GET(request: Request) {
 
         const dA = parseDetalles(pAbono.detalles);
         const yaEmitidoA = Boolean(dA?.factura_digital?.emitida || dA?.factura_digital?.numero_documento || dA?.factura_digital?.numero_control || dA?.factura_digital?.url);
-        if (yaEmitidoA) return;
+        const ctrlP = String(dP?.factura_digital?.numero_control || '').trim();
+        const docP = String(dP?.factura_digital?.numero_documento || '').trim();
+        const ctrlA = String(dA?.factura_digital?.numero_control || '').trim();
+        const docA = String(dA?.factura_digital?.numero_documento || '').trim();
+        const comparteMismoDocumentoFiscal = Boolean(
+          (ctrlP && ctrlA && ctrlP === ctrlA) ||
+          (docP && docA && docP === docA) ||
+          dA?.factura_digital?.es_copia_integrada === true ||
+          dA?.factura_digital?.es_abono_integrado === true ||
+          (Array.isArray(dP?.pagos_integrados_ids) && dP.pagos_integrados_ids.includes(pAbono.id))
+        );
 
         const refAbonoBase = String(pAbono.referencia || dA?.referencia || '').replace(/\s*\(\+[^)]*\)/g, '').trim();
         const esExplicitoPorRef = Boolean(refAbonoBase && refsExplicitasSet.has(refAbonoBase));
-        const esExplicitoPorId = dA?.pago_principal_id === pPrincipal.id || dA?.completado_con_pago_id === pPrincipal.id || dA?.factura_digital?.unificada_en_pago_id === pPrincipal.id;
+        const esExplicitoPorId =
+          dA?.pago_principal_id === pPrincipal.id ||
+          dA?.completado_con_pago_id === pPrincipal.id ||
+          dA?.pago_integrador_id === pPrincipal.id ||
+          dA?.factura_digital?.unificada_en_pago_id === pPrincipal.id ||
+          (Array.isArray(dP?.pagos_integrados_ids) && dP.pagos_integrados_ids.includes(pAbono.id));
         const mismoGrupoPago = Boolean(
           (pPrincipal.grupo_pago && pAbono.grupo_pago && pPrincipal.grupo_pago === pAbono.grupo_pago) ||
           (pAbono.grupo_pago && pAbono.grupo_pago === pPrincipal.id) ||
           (pPrincipal.grupo_pago && pPrincipal.grupo_pago === pAbono.id)
         );
-        const esVinculoExplicito = esExplicitoPorRef || esExplicitoPorId || mismoGrupoPago;
+        const esVinculoExplicito = esExplicitoPorRef || esExplicitoPorId || mismoGrupoPago || comparteMismoDocumentoFiscal;
+
+        if (yaEmitidoA && !esVinculoExplicito) return;
 
         const montoSoloA = parseFloat(String(pAbono.monto || 0)) || 0;
         const montoNetoReqA = parseFloat(String(dA?.monto_neto_factura || dA?.total_seleccionado || dA?.monto_factura || 0)) || 0;

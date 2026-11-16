@@ -870,11 +870,20 @@ export async function POST(request: Request) {
     const abonoPrevioDescontado = parseFloat(String(detPago.abono_previo_descontado || 0)) || 0;
 
     const totalEfectivoPagado = (() => {
+      const mBase = parseFloat(String(pagoRow?.monto || 0)) || 0;
+      const cubreExactoSuFactura =
+        abonoPrevioDescontado <= 0.01 &&
+        montoFacturaGuardadoRaw > 0 &&
+        mBase > 0 &&
+        Math.abs((mBase + (conRetencion ? montoRetencionGuardada : 0)) - montoFacturaGuardadoRaw) <= 2.00;
+      if (cubreExactoSuFactura) {
+        return r2(mBase);
+      }
       if (Array.isArray(detPago?.pagos_agregados) && detPago.pagos_agregados.length > 0) {
         const sumPa = detPago.pagos_agregados
           .filter((p: any) => !String(p?.metodo || p?.tipo || '').toLowerCase().includes('saldo a favor') && !String(p?.metodo || p?.tipo || '').toLowerCase().includes('nota de credito'))
           .reduce((s: number, p: any) => s + (parseFloat(String(p?.monto || 0)) || 0), 0);
-        if (abonoPrevioDescontado > 0 && detPago.pagos_agregados.length === 1 && Math.abs(sumPa - (parseFloat(String(pagoRow?.monto || 0)) || 0)) < 1) {
+        if (abonoPrevioDescontado > 0 && detPago.pagos_agregados.length === 1 && Math.abs(sumPa - mBase) < 1) {
           return r2(sumPa + abonoPrevioDescontado);
         }
         return r2(sumPa);
@@ -883,12 +892,11 @@ export async function POST(request: Request) {
         const sumFp = detPago.formasPago
           .filter((p: any) => !String(p?.descripcion || p?.tipo || p?.metodo || '').toLowerCase().includes('saldo a favor') && !String(p?.descripcion || p?.tipo || p?.metodo || '').toLowerCase().includes('nota de credito'))
           .reduce((s: number, p: any) => s + (parseFloat(String(p?.monto || 0)) || 0), 0);
-        if (abonoPrevioDescontado > 0 && detPago.formasPago.length === 1 && Math.abs(sumFp - (parseFloat(String(pagoRow?.monto || 0)) || 0)) < 1) {
+        if (abonoPrevioDescontado > 0 && detPago.formasPago.length === 1 && Math.abs(sumFp - mBase) < 1) {
           return r2(sumFp + abonoPrevioDescontado);
         }
         return r2(sumFp);
       }
-      const mBase = parseFloat(String(pagoRow?.monto || 0)) || 0;
       return abonoPrevioDescontado > 0 ? r2(mBase + abonoPrevioDescontado) : mBase;
     })();
 
@@ -2336,14 +2344,21 @@ export async function POST(request: Request) {
     try {
       const porcRetFinal = Number((nuevosDetalles as any)?.porcentaje_retencion || (detPago as any)?.porcentaje_retencion) === 100 ? 100 : 75;
       const retCalcFinal = conRetencion ? r2(totalIVA * (porcRetFinal / 100)) : 0;
+      const retGuardadaFinal = parseFloat(String(nuevosDetalles.monto_retencion_iva || detPago?.monto_retencion_iva || detPago?.retencion_iva || 0)) || 0;
       const retEfectiva = conRetencion
-        ? (retCalcFinal > 0 ? retCalcFinal : (parseFloat(String(nuevosDetalles.monto_retencion_iva || detPago?.monto_retencion_iva || 0)) || 0))
+        ? (retGuardadaFinal > 0 ? retGuardadaFinal : retCalcFinal)
         : 0;
       const netoExigidoFactura = Math.max(0, r2(totalAPagar - retEfectiva - saldoFavorUsado));
-      const excedentePorFactura = totalEfectivoPagado > netoExigidoFactura + 5.00
+      const pagoCubreExactoConRetGuardada =
+        conRetencion &&
+        retGuardadaFinal > 0 &&
+        Math.abs((totalEfectivoPagado + retGuardadaFinal + saldoFavorUsado) - totalAPagar) <= 5.00;
+      const excedentePorFactura = (!pagoCubreExactoConRetGuardada && totalEfectivoPagado > netoExigidoFactura + 5.00)
         ? r2(totalEfectivoPagado - netoExigidoFactura)
         : 0;
-      const saldoFavorEfectivo = Math.max(saldoFavorGenerado >= 5.00 ? saldoFavorGenerado : 0, excedentePorFactura);
+      const saldoFavorEfectivo = pagoCubreExactoConRetGuardada
+        ? 0
+        : Math.max(saldoFavorGenerado >= 5.00 ? saldoFavorGenerado : 0, excedentePorFactura);
 
       if (saldoFavorEfectivo < 5.00 && saldoFavorGenerado > 0 && saldoFavorGenerado < 5.00) {
         nuevosDetalles.saldo_favor = 0;
@@ -2488,13 +2503,15 @@ export async function POST(request: Request) {
             dCand.pago_principal_id = pagoId;
             dCand.pago_integrador_id = pagoId;
             dCand.completado_con_pago_id = pagoId;
+            dCand.es_abono = true;
             dCand.abono_completado = true;
             dCand.es_abono_integrado = true;
-            dCand.es_pago_adicional = true;
+            dCand.es_pago_adicional = false;
+            dCand.tipo_registro_multi = 'ANTICIPO';
             dCand.factura_digital = {
               ...(nuevosDetalles.factura_digital || {}),
               emitida: true,
-              es_pago_adicional: true,
+              es_copia_integrada: true,
               es_abono_integrado: true,
               pago_principal_id: pagoId,
               pago_integrador_id: pagoId,
@@ -2506,6 +2523,8 @@ export async function POST(request: Request) {
         }
         if (idsIntegrados.length > 0) {
           nuevosDetalles.pagos_integrados_ids = idsIntegrados;
+          nuevosDetalles.es_pago_adicional = true;
+          nuevosDetalles.tipo_registro_multi = 'DIFERENCIA';
           await supabase.from('pagos_reportados').update({ detalles: nuevosDetalles }).eq('id', pagoId);
         }
 

@@ -2779,26 +2779,39 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                       {userConvenios.map((conv: any, idx: number) => {
                         let cuotasList: any[] = [];
                         if (Array.isArray(conv.convenios_cuotas) && conv.convenios_cuotas.length > 0) {
-                          cuotasList = conv.convenios_cuotas;
+                          cuotasList = [...conv.convenios_cuotas].sort((a: any, b: any) => String(a?.fecha || '').localeCompare(String(b?.fecha || '')));
                         } else if (conv.detalle_cuotas) {
                           try {
-                            cuotasList = typeof conv.detalle_cuotas === 'string' ? JSON.parse(conv.detalle_cuotas) : conv.detalle_cuotas;
+                            const parsed = typeof conv.detalle_cuotas === 'string' ? JSON.parse(conv.detalle_cuotas) : conv.detalle_cuotas;
+                            cuotasList = Array.isArray(parsed)
+                              ? [...parsed].sort((a: any, b: any) => String(a?.fecha || '').localeCompare(String(b?.fecha || '')))
+                              : [];
                           } catch (_) {}
                         }
+                        const totalPagadoConv = cuotasList
+                          .filter((c: any) => String(c?.estado || '').toLowerCase().includes('pag'))
+                          .reduce((s: number, c: any) => s + (parseFloat(String(c?.monto || 0)) || 0), 0);
+                        const montoTotalConvNum = parseFloat(String(conv.monto_total || 0).replace(/[^\d.-]/g, '')) || 0;
+                        const saldoPendienteConv = Math.max(0, Math.round((montoTotalConvNum - totalPagadoConv) * 100) / 100);
 
                         return (
                           <div key={conv.id || idx} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-3 text-xs">
                             <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 flex-wrap">
                                 <span className="font-extrabold text-slate-800 text-sm">{conv.numero || `Convenio N° ${idx + 1}`}</span>
                                 <span className="px-2 py-0.5 bg-orange-100 text-orange-800 rounded-full font-bold text-[10px]">{conv.estado || 'Activo'}</span>
+                                {conv.periodo_general && (
+                                  <span className="px-2 py-0.5 bg-blue-50 text-blue-800 border border-blue-200 rounded-full font-bold text-[10px]">
+                                    Períodos: {conv.periodo_general}
+                                  </span>
+                                )}
                               </div>
                               <span className="text-[11px] text-slate-500 font-medium">
                                 Creado: {conv.created_at ? String(conv.created_at).slice(0, 10) : 'N/A'}
                               </span>
                             </div>
 
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
                               <div>
                                 <span className="text-[11px] text-slate-500 block">Monto Total Financiado</span>
                                 <span className="font-black text-slate-900 text-sm">Bs. {formatBs(conv.monto_total)}</span>
@@ -2808,20 +2821,25 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                                 <span className="font-bold text-slate-800">{conv.cuotas || cuotasList.length} cuotas</span>
                               </div>
                               <div>
-                                <span className="text-[11px] text-slate-500 block">Cuota Inicial</span>
-                                <span className="font-bold text-slate-800">Bs. {formatBs(conv.inicial || 0)}</span>
+                                <span className="text-[11px] text-slate-500 block">Total Pagado</span>
+                                <span className="font-bold text-emerald-700">Bs. {formatBs(totalPagadoConv)}</span>
+                              </div>
+                              <div>
+                                <span className="text-[11px] text-slate-500 block">Saldo Pendiente</span>
+                                <span className="font-bold text-amber-700">Bs. {formatBs(saldoPendienteConv)}</span>
                               </div>
                             </div>
 
                             {cuotasList && cuotasList.length > 0 && (
                               <div className="mt-2">
-                                <h4 className="font-bold text-slate-700 text-[11px] mb-1.5 uppercase tracking-wider">Cronograma de Cuotas</h4>
+                                <h4 className="font-bold text-slate-700 text-[11px] mb-1.5 uppercase tracking-wider">Cronograma de Fechas y Períodos a Pagar</h4>
                                 <div className="border border-slate-200 rounded-xl overflow-hidden">
                                   <table className="w-full text-left text-xs">
                                     <thead className="bg-slate-100/70 border-b border-slate-200 text-slate-600 text-[10px] uppercase font-bold">
                                       <tr>
-                                        <th className="px-3 py-2">N°</th>
+                                        <th className="px-3 py-2">N° Cuota</th>
                                         <th className="px-3 py-2">Fecha Vencimiento</th>
+                                        <th className="px-3 py-2">Períodos que Cubre</th>
                                         <th className="px-3 py-2 text-right">Monto (Bs)</th>
                                         <th className="px-3 py-2 text-center">Estado</th>
                                       </tr>
@@ -2832,8 +2850,11 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                                         const isPagada = cEstado.toLowerCase().includes('pag');
                                         return (
                                           <tr key={cuota.id || cIdx} className="hover:bg-slate-50">
-                                            <td className="px-3 py-2 font-bold text-slate-700">Cuota {cIdx + 1}</td>
-                                            <td className="px-3 py-2 text-slate-600">{cuota.fecha ? String(cuota.fecha).slice(0, 10) : 'N/A'}</td>
+                                            <td className="px-3 py-2 font-bold text-slate-700">Cuota {cuota.numero_cuota || (cIdx + 1)}</td>
+                                            <td className="px-3 py-2 font-mono text-slate-600">{cuota.fecha ? String(cuota.fecha).slice(0, 10) : 'N/A'}</td>
+                                            <td className="px-3 py-2 font-medium text-blue-900">
+                                              {cuota.periodo_cubierto || (cuota.meses_cubiertos ? `${cuota.meses_cubiertos} ${cuota.meses_cubiertos === 1 ? 'mes' : 'meses'}` : '—')}
+                                            </td>
                                             <td className="px-3 py-2 text-right font-black text-slate-900">Bs. {formatBs(cuota.monto)}</td>
                                             <td className="px-3 py-2 text-center">
                                               <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${

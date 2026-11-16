@@ -42,7 +42,99 @@ export async function GET(req: Request) {
       return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true, data: data || [] });
+    const MESES_NOMBRES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    const identsList = Array.from(new Set((data || []).map((c: any) => c.identidad).filter(Boolean)));
+    const { data: inmsData } = identsList.length > 0
+      ? await supabase.from('inmuebles').select('id, inmueble, identidad, contribuyente, notas, deuda_congelada_bs').in('identidad', identsList)
+      : { data: [] as any[] };
+    const inmsByIdent = new Map<string, any[]>();
+    for (const inm of inmsData || []) {
+      const k = String(inm.identidad || '').trim().toUpperCase();
+      if (!inmsByIdent.has(k)) inmsByIdent.set(k, []);
+      inmsByIdent.get(k)!.push(inm);
+    }
+
+    const enriched = (data || []).map((conv: any) => {
+      const kIdent = String(conv.identidad || '').trim().toUpperCase();
+      const inms = inmsByIdent.get(kIdent) || [];
+      const inmConv = inms.find((i: any) => String(i.notas || '').includes(conv.numero)) || inms[0] || null;
+      const notasStr = String(inmConv?.notas || '');
+      const mPre = notasStr.match(/\[PRE_CONV:(\d+):/);
+      let obsObj: any = null;
+      if (conv.observaciones) {
+        try { obsObj = typeof conv.observaciones === 'string' ? JSON.parse(conv.observaciones) : conv.observaciones; } catch {}
+      }
+      const mesesObs = Array.isArray(obsObj?.deuda_previa_inmuebles)
+        ? obsObj.deuda_previa_inmuebles.reduce((mx: number, d: any) => Math.max(mx, parseInt(String(d?.meses_deuda || 0)) || 0), 0)
+        : 0;
+      const sortedCuotas = [...(Array.isArray(conv.convenios_cuotas) ? conv.convenios_cuotas : [])].sort((a: any, b: any) =>
+        String(a?.fecha || '').localeCompare(String(b?.fecha || ''))
+      );
+      const totalMeses = (mPre ? parseInt(mPre[1], 10) : 0) || mesesObs || Number(conv.meses_refinanciados) || sortedCuotas.length || Number(conv.cuotas) || 1;
+      const montoTotalNum = parseFloat(String(conv.monto_total || 0)) || 0;
+      const valorMes = totalMeses > 0 && montoTotalNum > 0 ? montoTotalNum / totalMeses : 0;
+
+      // En convenios creados hasta principios de noviembre 2026 (ciclo septiembre 2026), el último mes vencido refinanciado es Septiembre 2026 (mes 8, 0-indexed)
+      const createdDate = conv.created_at ? new Date(conv.created_at) : new Date();
+      const createdYmd = createdDate.toISOString().slice(0, 10);
+      const endYearBase = createdYmd <= '2026-11-10' ? 2026 : createdDate.getUTCFullYear();
+      const endMonthBase = createdYmd <= '2026-11-10' ? 8 : (createdDate.getUTCMonth() - 1);
+      const startTotalDate = new Date(Date.UTC(endYearBase, endMonthBase - totalMeses + 1, 1));
+      const endTotalDate = new Date(Date.UTC(endYearBase, endMonthBase, 1));
+      const fmtMesAnio = (d: Date) => `${MESES_NOMBRES[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+      const periodoGeneral = totalMeses === 1
+        ? `${fmtMesAnio(endTotalDate)} (1 mes)`
+        : `${fmtMesAnio(startTotalDate)} a ${fmtMesAnio(endTotalDate)} (${totalMeses} meses)`;
+
+      let cursorMes = 0;
+      let montoPagadoSum = 0;
+      const cuotasConPeriodo = sortedCuotas.map((c: any, idx: number) => {
+        const mCuotaBs = parseFloat(String(c.monto || 0)) || 0;
+        const estNorm = String(c.estado || 'Pendiente');
+        if (estNorm.toLowerCase().includes('pag')) {
+          montoPagadoSum += mCuotaBs;
+        }
+        let mesesCuota = Number(c.meses_cubiertos) || 0;
+        if (!mesesCuota) {
+          if (idx === sortedCuotas.length - 1) {
+            mesesCuota = Math.max(1, totalMeses - cursorMes);
+          } else if (valorMes > 0 && mCuotaBs > 0) {
+            mesesCuota = Math.max(1, Math.round(mCuotaBs / valorMes));
+          } else {
+            mesesCuota = Math.max(1, Math.floor(totalMeses / Math.max(1, sortedCuotas.length)));
+          }
+        }
+        const dIni = new Date(Date.UTC(endYearBase, endMonthBase - totalMeses + 1 + cursorMes, 1));
+        const dFin = new Date(Date.UTC(endYearBase, endMonthBase - totalMeses + cursorMes + mesesCuota, 1));
+        cursorMes += mesesCuota;
+        const rangoTexto = mesesCuota <= 1
+          ? `${fmtMesAnio(dIni)} (1 mes)`
+          : `${fmtMesAnio(dIni)} a ${fmtMesAnio(dFin)} (${mesesCuota} meses)`;
+
+        return {
+          ...c,
+          numero_cuota: idx + 1,
+          meses_cubiertos: mesesCuota,
+          periodo_cubierto: c.periodo_cubierto || rangoTexto
+        };
+      });
+
+      const montoPagado = Math.round(montoPagadoSum * 100) / 100;
+      const saldoPendiente = Math.max(0, Math.round((montoTotalNum - montoPagado) * 100) / 100);
+
+      return {
+        ...conv,
+        codigo_inmueble: inmConv?.inmueble || undefined,
+        contribuyente_nombre: inmConv?.contribuyente || undefined,
+        meses_refinanciados: totalMeses,
+        periodo_general: periodoGeneral,
+        monto_pagado: montoPagado,
+        saldo_pendiente: saldoPendiente,
+        convenios_cuotas: cuotasConPeriodo
+      };
+    });
+
+    return NextResponse.json({ ok: true, data: enriched });
   } catch (err: any) {
     console.error('API convenios GET error:', err);
     return NextResponse.json({ ok: false, error: err.message }, { status: 500 });

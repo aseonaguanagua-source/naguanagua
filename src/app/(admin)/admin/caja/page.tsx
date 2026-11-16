@@ -1742,7 +1742,10 @@ export default function CajaPage() {
               convId: conv.id,
               numeroConv: conv.numero,
               cuotaId: c.id,
-              numeroCuota: idx + 1,
+              numeroCuota: c.numero_cuota || (idx + 1),
+              totalCuotas: conv.cuotas || cuotasList.length,
+              mesesCubiertos: c.meses_cubiertos,
+              periodoCubierto: c.periodo_cubierto,
               fecha: c.fecha,
               monto: c.monto,
               rawConv: conv
@@ -2942,9 +2945,12 @@ export default function CajaPage() {
               const cq = cuotas.find(q => q.convId === sc.convId && q.cuotaId === sc.cuotaId);
               const numConv = cq?.numeroConv || sc.convId;
               const numCuota = cq?.numeroCuota || '';
+              const totCuotas = cq?.totalCuotas || '';
+              const perCub = cq?.periodoCubierto || '';
               const mCuota = cq ? getCuotaMonto(cq) : montoReal;
+              const detalleCuota = numCuota ? ` (Cuota ${numCuota}${totCuotas ? ` de ${totCuotas}` : ''}${perCub ? ` · Períodos: ${perCub}` : ''})` : '';
               return {
-                descripcion: `Convenio de Pago ${numConv}${numCuota ? ` - Cuota #${numCuota}` : ''} (${singleInm?.inmueble || foundUser.CodCont || ''})`.trim(),
+                descripcion: `Servicio de Aseo Urbano - Convenio de Pago ${numConv}${detalleCuota}${singleInm?.inmueble ? ` · ${singleInm.inmueble}` : ''}`.trim(),
                 precioUnit: mCuota,
                 total: mCuota,
               };

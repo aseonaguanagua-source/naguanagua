@@ -69,10 +69,23 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
       const mFactura = parseFloat(String(det.monto_factura)) || 0;
       const mPago = parseFloat(String(pago?.monto || det.montoTotal || 0)) || 0;
       const mRet = parseFloat(String(det.monto_retencion_iva || det.retencion_iva || 0)) || 0;
-      const sFavorGen = parseFloat(String(det.saldo_a_favor_nuevo || det.monto_sobrante || det.saldo_favor || 0)) || 0;
-      const dif = Math.round((mFactura - mPago - mRet + (sFavorGen > 0 ? sFavorGen : 0)) * 100) / 100;
-      if (dif > 0.05) {
-        sf = dif;
+      const mAbono = parseFloat(String(det.abono_previo_descontado || 0)) || 0;
+      const sumMulti = Array.isArray(det.formasPago) && det.formasPago.length > 1
+        ? det.formasPago.reduce((s: number, fp: any) => s + (parseFloat(String(fp?.monto || 0)) || 0), 0)
+        : (Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1
+            ? det.pagos_agregados.reduce((s: number, fp: any) => s + (parseFloat(String(fp?.monto || 0)) || 0), 0)
+            : 0);
+      const tieneMultiOAbono =
+        mAbono > 0 ||
+        sumMulti > mPago + 0.05 ||
+        Boolean(det.abono_completado) ||
+        (Array.isArray(det.pagos_integrados_ids) && det.pagos_integrados_ids.length > 0);
+      if (!tieneMultiOAbono) {
+        const sFavorGen = parseFloat(String(det.saldo_a_favor_nuevo || det.monto_sobrante || det.saldo_favor || 0)) || 0;
+        const dif = Math.round((mFactura - mPago - mRet + (sFavorGen > 0 ? sFavorGen : 0)) * 100) / 100;
+        if (dif > 0.05) {
+          sf = dif;
+        }
       }
     }
     return Math.round(sf * 100) / 100;
@@ -942,21 +955,63 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
                     Formas de Pago
                   </div>
                   <div className="p-2.5 text-[10px] space-y-1.5 text-slate-700 bg-white">
-                    <div>
-                      <div><strong>Forma:</strong> {tipoPago}</div>
-                      {banco && banco !== 'N/A' && <div><strong>Banco:</strong> {banco}</div>}
-                      {referencia && referencia !== 'N/A' && <div><strong>Referencia:</strong> <span className="font-mono">{referencia}</span></div>}
-                      {fechaPagoEditable && (
+                    {(() => {
+                      const rawMulti = Array.isArray(det.formasPago) && det.formasPago.length > 1
+                        ? det.formasPago
+                        : (Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1 ? det.pagos_agregados : null);
+                      const bancariosMulti = rawMulti
+                        ? rawMulti.filter((fp: any) => {
+                            const txt = `${fp?.descripcion || ''} ${fp?.metodo || ''} ${fp?.tipo || ''} ${fp?.referencia || ''}`.toLowerCase();
+                            return !txt.includes('saldo a favor') && !txt.includes('saldo favor') && !txt.includes('nota de credito') && !txt.includes('nc-saldo-favor');
+                          })
+                        : [];
+                      if (bancariosMulti.length > 1) {
+                        return (
+                          <div className="space-y-1.5 divide-y divide-slate-200">
+                            {bancariosMulti.map((fp: any, idx: number) => {
+                              const fpForma = fp.descripcion || fp.metodo || fp.tipo || tipoPago;
+                              const fpBanco = fp.banco || banco;
+                              const fpRef = fp.referencia || '';
+                              const fpFechaRaw = String(fp.fecha || fp.fechaTransaccion || fp.fecha_transaccion || '').slice(0, 10);
+                              const fpMonto = parseFloat(String(fp.monto || 0)) || 0;
+                              return (
+                                <div key={idx} className={idx > 0 ? 'pt-1.5' : ''}>
+                                  <div><strong>Forma:</strong> {fpForma}</div>
+                                  {fpBanco && fpBanco !== 'N/A' && <div><strong>Banco:</strong> {fpBanco}</div>}
+                                  {fpRef && <div><strong>Referencia:</strong> <span className="font-mono">{fpRef}</span></div>}
+                                  {fpFechaRaw && /^\d{4}-\d{2}-\d{2}$/.test(fpFechaRaw) && (
+                                    <div>
+                                      <strong>Fecha:</strong>{' '}
+                                      <span className="font-mono font-bold text-slate-900">
+                                        {fpFechaRaw.split('-').reverse().join('/')}
+                                      </span>
+                                    </div>
+                                  )}
+                                  <div><strong>Monto:</strong> <span className="font-bold text-slate-900 font-mono">Bs. {formatBs(fpMonto)}</span></div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      }
+                      return (
                         <div>
-                          <strong>Fecha Transacción:</strong>{' '}
-                          <span className="font-mono font-bold text-slate-900">
-                            {fechaPagoEditable.split('-').reverse().join('/')}
-                          </span>
+                          <div><strong>Forma:</strong> {tipoPago}</div>
+                          {banco && banco !== 'N/A' && <div><strong>Banco:</strong> {banco}</div>}
+                          {referencia && referencia !== 'N/A' && <div><strong>Referencia:</strong> <span className="font-mono">{referencia}</span></div>}
+                          {fechaPagoEditable && (
+                            <div>
+                              <strong>Fecha Transacción:</strong>{' '}
+                              <span className="font-mono font-bold text-slate-900">
+                                {fechaPagoEditable.split('-').reverse().join('/')}
+                              </span>
+                            </div>
+                          )}
+                          {montoConciliado > 0 && <div><strong>Monto Conciliado:</strong> <span className="font-bold text-slate-900 font-mono">Bs. {formatBs(montoConciliado)}</span></div>}
+                          <div><strong>Aplicado a Factura (Neto):</strong> <span className="font-mono font-bold text-emerald-800">Bs. {formatBs(montoNetoCobrado)}</span></div>
                         </div>
-                      )}
-                      {montoConciliado > 0 && <div><strong>Monto Conciliado:</strong> <span className="font-bold text-slate-900 font-mono">Bs. {formatBs(montoConciliado)}</span></div>}
-                      <div><strong>Aplicado a Factura (Neto):</strong> <span className="font-mono font-bold text-emerald-800">Bs. {formatBs(montoNetoCobrado)}</span></div>
-                    </div>
+                      );
+                    })()}
                     {saldoFavorGenerado > 0 && (
                       <div className="pt-1 border-t border-slate-200 text-emerald-800">
                         <div><strong>Nota de Crédito / Saldo a Favor:</strong> <span className="font-bold">Bs. {formatBs(saldoFavorGenerado)}</span></div>

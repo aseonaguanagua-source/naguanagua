@@ -774,20 +774,27 @@ export async function POST(req: Request) {
           }
 
           // Acreditar saldo a favor si el pago general (o con retención 75% IVA) tenía excedente no acreditado
-          if (!detP.saldo_favor_acreditado && rawId) {
+          if (!detP.saldo_favor_acreditado && rawId && !d.es_abono) {
             const montoPagadoNum = parseFloat(String(actualP.monto || d.monto_conciliado || 0)) || 0;
             const montoFacNum = parseFloat(String(d.monto_factura || d.total_seleccionado || 0)) || 0;
             const montoRetNum = parseFloat(String(d.monto_retencion_iva || d.retencion_iva || 0)) || 0;
-            const sfExplicito = parseFloat(String(d.saldo_favor || d.saldo_a_favor_nuevo || d.saldo_favor_generado || d.monto_sobrante || 0)) || 0;
-            const sfCalculadoRet = (montoFacNum > 0 && montoPagadoNum > 0 && montoPagadoNum > (montoFacNum - montoRetNum) + 5.00)
-              ? Math.round((montoPagadoNum - (montoFacNum - montoRetNum)) * 100) / 100
+            const abonoPrevNum = parseFloat(String(d.abono_previo_descontado || 0)) || 0;
+            const sfUsadoNum = parseFloat(String(d.saldo_usado || d.descuento_saldo_favor || d.saldo_favor_usado || 0)) || 0;
+            const sfExplicitoRaw = parseFloat(String(d.saldo_a_favor_nuevo || d.saldo_favor_generado || d.monto_sobrante || d.saldo_favor || 0)) || 0;
+            const esFalsoSfRetencion = montoRetNum > 0 && Math.abs(sfExplicitoRaw - montoRetNum) < 2.00 && Math.abs((montoPagadoNum + montoRetNum + abonoPrevNum + sfUsadoNum) - montoFacNum) < 5.00;
+            const esFalsoSfAbono = abonoPrevNum > 0 && Math.abs(sfExplicitoRaw - abonoPrevNum) < 2.00 && Math.abs((montoPagadoNum + montoRetNum + abonoPrevNum + sfUsadoNum) - montoFacNum) < 5.00;
+            const sfExplicito = (esFalsoSfRetencion || esFalsoSfAbono) ? 0 : sfExplicitoRaw;
+            const sfCalculadoRet = (montoFacNum > 0 && montoPagadoNum > 0 && (montoPagadoNum + abonoPrevNum + sfUsadoNum) > (montoFacNum - montoRetNum) + 5.00)
+              ? Math.round(((montoPagadoNum + abonoPrevNum + sfUsadoNum) - (montoFacNum - montoRetNum)) * 100) / 100
               : 0;
             const sfGeneral = Math.max(sfExplicito >= 5.00 ? sfExplicito : 0, sfCalculadoRet);
-            if (sfGeneral < 5.00 && sfExplicito > 0 && sfExplicito < 5.00) {
+            if (sfGeneral < 5.00 && sfExplicitoRaw > 0) {
               d.saldo_favor = 0;
+              d.saldo_a_favor_nuevo = 0;
               d.saldo_favor_generado = 0;
+              d.monto_sobrante = 0;
             }
-            if (sfGeneral >= 5.00 && !d.es_pago_adicional && !d.pago_vinculado && actualP.tipo !== 'Retencion de IVA') {
+            if (sfGeneral >= 5.00 && !d.es_abono && !d.es_pago_adicional && !d.pago_vinculado && actualP.tipo !== 'Retencion de IVA') {
               const mGen = Math.round(sfGeneral * 100) / 100;
               const codTargetGen = String(d.codigo_inmueble || d.cod_inmueble || inmsPrev?.[0]?.inmueble || '').trim().toUpperCase() || undefined;
               try {

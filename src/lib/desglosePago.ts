@@ -122,9 +122,15 @@ export function desglosarPago(pago: any, inmMap: Map<string, any>): DesglosePago
         total = Math.max(total, maxHistIdx);
       } else {
         const deudaActual = parseInt(String(inmActual.meses_deuda || 0)) || 0;
+        const ahoraVE = new Date(Date.now() - 4 * 3600 * 1000);
+        const mesesPosterioresAlPago = Math.max(
+          0,
+          (ahoraVE.getUTCFullYear() - hoy.getFullYear()) * 12 + (ahoraVE.getUTCMonth() - hoy.getMonth())
+        );
+        const deudaRestanteAlPagar = Math.max(0, deudaActual - mesesPosterioresAlPago);
         total = yaDesconto
-          ? Math.max(maxHistIdx, deudaActual + (esAbono ? 0 : hist.length))
-          : Math.max(maxHistIdx, deudaActual);
+          ? Math.max(maxHistIdx, deudaRestanteAlPagar + (esAbono ? 0 : hist.length))
+          : Math.max(maxHistIdx, deudaRestanteAlPagar);
       }
       const sel = esAbono ? [] : hist.filter(x => x.n <= total);
       const meses = sel.map((x, idx) => ({

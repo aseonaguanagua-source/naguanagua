@@ -81,6 +81,17 @@ export function resolverConceptoPeriodoPago(pago: any): string {
       const arr = Array.isArray(rc) ? rc : [rc];
       // Si alguno de los recibos de caja tiene ya el campo periodo explícito
       for (const item of arr) {
+        const descConcepto0 = String(item?.conceptos?.[0]?.descripcion || '').trim();
+        if (/convenio/i.test(String(item?.periodo || '')) || /convenio/i.test(descConcepto0)) {
+          if (descConcepto0 && (/cuota/i.test(descConcepto0) || /per[íi]odo/i.test(descConcepto0))) {
+            return descConcepto0.toLowerCase().startsWith('servicio')
+              ? descConcepto0
+              : `Servicio de Aseo Urbano Comercial - ${descConcepto0}`;
+          }
+          if (det.periodos_pagados && (/cuota/i.test(String(det.periodos_pagados)) || /per[íi]odo/i.test(String(det.periodos_pagados)))) {
+            return `Servicio de Aseo Urbano Comercial - ${String(det.periodos_pagados).trim()}`;
+          }
+        }
         if (item?.periodo) {
           const p = formatearPeriodoParaConcepto(item.periodo);
           if (p) return `Servicio de Aseo Urbano Comercial - ${p}`;

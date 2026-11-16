@@ -75,12 +75,18 @@ export default function ConveniosPagoPage() {
             const iIdClean = String(i.identidad || i.Identidad || '').replace(/\D/g, '');
             return cIdClean && iIdClean && cIdClean === iIdClean;
           });
+          const sortedCuotas = [...(Array.isArray(c.convenios_cuotas) ? c.convenios_cuotas : [])].sort((a: any, b: any) =>
+            String(a?.fecha || '').localeCompare(String(b?.fecha || ''))
+          );
           return {
             ...c,
-            contribuyente: inmMatch?.contribuyente || inmMatch?.Contribuyente || c.identidad,
+            convenios_cuotas: sortedCuotas,
+            contribuyente: c.contribuyente_nombre || inmMatch?.contribuyente || inmMatch?.Contribuyente || c.identidad,
+            codigo_inmueble: c.codigo_inmueble || inmMatch?.inmueble || '',
+            monto_total_num: typeof c.monto_total === 'number' ? c.monto_total : (parseFloat(String(c.monto_total || 0)) || 0),
             monto_total: typeof c.monto_total === 'number' ? `${c.monto_total.toFixed(2)} Bs` : (c.monto_total || '0.00 Bs'),
-            inicio: c.convenios_cuotas?.[0]?.fecha || (c.created_at ? c.created_at.slice(0, 10) : ''),
-            detalle_cuotas: JSON.stringify(c.convenios_cuotas || [])
+            inicio: sortedCuotas[0]?.fecha || (c.created_at ? c.created_at.slice(0, 10) : ''),
+            detalle_cuotas: JSON.stringify(sortedCuotas)
           };
         });
         setDbConveniosList(formatted);
@@ -959,64 +965,101 @@ export default function ConveniosPagoPage() {
             </div>
             
             <div className="p-6 overflow-y-auto">
-              <div className="mb-6 grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="block text-slate-500 mb-1">Contribuyente</span>
-                  <span className="font-semibold text-slate-800">{viewCuotasModal.convenio.contribuyente}</span>
-                </div>
-                <div>
-                  <span className="block text-slate-500 mb-1">Total Refinanciado</span>
-                  <span className="font-semibold text-slate-800">{viewCuotasModal.convenio.monto_total}</span>
-                </div>
-              </div>
+              {(() => {
+                const conv = viewCuotasModal.convenio;
+                let arrCuotas: any[] = [];
+                try {
+                  const raw = conv.convenios_cuotas || conv.detalle_cuotas;
+                  const parsed = Array.isArray(raw) ? raw : JSON.parse(raw || '[]');
+                  arrCuotas = Array.isArray(parsed)
+                    ? [...parsed].sort((a: any, b: any) => String(a?.fecha || '').localeCompare(String(b?.fecha || '')))
+                    : [];
+                } catch {
+                  arrCuotas = [];
+                }
+                const totalPagado = arrCuotas
+                  .filter((c: any) => String(c?.estado || '').toLowerCase().includes('pag'))
+                  .reduce((s: number, c: any) => s + (parseFloat(String(c?.monto || 0)) || 0), 0);
+                const montoTotalNum = conv.monto_total_num || parseFloat(String(conv.monto_total || 0).replace(/[^\d.-]/g, '')) || 0;
+                const saldoPendiente = Math.max(0, Math.round((montoTotalNum - totalPagado) * 100) / 100);
+                const cuotasPagadasCount = arrCuotas.filter((c: any) => String(c?.estado || '').toLowerCase().includes('pag')).length;
 
-              <h4 className="text-sm font-semibold text-slate-800 mb-3">Cronograma de Cuotas</h4>
-              
-              {(!viewCuotasModal.convenio.detalle_cuotas || viewCuotasModal.convenio.detalle_cuotas === '[]') ? (
-                <div className="bg-orange-50 border border-orange-200 rounded-lg p-6 text-center text-orange-700">
-                  <p className="font-medium">Convenio Histórico Consolidado</p>
-                  <p className="text-sm mt-2 opacity-80">Este acuerdo proviene de la base de datos histórica. No posee un desglose de cuotas detallado en el sistema.</p>
-                </div>
-              ) : (
-                <div className="border border-slate-200 rounded-lg overflow-hidden">
-                  <table className="w-full text-sm text-left">
-                    <thead className="bg-slate-50 text-slate-600 text-xs">
-                      <tr>
-                        <th className="px-4 py-3 font-semibold">N° Cuota</th>
-                        <th className="px-4 py-3 font-semibold">Fecha Vencimiento</th>
-                        <th className="px-4 py-3 font-semibold">Monto (Bs)</th>
-                        <th className="px-4 py-3 font-semibold">Estado</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200">
-                      {(() => {
-                        try {
-                          const raw = viewCuotasModal.convenio.detalle_cuotas;
-                          const arr = Array.isArray(raw) ? raw : JSON.parse(raw || '[]');
-                          return Array.isArray(arr) ? arr : [];
-                        } catch {
-                          return [];
-                        }
-                      })().map((c: any, i: number) => (
-                        <tr key={i} className="hover:bg-slate-50">
-                          <td className="px-4 py-3 font-medium text-slate-600">{i + 1}</td>
-                          <td className="px-4 py-3 text-slate-600">{c.fecha}</td>
-                          <td className="px-4 py-3 font-semibold text-slate-800">{c.monto} Bs</td>
-                          <td className="px-4 py-3">
-                            <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                              c.estado === 'Pagado' ? 'bg-emerald-100 text-emerald-700' :
-                              c.estado === 'Vencido' ? 'bg-red-100 text-red-700' :
-                              'bg-amber-100 text-amber-700'
-                            }`}>
-                              {c.estado || 'Pendiente'}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                return (
+                  <>
+                    <div className="mb-5 grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs bg-slate-50 p-4 rounded-xl border border-slate-200">
+                      <div>
+                        <span className="block text-slate-500 mb-0.5">Contribuyente</span>
+                        <span className="font-bold text-slate-800">{conv.contribuyente}</span>
+                        {conv.identidad && <span className="block text-[11px] text-slate-500 font-mono">{conv.identidad}{conv.codigo_inmueble ? ` · ${conv.codigo_inmueble}` : ''}</span>}
+                      </div>
+                      <div>
+                        <span className="block text-slate-500 mb-0.5">Períodos Refinanciados</span>
+                        <span className="font-bold text-blue-900">{conv.periodo_general || `${conv.meses_refinanciados || arrCuotas.length} meses`}</span>
+                      </div>
+                      <div>
+                        <span className="block text-slate-500 mb-0.5">Total Refinanciado</span>
+                        <span className="font-black text-slate-900 text-sm">{conv.monto_total}</span>
+                      </div>
+                      <div>
+                        <span className="block text-slate-500 mb-0.5">Total Pagado ({cuotasPagadasCount}/{arrCuotas.length} cuotas)</span>
+                        <span className="font-bold text-emerald-700">{totalPagado.toFixed(2)} Bs</span>
+                      </div>
+                      <div>
+                        <span className="block text-slate-500 mb-0.5">Saldo Pendiente por Pagar</span>
+                        <span className="font-bold text-amber-700">{saldoPendiente.toFixed(2)} Bs</span>
+                      </div>
+                      <div>
+                        <span className="block text-slate-500 mb-0.5">Estado del Convenio</span>
+                        <span className="font-bold text-slate-800">{conv.estado || 'Al Día'}</span>
+                      </div>
+                    </div>
+
+                    <h4 className="text-sm font-semibold text-slate-800 mb-3">Cronograma de Fechas y Períodos a Pagar</h4>
+
+                    {arrCuotas.length === 0 ? (
+                      <div className="bg-orange-50 border border-orange-200 rounded-lg p-6 text-center text-orange-700">
+                        <p className="font-medium">Convenio Histórico Consolidado</p>
+                        <p className="text-sm mt-2 opacity-80">Este acuerdo proviene de la base de datos histórica. No posee un desglose de cuotas detallado en el sistema.</p>
+                      </div>
+                    ) : (
+                      <div className="border border-slate-200 rounded-lg overflow-hidden">
+                        <table className="w-full text-sm text-left">
+                          <thead className="bg-slate-50 text-slate-600 text-xs">
+                            <tr>
+                              <th className="px-3 py-3 font-semibold">N° Cuota</th>
+                              <th className="px-3 py-3 font-semibold">Fecha Vencimiento</th>
+                              <th className="px-3 py-3 font-semibold">Períodos que Cubre</th>
+                              <th className="px-3 py-3 font-semibold text-right">Monto (Bs)</th>
+                              <th className="px-3 py-3 font-semibold text-center">Estado</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-200">
+                            {arrCuotas.map((c: any, i: number) => (
+                              <tr key={c.id || i} className="hover:bg-slate-50 text-xs">
+                                <td className="px-3 py-3 font-bold text-slate-700">Cuota {c.numero_cuota || (i + 1)}</td>
+                                <td className="px-3 py-3 font-mono text-slate-700">{c.fecha}</td>
+                                <td className="px-3 py-3 font-medium text-blue-900">
+                                  {c.periodo_cubierto || (c.meses_cubiertos ? `${c.meses_cubiertos} ${c.meses_cubiertos === 1 ? 'mes' : 'meses'}` : '—')}
+                                </td>
+                                <td className="px-3 py-3 font-bold text-slate-900 text-right">{Number(c.monto || 0).toFixed(2)} Bs</td>
+                                <td className="px-3 py-3 text-center">
+                                  <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                                    String(c.estado || '').toLowerCase().includes('pag') ? 'bg-emerald-100 text-emerald-700' :
+                                    c.estado === 'Vencido' ? 'bg-red-100 text-red-700' :
+                                    'bg-amber-100 text-amber-700'
+                                  }`}>
+                                    {c.estado || 'Pendiente'}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
             
             <div className="p-4 border-t border-slate-200 bg-slate-50 rounded-b-lg flex justify-between items-center">

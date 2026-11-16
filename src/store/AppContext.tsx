@@ -1466,6 +1466,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
               ? normalizarIdentidad(String(local.identidad).trim().toUpperCase(), String(local.identidad).trim().charAt(0) || 'J')
               : identidadExacta;
             identidadesRefrescar.add(idNuevoLocal);
+            const mesesInit = isTerrenoInm(act) ? 0 : 1;
             const { error: eI } = await supabase.from('inmuebles').insert([{
               inmueble: codigo,
               identidad: idNuevoLocal,
@@ -1480,12 +1481,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
               estado: 'Activo',
               actividad_principal: act,
               mmv_mes: mmv,
-              meses_deuda: 0,
-              deuda_mmv: 0,
+              meses_deuda: mesesInit,
+              deuda_mmv: parseFloat((mesesInit * mmv).toFixed(5)),
               cant_inmuebles: 1,
               agente_retencion: local.agente_retencion === true,
             }]);
             if (eI) throw eI;
+            local.codigo = codigo;
+            local.esNuevo = false;
             local.mmvActual = mmv;
             cambios.push(`NUEVO ${codigo}: ${act} (${mmv} MMV)`);
           }
@@ -1564,6 +1567,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
               // El contribuyente no tiene ningún inmueble. Creamos uno nuevo.
               const codigos = await siguientesCodigosInmueble(1);
               const nuevoCodigo = codigos[0];
+              const mesesInitSingle = isTerrenoInm(nuevaActividad) ? 0 : 1;
               const { error: eI } = await supabase.from('inmuebles').insert([{
                 inmueble: nuevoCodigo,
                 identidad: identidadExacta,
@@ -1576,6 +1580,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 estado: 'Activo',
                 actividad_principal: nuevaActividad,
                 mmv_mes: mmv,
+                meses_deuda: mesesInitSingle,
+                deuda_mmv: parseFloat((mesesInitSingle * mmv).toFixed(5)),
                 cant_inmuebles: 1,
                 agente_retencion: data.esAgenteRetencion === true,
               }]);
