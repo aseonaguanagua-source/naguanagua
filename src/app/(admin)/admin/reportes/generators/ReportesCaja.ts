@@ -489,7 +489,9 @@ export async function generarTotalPuntosVenta(pagos: any[], fechaInicio: string,
     curSem.cajasAct += activas;
     curSem.hasDays = true;
 
-    if (dow === 0 || idx === diasCalendario.length - 1) {
+    // Si el mes comienza en domingo o fin de semana sin recaudación (días 1 o 2), no cerrar una semana vacía de 1 día
+    const esInicioMesSinMonto = d.getDate() <= 2 && dow === 0 && curSem.monto === 0;
+    if ((dow === 0 && !esInicioMesSinMonto) || idx === diasCalendario.length - 1) {
       semanasResumen.push({ ...curSem });
       semIdx++;
       curSem = { label: `SEMANA ${semIdx}`, monto: 0, usuarios: 0, cajasAct: 0, hasDays: false };

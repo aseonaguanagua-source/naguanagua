@@ -2651,7 +2651,7 @@ export default function CajaPage() {
       if (isNaN(transferido) || transferido <= 0) return alert("Debe ingresar un monto transferido válido.");
       
       const diffTransferido = Math.round((transferido - finalTotal) * 100) / 100;
-      if (diffTransferido < -0.10) {
+      if (diffTransferido < -1.00) {
         esAbono = true;
         montoReal = transferido;
       } else if (diffTransferido >= 0.01) {
@@ -2673,7 +2673,7 @@ export default function CajaPage() {
       if (montoDebito && parseLocalFloat(montoDebito) > 0) {
         montoReal = parseLocalFloat(montoDebito);
         const diffDeb = Math.round((montoReal - finalTotal) * 100) / 100;
-        if (diffDeb < -0.10) {
+        if (diffDeb < -1.00) {
           esAbono = true;
         } else if (diffDeb >= 0.01) {
           saldoAFavorNuevo = diffDeb;
@@ -3245,7 +3245,7 @@ export default function CajaPage() {
       // Detect abono: montoDebito provided and < finalTotal, o marcado como abono/pago multiple
       const debVal = montoDebito ? parseLocalFloat(montoDebito) : 0;
       const diffDebito = debVal > 0 ? (confirmPayload.finalTotal - debVal) : 0;
-      const esAbonoParcial = (diffDebito > 0.10) || !!confirmPayload.esAbono || (montoReal < confirmPayload.finalTotal - 0.10);
+      const esAbonoParcial = (diffDebito > 1.00) || !!confirmPayload.esAbono || (montoReal < confirmPayload.finalTotal - 1.00);
       const esAbonoDebito = esAbonoParcial;
 
       if (isAutoAprobado) {

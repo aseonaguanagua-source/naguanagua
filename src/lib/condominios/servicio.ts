@@ -8,7 +8,7 @@
  */
 import { supabaseAdmin as sb } from '@/lib/supabaseAdmin';
 import * as M from './motor';
-import { actividadConNivel, resolverFOComercial, isExoneradoTotalMultas, isMesExoneradoMulta, getFAR } from '@/lib/calculos';
+import { actividadConNivel, resolverFOComercial, isExoneradoTotalMultas, isMesExoneradoMulta, getFAR, extraerPeriodosPendientesDeNotas } from '@/lib/calculos';
 import { getTasaBCV } from '@/services/bcv';
 
 const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
@@ -370,17 +370,28 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasaRaw: numb
     const desde = (u && !esGrupoOuNA)
       ? (u.aseo_pendiente_desde !== undefined ? u.aseo_pendiente_desde : (padre ? padre.aseo_pendiente_desde : condoRow.aseo_pendiente_desde))
       : condoRow.aseo_pendiente_desde;
-    const meses = r.montoBs > 0 ? M.mesesPendientes(desde, hoy) : 0;
-    const mesesRealesHoy = r.montoBs > 0 ? M.mesesPendientes(desde, new Date()) : 0;
+    const notasInmCheck = String((u && !esGrupoOuNA) ? (u.notas_inmueble || padre?.notas_inmueble || '') : (condoRow.notas_inmueble || condoRow.notas || ''));
+    const rawPeriodos = M.periodosPendientes(r.montoBs > 0 ? desde : null, hoy);
+    const pagadosUnidadSet = new Set<string>(Array.isArray(u?.periodos_pagados) ? u.periodos_pagados : []);
+    const periodosNotas = (!esGrupoOuNA && notasInmCheck) ? extraerPeriodosPendientesDeNotas(notasInmCheck) : null;
+    if (periodosNotas && periodosNotas.length > 0 && rawPeriodos.length > periodosNotas.length) {
+      const notasSet = new Set(periodosNotas);
+      const maxNota = periodosNotas[periodosNotas.length - 1];
+      rawPeriodos.forEach(p => {
+        if (p <= maxNota && !notasSet.has(p)) pagadosUnidadSet.add(p);
+      });
+    }
+    const periodos = rawPeriodos.filter(p => !pagadosUnidadSet.has(p));
+    const meses = r.montoBs > 0 ? periodos.length : 0;
+    const mesesRealesHoy = r.montoBs > 0 ? M.periodosPendientes(desde, new Date()).filter(p => !pagadosUnidadSet.has(p)).length : 0;
     const mesesMoraRealesHoy = Math.max(0, mesesRealesHoy - 1);
     const multaMesesRaw = Number((u && !esGrupoOuNA) ? (u.multa_meses !== undefined && u.multa_meses !== null ? u.multa_meses : (padre?.multa_meses ?? condoRow.multa_meses)) : condoRow.multa_meses) || 0;
-    const notasInmCheck = String((u && !esGrupoOuNA) ? (u.notas_inmueble || padre?.notas_inmueble || '') : (condoRow.notas_inmueble || condoRow.notas || ''));
     const exoneradoTotalInm = isExoneradoTotalMultas(notasInmCheck);
     // Multas exoneradas o ya pagadas poco a poco por el contribuyente:
     // Se respetan tanto `multa_exonerada_hasta` como `multa_meses` y las notas de `inmuebles` para sincronización total con Contribuyentes.
     const hastaRaw = String(((u && !esGrupoOuNA) ? (u.multa_exonerada_hasta || padre?.multa_exonerada_hasta) : condoRow.multa_exonerada_hasta) || '').slice(0, 7);
     const hasta = exoneradoTotalInm ? '2099-12' : hastaRaw;
-    const exoneradosPorHasta = hasta ? M.periodosPendientes(r.montoBs > 0 ? desde : null, hoy).filter(p => p <= hasta).length : 0;
+    const exoneradosPorHasta = hasta ? periodos.filter(p => p <= hasta).length : 0;
     const tieneMultaMesesExplicito = (u && !esGrupoOuNA)
       ? ((u.multa_meses !== null && u.multa_meses !== undefined) || (padre && padre.multa_meses !== null && padre.multa_meses !== undefined))
       : (condoRow.multa_meses !== null && condoRow.multa_meses !== undefined);
@@ -388,7 +399,6 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasaRaw: numb
     const exonerados = exoneradoTotalInm ? meses : Math.max(exoneradosPorHasta, exoneradosPorPagosParciales);
     // Se respeta la condición de Agente de Retención tanto de la unidad individual (o su local padre) como del condominio matriz
     const esAgente = Boolean((u && u.agente_retencion) || (padre && padre.agente_retencion) || c.agente_retencion);
-    const periodos = M.periodosPendientes(r.montoBs > 0 ? desde : null, hoy);
     let basesPorMes: number[] | number = r.montoBs;
     let multasPorMes: (boolean | number)[] | undefined = undefined;
 
@@ -507,7 +517,7 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasaRaw: numb
       estado: u?.estado ?? 'Declarada', cantidad: r.cantidad, esGrupo: !!mu?.es_grupo, padreId: u?.padre_unidad_id ?? (padre?.id || null),
       padreInmueble: padre?.inmueble ?? u?.padre_inmueble ?? null, padreNumero: padre?.numero ?? null,
       residencial: res,
-      mensualBs: r.montoBs, pendienteDesde: desde || null, periodos: M.periodosPendientes(r.montoBs > 0 ? desde : null, hoy),
+      mensualBs: r.montoBs, pendienteDesde: desde || null, periodos,
       deuda, multaMeses, multaExtraBs, multasManuales: manuales, multasManualesBs, totalBs: r2(deuda.totalBs + multaExtraBs + multasManualesBs),
       saldoFavorBs: Number(u?.saldo_favor_bs || padre?.saldo_favor_bs) >= 1.00 ? r2(Number(u?.saldo_favor_bs || padre?.saldo_favor_bs)) : 0,
       agenteRetencion: esAgente,
@@ -656,6 +666,19 @@ export async function cargarCondominio(codigo: string) {
   const esUnidadesPropias = unidadesPropias(condo);
   const unidadesASincronizarBD: { id: string; aseo_pendiente_desde: string | null; multa_meses: number }[] = [];
 
+  const { data: movimientos } = await sb.from('condominio_movimientos').select('*').eq('condominio_id', condo.id).order('created_at', { ascending: false }).limit(1000);
+  const { data: multas } = await sb.from('condominio_multas').select('*').eq('condominio_id', condo.id).order('created_at', { ascending: false });
+
+  const pagadosPorUnidadMap = new Map<string, string[]>();
+  (movimientos || []).forEach((m: any) => {
+    if (m.unidad_id && m.tipo === 'PAGO' && m.periodo) {
+      const perStr = String(m.periodo).slice(0, 7);
+      const arr = pagadosPorUnidadMap.get(m.unidad_id) || [];
+      if (!arr.includes(perStr)) arr.push(perStr);
+      pagadosPorUnidadMap.set(m.unidad_id, arr);
+    }
+  });
+
   const unidades = rawUnidades.map((u: any) => {
     const inf = agentes.get(String(u.inmueble || '').trim().toUpperCase()) || {};
     let extras = [];
@@ -701,6 +724,7 @@ export async function cargarCondominio(codigo: string) {
       ...u,
       aseo_pendiente_desde: aseoDesdeEfectivo,
       multa_meses: multaMesesEfectivo,
+      periodos_pagados: pagadosPorUnidadMap.get(u.id) || [],
       identidad: u.identidad || inf.identidad || null,
       propietario: u.propietario || inf.contribuyente || null,
       actividad: u.actividad || inf.actividad_principal || null,
@@ -787,8 +811,7 @@ export async function cargarCondominio(codigo: string) {
     ).catch(() => { });
   }
 
-  const { data: movimientos } = await sb.from('condominio_movimientos').select('*').eq('condominio_id', condo.id).order('created_at', { ascending: false }).limit(1000);
-  const { data: multas } = await sb.from('condominio_multas').select('*').eq('condominio_id', condo.id).order('created_at', { ascending: false });
+
 
   // Cargar historial de pagos reportados asociados a este condominio
   const pagoIds = [...new Set((movimientos || []).map((m: any) => m.pago_id).filter(Boolean))];

@@ -252,7 +252,7 @@ export async function PATCH(req: Request) {
           });
           const perConflicto = periodosNuevos.find(p => {
             const info = hist.porPeriodo?.[p];
-            return Boolean(info && (info.tipo === 'MES' || info.tipo === 'MES_CON_MULTA'));
+            return Boolean(info && (info.tipo === 'MES' || info.tipo === 'MES_CON_MULTA') && p === String(upd.aseo_pendiente_desde).slice(0, 7));
           });
           if (perConflicto) {
             const info = hist.porPeriodo[perConflicto];

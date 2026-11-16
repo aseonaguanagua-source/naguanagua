@@ -278,7 +278,7 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
     const periodosNuevos = periodosPendientes(desdeCalc);
     const perConflicto = periodosNuevos.find(p => {
       const info = pagosPorPeriodo[p];
-      return Boolean(info && (info.tipo === 'MES' || info.tipo === 'MES_CON_MULTA'));
+      return Boolean(info && (info.tipo === 'MES' || info.tipo === 'MES_CON_MULTA') && p === desdeCalc?.slice(0, 7));
     });
     if (!perConflicto) return null;
     const info = pagosPorPeriodo[perConflicto];

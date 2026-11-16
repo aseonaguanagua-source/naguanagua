@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { TrendingUp, FileSpreadsheet, Calendar, RefreshCw, Filter, Building, Home, Briefcase } from 'lucide-react';
