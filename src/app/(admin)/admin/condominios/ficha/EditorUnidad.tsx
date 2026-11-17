@@ -524,9 +524,14 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full overflow-hidden border border-slate-200">
-        <div className="px-6 py-4 bg-gradient-to-r from-emerald-800 to-teal-900 text-white flex items-center justify-between">
-          <div className="font-extrabold">{nueva ? `Agregar unidad a ${condo.nombre}` : `Editar ${unidad.inmueble || ''}${unidad.numero ? ` · ${unidad.numero}` : ''}`}</div>
-          <button onClick={onClose} className="text-white/70 hover:text-white cursor-pointer"><X className="w-5 h-5" /></button>
+        <div className="px-6 py-4 bg-gradient-to-r from-emerald-800 to-teal-900 text-white flex items-center justify-between gap-3">
+          <div className="font-extrabold truncate">{nueva ? `Agregar unidad a ${condo.nombre}` : `Editar ${unidad.inmueble || ''}${unidad.numero ? ` · ${unidad.numero}` : ''}`}</div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button onClick={guardar} disabled={guardando} className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl text-xs font-extrabold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-xs">
+              {guardando ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} {nueva ? 'Agregar' : 'Guardar cambios'}
+            </button>
+            <button onClick={onClose} className="text-white/70 hover:text-white cursor-pointer p-1"><X className="w-5 h-5" /></button>
+          </div>
         </div>
 
         <div className="p-6 space-y-5 max-h-[72vh] overflow-y-auto text-sm">
@@ -1081,8 +1086,8 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
           {err && <div className="rounded-lg bg-red-50 border border-red-200 text-red-800 text-xs px-3 py-2">{err}</div>}
         </div>
 
-        <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
+        <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex flex-col gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             {!nueva && renglon && (
               <div className="inline-flex rounded-xl shadow-2xs border border-sky-300 overflow-hidden">
                 <button
@@ -1219,9 +1224,9 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
               </button>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200/80">
             <button onClick={onClose} className="px-4 py-2 border border-slate-300 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer">Cerrar</button>
-            <button id="btn-guardar-unidad" onClick={guardar} disabled={guardando} className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold flex items-center gap-2 cursor-pointer disabled:opacity-50">
+            <button id="btn-guardar-unidad" onClick={guardar} disabled={guardando} className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold flex items-center gap-2 cursor-pointer disabled:opacity-50 shadow-xs">
               {guardando ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} {nueva ? 'Agregar unidad' : 'Guardar cambios'}
             </button>
           </div>
