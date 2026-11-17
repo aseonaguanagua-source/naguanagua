@@ -4,6 +4,7 @@ import { extraerCodigoInmueble, parseDetalles } from '@/lib/documentoPago';
 import { isResidencialInm } from '@/lib/calculos';
 import { desglosarPago, COLS_INMUEBLE_DESGLOSE, LineaDesglose } from '@/lib/desglosePago';
 import { resolverConceptoPeriodoPago } from '@/lib/facturaPeriodoHelper';
+import { obtenerCorrelativoReciboPago } from '@/lib/correlativoRecibo';
 
 /** Conceptos del recibo a partir del desglose por período (base, IVA, retención y multa de cada mes). */
 function conceptosDeDesglose(lineas: LineaDesglose[]) {
@@ -63,28 +64,16 @@ export async function GET(request: Request) {
       : { data: [] as any[] };
     const desglose = desglosarPago(pago, new Map((inmsDesg || []).map((i: any) => [i.inmueble, i])));
 
-    const computeRefNum = (p: any) => {
-      const ref = String(p?.referencia || '').trim();
-      if (ref && !ref.toUpperCase().startsWith('RECIB-')) {
-        const digits = ref.replace(/\D/g, '').slice(-7);
-        if (digits.length >= 3) return digits.padStart(7, '0');
-      }
-      return String(p?.id || '').replace(/\D/g, '').slice(0, 7).padStart(7, '0');
-    };
-    const refNum = computeRefNum(pago);
+    const refNum = await obtenerCorrelativoReciboPago(pago);
 
     if (Array.isArray(det.recibo_caja) && det.recibo_caja.length > 0) {
-      // Recibo original de Caja. Si quedó con un solo concepto genérico, se completa con el desglose por período.
+      // Recibo original de Caja. Usar siempre el correlativo oficial (nunca la referencia del banco)
       const recibos = det.recibo_caja.map((rc: any, idx: number) => {
-        const rawNo = String(rc?.reciboNo || '').trim();
-        const rawCtrl = String(rc?.controlWeb || '').trim();
-        const badNo = !rawNo || rawNo.includes('M') || rawNo.startsWith('RC-');
-        const badCtrl = !rawCtrl || rawCtrl.includes('M') || rawCtrl.startsWith('RC-');
         const suffix = det.recibo_caja.length > 1 ? `-${idx + 1}` : '';
         const cleanRc = {
           ...rc,
-          reciboNo: badNo ? `${refNum}${suffix}` : rawNo,
-          controlWeb: badCtrl ? `WEB-${refNum}${suffix}` : (rawCtrl.startsWith('WEB-') ? rawCtrl : `WEB-${rawCtrl}`),
+          reciboNo: `${refNum}${suffix}`,
+          controlWeb: `WEB-${refNum}${suffix}`,
         };
         const generico = Array.isArray(rc?.conceptos) && rc.conceptos.length === 1 && /Servicio de Aseo Urbano y Domiciliario|Abono/i.test(rc.conceptos[0]?.descripcion || '');
         if (det.recibo_caja.length === 1 && generico && desglose.cuadra) {

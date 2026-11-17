@@ -4,6 +4,7 @@ import path from 'path';
 import { jsPDF } from 'jspdf';
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
 import { getResendClient } from '@/lib/emailClient';
+import { TheFactoryHKA } from '@/lib/thefactoryhka';
 import { calcularMensualidad, isResidencialInm, isTerrenoInm } from '@/lib/calculos';
 import { tasaVigente } from '@/lib/condominios/servicio';
 
@@ -598,7 +599,9 @@ export async function POST(request: Request) {
       body.asunto || 'ESTADO DE CUENTA ASEO NAGUANAGUA - FAVOR LEER TEXTO COMPLETO';
     const adjuntarPdf: boolean = body.adjuntarPdf !== false;
     const testEmail =
-      process.env.TEST_EMAIL || process.env.ADMIN_EMAIL || 'aseonaguanagua@globalgreenca.com';
+      TheFactoryHKA.getBackupEmail() ||
+      process.env.TFHKA_BACKUP_EMAIL ||
+      'facturacion.comercial@globalgreenca.com';
 
     const tasa = await tasaVigente().catch(() => 1008.31);
     let destinatarios: DestinatarioCampana[] = [];

@@ -745,7 +745,8 @@ export default function KioskPage() {
       }
 
       const refFinal = (ref || `POS-${Date.now()}`).trim();
-      const digits7 = refFinal.replace(/\D/g, '').slice(-7).padStart(7, '0') || String(Date.now()).slice(-7);
+      const { count: cntPagosCorr } = await supabase.from('pagos_reportados').select('id', { count: 'exact', head: true });
+      const digits7 = String((cntPagosCorr || 0) + 1).padStart(7, '0');
       const aprobFinal = aprobacionOverride ?? posAprobacion ?? refFinal.slice(-6);
       const loteFinal = loteOverride ?? posLote ?? '001';
       const codPrincipal = userInms[0]?.inmueble || '';

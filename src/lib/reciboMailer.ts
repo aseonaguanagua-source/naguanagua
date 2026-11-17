@@ -5,6 +5,7 @@ import { clasificarPago, extraerCodigoInmueble, parseDetalles, ClasificacionPago
 import { isResidencialInm } from '@/lib/calculos';
 import { desglosarPago, COLS_INMUEBLE_DESGLOSE, DesglosePago } from '@/lib/desglosePago';
 import { construirReciboPdf } from '@/lib/reciboPdf';
+import { obtenerCorrelativoReciboPago } from '@/lib/correlativoRecibo';
 
 /**
  * Recibos de pago por correo (NO fiscales): solo residenciales (lo comercial, incluidas sus multas, se factura).
@@ -181,19 +182,8 @@ export async function cargarDatosRecibo(pagoId: string): Promise<DatosRecibo> {
     : [];
   const referenciaTexto = refsMulti.length > 1 ? refsMulti.join(' / ') : String(pago.referencia || 'N/A');
 
-  const computeRefNum = (p: any) => {
-    const ref = String(p?.referencia || '').trim();
-    if (ref && !ref.toUpperCase().startsWith('RECIB-')) {
-      const digits = ref.replace(/\D/g, '').slice(-7);
-      if (digits.length >= 3) return digits.padStart(7, '0');
-    }
-    return String(p?.id || '').replace(/\D/g, '').slice(0, 7).padStart(7, '0');
-  };
-  const refNumWeb = computeRefNum(pago);
-  const rcCtrl = String(det.recibo_caja?.[0]?.controlWeb || det.recibo_caja?.[0]?.reciboNo || det.recibo_digital?.numero || '').trim();
-  const numeroReciboUnificado = rcCtrl && !rcCtrl.startsWith('RC-') && !rcCtrl.includes('M')
-    ? (rcCtrl.startsWith('WEB-') ? rcCtrl : `WEB-${rcCtrl}`)
-    : `WEB-${refNumWeb}`;
+  const corrNum = await obtenerCorrelativoReciboPago(pago);
+  const numeroReciboUnificado = `WEB-${corrNum}`;
 
   return {
     pago, det, contribuyente, identidad: pago.identidad, correoCliente, clasif, lineas,

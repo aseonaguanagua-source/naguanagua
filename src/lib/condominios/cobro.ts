@@ -731,9 +731,12 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
             parentDir: c.direccion,
         });
 
+        const { count: cntPagosCondo } = await sb.from('pagos_reportados').select('id', { count: 'exact', head: true });
+        const corrCondo = String((cntPagosCondo || 0) + 1 + i).padStart(7, '0');
+
         const reciboCajaItem = {
-            reciboNo: refFinal.slice(-7).padStart(7, '0'),
-            controlWeb: `WEB-${refFinal.slice(-7).padStart(7, '0')}`,
+            reciboNo: corrCondo,
+            controlWeb: `WEB-${corrCondo}`,
             fechaEmision: fechaTransaccion || new Date().toISOString().slice(0, 10),
             fechaTransaccion: fechaTransaccion,
             fechaIngresoCaja: new Date().toISOString().slice(0, 10),

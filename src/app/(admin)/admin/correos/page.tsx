@@ -97,7 +97,7 @@ export default function CorreosPage() {
       if (data.success) {
         setStatusMessage({
           type: 'success',
-          text: `Correo de prueba con Estado de Cuenta PDF adjunto despachado a aseonaguanagua@globalgreenca.com.`,
+          text: `Correo de prueba con Estado de Cuenta PDF adjunto despachado a facturacion.comercial@globalgreenca.com.`,
         });
       } else {
         setStatusMessage({

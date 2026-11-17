@@ -227,6 +227,7 @@ export default function CajaPage() {
   // Pago al que pertenece el próximo recibo generado: el recibo se guarda en ese pago
   // (detalles.recibo_caja) para poder descargarlo después desde Facturación Electrónica.
   const ultimoPagoIdRef = React.useRef<string | null>(null);
+  const ultimoCorrelativoRef = React.useRef<string>('');
   React.useEffect(() => {
     const pagoIdRecibo = ultimoPagoIdRef.current;
     if (!reciboData || !pagoIdRecibo) return;
@@ -236,6 +237,10 @@ export default function CajaPage() {
         const { data: p } = await supabase.from('pagos_reportados').select('detalles').eq('id', pagoIdRecibo).maybeSingle();
         let det: any = p?.detalles || {};
         if (typeof det === 'string') { try { det = JSON.parse(det); } catch { det = {}; } }
+        if (ultimoCorrelativoRef.current) {
+          det.recibo_correlativo = ultimoCorrelativoRef.current;
+          det.recibo_no = ultimoCorrelativoRef.current;
+        }
         det.recibo_caja = Array.isArray(reciboData) ? reciboData : [reciboData];
         det.recibo_caja_at = new Date().toISOString();
         await actualizarPago(pagoIdRecibo, { detalles: det });
@@ -2732,6 +2737,12 @@ export default function CajaPage() {
     setIsConfirmModalOpen(false);
     setIsProcessing(true);
     ultimoPagoIdRef.current = null;
+    try {
+      const { count: cntCorr } = await supabase.from('pagos_reportados').select('id', { count: 'exact', head: true });
+      ultimoCorrelativoRef.current = String((cntCorr || 0) + 1).padStart(7, '0');
+    } catch {
+      ultimoCorrelativoRef.current = Date.now().toString().slice(-7).padStart(7, '0');
+    }
 
     // ── GENERADOR UNIFICADO DE RECIBOS POR INMUEBLE ──
     const armarRecibosCobro = (params: {
@@ -2746,7 +2757,7 @@ export default function CajaPage() {
     }) => {
       const { selectedRefs, montoReal, paymentMethod, banco, referencia, esAbono, montoPendiente, selectedHijosIds } = params;
       const cajero_id_recibo = getCajeroId();
-      const refNumBase = (referencia || Date.now().toString()).slice(-7).padStart(7, '0');
+      const refNumBase = ultimoCorrelativoRef.current || Date.now().toString().slice(-7).padStart(7, '0');
 
       const allInmsPool = [
         ...(freshInmuebles || []),
@@ -3941,7 +3952,7 @@ export default function CajaPage() {
               ? poolHijos.filter((h: any) => selectedHijos.includes(h.id))
               : (isCondominio && poolHijos.length > 0 ? poolHijos : []);
 
-            const refNumBase = (referenciaDebito || Date.now().toString()).slice(-7).padStart(7, '0');
+            const refNumBase = ultimoCorrelativoRef.current || Date.now().toString().slice(-7).padStart(7, '0');
 
             if (hijosPagados.length > 1) {
               const MESES_C = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
@@ -4384,7 +4395,7 @@ export default function CajaPage() {
             : (isCondominio && poolHijos.length > 0 ? poolHijos : []);
 
           const cajero_id_recibo = getCajeroId();
-          const refNumBase = (referencia || Date.now().toString()).slice(-7).padStart(7, '0');
+          const refNumBase = ultimoCorrelativoRef.current || Date.now().toString().slice(-7).padStart(7, '0');
 
           if (hijosPagados.length > 1) {
             const MESES_C = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
