@@ -67,7 +67,7 @@ function calcRowDeudaCanonical(r: any, rate: number): number {
 }
 
 function ContribuyentesPageContent() {
-  const { inmuebles, contribuyentes, recibos, setFacturas, convenios, updateContribuyente, addContribuyente, addAuditLog, tcmmv, addCertificado, auditLogs, refreshData, refreshUserData } = useAppContext();
+  const { inmuebles, setInmuebles, contribuyentes, recibos, setFacturas, convenios, updateContribuyente, addContribuyente, addAuditLog, tcmmv, addCertificado, auditLogs, refreshData, refreshUserData } = useAppContext();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [formData, setFormData] = useState<any>(null);
@@ -2192,6 +2192,37 @@ function ContribuyentesPageContent() {
       }
       
       allFoundInmuebles = sanitizeNAParentLinks(allFoundInmuebles || []);
+
+      // Sincronizar en memoria los inmuebles recién consultados en servidor para que la tabla y el modal muestren siempre la actividad/deuda real de BD
+      if (allFoundInmuebles.length > 0 && Array.isArray(inmuebles) && inmuebles.length > 0) {
+        const freshById = new Map<string, any>();
+        const freshByCode = new Map<string, any>();
+        allFoundInmuebles.forEach((fi: any) => {
+          if (fi.id) freshById.set(String(fi.id), fi);
+          if (fi.inmueble) freshByCode.set(String(fi.inmueble).trim().toUpperCase(), fi);
+        });
+        let changedInms = false;
+        const nextInms = inmuebles.map((oldI: any) => {
+          const match = (oldI?.id && freshById.get(String(oldI.id))) || (oldI?.inmueble && freshByCode.get(String(oldI.inmueble).trim().toUpperCase()));
+          if (match && (
+            oldI.actividad_principal !== match.actividad_principal ||
+            oldI.mmv_mes !== match.mmv_mes ||
+            oldI.meses_deuda !== match.meses_deuda ||
+            oldI.deuda_mmv !== match.deuda_mmv ||
+            oldI.direccion !== match.direccion ||
+            oldI.contribuyente !== match.contribuyente ||
+            oldI.identidad !== match.identidad ||
+            oldI.estado !== match.estado
+          )) {
+            changedInms = true;
+            return { ...oldI, ...match };
+          }
+          return oldI;
+        });
+        if (changedInms) {
+          setInmuebles(nextInms);
+        }
+      }
 
       const noticesCondo = await detectarCondominiosAsociados(term);
       const condoByLocalMap = new Map<string, { codigo: string; nombre: string }>();
@@ -4473,6 +4504,8 @@ function ContribuyentesPageContent() {
 
         if (isExcludedState(row.Estado || row.estado)) {
           // Si la fila completa está eliminada/inactiva, no mostrar actividades
+        } else if (isShowingServerResults && row.Actividad && row.Actividad !== 'No asignado' && row.Actividad !== 'No aplica' && row.Actividad !== 'N/A') {
+          actividades.add(row.Actividad);
         } else if (rowCodes.length > 0 && inmuebles && inmuebles.length > 0) {
           const directInms = inmuebles.filter((i: any) => 
             rowCodes.includes(i.inmueble) && !isExcludedState(i.estado)
