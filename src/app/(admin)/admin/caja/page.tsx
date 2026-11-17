@@ -1208,8 +1208,18 @@ export default function CajaPage() {
          return;
       }
 
-      // Adoptar la Identidad real y actualizada desde el inmueble buscado o el primer inmueble fresco
-      const searchedInm = isCodeFormat ? activeInmFresh.find((i: any) => String(i.inmueble || '').toUpperCase() === specificCode) : activeInmFresh[0];
+      // Adoptar la Identidad real y actualizada desde el inmueble buscado o el inmueble matriz que coincide con la cédula/RIF buscada
+      const userIdentCleanSet = new Set(
+        getIdentidadVariantsExact(user.Identidad).map(v => v.replace(/[^A-Z0-9]/gi, '').toUpperCase())
+      );
+      const searchedInm = isCodeFormat
+        ? activeInmFresh.find((i: any) => String(i.inmueble || '').toUpperCase() === specificCode)
+        : (
+            activeInmFresh.find((i: any) => !i.padre_id && userIdentCleanSet.has(String(i.identidad || '').replace(/[^A-Z0-9]/gi, '').toUpperCase())) ||
+            activeInmFresh.find((i: any) => userIdentCleanSet.has(String(i.identidad || '').replace(/[^A-Z0-9]/gi, '').toUpperCase())) ||
+            activeInmFresh.find((i: any) => !i.padre_id) ||
+            activeInmFresh[0]
+          );
       const primaryInm = searchedInm || activeInmFresh[0];
       if (primaryInm && primaryInm.identidad) {
         user.Identidad = primaryInm.identidad;
