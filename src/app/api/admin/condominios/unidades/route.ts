@@ -332,6 +332,15 @@ export async function PATCH(req: Request) {
           upd.multa_meses = Math.max(0, m - 1);
           if (m === 0) upd.multa_exonerada_hasta = null;
         }
+        // Limpiar cualquier tag previo de [PERIODOS_PENDIENTES:...] al ajustar meses directamente
+        const { data: currInmPer } = await sb.from('inmuebles').select('notas').eq('inmueble', inmuebleAActualizar).limit(1).maybeSingle();
+        const rawNotasPer = String(inmUpd.notas !== undefined ? (inmUpd.notas || '') : (currInmPer?.notas || ''));
+        if (rawNotasPer.includes('[PERIODOS_PENDIENTES:') || rawNotasPer.includes('[PERIODOS_EXCLUIDOS:')) {
+          inmUpd.notas = rawNotasPer
+            .replace(/\s*\[PERIODOS_PENDIENTES:[^\]]*\]/gi, '')
+            .replace(/\s*\[PERIODOS_EXCLUIDOS:[^\]]*\]/gi, '')
+            .trim() || null;
+        }
       }
       if ('multa_meses' in upd) {
         const mMulta = Math.max(0, Number(upd.multa_meses) || 0);

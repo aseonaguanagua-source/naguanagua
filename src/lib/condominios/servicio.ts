@@ -372,9 +372,9 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasaRaw: numb
       : condoRow.aseo_pendiente_desde;
     const notasInmCheck = String((u && !esGrupoOuNA) ? (u.notas_inmueble || padre?.notas_inmueble || '') : (condoRow.notas_inmueble || condoRow.notas || ''));
     const rawPeriodos = M.periodosPendientes(r.montoBs > 0 ? desde : null, hoy);
-    const pagadosUnidadSet = new Set<string>(Array.isArray(u?.periodos_pagados) ? u.periodos_pagados : []);
+    const pagadosUnidadSet = new Set<string>();
     const periodosNotas = (!esGrupoOuNA && notasInmCheck) ? extraerPeriodosPendientesDeNotas(notasInmCheck) : null;
-    if (periodosNotas && periodosNotas.length > 0 && rawPeriodos.length > periodosNotas.length) {
+    if (periodosNotas && periodosNotas.length > 0 && rawPeriodos.length > periodosNotas.length && periodosNotas[0] === rawPeriodos[0]) {
       const notasSet = new Set(periodosNotas);
       const maxNota = periodosNotas[periodosNotas.length - 1];
       rawPeriodos.forEach(p => {
@@ -669,16 +669,6 @@ export async function cargarCondominio(codigo: string) {
   const { data: movimientos } = await sb.from('condominio_movimientos').select('*').eq('condominio_id', condo.id).order('created_at', { ascending: false }).limit(1000);
   const { data: multas } = await sb.from('condominio_multas').select('*').eq('condominio_id', condo.id).order('created_at', { ascending: false });
 
-  const pagadosPorUnidadMap = new Map<string, string[]>();
-  (movimientos || []).forEach((m: any) => {
-    if (m.unidad_id && m.tipo === 'PAGO' && m.periodo) {
-      const perStr = String(m.periodo).slice(0, 7);
-      const arr = pagadosPorUnidadMap.get(m.unidad_id) || [];
-      if (!arr.includes(perStr)) arr.push(perStr);
-      pagadosPorUnidadMap.set(m.unidad_id, arr);
-    }
-  });
-
   const unidades = rawUnidades.map((u: any) => {
     const inf = agentes.get(String(u.inmueble || '').trim().toUpperCase()) || {};
     let extras = [];
@@ -724,7 +714,6 @@ export async function cargarCondominio(codigo: string) {
       ...u,
       aseo_pendiente_desde: aseoDesdeEfectivo,
       multa_meses: multaMesesEfectivo,
-      periodos_pagados: pagadosPorUnidadMap.get(u.id) || [],
       identidad: u.identidad || inf.identidad || null,
       propietario: u.propietario || inf.contribuyente || null,
       actividad: u.actividad || inf.actividad_principal || null,
