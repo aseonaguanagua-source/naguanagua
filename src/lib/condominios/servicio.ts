@@ -637,7 +637,7 @@ export async function cargarCondominio(codigo: string) {
   condo.tasa_congelada_activa = tcActiva;
   condo.tasa_congelada_estado = estadoVigenciaTasaCongelada(tcConfig);
 
-  const { data: inm } = await sb.from('inmuebles').select('agente_retencion, telefono, correo_electronico, notas, clave_portal').eq('inmueble', condo.codigo).limit(1).maybeSingle();
+  const { data: inm } = await sb.from('inmuebles').select('agente_retencion, telefono, correo_electronico, notas, clave_portal, saldo_favor_bs').eq('inmueble', condo.codigo).limit(1).maybeSingle();
   if (inm) {
     condo.clave_portal = inm.clave_portal || '';
     condo.agente_retencion = Boolean(condo.agente_retencion || inm.agente_retencion);
@@ -648,6 +648,41 @@ export async function cargarCondominio(codigo: string) {
     } else if (condo.notas && inm.notas && condo.notas.trim() !== inm.notas.trim() && !condo.notas.includes(inm.notas.trim())) {
       condo.notas = `${condo.notas}\n---\n${inm.notas}`;
     }
+  }
+
+  // Sincronizar abono_bs del condominio con la suma autoritativa de Notas de Crédito VIGENTES en `documentos`
+  try {
+    const condoCod = String(condo.codigo || '').trim().toUpperCase();
+    const condoIdRaw = String(condo.identidad || '').trim().toUpperCase();
+    const condoIdSinGuion = condoIdRaw.replace(/[^A-Z0-9]/gi, '');
+    const condoIdConGuion = /^[VEJPG]\d/.test(condoIdSinGuion) ? `${condoIdSinGuion[0]}-${condoIdSinGuion.slice(1)}` : condoIdRaw;
+    const orsDocs = Array.from(new Set([condoIdRaw, condoIdSinGuion, condoIdConGuion, condoCod].filter(Boolean))).map(v => `identidad.eq.${v}`);
+    if (orsDocs.length > 0) {
+      const { data: docsData } = await sb.from('documentos').select('identidad, detalles').eq('tipo', 'Nota de Credito').eq('estado', 'Vigente').or(orsDocs.join(','));
+      const sumDocs = r2((docsData || []).reduce((acc: number, n: any) => {
+        let det: any = {};
+        try { det = typeof n.detalles === 'string' ? JSON.parse(n.detalles) : (n.detalles || {}); } catch (e) {}
+        const docAmbito = String(det.ambito || '').trim().toUpperCase();
+        const docInm = String(det.codigo_inmueble || '').trim().toUpperCase();
+        const docCondo = String(det.codigo_condominio || '').trim().toUpperCase();
+        if (docAmbito === 'LOCAL') return acc;
+        if (docInm && docInm !== condoCod) return acc;
+        if (docCondo && condoCod && docCondo !== condoCod) return acc;
+        const m = parseFloat(String(det.monto_bs ?? det.monto ?? 0).replace(',', '.')) || 0;
+        return acc + (m > 0 ? m : 0);
+      }, 0));
+      const abonoAut = sumDocs >= 1.00 ? sumDocs : 0;
+      const curAbono = r2(Number(condo.abono_bs || 0));
+      condo.abono_bs = abonoAut;
+      if (Math.abs(curAbono - abonoAut) >= 0.01) {
+        sb.from('condominios').update({ abono_bs: abonoAut }).eq('id', condo.id).then(() => {});
+      }
+      if (inm && Math.abs(r2(Number(inm.saldo_favor_bs || 0)) - abonoAut) >= 0.01) {
+        sb.from('inmuebles').update({ saldo_favor_bs: abonoAut }).eq('inmueble', condo.codigo).then(() => {});
+      }
+    }
+  } catch (e) {
+    // fallback silencioso a condo.abono_bs si falla la lectura de documentos
   }
 
   const rawUnidades = await todas((a, b) => sb.from('condominio_unidades').select('*').eq('condominio_id', condo.id).neq('estado', 'Eliminada').order('inmueble').range(a, b));
