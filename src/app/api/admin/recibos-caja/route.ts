@@ -67,13 +67,13 @@ export async function GET(request: Request) {
     const refNum = await obtenerCorrelativoReciboPago(pago);
 
     if (Array.isArray(det.recibo_caja) && det.recibo_caja.length > 0) {
-      // Recibo original de Caja. Usar siempre el correlativo oficial (nunca la referencia del banco)
+      // Recibo original de Caja: respetar el reciboNo/controlWeb que ya tenía guardado al emitirse
       const recibos = det.recibo_caja.map((rc: any, idx: number) => {
         const suffix = det.recibo_caja.length > 1 ? `-${idx + 1}` : '';
         const cleanRc = {
           ...rc,
-          reciboNo: `${refNum}${suffix}`,
-          controlWeb: `WEB-${refNum}${suffix}`,
+          reciboNo: rc.reciboNo || `${refNum}${suffix}`,
+          controlWeb: rc.controlWeb || `WEB-${rc.reciboNo || `${refNum}${suffix}`}`,
         };
         const generico = Array.isArray(rc?.conceptos) && rc.conceptos.length === 1 && /Servicio de Aseo Urbano y Domiciliario|Abono/i.test(rc.conceptos[0]?.descripcion || '');
         if (det.recibo_caja.length === 1 && generico && desglose.cuadra) {

@@ -19,6 +19,7 @@ import * as M from './motor';
 import { calcularEstado, cargarCondominio, tasaVigente, EstadoCuenta, RenglonEstado, fmtFechaDMY } from './servicio';
 import { descontarSaldoFavor, acreditarSaldoFavor } from '@/lib/saldoFavor';
 import { sanitizarDireccionFiscal } from '@/lib/formatters';
+import { siguienteCorrelativoRecibo } from '@/lib/correlativoRecibo';
 
 const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -716,8 +717,7 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
             parentDir: c.direccion,
         });
 
-        const { count: cntPagosCondo } = await sb.from('pagos_reportados').select('id', { count: 'exact', head: true });
-        const corrCondo = String((cntPagosCondo || 0) + 1 + i).padStart(7, '0');
+        const [corrCondo] = await siguienteCorrelativoRecibo(1);
 
         const reciboCajaItem = {
             reciboNo: corrCondo,

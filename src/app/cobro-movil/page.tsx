@@ -745,8 +745,16 @@ export default function KioskPage() {
       }
 
       const refFinal = (ref || `POS-${Date.now()}`).trim();
-      const { count: cntPagosCorr } = await supabase.from('pagos_reportados').select('id', { count: 'exact', head: true });
-      const digits7 = String((cntPagosCorr || 0) + 1).padStart(7, '0');
+      let digits7 = '';
+      try {
+        const rCorr = await fetch('/api/admin/correlativo-recibo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cantidad: 1 }) });
+        const jCorr = await rCorr.json().catch(() => ({}));
+        if (jCorr?.correlativo) digits7 = String(jCorr.correlativo).padStart(7, '0');
+      } catch {}
+      if (!digits7) {
+        const { count: cntPagosCorr } = await supabase.from('pagos_reportados').select('id', { count: 'exact', head: true });
+        digits7 = String((cntPagosCorr || 0) + 1).padStart(7, '0');
+      }
       const aprobFinal = aprobacionOverride ?? posAprobacion ?? refFinal.slice(-6);
       const loteFinal = loteOverride ?? posLote ?? '001';
       const codPrincipal = userInms[0]?.inmueble || '';

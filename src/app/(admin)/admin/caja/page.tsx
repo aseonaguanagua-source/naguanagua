@@ -2738,8 +2738,14 @@ export default function CajaPage() {
     setIsProcessing(true);
     ultimoPagoIdRef.current = null;
     try {
-      const { count: cntCorr } = await supabase.from('pagos_reportados').select('id', { count: 'exact', head: true });
-      ultimoCorrelativoRef.current = String((cntCorr || 0) + 1).padStart(7, '0');
+      const rCorr = await fetch('/api/admin/correlativo-recibo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cantidad: 1 }) });
+      const jCorr = await rCorr.json().catch(() => ({}));
+      if (jCorr?.correlativo) {
+        ultimoCorrelativoRef.current = String(jCorr.correlativo).padStart(7, '0');
+      } else {
+        const { count: cntCorr } = await supabase.from('pagos_reportados').select('id', { count: 'exact', head: true });
+        ultimoCorrelativoRef.current = String((cntCorr || 0) + 1).padStart(7, '0');
+      }
     } catch {
       ultimoCorrelativoRef.current = Date.now().toString().slice(-7).padStart(7, '0');
     }
