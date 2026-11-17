@@ -1147,8 +1147,8 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
       const current_analista = letraStr && cajeroStr !== 'Administrador' ? `${letraStr}-${cajeroStr}` : cajeroStr;
 
       const updatedDet = {
-        analista: det.analista || current_analista,
         ...det,
+        analista: det.analista || current_analista,
         correo: correoResponsable,
         telefono: telefonoResponsable,
         fecha_transaccion: fechaTransaccion,

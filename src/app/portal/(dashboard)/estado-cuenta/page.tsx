@@ -169,7 +169,7 @@ export default function EstadoCuentaPage() {
             const hoy = new Date().toISOString().split('T')[0];
             const cuotas: any[] = [];
             for (const conv of convenios) {
-              const cuotasList = conv.convenios_cuotas || [];
+              const cuotasList = [...(conv.convenios_cuotas || [])].sort((a: any, b: any) => String(a?.fecha || '').localeCompare(String(b?.fecha || '')));
               cuotasList.forEach((c: any, idx: number) => {
                 if (c.estado === 'Pendiente') {
                   cuotas.push({ conv: conv.numero, cuota: idx + 1, fecha: c.fecha, vencida: c.fecha <= hoy, monto: parseFloat(c.monto) || 0 });

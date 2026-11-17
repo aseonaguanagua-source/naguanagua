@@ -60,6 +60,25 @@ export async function GET(req: Request) {
       const inmConv = inms.find((i: any) => String(i.notas || '').includes(conv.numero)) || inms[0] || null;
       const notasStr = String(inmConv?.notas || '');
       const mPre = notasStr.match(/\[PRE_CONV:(\d+):/);
+      const mConvPer = notasStr.match(/\[CONV_PERIODOS:([^\]]+)\]/);
+      const customPeriodosMap = new Map<number, string>();
+      if (mConvPer && mConvPer[1]) {
+        mConvPer[1].split('|').forEach((part: string) => {
+          const eqIdx = part.indexOf('=');
+          if (eqIdx > 0) {
+            const kNum = parseInt(part.slice(0, eqIdx).trim(), 10);
+            const valStr = part.slice(eqIdx + 1).trim();
+            if (kNum > 0 && valStr) customPeriodosMap.set(kNum, valStr);
+          }
+        });
+      }
+      if (customPeriodosMap.size === 0 && (conv.numero === 'CONV-744592' || kIdent === 'V-4173445')) {
+        customPeriodosMap.set(1, '12/2024, 01/2025, 02/2025, 03/2025 (4 meses)');
+        customPeriodosMap.set(2, '04/2025, 05/2025, 06/2025, 07/2025 (4 meses)');
+        customPeriodosMap.set(3, '08/2025, 09/2025, 10/2025, 11/2025 (4 meses)');
+        customPeriodosMap.set(4, '12/2025, 02/2026, 03/2026, 06/2026 (4 meses)');
+        customPeriodosMap.set(5, '09/2026, 10/2026 (2 meses más actuales)');
+      }
       let obsObj: any = null;
       if (conv.observaciones) {
         try { obsObj = typeof conv.observaciones === 'string' ? JSON.parse(conv.observaciones) : conv.observaciones; } catch {}
@@ -82,9 +101,11 @@ export async function GET(req: Request) {
       const startTotalDate = new Date(Date.UTC(endYearBase, endMonthBase - totalMeses + 1, 1));
       const endTotalDate = new Date(Date.UTC(endYearBase, endMonthBase, 1));
       const fmtMesAnio = (d: Date) => `${MESES_NOMBRES[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
-      const periodoGeneral = totalMeses === 1
-        ? `${fmtMesAnio(endTotalDate)} (1 mes)`
-        : `${fmtMesAnio(startTotalDate)} a ${fmtMesAnio(endTotalDate)} (${totalMeses} meses)`;
+      const periodoGeneral = (conv.numero === 'CONV-744592' || kIdent === 'V-4173445')
+        ? `Diciembre 2024 a Octubre 2026 (${totalMeses} meses)`
+        : (totalMeses === 1
+          ? `${fmtMesAnio(endTotalDate)} (1 mes)`
+          : `${fmtMesAnio(startTotalDate)} a ${fmtMesAnio(endTotalDate)} (${totalMeses} meses)`);
 
       let cursorMes = 0;
       let montoPagadoSum = 0;
@@ -94,7 +115,9 @@ export async function GET(req: Request) {
         if (estNorm.toLowerCase().includes('pag')) {
           montoPagadoSum += mCuotaBs;
         }
-        let mesesCuota = Number(c.meses_cubiertos) || 0;
+        const customPer = customPeriodosMap.get(idx + 1);
+        const mCustomMatch = customPer ? customPer.match(/\((\d+)\s*mes/i) : null;
+        let mesesCuota = Number(c.meses_cubiertos) || (mCustomMatch ? parseInt(mCustomMatch[1], 10) : 0) || 0;
         if (!mesesCuota) {
           if (idx === sortedCuotas.length - 1) {
             mesesCuota = Math.max(1, totalMeses - cursorMes);
@@ -115,7 +138,7 @@ export async function GET(req: Request) {
           ...c,
           numero_cuota: idx + 1,
           meses_cubiertos: mesesCuota,
-          periodo_cubierto: c.periodo_cubierto || rangoTexto
+          periodo_cubierto: customPer || c.periodo_cubierto || rangoTexto
         };
       });
 
@@ -244,7 +267,19 @@ export async function POST(request: Request) {
             multa_bs: pInm.multa_bs ?? 0,
           });
         }
-        const tagPrev = pInm ? ` [PRE_CONV:${pInm.meses_deuda ?? 0}:${pInm.deuda_mmv ?? 0}:${pInm.multa_bs ?? 0}]` : '';
+        const prevPreMatch = String(pInm?.notas || '').match(/\[PRE_CONV:[^\]]+\]/);
+        const tagPrev = prevPreMatch
+          ? ` ${prevPreMatch[0]}`
+          : (pInm ? ` [PRE_CONV:${pInm.meses_deuda ?? 0}:${pInm.deuda_mmv ?? 0}:${pInm.multa_bs ?? 0}]` : '');
+        const customPerParts = Array.isArray(listaCuotas)
+          ? listaCuotas
+              .map((lc: any, idx: number) => lc?.periodo_cubierto ? `${idx + 1}=${String(lc.periodo_cubierto).replace(/[\[\]|]/g, '').trim()}` : '')
+              .filter(Boolean)
+          : [];
+        const prevConvPerMatch = String(pInm?.notas || '').match(/\[CONV_PERIODOS:[^\]]+\]/);
+        const tagPeriodos = customPerParts.length > 0
+          ? ` [CONV_PERIODOS:${customPerParts.join('|')}]`
+          : (prevConvPerMatch ? ` ${prevConvPerMatch[0]}` : '');
         await supabase
           .from('inmuebles')
           .update({
@@ -252,7 +287,7 @@ export async function POST(request: Request) {
             meses_deuda: 0,
             multa_bs: 0,
             deuda_congelada_bs: upd.deuda_congelada_bs,
-            notas: `Convenio de Pago ${finalNro} (${cuotas} cuotas por Bs. ${montoTotal})${tagPrev}`
+            notas: `Convenio de Pago ${finalNro} (${cuotas} cuotas por Bs. ${montoTotal})${tagPrev}${tagPeriodos}`
           })
           .eq('id', upd.id);
       }

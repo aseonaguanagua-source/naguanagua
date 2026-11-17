@@ -351,7 +351,7 @@ export default function CorteCaja({ pagos, cajeros, isAdmin, currentUser, onBack
                           <td className={tdCls}>{fmtDate(det.fecha_banco || det.fecha_transaccion || p.created_at)}</td>
                           <td className={`${tdCls} font-semibold`}>{p.tipo}</td>
                           <td className={tdCls}>{fmtDate(det.fecha_emision_override || det.factura_digital?.fecha_emision || det.recibo_caja?.[0]?.fechaEmision || det.fecha_transaccion || det.fecha_banco || p.created_at)}</td>
-                          <td className={tdCls}>{det.cajero || '-'}</td>
+                          <td className={tdCls}>{det.cajero || det.analista || det.caja || '-'}</td>
                           <td className={tdCls}>{formatContribuyente(p, det)}</td>
                           <td className={tdCls}>{getNumeroRecibo(p, det)}</td>
                           <td className={tdCls}>{p.banco || '-'}</td>
@@ -402,7 +402,7 @@ export default function CorteCaja({ pagos, cajeros, isAdmin, currentUser, onBack
                           <td className={tdCls}>{fmtDate(det.fecha_banco || det.fecha_transaccion || p.created_at)}</td>
                           <td className={`${tdCls} font-semibold`}>{p.tipo}</td>
                           <td className={tdCls}>{fmtDate(det.fecha_emision_override || det.factura_digital?.fecha_emision || det.recibo_caja?.[0]?.fechaEmision || det.fecha_transaccion || det.fecha_banco || p.created_at)}</td>
-                          <td className={tdCls}>{det.cajero || '-'}</td>
+                          <td className={tdCls}>{det.cajero || det.analista || det.caja || '-'}</td>
                           <td className={tdCls}>{formatContribuyente(p, det)}</td>
                           <td className={tdCls}>{getNumeroRecibo(p, det)}</td>
                           <td className={tdCls}>{p.banco || '-'}</td>
@@ -453,7 +453,7 @@ export default function CorteCaja({ pagos, cajeros, isAdmin, currentUser, onBack
                           <td className={tdCls}>{fmtDate(det.fecha_banco || det.fecha_transaccion || p.created_at)}</td>
                           <td className={`${tdCls} font-semibold`}>{p.tipo}</td>
                           <td className={tdCls}>{fmtDate(det.fecha_emision_override || det.factura_digital?.fecha_emision || det.recibo_caja?.[0]?.fechaEmision || det.fecha_transaccion || det.fecha_banco || p.created_at)}</td>
-                          <td className={tdCls}>{det.cajero || '-'}</td>
+                          <td className={tdCls}>{det.cajero || det.analista || det.caja || '-'}</td>
                           <td className={tdCls}>{formatContribuyente(p, det)}</td>
                           <td className={tdCls}>{getNumeroRecibo(p, det)}</td>
                           <td className={tdCls}>{p.banco || '-'}</td>
@@ -514,7 +514,7 @@ export default function CorteCaja({ pagos, cajeros, isAdmin, currentUser, onBack
                           <td className={tdCls}>{i+1}</td>
                           <td className={tdCls}>{fmtDateTime(p.created_at)}</td>
                           <td className={`${tdCls} font-semibold`}>{p.tipo}</td>
-                          <td className={tdCls}>{det.cajero || '-'}</td>
+                          <td className={tdCls}>{det.cajero || det.analista || det.caja || '-'}</td>
                           <td className={tdCls}>{formatContribuyente(p, det)}</td>
                           <td className={tdCls}>{getNumeroRecibo(p, det)}</td>
                           <td className={tdCls}>{p.banco || '-'}</td>
@@ -548,7 +548,7 @@ export default function CorteCaja({ pagos, cajeros, isAdmin, currentUser, onBack
                           <td className={tdCls}>{i+1}</td>
                           <td className={tdCls}>{fmtDateTime(p.created_at)}</td>
                           <td className={`${tdCls} font-bold text-purple-800`}>{p.tipo}</td>
-                          <td className={tdCls}>{det.cajero || '-'}</td>
+                          <td className={tdCls}>{det.cajero || det.analista || det.caja || '-'}</td>
                           <td className={tdCls}>{formatContribuyente(p, det)}</td>
                           <td className={tdCls}>{getNumeroRecibo(p, det)}</td>
                           <td className={tdCls}>{limpiarReferenciaPago(p, det) || '-'}</td>

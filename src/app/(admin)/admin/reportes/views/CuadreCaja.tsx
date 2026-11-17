@@ -548,7 +548,7 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
                     <td style={S.td}>{fmtDate(det.fecha_banco || det.fecha_transaccion || p.created_at)}</td>
                     <td style={{ ...S.td, fontWeight: 700 }}>{p.tipo}</td>
                     <td style={S.td}>{fmtDate(obtenerFechaEfectivaCuadre(p, det).toISOString())}</td>
-                    <td style={S.td}>{det.cajero || '-'}</td>
+                    <td style={S.td}>{det.cajero || det.analista || det.caja || '-'}</td>
                     <td style={{ ...S.td, color: '#2a5298' }}>{formatContribuyente(p, contribMap, det)}</td>
                     <td style={S.td}>{getNumeroRecibo(p, det)}</td>
                     <td style={S.td}>{p.banco || '-'}</td>
@@ -804,7 +804,7 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
                         <td style={S.td}>{i + 1}</td>
                         <td style={S.td}>{fmtDT(p.created_at)}</td>
                         <td style={{ ...S.td, fontWeight: 700, color: '#1e40af' }}>{p.tipo}</td>
-                        <td style={S.td}>{det.cajero || '-'}</td>
+                        <td style={S.td}>{det.cajero || det.analista || det.caja || '-'}</td>
                         <td style={{ ...S.td, color: '#2a5298' }}>{formatContribuyente(p, contribMap, det)}</td>
                         <td style={S.td}>{getNumeroRecibo(p, det)}</td>
                         <td style={S.td}>{p.banco || '-'}</td>
@@ -876,7 +876,7 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
                         <td style={S.td}>{i + 1}</td>
                         <td style={S.td}>{fmtDT(p.created_at)}</td>
                         <td style={{ ...S.td, fontWeight: 700 }}>{p.tipo}</td>
-                        <td style={S.td}>{det.cajero || '-'}</td>
+                        <td style={S.td}>{det.cajero || det.analista || det.caja || '-'}</td>
                         <td style={{ ...S.td, color: '#2a5298' }}>{formatContribuyente(p, contribMap, det)}</td>
                         <td style={S.td}>{getNumeroRecibo(p, det)}</td>
                         <td style={S.td}>{p.banco || '-'}</td>
@@ -916,7 +916,7 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
                         <td style={S.td}>{i + 1}</td>
                         <td style={S.td}>{fmtDT(p.created_at)}</td>
                         <td style={{ ...S.td, fontWeight: 700, color: '#6d28d9' }}>{p.tipo}</td>
-                        <td style={S.td}>{det.cajero || '-'}</td>
+                        <td style={S.td}>{det.cajero || det.analista || det.caja || '-'}</td>
                         <td style={{ ...S.td, color: '#2a5298' }}>{formatContribuyente(p, contribMap, det)}</td>
                         <td style={S.td}>{getNumeroRecibo(p, det)}</td>
                         <td style={S.td}>{limpiarReferenciaPago(p, det) || '-'}</td>
@@ -953,7 +953,7 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
                         <td style={S.td}>{i + 1}</td>
                         <td style={S.td}>{fmtDT(p.created_at)}</td>
                         <td style={{ ...S.td, fontWeight: 700, color: '#475569' }}>{p.tipo}</td>
-                        <td style={S.td}>{det.cajero || '-'}</td>
+                        <td style={S.td}>{det.cajero || det.analista || det.caja || '-'}</td>
                         <td style={{ ...S.td, color: '#2a5298' }}>{formatContribuyente(p, contribMap, det)}</td>
                         <td style={S.td}>{limpiarReferenciaPago(p, det) || '-'}</td>
                         <td style={S.td}><span style={{ color: '#16a34a', fontWeight: 700 }}>{p.estado || 'Aprobado'}</span></td>

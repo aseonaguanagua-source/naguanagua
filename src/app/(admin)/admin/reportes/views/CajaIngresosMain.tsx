@@ -655,7 +655,7 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
           <thead><tr>{(showDT ? ['#','Fecha/Hora','Tipo','Operador','Contribuyente','Recibo','Banco','Aprobacion','Lote','Estado','Monto'] : ['#','Fecha','Tipo','Operador','Contribuyente','Recibo','Banco','Aprobacion','Lote','Estado','Monto']).map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
           <tbody>{debitos.map((p, i) => { const det = parseDet(p); return (<tr key={p.id} style={{ background: i % 2 === 0 ? '#fff' : '#f9fafe' }}>
             <td style={S.td}>{i + 1}</td><td style={S.td}>{showDT ? fmtDT(p.created_at) : fmtDate(p.created_at)}</td>
-            <td style={{ ...S.td, fontWeight: 700 }}>{p.tipo}</td><td style={S.td}>{det.cajero || '-'}</td>
+            <td style={{ ...S.td, fontWeight: 700 }}>{p.tipo}</td><td style={S.td}>{det.cajero || det.analista || det.caja || '-'}</td>
             <td style={{ ...S.td, color: '#2a5298' }}>
               <div style={{ fontWeight: 600 }}>{p.identidad}</div>
               <div style={{ fontSize: '0.78em', color: '#555' }}>{getNombre(p, contribMap, det)}</div>
@@ -679,7 +679,7 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
           <thead><tr>{(showDT ? ['#','Fecha/Hora','Tipo','Operador','Contribuyente','Recibo','Banco','Aprobacion / Ref','Lote','Estado','Monto'] : ['#','Fecha','Tipo','Operador','Contribuyente','Recibo','Banco','Aprobacion / Ref','Lote','Estado','Monto']).map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
           <tbody>{creditos.map((p, i) => { const det = parseDet(p); return (<tr key={p.id} style={{ background: i % 2 === 0 ? '#fff' : '#f9fafe' }}>
             <td style={S.td}>{i + 1}</td><td style={S.td}>{showDT ? fmtDT(p.created_at) : fmtDate(p.created_at)}</td>
-            <td style={{ ...S.td, fontWeight: 700, color: '#1e40af' }}>{p.tipo}</td><td style={S.td}>{det.cajero || '-'}</td>
+            <td style={{ ...S.td, fontWeight: 700, color: '#1e40af' }}>{p.tipo}</td><td style={S.td}>{det.cajero || det.analista || det.caja || '-'}</td>
             <td style={{ ...S.td, color: '#2a5298' }}>
               <div style={{ fontWeight: 600 }}>{p.identidad}</div>
               <div style={{ fontSize: '0.78em', color: '#555' }}>{getNombre(p, contribMap, det)}</div>
@@ -727,7 +727,7 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
                   <td style={S.td}>{i + 1}</td>
                   {showDT ? <><td style={S.td}>{fmtDT(obtenerFechaEfectivaRegistro(p, det).toISOString())}</td><td style={S.td}>{fmtDate(det.fecha_banco || det.fecha_transaccion || p.created_at)}</td><td style={{ ...S.td, fontWeight: 700 }}>{p.tipo}</td><td style={S.td}>{fmtDate(obtenerFechaEfectivaRegistro(p, det).toISOString())}</td></>
                     : <><td style={S.td}>{conc ? <b style={{ color: '#1a7a1a' }}>{det.fecha_transaccion || det.fecha_banco || fmtDate(obtenerFechaEfectivaRegistro(p, det).toISOString())}</b> : <span style={{ color: '#aaa' }}>-</span>}</td><td style={S.td}>{fmtDate(obtenerFechaEfectivaRegistro(p, det).toISOString())}</td><td style={{ ...S.td, fontWeight: 700 }}>{p.tipo}</td></>}
-                  <td style={S.td}>{det.cajero || '-'}</td><td style={{ ...S.td, color: '#2a5298' }}>
+                  <td style={S.td}>{det.cajero || det.analista || det.caja || '-'}</td><td style={{ ...S.td, color: '#2a5298' }}>
                     <div style={{ fontWeight: 600 }}>{p.identidad}</div>
                     <div style={{ fontSize: '0.78em', color: '#555' }}>{getNombre(p, contribMap, det)}</div>
                   </td>
@@ -809,7 +809,7 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
           <thead><tr>{(showDT ? ['#','Fecha/Hora','Tipo','Operador','Contribuyente','Comprobante','Estado','Monto Retenido'] : ['#','Fecha','Tipo','Operador','Contribuyente','Comprobante','Estado','Monto Retenido']).map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
           <tbody>{retenciones.map((p, i) => { const det = parseDet(p); return (<tr key={p.id} style={{ background: i % 2 === 0 ? '#fff' : '#f9fafe' }}>
             <td style={S.td}>{i + 1}</td><td style={S.td}>{showDT ? fmtDT(p.created_at) : fmtDate(p.created_at)}</td>
-            <td style={{ ...S.td, fontWeight: 700, color: '#475569' }}>{p.tipo}</td><td style={S.td}>{det.cajero || '-'}</td>
+            <td style={{ ...S.td, fontWeight: 700, color: '#475569' }}>{p.tipo}</td><td style={S.td}>{det.cajero || det.analista || det.caja || '-'}</td>
             <td style={{ ...S.td, color: '#2a5298' }}>
               <div style={{ fontWeight: 600 }}>{p.identidad}</div>
               <div style={{ fontSize: '0.78em', color: '#555' }}>{getNombre(p, contribuyentes)}</div>
@@ -832,7 +832,7 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
           <thead><tr>{(showDT ? ['#','Fecha/Hora','Tipo','Operador','Contribuyente','Recibo','Referencia / Comprobante','Estado','Monto Aplicado'] : ['#','Fecha','Tipo','Operador','Contribuyente','Recibo','Referencia / Comprobante','Estado','Monto Aplicado']).map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
           <tbody>{saldosAFavor.map((p, i) => { const det = parseDet(p); return (<tr key={p.id} style={{ background: i % 2 === 0 ? '#fff' : '#faf5ff' }}>
             <td style={S.td}>{i + 1}</td><td style={S.td}>{showDT ? fmtDT(p.created_at) : fmtDate(p.created_at)}</td>
-            <td style={{ ...S.td, fontWeight: 700, color: '#6d28d9' }}>{p.tipo}</td><td style={S.td}>{det.cajero || '-'}</td>
+            <td style={{ ...S.td, fontWeight: 700, color: '#6d28d9' }}>{p.tipo}</td><td style={S.td}>{det.cajero || det.analista || det.caja || '-'}</td>
             <td style={{ ...S.td, color: '#2a5298' }}>
               <div style={{ fontWeight: 600 }}>{p.identidad}</div>
               <div style={{ fontSize: '0.78em', color: '#555' }}>{getNombre(p, contribMap, det)}</div>

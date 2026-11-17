@@ -978,7 +978,7 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
         const ncRaw = Number(det.descuento_saldo_favor || det.saldo_favor_usado || det.saldo_usado || det.saldo_favor || 0);
         const ncTotal = ncRaw > 0 ? ncRaw : 0;
         const nc = esPagoMultipleSeparado ? r2(ncTotal * factor) : ncTotal;
-        const cajero = det.cajero || det.usuario || p.usuario || '';
+        const cajero = det.analista || det.cajero || det.caja || det.responsable || det.usuario || p.usuario || '';
         const bClass = clasificarBancoDestino(p);
         const bDestLabel = bClass === 'Banesco' ? 'Banesco' : bClass === 'Bancamiga' ? 'Bancamiga' : (det.banco_destino || det.banco_receptor || 'Otro');
         
