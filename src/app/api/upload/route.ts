@@ -3,7 +3,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
 export const dynamic = 'force-dynamic';
 
-const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB máximo
+const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024; // 25 MB máximo
 const MAX_BASE64_FALLBACK_BYTES = 2 * 1024 * 1024; // 2 MB máximo para fallback Data URL
 const ALLOWED_BUCKETS = new Set(['documentos', 'comprobantes', 'retenciones', 'reclamos', 'public']);
 const ALLOWED_MIME_TYPES = new Set([
@@ -13,6 +13,55 @@ const ALLOWED_MIME_TYPES = new Set([
   'image/png',
   'image/webp',
 ]);
+
+/**
+ * GET /api/upload?bucket=documentos&path=retenciones/...
+ * Genera una URL firmada de subida directa a Supabase Storage para evitar el límite de 4.5 MB de Vercel en funciones serverless.
+ */
+export async function GET(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const rawBucket = searchParams.get('bucket') || 'documentos';
+    const rawFolder = searchParams.get('folder') || 'uploads';
+    const customPath = searchParams.get('path');
+    const rawName = searchParams.get('name') || 'archivo.pdf';
+
+    const bucket = ALLOWED_BUCKETS.has(rawBucket) ? rawBucket : 'documentos';
+    const fileNameClean = rawName.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const safeFolder =
+      rawFolder.replace(/\.\.+/g, '').replace(/^\/+|\/+$/g, '').replace(/[^a-zA-Z0-9/_-]/g, '_') || 'uploads';
+    const safeCustomPath = customPath
+      ? customPath.replace(/\.\.+/g, '').replace(/^\/+/, '').replace(/[^a-zA-Z0-9/_.-]/g, '_')
+      : null;
+    const uploadPath = safeCustomPath || `${safeFolder}/${Date.now()}_${crypto.randomUUID().slice(0, 8)}_${fileNameClean}`;
+
+    const { data, error } = await supabaseAdmin.storage.from(bucket).createSignedUploadUrl(uploadPath);
+    if (error || !data?.signedUrl) {
+      return NextResponse.json(
+        { success: false, error: error?.message || 'No se pudo generar URL de carga directa.' },
+        { status: 500 }
+      );
+    }
+
+    const { data: pubData } = supabaseAdmin.storage.from(bucket).getPublicUrl(uploadPath);
+    const publicUrl = pubData?.publicUrl || '';
+
+    return NextResponse.json({
+      success: true,
+      signedUrl: data.signedUrl,
+      token: data.token,
+      path: uploadPath,
+      publicUrl,
+      url: publicUrl,
+      fileUrl: publicUrl,
+    });
+  } catch (err: any) {
+    return NextResponse.json(
+      { success: false, error: err.message || 'Error generando URL firmada' },
+      { status: 500 }
+    );
+  }
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -31,7 +80,7 @@ export async function POST(req: NextRequest) {
 
     if (file.size <= 0 || file.size > MAX_FILE_SIZE_BYTES) {
       return NextResponse.json(
-        { success: false, error: 'El archivo excede el tamaño máximo permitido (10 MB).' },
+        { success: false, error: 'El archivo excede el tamaño máximo permitido (25 MB).' },
         { status: 413 }
       );
     }
@@ -62,7 +111,7 @@ export async function POST(req: NextRequest) {
       .from(bucket)
       .upload(uploadPath, buffer, {
         contentType,
-        upsert: false,
+        upsert: true,
       });
 
     if (error) {

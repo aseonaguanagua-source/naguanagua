@@ -197,17 +197,32 @@ export default function RetencionesDashboard() {
     setSaving(true); setSaveMsg('');
     try {
       const ext = archivo.name.split('.').pop() || 'pdf';
-      const up = new FormData();
-      up.append('file', archivo);
-      up.append('bucket', 'documentos');
-      up.append('path', `retenciones/${identidad.replace(/[^a-zA-Z0-9-]/g, '')}/FAC-${f.numeroFactura || f.pagoId.slice(0, 8)}_${Date.now()}.${ext}`);
-      const r1 = await fetch('/api/upload', { method: 'POST', body: up });
-      const j1 = await r1.json();
-      if (!r1.ok || !j1.success) throw new Error('Error subiendo el archivo: ' + (j1.error || 'desconocido'));
+      const uploadPath = `retenciones/${identidad.replace(/[^a-zA-Z0-9-]/g, '')}/FAC-${f.numeroFactura || f.pagoId.slice(0, 8)}_${Date.now()}.${ext}`;
+      let publicUrl = '';
+      const signR = await fetch(`/api/upload?bucket=documentos&path=${encodeURIComponent(uploadPath)}`);
+      const signJ = await signR.json().catch(() => ({}));
+      if (signR.ok && signJ.success && signJ.signedUrl) {
+        const putR = await fetch(signJ.signedUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': archivo.type || 'application/pdf' },
+          body: archivo,
+        });
+        if (!putR.ok) throw new Error(`Error subiendo el archivo (${putR.status})`);
+        publicUrl = signJ.publicUrl || '';
+      } else {
+        const up = new FormData();
+        up.append('file', archivo);
+        up.append('bucket', 'documentos');
+        up.append('path', uploadPath);
+        const r1 = await fetch('/api/upload', { method: 'POST', body: up });
+        const j1 = await r1.json();
+        if (!r1.ok || !j1.success) throw new Error('Error subiendo el archivo: ' + (j1.error || 'desconocido'));
+        publicUrl = j1.publicUrl || '';
+      }
 
       const r2 = await fetch('/api/portal/retenciones/subir', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identidad, pagoId: f.pagoId, numeroComprobante: numComp.trim(), fechaComprobante: fechaComp || null, planillaUrl: j1.publicUrl || '' }),
+        body: JSON.stringify({ identidad, pagoId: f.pagoId, numeroComprobante: numComp.trim(), fechaComprobante: fechaComp || null, planillaUrl: publicUrl }),
       });
       const j2 = await r2.json();
       if (!r2.ok) throw new Error(j2.error || 'Error');

@@ -124,14 +124,32 @@ export default function FacturacionElectronicaPage() {
       let uploadedUrl = modalRetencion.retencionPlanillaUrl || '';
       if (archivoPlanilla) {
         const ext = archivoPlanilla.name.split('.').pop() || 'pdf';
-        const up = new FormData();
-        up.append('file', archivoPlanilla);
-        up.append('bucket', 'documentos');
-        up.append('path', `retenciones/${modalRetencion.identidad.replace(/[^a-zA-Z0-9-]/g, '')}/OPERADOR_FAC-${modalRetencion.numeroDocumento || modalRetencion.id?.slice(0, 8)}_${Date.now()}.${ext}`);
-        const r1 = await fetch('/api/upload', { method: 'POST', body: up });
-        const j1 = await r1.json();
-        if (!r1.ok || !j1.success) throw new Error('Error al subir el archivo: ' + (j1.error || 'Desconocido'));
-        uploadedUrl = j1.publicUrl || '';
+        const uploadPath = `retenciones/${modalRetencion.identidad.replace(/[^a-zA-Z0-9-]/g, '')}/OPERADOR_FAC-${modalRetencion.numeroDocumento || modalRetencion.id?.slice(0, 8)}_${Date.now()}.${ext}`;
+        // Subida directa a Supabase Storage mediante URL firmada para evitar el límite de 4.5 MB de Vercel
+        const signR = await fetch(`/api/upload?bucket=documentos&path=${encodeURIComponent(uploadPath)}`);
+        const signJ = await signR.json().catch(() => ({}));
+        if (signR.ok && signJ.success && signJ.signedUrl) {
+          const putR = await fetch(signJ.signedUrl, {
+            method: 'PUT',
+            headers: { 'Content-Type': archivoPlanilla.type || 'application/pdf' },
+            body: archivoPlanilla,
+          });
+          if (!putR.ok) {
+            throw new Error(`Error al subir el archivo a Storage (${putR.status})`);
+          }
+          uploadedUrl = signJ.publicUrl || '';
+        } else {
+          const up = new FormData();
+          up.append('file', archivoPlanilla);
+          up.append('bucket', 'documentos');
+          up.append('path', uploadPath);
+          const r1 = await fetch('/api/upload', { method: 'POST', body: up });
+          const txt1 = await r1.text();
+          let j1: any = {};
+          try { j1 = JSON.parse(txt1); } catch { throw new Error('El archivo es demasiado pesado para carga directa (' + Math.round(archivoPlanilla.size / 1024) + ' KB).'); }
+          if (!r1.ok || !j1.success) throw new Error('Error al subir el archivo: ' + (j1.error || 'Desconocido'));
+          uploadedUrl = j1.publicUrl || '';
+        }
       }
 
       const res = await fetch('/api/admin/retenciones/revisar', {

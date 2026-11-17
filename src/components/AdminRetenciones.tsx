@@ -257,18 +257,30 @@ export default function AdminRetenciones() {
     setUploadingPlanilla(true);
     setMsg('Subiendo planilla física de retención...');
     try {
-      const fd = new FormData();
-      fd.append('file', file);
-      fd.append('bucket', 'documentos');
-      fd.append('path', `retenciones/${Date.now()}_${selected.identidad}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`);
-
-      const res = await fetch('/api/upload', { method: 'POST', body: fd });
-      const data = await res.json();
-      if (!res.ok || !data.success || !data.publicUrl) {
-        throw new Error(data.error || 'No se pudo subir el archivo');
+      const uploadPath = `retenciones/${Date.now()}_${selected.identidad}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      let publicUrl = '';
+      const signR = await fetch(`/api/upload?bucket=documentos&path=${encodeURIComponent(uploadPath)}`);
+      const signJ = await signR.json().catch(() => ({}));
+      if (signR.ok && signJ.success && signJ.signedUrl) {
+        const putR = await fetch(signJ.signedUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': file.type || 'application/pdf' },
+          body: file,
+        });
+        if (!putR.ok) throw new Error(`No se pudo subir el archivo (${putR.status})`);
+        publicUrl = signJ.publicUrl || '';
+      } else {
+        const fd = new FormData();
+        fd.append('file', file);
+        fd.append('bucket', 'documentos');
+        fd.append('path', uploadPath);
+        const res = await fetch('/api/upload', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (!res.ok || !data.success || !data.publicUrl) {
+          throw new Error(data.error || 'No se pudo subir el archivo');
+        }
+        publicUrl = data.publicUrl;
       }
-
-      const publicUrl = data.publicUrl;
 
       // 1. Actualizar o insertar en retenciones_iva
       const { data: existingRet } = await supabase.from('retenciones_iva').select('id').eq('id', selected.id).maybeSingle();
