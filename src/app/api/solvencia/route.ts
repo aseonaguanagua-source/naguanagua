@@ -133,33 +133,6 @@ export async function POST(req: Request) {
         });
       }
 
-      // Validar retenciones pendientes (Si es Agente de Retención, debe haber subido y tener aprobada su retención)
-      const { data: pagosConRet } = await sb
-        .from('pagos_reportados')
-        .select('id, detalles, estado')
-        .in('identidad', variantes.length ? variantes : [identidad])
-        .eq('estado', 'Aprobado');
-
-      const tieneRetencionSinAprobar = (pagosConRet || []).some((p: any) => {
-        let det: any = p.detalles;
-        if (typeof det === 'string') { try { det = JSON.parse(det); } catch {} }
-        const rMonto = parseFloat(String(det?.monto_retencion_iva || det?.retencion_iva || det?.factura_digital?.retencion?.retenido || 0)) || 0;
-        const esRet = det?.es_retencion || det?.agente_retencion || rMonto > 0 || !!det?.factura_digital?.retencion;
-        if (!esRet) return false;
-        const rSt = det?.factura_digital?.retencion?.estado;
-        if (det?.retencion_aprobada === true || rSt === 'aprobada') return false;
-        return true;
-      });
-
-      if (tieneRetencionSinAprobar) {
-        return NextResponse.json({
-          solvente: false,
-          inmueblesConDeuda: [especifico],
-          bloqueadoRetencion: true,
-          mensaje: `EMISIÓN DENEGADA: Registra retenciones de IVA pendientes por consignar o verificar ante la Dirección de Hacienda Municipal.`
-        });
-      }
-
       return NextResponse.json({ solvente: true, mensaje: 'Solvente', inmueblesConDeuda: [] });
     }
 
@@ -183,29 +156,8 @@ export async function POST(req: Request) {
         detalle.push(`${facts.length} factura(s) pendiente(s)`);
       }
     }
-    // Validar retenciones pendientes general
-    const { data: pagosConRetGen } = await sb
-      .from('pagos_reportados')
-      .select('id, detalles, estado')
-      .in('identidad', idList)
-      .eq('estado', 'Aprobado');
 
-    const tieneRetGen = (pagosConRetGen || []).some((p: any) => {
-      let det: any = p.detalles;
-      if (typeof det === 'string') { try { det = JSON.parse(det); } catch {} }
-      const rMonto = parseFloat(String(det?.monto_retencion_iva || det?.retencion_iva || det?.factura_digital?.retencion?.retenido || 0)) || 0;
-      const esRet = det?.es_retencion || det?.agente_retencion || rMonto > 0 || !!det?.factura_digital?.retencion;
-      if (!esRet) return false;
-      const rSt = det?.factura_digital?.retencion?.estado;
-      if (det?.retencion_aprobada === true || rSt === 'aprobada') return false;
-      return true;
-    });
-
-    if (tieneRetGen) {
-      detalle.push('Comprobante(s) de retención de IVA pendiente(s)');
-    }
-
-    if (detalle.length) return NextResponse.json({ solvente: false, inmueblesConDeuda: conDeuda, bloqueadoRetencion: tieneRetGen, mensaje: `EMISIÓN DENEGADA: ${identidad} tiene obligaciones pendientes en: ${detalle.join(', ')}.` });
+    if (detalle.length) return NextResponse.json({ solvente: false, inmueblesConDeuda: conDeuda, bloqueadoRetencion: false, mensaje: `EMISIÓN DENEGADA: ${identidad} tiene obligaciones pendientes en: ${detalle.join(', ')}.` });
     return NextResponse.json({ solvente: true, mensaje: 'Solvente', inmueblesConDeuda: [] });
   } catch (e: any) {
     return NextResponse.json({ solvente: false, mensaje: 'No se pudo verificar la deuda: ' + (e?.message || 'Error'), inmueblesConDeuda: [] }, { status: 200 });
