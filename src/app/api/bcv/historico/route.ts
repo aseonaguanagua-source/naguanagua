@@ -57,6 +57,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ success: false, error: 'Fecha inválida (use AAAA-MM-DD)' }, { status: 400 });
   }
   try {
+    const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
     const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' }).format(new Date());
     if (fecha >= todayStr) {
       const liveBcv = await getTasaBCV(false);
@@ -65,7 +66,8 @@ export async function GET(req: Request) {
           success: true,
           fecha_solicitada: fecha,
           fecha_valor: todayStr,
-          euro: Number(liveBcv.tcmmv),
+          euro: r2(Number(liveBcv.tcmmv)),
+          euro_exacto: Number(liveBcv.tcmmv),
         });
       }
     }
@@ -77,7 +79,7 @@ export async function GET(req: Request) {
       else break;
     }
     if (!reg) return NextResponse.json({ success: false, error: 'No hay tasa publicada para esa fecha' }, { status: 404 });
-    return NextResponse.json({ success: true, fecha_solicitada: fecha, fecha_valor: reg.fecha, euro: reg.promedio });
+    return NextResponse.json({ success: true, fecha_solicitada: fecha, fecha_valor: reg.fecha, euro: r2(reg.promedio), euro_exacto: reg.promedio });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e?.message || 'Error consultando la tasa' }, { status: 502 });
   }

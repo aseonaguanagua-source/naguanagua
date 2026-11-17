@@ -118,9 +118,7 @@ export async function prepararCobro(sol: SolicitudCobro): Promise<Cobro & { _dat
         : (tcActiva && tcActiva.tasa > 0 ? tcActiva.tasa : await tasaVigente());
     const tasa = r2(Number(rawTasa) || 0);
     if (!(tasa > 0)) throw new Error('No hay tasa BCV vigente configurada.');
-    const fecha = sol.fechaOverride
-        ? new Date(sol.fechaOverride.includes('T') ? sol.fechaOverride : `${sol.fechaOverride}T12:00:00-04:00`)
-        : new Date();
+    const fecha = new Date();
     const estado = calcularEstado(datos.condo, datos.unidades, tasa, fecha, datos.multas, !!sol.omitirMultaSeptiembre);
     const porAct = estado.porActividad;
     const avisos: string[] = [];
@@ -254,39 +252,6 @@ export async function prepararCobro(sol: SolicitudCobro): Promise<Cobro & { _dat
     let totTotalBs = t('totalBs');
 
     if (modo === 'CONDOMINIO') {
-        if (porAct && tasa > 0 && lineas.length > 1) {
-            const conv = (bs: number) => r2(bs / tasa);
-            const grupos = new Map<string, LineaCobro[]>();
-            for (const l of lineas) {
-                const gKey = l.padreId || l.clave;
-                const arr = grupos.get(gKey) || [];
-                arr.push(l);
-                grupos.set(gKey, arr);
-            }
-            let sumBaseEur = 0;
-            let sumMultaEur = 0;
-            let sumIvaEur = 0;
-            for (const items of grupos.values()) {
-                const cBase = r2(items.reduce((acc, h) => r2(acc + conv(Number(h.baseBs) || 0)), 0));
-                const cMulta = r2(items.reduce((acc, h) => r2(acc + conv((Number(h.multaBs) || 0) + (Number(h.multasAparteBs) || 0))), 0));
-                const esParHomogeneo = items.length === 2 && !items[0].residencial && Math.abs((Number(items[0].baseBs) || 0) - (Number(items[1].baseBs) || 0)) < 0.01;
-                const cIva = esParHomogeneo
-                    ? r2(cBase * 0.16)
-                    : r2(items.reduce((acc, h) => r2(acc + conv(Number(h.ivaBs) || 0)), 0));
-                sumBaseEur = r2(sumBaseEur + cBase);
-                sumMultaEur = r2(sumMultaEur + cMulta);
-                sumIvaEur = r2(sumIvaEur + cIva);
-            }
-            const sumBrutoEur = r2(sumBaseEur + sumMultaEur + sumIvaEur);
-            const cRetEur = totRetBs > 0 ? conv(totRetBs) : 0;
-            const sumNetoEur = r2(sumBrutoEur - cRetEur);
-            totBaseBs = r2(sumBaseEur * tasa);
-            totMultaBs = r2(sumMultaEur * tasa);
-            totIvaBs = r2(sumIvaEur * tasa);
-            totRetBs = r2(cRetEur * tasa);
-            totTotalBs = r2(sumNetoEur * tasa);
-        }
-
         const totalBs = totTotalBs;
         let baseBs = totBaseBs;
         const multaBs = totMultaBs;
@@ -383,9 +348,8 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
     const montoRecibidoTotal = r2(Number(pago.montoRecibido) || 0);
     const totalDeudaCobro = cobro.totales.totalBs;
 
-    // Ignorar diferencias de redondeo menores a Bs. 1,00 para no generar notas de crédito de céntimos
-    // En condominios multi-unidad (modo CONDOMINIO), absorber también pequeñas diferencias de redondeo Euro/Bs (<= 2.50 Bs)
-    const tolSinNota = cobro.modo === 'CONDOMINIO' && cobro.lineas.length > 10 ? 2.50 : 1.00;
+    // Ignorar diferencias de redondeo menores a Bs. 5,00 para no generar notas de crédito de céntimos
+    const tolSinNota = 5.00;
     if (pago.saldoFavorGenerado && pago.saldoFavorGenerado < tolSinNota) {
         pago.saldoFavorGenerado = 0;
     }
@@ -397,28 +361,49 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
     const montoAplicadoADeuda = r2(montoRecibidoTotal - (pago.saldoFavorGenerado || 0));
 
     // Si el monto destinado a cancelar la deuda es menor al total requerido (tolerancia de redondeo)
-    const tolFaltante = cobro.modo === 'CONDOMINIO' && cobro.lineas.length > 10 ? 2.50 : 0.50;
+    const tolFaltante = cobro.modo === 'CONDOMINIO' ? Math.max(5.00, r2(cobro.lineas.length * 0.50)) : 1.00;
     if (montoAplicadoADeuda < totalDeudaCobro - tolFaltante) {
         throw new Error(`El monto cambió (ahora Bs ${totalDeudaCobro.toFixed(2)}). Vuelva a calcular antes de cobrar.`);
     }
-    // Si en pago global de condominio la transferencia tiene diferencia de céntimos dentro de la tolerancia sin saldo a favor, alinear la factura al monto exacto transferido
-    if (cobro.modo === 'CONDOMINIO' && cobro.facturas.length === 1 && !pago.saldoFavorGenerado && montoRecibidoTotal > 0 && Math.abs(montoRecibidoTotal - totalDeudaCobro) > 0 && Math.abs(montoRecibidoTotal - totalDeudaCobro) < tolSinNota) {
+    // Si la transferencia tiene diferencia de redondeo dentro de la tolerancia sin saldo a favor, alinear la factura al monto exacto transferido
+    if (cobro.facturas.length === 1 && !pago.saldoFavorGenerado && montoRecibidoTotal > 0 && Math.abs(montoRecibidoTotal - totalDeudaCobro) > 0 && Math.abs(montoRecibidoTotal - totalDeudaCobro) <= Math.max(tolSinNota, tolFaltante)) {
         const f0 = cobro.facturas[0];
+        const diffBs = r2(montoRecibidoTotal - totalDeudaCobro);
         f0.totalBs = montoRecibidoTotal;
         cobro.totales.totalBs = montoRecibidoTotal;
-        if ((f0.multaBs || 0) === 0 && (f0.ivaBs || 0) > 0 && (f0.retencionBs || 0) > 0) {
-            const baseIdeal = Math.round((montoRecibidoTotal / 1.04) * 100);
+        if ((f0.ivaBs || 0) === 0) {
+            if ((f0.baseBs || 0) > 0) {
+                f0.baseBs = r2((f0.baseBs || 0) + diffBs);
+                cobro.totales.baseBs = f0.baseBs;
+            } else {
+                f0.multaBs = r2((f0.multaBs || 0) + diffBs);
+                cobro.totales.multaBs = f0.multaBs;
+            }
+            f0.totalBrutoBs = montoRecibidoTotal;
+        } else if ((f0.retencionBs || 0) === 0) {
+            f0.totalBrutoBs = montoRecibidoTotal;
+            const gravable = r2(montoRecibidoTotal - (f0.multaBs || 0));
+            f0.baseBs = r2(gravable / 1.16);
+            f0.ivaBs = r2(gravable - f0.baseBs);
+            cobro.totales.baseBs = f0.baseBs;
+            cobro.totales.ivaBs = f0.ivaBs;
+        } else {
+            const mFijo = f0.multaBs || 0;
+            const baseIdeal = Math.round(((montoRecibidoTotal - mFijo) / 1.04) * 100);
             for (let delta = 0; delta <= 50; delta++) {
                 for (const sign of delta === 0 ? [1] : [-1, 1]) {
                     const bTry = (baseIdeal + sign * delta) / 100;
                     const iTry = r2(bTry * 0.16);
                     const rTry = r2(iTry * 0.75);
-                    const totTry = r2(bTry + iTry);
+                    const totTry = r2(bTry + mFijo + iTry);
                     if (r2(totTry - rTry) === montoRecibidoTotal) {
                         f0.baseBs = bTry;
                         f0.ivaBs = iTry;
                         f0.retencionBs = rTry;
                         f0.totalBrutoBs = totTry;
+                        cobro.totales.baseBs = bTry;
+                        cobro.totales.ivaBs = iTry;
+                        cobro.totales.retencionBs = rTry;
                         delta = 999;
                         break;
                     }

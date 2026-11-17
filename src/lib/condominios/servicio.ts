@@ -537,45 +537,11 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasaRaw: numb
 
   const s = (f: (x: RenglonEstado) => number) => r2(renglones.reduce((a, x) => a + f(x), 0));
   const esPorAct = M.porActividad(c);
-  let totBaseBs = s(x => x.deuda.baseBs);
-  let totMultaBs = s(x => x.deuda.multaBs + x.multaExtraBs + x.multasManualesBs);
-  let totIvaBs = s(x => x.deuda.ivaBs);
-  let totRetBs = s(x => x.deuda.retencionBs);
-  let totTotalBs = s(x => x.totalBs);
-
-  if (esPorAct && tasa > 0 && renglones.filter(x => x.totalBs > 0.01).length > 1) {
-    const conv = (bs: number) => r2(bs / tasa);
-    const grupos = new Map<string, RenglonEstado[]>();
-    for (const r of renglones) {
-      if (r.esGrupo && renglones.some(h => h.padreId === r.clave)) continue;
-      const gKey = r.padreId || r.clave;
-      const arr = grupos.get(gKey) || [];
-      arr.push(r);
-      grupos.set(gKey, arr);
-    }
-    let sumBaseEur = 0;
-    let sumMultaEur = 0;
-    let sumIvaEur = 0;
-    for (const items of grupos.values()) {
-      const cBase = r2(items.reduce((acc, h) => r2(acc + conv(Number(h.deuda?.baseBs) || 0)), 0));
-      const cMulta = r2(items.reduce((acc, h) => r2(acc + conv((Number(h.deuda?.multaBs) || 0) + (Number(h.multaExtraBs) || 0))) + conv(Number(h.multasManualesBs) || 0), 0));
-      const esParHomogeneo = items.length === 2 && !items[0].residencial && Math.abs((Number(items[0].deuda?.baseBs) || 0) - (Number(items[1].deuda?.baseBs) || 0)) < 0.01;
-      const cIva = esParHomogeneo
-        ? r2(cBase * 0.16)
-        : r2(items.reduce((acc, h) => r2(acc + conv(Number(h.deuda?.ivaBs) || 0)), 0));
-      sumBaseEur = r2(sumBaseEur + cBase);
-      sumMultaEur = r2(sumMultaEur + cMulta);
-      sumIvaEur = r2(sumIvaEur + cIva);
-    }
-    const sumBrutoEur = r2(sumBaseEur + sumMultaEur + sumIvaEur);
-    const cRetEur = totRetBs > 0 ? conv(totRetBs) : 0;
-    const sumNetoEur = r2(sumBrutoEur - cRetEur);
-    totBaseBs = r2(sumBaseEur * tasa);
-    totMultaBs = r2(sumMultaEur * tasa);
-    totIvaBs = r2(sumIvaEur * tasa);
-    totRetBs = r2(cRetEur * tasa);
-    totTotalBs = r2(sumNetoEur * tasa);
-  }
+  const totBaseBs = s(x => x.deuda.baseBs);
+  const totMultaBs = s(x => x.deuda.multaBs + x.multaExtraBs + x.multasManualesBs);
+  const totIvaBs = s(x => x.deuda.ivaBs);
+  const totRetBs = s(x => x.deuda.retencionBs);
+  const totTotalBs = s(x => x.totalBs);
 
   return {
     tasa,

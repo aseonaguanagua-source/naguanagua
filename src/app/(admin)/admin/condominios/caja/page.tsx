@@ -81,7 +81,8 @@ function Caja() {
     setCargandoTasaFecha(true);
     try {
       const { euro, fechaValor } = await obtenerTasaEuroFecha(fecha);
-      setTasaOverrideStr(String(euro).replace('.', ','));
+      const euroR2 = (Math.round((Number(euro) + Number.EPSILON) * 100) / 100).toFixed(2);
+      setTasaOverrideStr(euroR2.replace('.', ','));
       setTasaFechaInfo(`Tasa BCV Euro del ${fechaDMY(fecha)}${fechaValor !== fecha ? ` (fecha valor ${fechaDMY(fechaValor)})` : ''}`);
     } catch (e: any) {
       alert(e?.message || 'No se pudo obtener la tasa de esa fecha');
@@ -144,6 +145,11 @@ function Caja() {
     : 0;
   const totalNetoAbonable = Math.max(0, Math.round((totalConImpuestos - descuentoSaldoFavor) * 100) / 100);
   const faltaPagar = useMemo(() => Math.round((totalNetoAbonable - sumaPagos) * 100) / 100, [totalNetoAbonable, sumaPagos]);
+  const tolRedondeo = useMemo(
+    () => (modo === 'CONDOMINIO' ? Math.max(5.00, Math.round((cobro?.lineas?.length || 1) * 0.50 * 100) / 100) : 1.00),
+    [modo, cobro?.lineas?.length]
+  );
+  const faltaPagarReal = sumaPagos > 0 && faltaPagar > 0 && faltaPagar <= tolRedondeo ? 0 : faltaPagar;
 
   // Se resetean los pagos si cambia la deuda
   useEffect(() => { setPagosAgregados([]); }, [cobro?.totales?.totalBs, descuentoSaldoFavor]);
@@ -417,7 +423,7 @@ function Caja() {
     const h = setTimeout(async () => {
       setCalculando(true); setError('');
       try {
-        let tasaParsed = parseFloat(tasaOverrideStr.replace(/\./g, '').replace(',', '.'));
+        let tasaParsed = parseLocalFloat(tasaOverrideStr);
         if (isNaN(tasaParsed)) tasaParsed = 0;
         const clavesPayload = (modo === 'CONDOMINIO' && abonoLocales && claves.length === 0)
           ? ['__NINGUNO__']
@@ -700,10 +706,11 @@ function Caja() {
 
   const cobrar = async () => {
     if (!cobro?.lineas?.length) return;
-    if (faltaPagar > 0.05) { alert('Aún falta por pagar Bs ' + fmtBs(faltaPagar)); return; }
+    if (faltaPagarReal > 0.05) { alert('Aún falta por pagar Bs ' + fmtBs(faltaPagar)); return; }
     
     const nf = cobro.facturas?.length || 1;
-    if (!confirm(`¿Registrar el cobro de Bs ${fmtBs(cobro.totales.totalBs)}?\n\nSe emitirán ${nf} factura(s):\n${(cobro.facturas || []).map((f: any) => `• ${f.nombre} (${f.identidad}): Bs ${fmtBs(f.totalBs)}`).join('\n')}`)) return;
+    const montoConfirm = sumaPagos > 0 && Math.abs(totalNetoAbonable - sumaPagos) <= tolRedondeo ? sumaPagos + descuentoSaldoFavor : cobro.totales.totalBs;
+    if (!confirm(`¿Registrar el cobro de Bs ${fmtBs(montoConfirm)}?\n\nSe emitirán ${nf} factura(s):\n${(cobro.facturas || []).map((f: any) => `• ${f.nombre} (${f.identidad}): Bs ${fmtBs(nf === 1 ? montoConfirm : f.totalBs)}`).join('\n')}`)) return;
     
     setCobrando(true);
     try {
@@ -726,7 +733,7 @@ function Caja() {
         pagosSubidos.push({ ...p, comprobante_url: url, comprobante_nombre: p.comprobante?.name });
       }
 
-      let tasaParsed = parseFloat(tasaOverrideStr.replace(/\./g, '').replace(',', '.'));
+      let tasaParsed = parseLocalFloat(tasaOverrideStr);
       if (isNaN(tasaParsed)) tasaParsed = 0;
 
       const u = usuario();
@@ -749,7 +756,7 @@ function Caja() {
 
       const sumaRealPagos = Math.round(realPagosSubidos.reduce((a, b) => a + (Number(b.monto) || 0), 0) * 100) / 100;
       const totalAPagarCobro = Math.round((Number(cobro.totales.totalBs) || 0) * 100) / 100;
-      const excedenteGenerado = faltaPagar <= -0.01 ? Math.round(Math.abs(faltaPagar) * 100) / 100 : 0;
+      const excedenteGenerado = faltaPagar <= -5.00 ? Math.round(Math.abs(faltaPagar) * 100) / 100 : 0;
       const nuevoCobroId = crypto.randomUUID();
       pagoId.current = nuevoCobroId;
 
@@ -777,7 +784,7 @@ function Caja() {
             metodo: primerPagoReal?.metodo || 'MÚLTIPLE', 
             banco: primerPagoReal?.banco || '', 
             referencia: primerPagoReal?.referencia || '', 
-            montoRecibido: sumaRealPagos > totalAPagarCobro ? sumaRealPagos : totalAPagarCobro, 
+            montoRecibido: sumaRealPagos > 0 ? sumaRealPagos : totalAPagarCobro, 
             cajero: getCajeroId(),
             bancoDestino: (primerPagoReal?.metodo === 'Transferencia' || primerPagoReal?.metodo === 'Depósito') ? (primerPagoReal?.bancoDestino || '') : '',
             pagosAgregados: realPagosSubidos,
@@ -964,7 +971,7 @@ function Caja() {
               </div>
             )}
             {(() => {
-              const t = parseFloat(tasaOverrideStr.replace(/\./g, '').replace(',', '.')) || Number(cobro?.estado?.tasa || estadoBase?.tasa || 0);
+              const t = parseLocalFloat(tasaOverrideStr) || Number(cobro?.estado?.tasa || estadoBase?.tasa || 0);
               return t > 0 ? <div className="text-[10px] font-semibold text-[#166534]">UCD (Euro × 57): Bs {fmtBs(valorUCD(t))}</div> : null;
             })()}
           </div>
@@ -2136,21 +2143,21 @@ function Caja() {
                     </div>
                   </div>
                 ))}
-                {faltaPagar <= -1.00 && (
+                {faltaPagar <= -5.00 && (
                   <div className="bg-emerald-500/20 border border-emerald-500/50 rounded-xl p-3 text-center mb-2">
                     <p className="text-emerald-300 text-xs font-bold uppercase tracking-wide">Genera Saldo a Favor</p>
                     <p className="text-emerald-400 text-base font-black">Bs {fmtBs(Math.abs(faltaPagar))}</p>
                   </div>
                 )}
                 
-                {faltaPagar > 0.05 && pagosAgregados.length > 0 && (
+                {faltaPagarReal > 0.05 && pagosAgregados.length > 0 && (
                   <div className="bg-amber-500/20 border border-amber-400/50 rounded-xl p-3 text-center mb-2">
                     <p className="text-amber-200 text-xs font-bold uppercase tracking-wide">🔴 Falta por pagar para completar este cobro</p>
                     <p className="text-amber-300 text-base font-black">Bs {fmtBs(faltaPagar)}</p>
                   </div>
                 )}
 
-                {faltaPagar > 0.05 && (
+                {faltaPagarReal > 0.05 && (
                   <div className="bg-white/5 rounded-xl p-3 border border-white/10 space-y-2 mt-2">
                     <div className="flex gap-2">
                       <select value={metodoAct} onChange={e => setMetodoAct(e.target.value)} className="flex-1 rounded-lg bg-slate-800 border border-white/20 px-2 py-1.5 text-xs outline-none text-white">
@@ -2190,7 +2197,7 @@ function Caja() {
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <span className="text-[10px] font-semibold text-white/60 mb-0.5 block">F. Transacción (Banco)</span>
-                          <input type="date" value={fechaTransaccionAct} onChange={e => { setFechaTransaccionAct(e.target.value); setFechaAct(e.target.value); }} className="w-full rounded-lg bg-slate-800 border border-white/20 px-2 py-1.5 text-xs outline-none text-white [color-scheme:dark]" />
+                          <input type="date" value={fechaTransaccionAct} max={hoyCaracas()} onChange={e => { setFechaTransaccionAct(e.target.value); setFechaAct(e.target.value); setFechaOverrideStr(e.target.value); aplicarTasaDeFecha(e.target.value); }} className="w-full rounded-lg bg-slate-800 border border-white/20 px-2 py-1.5 text-xs outline-none text-white [color-scheme:dark]" />
                         </div>
                         <div>
                           <span className="text-[10px] font-semibold text-white/60 mb-0.5 block">F. Ingreso a Caja</span>
@@ -2214,7 +2221,9 @@ function Caja() {
                 <div className="border-t border-white/10 pt-3 space-y-1.5">
                   <div className="text-[11px] font-black uppercase tracking-wider text-white/60 flex items-center gap-2"><FileText className="w-4 h-4" /> Factura(s) digital(es): {cobro.facturas.length}</div>
                   {cobro.facturas.slice(0, 8).map((f: any, i: number) => {
-                    const totalFacturaFiscal = f.totalBrutoBs || (f.totalBs + (f.retencionBs || 0));
+                    const ajusteRedondeoUnica = cobro.facturas.length === 1 && sumaPagos > 0 && Math.abs(totalNetoAbonable - sumaPagos) <= tolRedondeo && faltaPagar > -5.00;
+                    const netoFact = ajusteRedondeoUnica ? sumaPagos + descuentoSaldoFavor : f.totalBs;
+                    const totalFacturaFiscal = ajusteRedondeoUnica ? netoFact + (f.retencionBs || 0) : (f.totalBrutoBs || (f.totalBs + (f.retencionBs || 0)));
                     const retencion = f.retencionBs || 0;
                     return (
                       <div key={i} className="flex justify-between gap-2 text-xs bg-white/5 rounded-lg px-2.5 py-1.5">
@@ -2230,7 +2239,7 @@ function Caja() {
                         <div className="text-right shrink-0">
                           <b className="tabular-nums block">Bs {fmtBs(totalFacturaFiscal)}</b>
                           {retencion > 0 && (
-                            <div className="text-[10px] text-sky-300">A pagar: Bs {fmtBs(f.totalBs)}</div>
+                            <div className="text-[10px] text-sky-300">A pagar: Bs {fmtBs(netoFact)}</div>
                           )}
                         </div>
                       </div>
@@ -2250,7 +2259,7 @@ function Caja() {
                 const montoEnEdicion = parseLocalFloat(montoAct) || 0;
                 const totalPagadoProyectado = sumaPagos + montoEnEdicion;
                 const balanceProyectado = Math.round((totalNetoAbonable - totalPagadoProyectado) * 100) / 100;
-                const tieneExcedente = balanceProyectado < -0.05 || faltaPagar < -0.05;
+                const tieneExcedente = balanceProyectado <= -5.00 || faltaPagar <= -5.00;
                 const excedenteMonto = Math.max(0, -balanceProyectado);
                 const saldoRestanteBase = Math.max(0, saldoFavorActivo - descuentoSaldoFavor);
 
@@ -2260,12 +2269,12 @@ function Caja() {
                       {tieneExcedente && (
                         <div className="flex justify-between gap-2">
                           <span className="font-bold">Nota de crédito por excedente</span>
-                          <b className="tabular-nums">Bs {fmtBs(excedenteMonto > 0 ? excedenteMonto : Math.abs(faltaPagar))}</b>
+                          <b className="tabular-nums">Bs {fmtBs(excedenteMonto >= 5.00 ? excedenteMonto : Math.abs(faltaPagar))}</b>
                         </div>
                       )}
                       <div className="flex justify-between gap-2">
                         <span>Saldo a favor que le quedará</span>
-                        <b className="tabular-nums">Bs {fmtBs(saldoRestanteBase + (excedenteMonto > 0 ? excedenteMonto : (faltaPagar < -0.05 ? Math.abs(faltaPagar) : 0)))}</b>
+                        <b className="tabular-nums">Bs {fmtBs(saldoRestanteBase + (excedenteMonto >= 5.00 ? excedenteMonto : (faltaPagar <= -5.00 ? Math.abs(faltaPagar) : 0)))}</b>
                       </div>
                     </div>
                   );
@@ -2307,9 +2316,9 @@ function Caja() {
               })()}
 
               {activa ? (
-                <button id="btn-cobrar-condominio" onClick={cobrar} disabled={cobrando || calculando || !cobro.lineas.length || faltaPagar > 0.05}
+                <button id="btn-cobrar-condominio" onClick={cobrar} disabled={cobrando || calculando || !cobro.lineas.length || faltaPagarReal > 0.05}
                   className="w-full py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-black text-base flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50">
-                  {cobrando ? <RefreshCw className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />} {faltaPagar > 0.05 ? `Falta Bs ${fmtBs(faltaPagar)}` : `Registrar Cobro`}
+                  {cobrando ? <RefreshCw className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />} {faltaPagarReal > 0.05 ? `Falta Bs ${fmtBs(faltaPagar)}` : `Registrar Cobro`}
                 </button>
               ) : (
                 <>
