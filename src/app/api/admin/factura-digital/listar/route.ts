@@ -599,7 +599,24 @@ export async function GET(request: Request) {
         return false;
       }
 
-      // Si hay un término de búsqueda específico, SIEMPRE mostrarlo para permitir auditar o emitir
+      // REGLA: Los abonos o pagos parciales que NO han completado el pago total del mes y NO tienen factura ya emitida
+      // NUNCA deben salir como facturables por el mes completo (ej. un abono parcial con Nota de Crédito menor a la deuda)
+      const yaEmitidaOCompletada = Boolean(d?.factura_digital?.emitida) || d?.abono_completado === true;
+      if (
+        !yaEmitidaOCompletada &&
+        (
+          d?.es_abono === true ||
+          d?.abono === true ||
+          p.tipo === 'Abono' ||
+          d?.pago_parcial === true ||
+          (d?.monto_pendiente !== undefined && parseFloat(String(d.monto_pendiente)) > 0.05) ||
+          (Boolean(d?.recibo_caja?.[0]?.esAbono) && parseFloat(String(d?.recibo_caja?.[0]?.montoPendiente || 0)) > 1.00)
+        )
+      ) {
+        return false;
+      }
+
+      // Si hay un término de búsqueda específico, mostrarlo para permitir auditar
       if (query) {
         return true;
       }
@@ -612,17 +629,6 @@ export async function GET(request: Request) {
       // Si el pago liquidó recibos de cobro (recibos históricos o del mes), debe salir para facturación
       if (Array.isArray(d?.recibos) && d.recibos.length > 0) {
         return true;
-      }
-
-      // REGLA: Los abonos o pagos parciales ordinarios que no han completado el pago total del mes y no tienen recibos liquidados no deben salir por defecto
-      if (
-        d?.es_abono === true ||
-        d?.abono === true ||
-        p.tipo === 'Abono' ||
-        d?.pago_parcial === true ||
-        (d?.monto_pendiente !== undefined && parseFloat(String(d.monto_pendiente)) > 0.05)
-      ) {
-        return false;
       }
 
       return true;

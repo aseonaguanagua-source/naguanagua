@@ -3586,13 +3586,13 @@ export default function CajaPage() {
           descuento_saldo_favor: totalSaldoUsado > 0 ? totalSaldoUsado : undefined,
           saldo_favor_usado: totalSaldoUsado > 0 ? totalSaldoUsado : undefined,
           abono_previo_descontado: abonoPrevioAprobado > 0 ? abonoPrevioAprobado : undefined,
-          monto_factura: (realMontoRetencionIVA > 0) ? totalFacturaBruto : totalConImpuestos, // Monto total bruto de la factura fiscal
+          monto_factura: esAbonoDebito ? montoReal : ((realMontoRetencionIVA > 0) ? totalFacturaBruto : totalConImpuestos), // Si es abono parcial, no asignar el total del mes hasta completar
           monto_neto_factura: paymentMethod === 'Saldo a Favor' ? 0 : finalTotal,
-          montoTotal: totalFacturaBruto,
+          montoTotal: esAbonoDebito ? montoReal : totalFacturaBruto,
           total_seleccionado: totalBs,
-          monto_retencion_iva: realMontoRetencionIVA,
-          es_retencion: (realMontoRetencionIVA > 0),
-          agente_retencion: (realMontoRetencionIVA > 0),
+          monto_retencion_iva: esAbonoDebito ? 0 : realMontoRetencionIVA,
+          es_retencion: !esAbonoDebito && (realMontoRetencionIVA > 0),
+          agente_retencion: !esAbonoDebito && (realMontoRetencionIVA > 0),
           omitir_multa_septiembre: omitirMultaSeptiembre || undefined,
           formasPago: fpsList,
           ...(pagosAgregadosPrevios.length > 0 ? {
