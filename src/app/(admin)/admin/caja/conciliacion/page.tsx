@@ -2546,7 +2546,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
 
 // ─── PAGINA PRINCIPAL ────────────────────────────────────
 export default function ConciliacionPage() {
-  const { inmuebles } = useAppContext();
+  const { inmuebles, refreshUserData } = useAppContext();
   const [activeTab, setActiveTab] = useState<'pagos' | 'retenciones'>('pagos');
   const [pagos, setPagos] = useState<Pago[]>([]);
   const [loading, setLoading] = useState(false);
@@ -2815,7 +2815,14 @@ export default function ConciliacionPage() {
 
   const abrir = (pago: Pago, m: 'conciliar'|'comprobante'|'edoCuenta') => { setPagoSel(pago); setMode(m); };
   const cerrar = () => { setPagoSel(null); setMode(null); };
-  const onSuccess = () => { cerrar(); fetchPagos(); };
+  const onSuccess = async () => {
+    const idRefresh = pagoSel?.identidad;
+    cerrar();
+    if (idRefresh && refreshUserData) {
+      await refreshUserData(idRefresh).catch(() => {});
+    }
+    fetchPagos();
+  };
 
   const estatusCls = (e: string) => {
     if (e === 'Aprobado') return 'text-green-600 font-bold';

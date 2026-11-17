@@ -94,16 +94,16 @@ export async function POST(req: Request) {
 
         // Determinar si el pago realmente había descontado deuda en inmuebles:
         // Si ya estaba Rechazado o ya tiene reverso_aplicado === true, NO volver a sumar la deuda.
-        // Además, si era un pago de condominios en 'Por Verificar' sin deuda_condo_aplicada ni fecha_conciliado, NO había descontado deuda.
         const detMerged = { ...detP, ...d };
         const yaReversado = actualP.estado === 'Rechazado' || detP.reverso_aplicado === true;
         const esCondoP = actualP.modulo === 'condominios' || Boolean(detP.es_condominio) || Boolean(detP.isCondominio) || detP.modulo === 'condominios';
-        const habiaDescontadoDeuda = !yaReversado && (
+        const pagoDescontoEnBD =
           actualP.estado === 'Aprobado' ||
           actualP.estado === 'Con Diferencia' ||
           Boolean(detP.fecha_conciliado) ||
-          (esCondoP && (detP.deuda_condo_aplicada === true || (actualP.estado !== 'Por Verificar' && detP.deuda_condo_aplicada !== false)))
-        );
+          Boolean(detP.cajero || detP.caja) ||
+          (esCondoP && (detP.deuda_condo_aplicada === true || (actualP.estado !== 'Por Verificar' && detP.deuda_condo_aplicada !== false)));
+        const habiaDescontadoDeuda = !yaReversado;
 
         // SIEMPRE desbloquear facturas, convenios y servicios especiales que estaban 'Por Verificar' / 'En Revisión'
         const recibos: string[] = Array.isArray(detMerged.recibos) ? detMerged.recibos : [];
@@ -211,10 +211,10 @@ export async function POST(req: Request) {
               if (prev.id || (prev.inmueble && prev.meses_deuda !== undefined)) {
                 let curInm: any = null;
                 if (prev.id) {
-                  const { data } = await sb.from('inmuebles').select('id, inmueble, meses_deuda, deuda_mmv, multa_bs, deuda_congelada_bs, saldo_favor_bs, mmv_mes, padre_id').eq('id', prev.id).maybeSingle();
+                  const { data } = await sb.from('inmuebles').select('id, inmueble, meses_deuda, deuda_mmv, multa_bs, deuda_congelada_bs, saldo_favor_bs, mmv_mes, padre_id, notas').eq('id', prev.id).maybeSingle();
                   curInm = data;
                 } else if (prev.inmueble) {
-                  const { data } = await sb.from('inmuebles').select('id, inmueble, meses_deuda, deuda_mmv, multa_bs, deuda_congelada_bs, saldo_favor_bs, mmv_mes, padre_id').eq('inmueble', prev.inmueble).maybeSingle();
+                  const { data } = await sb.from('inmuebles').select('id, inmueble, meses_deuda, deuda_mmv, multa_bs, deuda_congelada_bs, saldo_favor_bs, mmv_mes, padre_id, notas').eq('inmueble', prev.inmueble).maybeSingle();
                   curInm = data;
                 }
                 const prevMeses = Math.max(0, parseInt(String(prev.meses_deuda ?? 0), 10) || 0);
@@ -228,11 +228,22 @@ export async function POST(req: Request) {
                   return cod && cod === targetCod;
                 }).length || prevMeses || 1;
 
-                // Si curMeses > 0 (e.g. ya se generó o registró un nuevo mes posterior como octubre),
-                // al rechazar el pago anterior (septiembre) deben acumularse ambos meses
-                const nMeses = curMeses > 0 && curMeses !== prevMeses
-                  ? curMeses + mesesPagadosEnEstePago
-                  : Math.max(prevMeses, curMeses, mesesPagadosEnEstePago);
+                // Detectar si el pago rechazado corresponde a un ciclo de facturación anterior (ej. septiembre 2026)
+                const mesActualYmd = new Date().toISOString().slice(0, 7);
+                const createdPagoYmd = String(actualP.created_at || detMerged.created_at_original || '').slice(0, 7);
+                const perPagStr = String(detMerged.periodos_pagados || detMerged.periodos || '').toLowerCase();
+                const pagoEsDeCicloAnterior = Boolean(
+                  (createdPagoYmd && createdPagoYmd < mesActualYmd) ||
+                  (perPagStr.includes('septiembre 2026') && !perPagStr.includes('octubre 2026'))
+                );
+
+                // Si el pago era de un ciclo anterior (ej. septiembre) y ya existe deuda del mes nuevo (ej. octubre, curMeses >= 1),
+                // al rechazar el pago anterior se acumulan ambos meses (incluso cuando curMeses === prevMeses === 1)
+                const nMeses = pagoEsDeCicloAnterior
+                  ? (curMeses > 0 ? curMeses + mesesPagadosEnEstePago : Math.max(prevMeses, mesesPagadosEnEstePago))
+                  : (pagoDescontoEnBD && curMeses < prevMeses
+                      ? Math.max(prevMeses, curMeses + mesesPagadosEnEstePago)
+                      : Math.max(prevMeses, curMeses, mesesPagadosEnEstePago));
                 const mmvMes = parseFloat(String(curInm?.mmv_mes || 0)) || 0;
                 const prevDeudaMmv = parseFloat(String(prev.deuda_mmv || 0)) || 0;
                 const curDeudaMmv = parseFloat(String(curInm?.deuda_mmv || 0)) || 0;
@@ -246,6 +257,12 @@ export async function POST(req: Request) {
                   multa_bs: Math.max(parseFloat(String(prev.multa_bs || 0)) || 0, parseFloat(String(curInm?.multa_bs || 0)) || 0),
                   deuda_congelada_bs: Math.max(parseFloat(String(prev.deuda_congelada_bs || 0)) || 0, parseFloat(String(curInm?.deuda_congelada_bs || 0)) || 0),
                 };
+                if (curInm?.notas && String(curInm.notas).includes('[PERIODOS_PENDIENTES:')) {
+                  updInm.notas = String(curInm.notas)
+                    .replace(/\s*\[PERIODOS_PENDIENTES:[^\]]*\]/gi, '')
+                    .replace(/\s*\[PERIODOS_EXCLUIDOS:[^\]]*\]/gi, '')
+                    .trim() || null;
+                }
                 if (usoSaldoFavorEnPago || prev.saldo_favor_bs !== undefined) {
                   updInm.saldo_favor_bs = parseFloat(String(prev.saldo_favor_bs || 0)) || 0;
                 }
