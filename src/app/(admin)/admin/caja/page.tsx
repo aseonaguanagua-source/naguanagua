@@ -2666,16 +2666,17 @@ export default function CajaPage() {
       if (isNaN(transferido) || transferido <= 0) return alert("Debe ingresar un monto transferido válido.");
       
       const diffTransferido = Math.round((transferido - finalTotal) * 100) / 100;
+      const esMontoBrutoConRetencion = realMontoRetencionIVA > 0 && Math.abs(diffTransferido - realMontoRetencionIVA) <= 2.00;
       if (diffTransferido < -1.00) {
         esAbono = true;
         montoReal = transferido;
-      } else if (diffTransferido >= 0.01) {
+      } else if (diffTransferido >= 0.01 && !esMontoBrutoConRetencion) {
         saldoAFavorNuevo = diffTransferido;
         esAbono = false;
         montoReal = transferido;
       } else {
         esAbono = false;
-        montoReal = transferido;
+        montoReal = esMontoBrutoConRetencion ? finalTotal : transferido;
       }
     } else if (['Debito', 'Credito', 'TMD', 'TVD'].includes(effectivePaymentMethod)) {
       const cardLabel = effectivePaymentMethod === 'TMD' ? 'Tarjeta Master (TMD)' : effectivePaymentMethod === 'TVD' ? 'Tarjeta Visa (TVD)' : effectivePaymentMethod === 'Credito' ? 'Tarjeta de Crédito' : 'Punto de Venta';
@@ -2688,13 +2689,15 @@ export default function CajaPage() {
       if (montoDebito && parseLocalFloat(montoDebito) > 0) {
         montoReal = parseLocalFloat(montoDebito);
         const diffDeb = Math.round((montoReal - finalTotal) * 100) / 100;
+        const esMontoBrutoDebConRet = realMontoRetencionIVA > 0 && Math.abs(diffDeb - realMontoRetencionIVA) <= 2.00;
         if (diffDeb < -1.00) {
           esAbono = true;
-        } else if (diffDeb >= 0.01) {
+        } else if (diffDeb >= 0.01 && !esMontoBrutoDebConRet) {
           saldoAFavorNuevo = diffDeb;
           esAbono = false;
         } else {
           esAbono = false;
+          if (esMontoBrutoDebConRet) montoReal = finalTotal;
         }
       }
     } else if (effectivePaymentMethod === 'Saldo a Favor') {

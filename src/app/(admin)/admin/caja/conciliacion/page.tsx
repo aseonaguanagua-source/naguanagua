@@ -1837,9 +1837,12 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
           ? (parseFloat(String(det.saldo_favor || det.saldo_a_favor_nuevo || 0)) || 0)
           : 0;
         const esFilaRetencionPura = Boolean(det.pago_vinculado) || (pago as any).tipo === 'Retencion de IVA' || String(pago.referencia || '').startsWith('RET-');
-        const excedenteBrutoConcil = (!esAbonoParcialConcil && !det.es_abono && !det.es_pago_adicional && !esFilaRetencionPura && deudaNetaBancaria > 0 && montoConciliadoNum >= deudaNetaBancaria + 5.00)
+        const diffBrutoConcil = (!esAbonoParcialConcil && !det.es_abono && !det.es_pago_adicional && !esFilaRetencionPura && deudaNetaBancaria > 0 && montoConciliadoNum >= deudaNetaBancaria + 5.00)
           ? Math.round((montoConciliadoNum - deudaNetaBancaria) * 100) / 100
           : 0;
+        // Si el supuesto "excedente" coincide con el monto de la Retención de IVA (porque en Caja se colocó el monto bruto de la factura en lugar del neto transferido), NO generar Nota de Crédito por la retención
+        const esFalsoExcedentePorRetencion = retencionDocCalc > 0 && Math.abs(diffBrutoConcil - retencionDocCalc) <= 2.00;
+        const excedenteBrutoConcil = esFalsoExcedentePorRetencion ? 0 : diffBrutoConcil;
         const excedenteCaja = Math.max(0, Math.round((excedenteBrutoConcil - yaAcreditadoEnCaja) * 100) / 100);
 
         if (excedenteCaja >= 5.00 && !det.es_pago_adicional && !esFilaRetencionPura) {

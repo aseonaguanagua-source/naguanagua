@@ -352,7 +352,8 @@ export async function POST(request: Request) {
         det.factura_digital = fd;
         if (estadoFinal === 'Aprobado') {
           det.retencion_aprobada = true;
-          await acreditarExcedenteRetencionPagoCompleto(pago.identidad, actualRetId, numComp);
+          // NUNCA generar Nota de Crédito automática por el monto de la retención de IVA:
+          // en pagos donde pago.monto se guardó como el bruto de la factura, eso convertía la retención en saldo a favor.
         }
         await supabase.from('pagos_reportados').update({ detalles: det }).eq('id', pago.id);
       }
@@ -592,7 +593,7 @@ export async function POST(request: Request) {
       det.factura_digital = fd;
       det.retencion_aprobada = true;
 
-      await acreditarExcedenteRetencionPagoCompleto(finalIdentidad, actualRetId, ret?.numero_planilla || fd.retencion?.numero_comprobante || '');
+      // NUNCA generar Nota de Crédito automática por el monto de la retención de IVA al aprobar comprobante
 
       const { error: errUpPago } = await supabase.from('pagos_reportados').update({ detalles: det }).eq('id', pago.id);
       if (errUpPago) console.error('[revisar/aprobar] Error updating pagos_reportados:', errUpPago);
