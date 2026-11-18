@@ -94,9 +94,9 @@ export const codigosDePago = (det: any, p?: any): string[] => {
     });
   }
 
-  // 4. Array de recibos
-  (Array.isArray(d.recibos) ? d.recibos : []).forEach((ref: string) => {
-    const str = String(ref || '').toUpperCase().trim();
+  // 4. Array de recibos y mapa de montos pagados (fuente autoritativa de lo cobrado en la transacción)
+  const addFromRefStr = (rawRef: any) => {
+    const str = String(rawRef || '').toUpperCase().trim();
     const m = str.match(/^(?:RECIB-HIST-(.+)-M\d+|MULTA-(.+?)(?:-M\d+)?|CM-(.+?)-\d{4}-\d{2}|CONDO-(.+?)-\d+)$/);
     if (m) {
       s.add(m[1] || m[2] || m[3] || m[4]);
@@ -105,23 +105,13 @@ export const codigosDePago = (det: any, p?: any): string[] => {
     } else if (/^(?:SRV|SERV)[-_]/i.test(str)) {
       s.add(str);
     }
-  });
+  };
+  (Array.isArray(d.recibos) ? d.recibos : []).forEach(addFromRefStr);
+  if (d.montos && typeof d.montos === 'object') {
+    Object.keys(d.montos).forEach(addFromRefStr);
+  }
 
-  // 4. Recibos de caja
-  (Array.isArray(d.recibo_caja) ? d.recibo_caja : []).forEach((rc: any) => {
-    if (rc?.inmueble) s.add(String(rc.inmueble).trim().toUpperCase());
-    if (rc?.codigo_inmueble) s.add(String(rc.codigo_inmueble).trim().toUpperCase());
-    if (rc?.cod_inmueble) s.add(String(rc.cod_inmueble).trim().toUpperCase());
-    if (rc?.codContribuyente) s.add(String(rc.codContribuyente).trim().toUpperCase());
-  });
-
-  // 5. Deuda previa
-  (Array.isArray(d.deuda_previa) ? d.deuda_previa : []).forEach((dp: any) => {
-    if (dp?.inmueble) s.add(String(dp.inmueble).trim().toUpperCase());
-    if (dp?.codigo) s.add(String(dp.codigo).trim().toUpperCase());
-  });
-
-  // 6. Servicios especiales o tala y poda
+  // 4b. Servicios especiales, tala y poda o convenios seleccionados en este pago
   (Array.isArray(d.servicios) ? d.servicios : []).forEach((srv: any) => {
     if (typeof srv === 'object') {
       if (srv?.inmueble) s.add(String(srv.inmueble).trim().toUpperCase());
@@ -138,8 +128,6 @@ export const codigosDePago = (det: any, p?: any): string[] => {
       s.add(srv.trim().toUpperCase());
     }
   });
-
-  // 7. Convenios
   (Array.isArray(d.cuotas) ? d.cuotas : []).forEach((cuo: any) => {
     if (typeof cuo === 'object') {
       if (cuo?.inmueble) s.add(String(cuo.inmueble).trim().toUpperCase());
@@ -148,6 +136,29 @@ export const codigosDePago = (det: any, p?: any): string[] => {
     } else if (typeof cuo === 'string' && cuo.trim()) {
       s.add(cuo.trim().toUpperCase());
     }
+  });
+
+  if (s.size > 0) {
+    return [...s].filter(Boolean);
+  }
+
+  // 5. Recibos de caja (solo si no vino en recibos/montos, ignorando cédulas/RIF en codContribuyente)
+  const isRifLike = (val: string) => /^[VEJGP]-?\d+$/i.test(val.trim());
+  (Array.isArray(d.recibo_caja) ? d.recibo_caja : []).forEach((rc: any) => {
+    if (rc?.inmueble && !isRifLike(String(rc.inmueble))) s.add(String(rc.inmueble).trim().toUpperCase());
+    if (rc?.codigo_inmueble && !isRifLike(String(rc.codigo_inmueble))) s.add(String(rc.codigo_inmueble).trim().toUpperCase());
+    if (rc?.cod_inmueble && !isRifLike(String(rc.cod_inmueble))) s.add(String(rc.cod_inmueble).trim().toUpperCase());
+    if (rc?.codContribuyente && !isRifLike(String(rc.codContribuyente))) s.add(String(rc.codContribuyente).trim().toUpperCase());
+  });
+
+  if (s.size > 0) {
+    return [...s].filter(Boolean);
+  }
+
+  // 6. Deuda previa (último recurso solo si el pago no tiene recibos ni código de inmueble)
+  (Array.isArray(d.deuda_previa) ? d.deuda_previa : []).forEach((dp: any) => {
+    if (dp?.inmueble) s.add(String(dp.inmueble).trim().toUpperCase());
+    if (dp?.codigo) s.add(String(dp.codigo).trim().toUpperCase());
   });
 
   // Fallback al código del condominio si no se halló código de local individual
