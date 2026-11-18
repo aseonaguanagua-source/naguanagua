@@ -250,10 +250,29 @@ export default function LiberacionRetencionesPage() {
 
   const handleEmitirSolvencia = async (item: any) => {
     const codInm = item.codigosInmueble?.[0] || '';
+    if (!item.esSolventeDeuda) {
+      alert(`No se puede emitir Solvencia: ${codInm || item.identidad} tiene ${item.mesesDeudaMax || 1} mes(es) de deuda pendiente este mes. Solo está habilitado el envío y descarga de la Factura.`);
+      return;
+    }
     setSolvenciaId(item.pagoId);
     setFeedbackMsg(null);
     try {
-      // 1. Registrar en servidor que la Solvencia fue emitida desde este módulo (habilita descarga en Soy Contribuyente)
+      // 1. Verificar primero en /api/solvencia que esté solvente de deuda ordinaria este mes
+      const rSolv = await fetch('/api/solvencia', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          identidad: item.identidad,
+          inmueble: codInm || 'general',
+        }),
+      });
+      const jSolv = await rSolv.json();
+      if (!jSolv.solvente && !jSolv.bloqueadoRetencion) {
+        alert(jSolv.mensaje || `El inmueble ${codInm || item.identidad} presenta meses de deuda pendientes este mes. Solo puede enviarse la Factura.`);
+        return;
+      }
+
+      // 2. Registrar en servidor que la Solvencia fue emitida desde este módulo (habilita descarga en Soy Contribuyente)
       const resLib = await fetch('/api/admin/retenciones/liberar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -281,7 +300,7 @@ export default function LiberacionRetencionesPage() {
         )
       );
 
-      // 2. Generar directamente el Certificado de Solvencia PDF autorizado desde este módulo
+      // 3. Generar el Certificado de Solvencia PDF
       await generarSolvenciaPDF(
         {
           Identidad: item.identidad,
@@ -594,7 +613,7 @@ export default function LiberacionRetencionesPage() {
                         </label>
                         <div className="text-[10px] text-slate-500 mt-1">
                           {item.liberadoSinPlanilla
-                            ? 'Factura y Solvencia habilitadas'
+                            ? (item.esSolventeDeuda ? 'Factura y Solvencia disponibles' : `Solo Factura habilitada (Debe ${item.mesesDeudaMax || 1} mes)`)
                             : 'Exige planilla para entregar factura'}
                         </div>
                       </td>
@@ -648,31 +667,37 @@ export default function LiberacionRetencionesPage() {
                             </button>
                           )}
 
-                          <button
-                            onClick={() => handleEmitirSolvencia(item)}
-                            disabled={isBusySolv}
-                            className={`px-2.5 py-1.5 rounded-lg font-bold text-[11px] inline-flex items-center gap-1 border transition-colors cursor-pointer disabled:opacity-50 ${
-                              item.solvenciaEmitidaLiberacion
-                                ? 'bg-emerald-100 hover:bg-emerald-200 text-emerald-900 border-emerald-400'
-                                : item.esSolventeDeuda
-                                ? 'bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-300'
-                                : 'bg-slate-100 hover:bg-slate-200 text-slate-600 border-slate-300'
-                            }`}
-                            title={
-                              item.solvenciaEmitidaLiberacion
-                                ? 'Solvencia emitida desde acá y habilitada en Soy Contribuyente (clic para descargar de nuevo)'
-                                : item.esSolventeDeuda
-                                ? 'Emitir Certificado de Solvencia desde acá para habilitar su descarga en Soy Contribuyente (si no se emite desde acá, aplica la regla regular)'
-                                : `El inmueble registra ${item.mesesDeudaMax} mes(es) de deuda pendiente`
-                            }
-                          >
-                            {isBusySolv ? (
-                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                            ) : (
-                              <Award className={`w-3.5 h-3.5 ${item.solvenciaEmitidaLiberacion ? 'text-emerald-700' : 'text-amber-600'}`} />
-                            )}
-                            <span>{item.solvenciaEmitidaLiberacion ? '✓ Solvencia Emitida' : 'Emitir Solvencia'}</span>
-                          </button>
+                          {item.esSolventeDeuda ? (
+                            <button
+                              onClick={() => handleEmitirSolvencia(item)}
+                              disabled={isBusySolv}
+                              className={`px-2.5 py-1.5 rounded-lg font-bold text-[11px] inline-flex items-center gap-1 border transition-colors cursor-pointer disabled:opacity-50 ${
+                                item.solvenciaEmitidaLiberacion
+                                  ? 'bg-emerald-100 hover:bg-emerald-200 text-emerald-900 border-emerald-400'
+                                  : 'bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-300'
+                              }`}
+                              title={
+                                item.solvenciaEmitidaLiberacion
+                                  ? 'Solvencia emitida desde acá y habilitada en Soy Contribuyente (clic para descargar de nuevo)'
+                                  : 'Emitir Certificado de Solvencia desde acá para habilitar su descarga en Soy Contribuyente (si no se emite desde acá, aplica la regla regular)'
+                              }
+                            >
+                              {isBusySolv ? (
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <Award className={`w-3.5 h-3.5 ${item.solvenciaEmitidaLiberacion ? 'text-emerald-700' : 'text-amber-600'}`} />
+                              )}
+                              <span>{item.solvenciaEmitidaLiberacion ? '✓ Solvencia Emitida' : 'Emitir Solvencia'}</span>
+                            </button>
+                          ) : (
+                            <span
+                              className="px-2.5 py-1.5 rounded-lg font-bold text-[10px] inline-flex items-center gap-1 border bg-slate-100 text-slate-400 border-slate-200 select-none cursor-not-allowed"
+                              title={`Solvencia no disponible: el inmueble tiene ${item.mesesDeudaMax || 1} mes(es) de deuda pendiente este mes. Solo puede enviarse y descargarse la Factura.`}
+                            >
+                              <Award className="w-3.5 h-3.5 text-slate-400" />
+                              <span>Sin Solvencia (Debe {item.mesesDeudaMax || 1}m)</span>
+                            </span>
+                          )}
                         </div>
                       </td>
                     </tr>

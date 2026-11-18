@@ -182,18 +182,15 @@ export default function SolvenciaPage() {
     return () => { cancel = true; };
   }, [activeInm?.inmueble, portalDoc]);
 
-  // Regla oficial de solvencia: única por inmueble y requiere 0 deuda (propia y de sus actividades), 0 facturas pendientes y validación de padrón,
-  // O haber sido emitida/autorizada explícitamente desde el módulo de Liberación sin Planilla
+  // Regla oficial de solvencia: única por inmueble y requiere 0 deuda (propia y de sus actividades), 0 facturas pendientes y validación de padrón
   const isSolvente = Boolean(
     activeInm && 
     activeInm.estado === 'Activo' &&
-    (serverSolvencia.autorizadaDesdeLiberacion || (
-      !inmuebleTieneDeuda(activeInm) && 
-      !tieneDeudaHijos &&
-      facturasPendientes.length === 0 &&
-      !isBlockedByCondo &&
-      (!serverSolvencia.checked || serverSolvencia.solvente)
-    ))
+    !inmuebleTieneDeuda(activeInm) && 
+    !tieneDeudaHijos &&
+    facturasPendientes.length === 0 &&
+    !isBlockedByCondo &&
+    (!serverSolvencia.checked || serverSolvencia.solvente)
   );
 
   const handleDescargarPDF = async () => {

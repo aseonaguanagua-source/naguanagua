@@ -233,26 +233,13 @@ export async function POST(req: Request) {
         conDeuda.push(principal);
       }
 
-      const codigosAlcance = alcance.map((i: any) => i.inmueble).filter(Boolean);
-      const blqInm = await verificarEstadoLiberacionSolvencia(variantes.length ? variantes : [identidad], codigosAlcance);
-
-      // Si la solvencia fue emitida/habilitada explícitamente desde el módulo de Liberación sin Planilla, autorizar su emisión y descarga
-      if (blqInm.autorizadaDesdeLiberacion) {
-        return NextResponse.json({
-          solvente: true,
-          autorizadaDesdeLiberacion: true,
-          bloqueadoRetencion: false,
-          mensaje: 'Solvente (Habilitada desde Liberación sin Planilla)',
-          inmueblesConDeuda: []
-        });
-      }
-
       if (conDeuda.length) {
         return NextResponse.json({ solvente: false, inmueblesConDeuda: conDeuda.map((i: any) => i.inmueble),
           mensaje: `EMISIÓN DENEGADA: ${especifico} tiene deuda pendiente en: ${conDeuda.map((i: any) => `${i.inmueble} (${i.meses_deuda || 0} meses)`).join(', ')}.` });
       }
 
       // Validar facturas pendientes del inmueble y sus actividades agrupadas
+      const codigosAlcance = alcance.map((i: any) => i.inmueble).filter(Boolean);
       const { data: factsInm } = await sb
         .from('facturas')
         .select('id, referencia, inmueble, estado')
@@ -271,6 +258,7 @@ export async function POST(req: Request) {
         });
       }
 
+      const blqInm = await verificarEstadoLiberacionSolvencia(variantes.length ? variantes : [identidad], codigosAlcance);
       if (blqInm.bloqueado) {
         return NextResponse.json({
           solvente: false,
@@ -287,16 +275,6 @@ export async function POST(req: Request) {
     const vivos = (inmsRif || []).filter((i: any) => i.estado !== 'Eliminado');
     if (!vivos.length) return NextResponse.json({ solvente: false, mensaje: `${identidad} no tiene inmuebles activos (todos están eliminados). Reactive el inmueble antes de emitir la solvencia.`, inmueblesConDeuda: [] });
     const idList = variantes.length ? variantes : [identidad];
-    const blqGen = await verificarEstadoLiberacionSolvencia(idList, vivos.map((i: any) => i.inmueble).filter(Boolean));
-    if (blqGen.autorizadaDesdeLiberacion) {
-      return NextResponse.json({
-        solvente: true,
-        autorizadaDesdeLiberacion: true,
-        bloqueadoRetencion: false,
-        mensaje: 'Solvente (Habilitada desde Liberación sin Planilla)',
-        inmueblesConDeuda: []
-      });
-    }
 
     const detalle: string[] = [];
     const conDeuda: string[] = [];
@@ -317,6 +295,7 @@ export async function POST(req: Request) {
 
     if (detalle.length) return NextResponse.json({ solvente: false, inmueblesConDeuda: conDeuda, bloqueadoRetencion: false, mensaje: `EMISIÓN DENEGADA: ${identidad} tiene obligaciones pendientes en: ${detalle.join(', ')}.` });
 
+    const blqGen = await verificarEstadoLiberacionSolvencia(idList, vivos.map((i: any) => i.inmueble).filter(Boolean));
     if (blqGen.bloqueado) {
       return NextResponse.json({
         solvente: false,

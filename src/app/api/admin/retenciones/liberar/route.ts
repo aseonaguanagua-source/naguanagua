@@ -515,6 +515,23 @@ export async function POST(request: Request) {
     }
 
     if (accion === 'emitir_solvencia_liberada') {
+      const codes = extraerCodigosDePago(det);
+      const codInm = codes[0] || pago.identidad;
+
+      // Verificar primero que no tenga meses de deuda pendientes este mes
+      const vars = getIdentidadVariantsExact(pago.identidad);
+      const { data: inmsCheck } = codes.length > 0
+        ? await supabase.from('inmuebles').select('inmueble, estado, meses_deuda, deuda_mmv, deuda_congelada_bs, multa_bs, actividad_principal, cant_inmuebles, es_condominio').in('inmueble', codes)
+        : await supabase.from('inmuebles').select('inmueble, estado, meses_deuda, deuda_mmv, deuda_congelada_bs, multa_bs, actividad_principal, cant_inmuebles, es_condominio').in('identidad', vars.length ? vars : [pago.identidad]);
+
+      const inmsActivos = (inmsCheck || []).filter((i: any) => i.estado !== 'Eliminado');
+      const conDeudaActual = inmsActivos.filter(inmuebleTieneDeuda);
+      if (conDeudaActual.length > 0) {
+        return NextResponse.json({
+          error: `No se puede emitir la Solvencia porque el inmueble registra deuda pendiente este mes (${conDeudaActual.map((i: any) => `${i.inmueble}: ${i.meses_deuda || 1} mes(es)`).join(', ')}). Solo puede liberarse y enviarse la Factura.`,
+        }, { status: 409 });
+      }
+
       det.liberado_sin_planilla = true;
       det.exonerado_planilla_retencion = true;
       det.retencion_aprobada = true;
@@ -547,8 +564,6 @@ export async function POST(request: Request) {
         .update({ estado: 'Aprobado' })
         .filter('detalles->>pago_vinculado', 'eq', pago.id);
 
-      const codes = extraerCodigosDePago(det);
-      const codInm = codes[0] || pago.identidad;
       const hoy = new Date();
       const vencDate = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).toISOString().slice(0, 10);
       const numeroCertificado = `SOL-NAG-${hoy.getFullYear()}-${codInm}-${String(pago.identidad || '').replace(/\D/g, '').slice(-4) || '0000'}`;
