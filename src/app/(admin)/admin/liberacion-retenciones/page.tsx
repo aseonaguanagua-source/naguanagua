@@ -281,21 +281,7 @@ export default function LiberacionRetencionesPage() {
         )
       );
 
-      // 2. Verificar que no tenga meses de deuda ordinaria pendientes
-      const rSolv = await fetch('/api/solvencia', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          identidad: item.identidad,
-          inmueble: codInm || 'general',
-        }),
-      });
-      const jSolv = await rSolv.json();
-      if (!jSolv.solvente) {
-        alert(jSolv.mensaje || `El inmueble ${codInm || item.identidad} presenta meses de deuda pendientes.`);
-        return;
-      }
-
+      // 2. Generar directamente el Certificado de Solvencia PDF autorizado desde este módulo
       await generarSolvenciaPDF(
         {
           Identidad: item.identidad,

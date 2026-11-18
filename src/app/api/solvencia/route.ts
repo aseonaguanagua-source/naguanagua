@@ -58,13 +58,14 @@ async function deudaModulo(codigo: string): Promise<{ enModulo: boolean; deudaBs
 /**
  * Verifica si un Agente de Retención tiene pagos/facturas con retención de IVA (75%) cuyo comprobante
  * NO ha sido aprobado por Hacienda Municipal Y TAMPOCO ha sido habilitado/liberado desde el menú de Liberación sin Planilla.
+ * Además indica si la solvencia fue explícitamente emitida/autorizada desde el módulo de Liberación sin Planilla.
  */
-async function verificarBloqueoRetencionSolvencia(
+async function verificarEstadoLiberacionSolvencia(
   idVariants: string[],
   codigosAlcance: string[]
-): Promise<{ bloqueado: boolean; facturaRef?: string }> {
+): Promise<{ bloqueado: boolean; facturaRef?: string; autorizadaDesdeLiberacion: boolean }> {
   try {
-    if (!idVariants.length) return { bloqueado: false };
+    if (!idVariants.length) return { bloqueado: false, autorizadaDesdeLiberacion: false };
     const [{ data: pagos }, { data: retsIva }] = await Promise.all([
       sb
         .from('pagos_reportados')
@@ -80,7 +81,7 @@ async function verificarBloqueoRetencionSolvencia(
         .eq('estado', 'Aprobado'),
     ]);
 
-    if (!pagos || pagos.length === 0) return { bloqueado: false };
+    if (!pagos || pagos.length === 0) return { bloqueado: false, autorizadaDesdeLiberacion: false };
 
     const aprobIds = new Set<string>();
     const aprobControles = new Set<string>();
@@ -95,6 +96,9 @@ async function verificarBloqueoRetencionSolvencia(
     });
 
     const alcanceUpper = new Set(codigosAlcance.map(c => String(c || '').trim().toUpperCase()).filter(Boolean));
+    let autorizadaDesdeLiberacion = false;
+    let bloqueado = false;
+    let facturaRef: string | undefined;
 
     for (const p of pagos) {
       const refUpper = String(p.referencia || '').trim().toUpperCase();
@@ -131,6 +135,11 @@ async function verificarBloqueoRetencionSolvencia(
         }
       }
 
+      if (det.solvencia_emitida_liberacion === true) {
+        autorizadaDesdeLiberacion = true;
+        continue;
+      }
+
       const fd = det.factura_digital || {};
       const r = fd.retencion || {};
       const montoRet = parseFloat(String(det.monto_retencion_iva || det.retencion_iva || r.retenido || 0)) || 0;
@@ -145,11 +154,7 @@ async function verificarBloqueoRetencionSolvencia(
       // Solo exige planilla si la factura fue emitida o se descontó retención al pagar
       if (!fd.emitida && montoRet <= 0) continue;
 
-      // 1. ¿Fue emitida / habilitada la solvencia específicamente desde el menú de Liberación sin Planilla?
-      const solvenciaEmitidaDesdeLiberacion = Boolean(det.solvencia_emitida_liberacion === true);
-      if (solvenciaEmitidaDesdeLiberacion) continue;
-
-      // 2. ¿Tiene planilla de retención aprobada por la vía regular (reglas de siempre)?
+      // ¿Tiene planilla de retención aprobada por la vía regular (reglas de siempre)?
       const numDoc = String(fd.numero_documento || '').trim();
       const numCtrl = String(fd.numero_control || '').trim();
       const tienePlanillaEnTablaAprobada = Boolean(
@@ -162,16 +167,16 @@ async function verificarBloqueoRetencionSolvencia(
         (!det.liberado_sin_planilla && !det.exonerado_planilla_retencion && (det.retencion_aprobada === true || r.estado === 'aprobada'));
       if (aprobadaRegular) continue;
 
-      return {
-        bloqueado: true,
-        facturaRef: numDoc ? `Factura N° ${numDoc}` : (p.referencia || 'Pago con Retención'),
-      };
+      if (!bloqueado) {
+        bloqueado = true;
+        facturaRef = numDoc ? `Factura N° ${numDoc}` : (p.referencia || 'Pago con Retención');
+      }
     }
 
-    return { bloqueado: false };
+    return { bloqueado, facturaRef, autorizadaDesdeLiberacion };
   } catch (e) {
     console.warn('[solvencia] Error verificando retenciones:', e);
-    return { bloqueado: false };
+    return { bloqueado: false, autorizadaDesdeLiberacion: false };
   }
 }
 
@@ -228,13 +233,26 @@ export async function POST(req: Request) {
         conDeuda.push(principal);
       }
 
+      const codigosAlcance = alcance.map((i: any) => i.inmueble).filter(Boolean);
+      const blqInm = await verificarEstadoLiberacionSolvencia(variantes.length ? variantes : [identidad], codigosAlcance);
+
+      // Si la solvencia fue emitida/habilitada explícitamente desde el módulo de Liberación sin Planilla, autorizar su emisión y descarga
+      if (blqInm.autorizadaDesdeLiberacion) {
+        return NextResponse.json({
+          solvente: true,
+          autorizadaDesdeLiberacion: true,
+          bloqueadoRetencion: false,
+          mensaje: 'Solvente (Habilitada desde Liberación sin Planilla)',
+          inmueblesConDeuda: []
+        });
+      }
+
       if (conDeuda.length) {
         return NextResponse.json({ solvente: false, inmueblesConDeuda: conDeuda.map((i: any) => i.inmueble),
           mensaje: `EMISIÓN DENEGADA: ${especifico} tiene deuda pendiente en: ${conDeuda.map((i: any) => `${i.inmueble} (${i.meses_deuda || 0} meses)`).join(', ')}.` });
       }
 
       // Validar facturas pendientes del inmueble y sus actividades agrupadas
-      const codigosAlcance = alcance.map((i: any) => i.inmueble).filter(Boolean);
       const { data: factsInm } = await sb
         .from('facturas')
         .select('id, referencia, inmueble, estado')
@@ -253,7 +271,6 @@ export async function POST(req: Request) {
         });
       }
 
-      const blqInm = await verificarBloqueoRetencionSolvencia(variantes.length ? variantes : [identidad], codigosAlcance);
       if (blqInm.bloqueado) {
         return NextResponse.json({
           solvente: false,
@@ -269,6 +286,18 @@ export async function POST(req: Request) {
     // GENERAL: todos los inmuebles no eliminados del RIF + facturas pendientes
     const vivos = (inmsRif || []).filter((i: any) => i.estado !== 'Eliminado');
     if (!vivos.length) return NextResponse.json({ solvente: false, mensaje: `${identidad} no tiene inmuebles activos (todos están eliminados). Reactive el inmueble antes de emitir la solvencia.`, inmueblesConDeuda: [] });
+    const idList = variantes.length ? variantes : [identidad];
+    const blqGen = await verificarEstadoLiberacionSolvencia(idList, vivos.map((i: any) => i.inmueble).filter(Boolean));
+    if (blqGen.autorizadaDesdeLiberacion) {
+      return NextResponse.json({
+        solvente: true,
+        autorizadaDesdeLiberacion: true,
+        bloqueadoRetencion: false,
+        mensaje: 'Solvente (Habilitada desde Liberación sin Planilla)',
+        inmueblesConDeuda: []
+      });
+    }
+
     const detalle: string[] = [];
     const conDeuda: string[] = [];
     for (const i of sinContenedoresNA(vivos, vivos)) {
@@ -276,7 +305,6 @@ export async function POST(req: Request) {
       if (m.enModulo) { if (m.deudaBs > 0.01) { conDeuda.push(i.inmueble); detalle.push(...m.detalle); } continue; }
       if (inmuebleTieneDeuda(i)) { conDeuda.push(i.inmueble); detalle.push(`${i.inmueble} (${i.meses_deuda || 0} meses)`); }
     }
-    const idList = variantes.length ? variantes : [identidad];
     const { data: facts } = await sb.from('facturas').select('id, estado').in('identidad', idList).in('estado', ['Pendiente', 'Abonado', 'Por Verificar']);
     if (facts && facts.length > 0) {
       const porVerificar = facts.filter((f: any) => f.estado === 'Por Verificar');
@@ -289,7 +317,6 @@ export async function POST(req: Request) {
 
     if (detalle.length) return NextResponse.json({ solvente: false, inmueblesConDeuda: conDeuda, bloqueadoRetencion: false, mensaje: `EMISIÓN DENEGADA: ${identidad} tiene obligaciones pendientes en: ${detalle.join(', ')}.` });
 
-    const blqGen = await verificarBloqueoRetencionSolvencia(idList, vivos.map((i: any) => i.inmueble).filter(Boolean));
     if (blqGen.bloqueado) {
       return NextResponse.json({
         solvente: false,

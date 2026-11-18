@@ -152,7 +152,7 @@ export default function SolvenciaPage() {
   const deudaMMVNum = activeInm ? parseFloat(String(activeInm.deuda_mmv || '0')) : 999;
   const deudaCongeladaNum = activeInm ? parseFloat(String(activeInm.deuda_congelada_bs || '0')) : 0;
   
-  const [serverSolvencia, setServerSolvencia] = useState<{ checked: boolean; solvente: boolean; mensaje: string; bloqueadoRetencion?: boolean }>({ checked: false, solvente: false, mensaje: '', bloqueadoRetencion: false });
+  const [serverSolvencia, setServerSolvencia] = useState<{ checked: boolean; solvente: boolean; mensaje: string; bloqueadoRetencion?: boolean; autorizadaDesdeLiberacion?: boolean }>({ checked: false, solvente: false, mensaje: '', bloqueadoRetencion: false, autorizadaDesdeLiberacion: false });
 
   useEffect(() => {
     if (!activeInm || !portalDoc) return;
@@ -169,27 +169,31 @@ export default function SolvenciaPage() {
             checked: true,
             solvente: data.solvente,
             mensaje: data.mensaje || '',
-            bloqueadoRetencion: !!data.bloqueadoRetencion
+            bloqueadoRetencion: !!data.bloqueadoRetencion,
+            autorizadaDesdeLiberacion: !!data.autorizadaDesdeLiberacion
           });
         }
       })
       .catch(() => {
         if (!cancel) {
-          setServerSolvencia({ checked: true, solvente: !inmuebleTieneDeuda(activeInm) && !tieneDeudaHijos && facturasPendientes.length === 0, mensaje: '', bloqueadoRetencion: false });
+          setServerSolvencia({ checked: true, solvente: !inmuebleTieneDeuda(activeInm) && !tieneDeudaHijos && facturasPendientes.length === 0, mensaje: '', bloqueadoRetencion: false, autorizadaDesdeLiberacion: false });
         }
       });
     return () => { cancel = true; };
   }, [activeInm?.inmueble, portalDoc]);
 
-  // Regla oficial de solvencia: única por inmueble y requiere 0 deuda (propia y de sus actividades), 0 facturas pendientes y validación de padrón
+  // Regla oficial de solvencia: única por inmueble y requiere 0 deuda (propia y de sus actividades), 0 facturas pendientes y validación de padrón,
+  // O haber sido emitida/autorizada explícitamente desde el módulo de Liberación sin Planilla
   const isSolvente = Boolean(
     activeInm && 
     activeInm.estado === 'Activo' &&
-    !inmuebleTieneDeuda(activeInm) && 
-    !tieneDeudaHijos &&
-    facturasPendientes.length === 0 &&
-    !isBlockedByCondo &&
-    (!serverSolvencia.checked || serverSolvencia.solvente)
+    (serverSolvencia.autorizadaDesdeLiberacion || (
+      !inmuebleTieneDeuda(activeInm) && 
+      !tieneDeudaHijos &&
+      facturasPendientes.length === 0 &&
+      !isBlockedByCondo &&
+      (!serverSolvencia.checked || serverSolvencia.solvente)
+    ))
   );
 
   const handleDescargarPDF = async () => {
