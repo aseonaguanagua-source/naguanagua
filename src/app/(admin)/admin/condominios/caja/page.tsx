@@ -196,57 +196,76 @@ function Caja() {
       const condoCodigo = curCondo?.codigo || codigo;
       const condoIdent = curCondo?.identidad;
 
-      if (!condoCodigo && !condoIdent) {
-        setNotasCredito([]);
-        return;
-      }
-
-      const esModoContrib = cobro?.modo === 'CONTRIBUYENTE' || soloMultas;
-      const codigosUnidades = Array.from(
-        new Set(
-          (cobro?.lineas || [])
-            .flatMap((l: any) => [l?.inmueble, l?.padreInmueble])
-            .map((x: any) => String(x || '').trim().toUpperCase())
-            .filter(Boolean)
-        )
-      );
-      const unidadesIdents = (cobro?.lineas || []).flatMap((l: any) => [l?.identidad, l?.inmueble, l?.padreInmueble]).filter(Boolean);
-      const rawIdents = esModoContrib
-        ? [...unidadesIdents, identidad].filter(Boolean)
-        : [condoIdent, condoCodigo, ...unidadesIdents].filter(Boolean);
-      const allIdents = Array.from(new Set(rawIdents.flatMap(id => getIdentidadVariantsExact(id)))).slice(0, 300);
-
       const { data, error: errDocs } = await supabase
         .from('documentos')
         .select('*')
         .eq('tipo', 'Nota de Credito')
-        .in('identidad', allIdents)
         .order('created_at', { ascending: false });
 
       if (errDocs) console.error('Error fetching notas credito:', errDocs);
 
       const condoCodUpper = String(condoCodigo || '').trim().toUpperCase();
       const condoRifClean = String(condoIdent || '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
+
+      // Construir mapa de todas las unidades del condominio (incluyendo unidades solventes de cobro.estado.renglones)
+      const allRenglones = (cobro?.estado?.renglones && cobro.estado.renglones.length > 0)
+        ? cobro.estado.renglones
+        : (cobro?.lineas || []);
+
+      const allCondoUnitCodes = new Set<string>(
+        allRenglones
+          .flatMap((r: any) => [r?.inmueble, r?.padreInmueble])
+          .map((x: any) => String(x || '').trim().toUpperCase())
+          .filter(Boolean)
+      );
+      if (condoCodUpper) allCondoUnitCodes.add(condoCodUpper);
+
+      const allCondoIdents = new Set<string>(
+        [condoIdent, condoCodigo, ...allRenglones.flatMap((r: any) => [r?.identidad, r?.inmueble, r?.padreInmueble])]
+          .map((x: any) => String(x || '').replace(/[^A-Z0-9]/gi, '').toUpperCase())
+          .filter(Boolean)
+      );
+
       const validDocs = (data || []).filter((d: any) => {
-        if (d.estado === 'Anulado') return false;
+        const estUpper = String(d.estado || '').trim().toUpperCase();
+        if (estUpper === 'ANULADO' || estUpper === 'ANULADA') return false;
         let det: any = {};
         try { det = typeof d.detalles === 'string' ? JSON.parse(d.detalles) : (d.detalles || {}); } catch(e){}
-        const docAmbito = String(det.ambito || '').trim().toUpperCase();
-        const docInm = String(det.codigo_inmueble || '').trim().toUpperCase();
+        const docInm = String(det.codigo_inmueble || det.cod_inmueble || '').trim().toUpperCase();
         const docCondo = String(det.codigo_condominio || '').trim().toUpperCase();
+        const docCodigosList = Array.isArray(det.codigos_inmuebles)
+          ? det.codigos_inmuebles.map((c: any) => String(c || '').trim().toUpperCase()).filter(Boolean)
+          : [];
         const docIdentClean = String(d.identidad || '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
+        const refTextUpper = String(det.origen_referencia || det.motivo || '').toUpperCase();
 
+        // Si no hay condominio cargado aún, mostrar todas las notas de crédito de condominios y sus locales
+        if (!condoCodUpper && !condoRifClean) {
+          const docAmbito = String(det.ambito || '').trim().toUpperCase();
+          return Boolean(docCondo || docAmbito === 'CONDOMINIO' || docAmbito === 'LOCAL' || refTextUpper.includes('CONDOMINIO'));
+        }
+
+        // Si la nota pertenece explícitamente a otro condominio distinto, descartar
         if (docCondo && condoCodUpper && docCondo !== condoCodUpper) return false;
 
-        if (esModoContrib) {
-          // En modo Dueño Individual o Multas Separadas: mostrar únicamente notas de crédito de las unidades seleccionadas
-          if (docAmbito === 'CONDOMINIO' || (docInm && docInm === condoCodUpper)) return false;
-          if (docIdentClean === condoRifClean && (!docInm || (codigosUnidades.length > 0 && !codigosUnidades.includes(docInm)))) return false;
-          if (docInm && codigosUnidades.length > 0 && !codigosUnidades.includes(docInm)) return false;
-          const docIdentUpper = String(d.identidad || '').trim().toUpperCase();
-          if (!docInm && codigosUnidades.length > 0 && !codigosUnidades.includes(docIdentUpper) && (!docCondo || docCondo !== condoCodUpper)) return false;
+        // 1. Coincidencia directa por código de condominio
+        if (condoCodUpper && (docCondo === condoCodUpper || docInm === condoCodUpper || refTextUpper.includes(condoCodUpper))) {
+          return true;
         }
-        return true;
+        // 2. Coincidencia directa por código de cualquiera de los locales/unidades del condominio
+        if (docInm && allCondoUnitCodes.has(docInm)) {
+          return true;
+        }
+        if (docCodigosList.some((c: string) => allCondoUnitCodes.has(c))) {
+          return true;
+        }
+        // 3. Coincidencia por RIF / Cédula del condominio o de cualquiera de sus unidades
+        if (docIdentClean && allCondoIdents.has(docIdentClean)) {
+          if (docInm && allCondoUnitCodes.size > 1 && !allCondoUnitCodes.has(docInm)) return false;
+          return true;
+        }
+
+        return false;
       });
 
       setNotasCredito(validDocs);
@@ -261,7 +280,7 @@ function Caja() {
     if (activeTab === 'NotasCredito') {
       fetchNotasCredito();
     }
-  }, [activeTab, cobro?.condo?.codigo, cobro?.condo?.identidad, codigo, saldoFavorActivo]);
+  }, [activeTab, cobro?.condo?.codigo, cobro?.condo?.identidad, cobro?.estado?.renglones?.length, codigo, modo, claves.join(','), identidad, saldoFavorActivo]);
 
   const handleEliminarNota = async (docId: string, monto: any) => {
     const montoNum = parseLocalFloat(monto);
@@ -406,12 +425,15 @@ function Caja() {
     setFechaOverrideStr(''); setTasaOverrideStr('');
     if (unidad && todos && unidad.identidad) {
       setModo('CONTRIBUYENTE'); setIdentidad(String(unidad.identidad).toUpperCase());
+      setFiltroNotas(String(unidad.identidad).trim());
       router.replace(`/admin/condominios/caja?codigo=${cod}&cedula=${encodeURIComponent(unidad.identidad)}`);
     } else if (unidad) {
       setModo('CONTRIBUYENTE'); setIdentidad(''); setClaves([unidad.id]);
+      setFiltroNotas(String(unidad.inmueble || unidad.identidad || '').trim());
       router.replace(`/admin/condominios/caja?codigo=${cod}&unidad=${unidad.id}`);
     } else {
       setModo('CONDOMINIO'); setIdentidad('');
+      setFiltroNotas('');
       router.replace(`/admin/condominios/caja?codigo=${cod}`);
     }
   };
@@ -860,9 +882,15 @@ function Caja() {
     if (!cobro) return;
 
     const esModoContrib = cobro.modo === 'CONTRIBUYENTE' || soloMultas;
-    const codigoLocalSel = esModoContrib ? (cobro.lineas?.[0]?.padreInmueble || cobro.lineas?.[0]?.inmueble || undefined) : undefined;
-    let targetId = esModoContrib ? (cobro.facturas[0]?.identidad || cobro.lineas?.[0]?.identidad || cobro.condo.identidad) : (cobro.condo.identidad || cobro.condo.codigo);
-    let targetName = esModoContrib ? (cobro.facturas[0]?.nombre || cobro.lineas?.[0]?.propietario || cobro.condo.nombre) : cobro.condo.nombre;
+    const unidadResuelta = esModoContrib
+      ? (cobro.lineas?.[0] || (cobro.estado?.renglones || []).find((r: any) =>
+          (claves.length > 0 && (claves.includes(r.clave) || (r.padreId && claves.includes(r.padreId)) || (r.inmueble && claves.includes(r.inmueble)))) ||
+          (identidad.trim() && normId(r.identidad) === normId(identidad))
+        ))
+      : undefined;
+    const codigoLocalSel = esModoContrib ? (unidadResuelta?.padreInmueble || unidadResuelta?.inmueble || undefined) : undefined;
+    let targetId = esModoContrib ? (cobro.facturas[0]?.identidad || unidadResuelta?.identidad || identidad.trim() || cobro.condo.identidad) : (cobro.condo.identidad || cobro.condo.codigo);
+    let targetName = esModoContrib ? (cobro.facturas[0]?.nombre || unidadResuelta?.propietario || cobro.condo.nombre) : cobro.condo.nombre;
     const modalidadOrigen = modo === 'CONDOMINIO'
       ? (abonoLocales ? 'abono_locales' : 'completo')
       : (soloMultas ? 'multas_separadas' : 'individual');
@@ -999,6 +1027,20 @@ function Caja() {
       <div className="relative print:hidden">
         <Search className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
         <input id="buscar-caja-condominio" value={q} onChange={e => setQ(e.target.value)} autoFocus
+          onKeyDown={e => {
+            if (e.key === 'Enter' && res) {
+              const qUpper = q.trim().toUpperCase();
+              const exactCondo = (res.condominios || []).find((x: any) => String(x.codigo || '').toUpperCase() === qUpper);
+              if (exactCondo) { elegir(exactCondo.codigo); return; }
+              const exactUnit = (res.unidades || []).find((u: any) => String(u.inmueble || '').toUpperCase() === qUpper);
+              if (exactUnit && exactUnit.condominios?.codigo) { elegir(exactUnit.condominios.codigo, exactUnit); return; }
+              if ((res.condominios || []).length === 1 && (res.unidades || []).length === 0) {
+                elegir(res.condominios[0].codigo);
+              } else if ((res.unidades || []).length === 1 && (res.condominios || []).length === 0 && res.unidades[0].condominios?.codigo) {
+                elegir(res.unidades[0].condominios.codigo, res.unidades[0]);
+              }
+            }
+          }}
           placeholder="Nombre, código (URB…), RIF del condominio, o cédula / nombre del dueño de una unidad…"
           className="w-full pl-12 pr-4 py-4 rounded-2xl border border-slate-300 bg-white text-base shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
         {buscando && <RefreshCw className="w-4 h-4 animate-spin text-slate-400 absolute right-4 top-1/2 -translate-y-1/2" />}
@@ -1051,64 +1093,81 @@ function Caja() {
       </div>
 
       {error && <div className="rounded-xl border border-red-300 bg-red-50 p-3 text-red-800 text-sm flex gap-2 print:hidden"><AlertTriangle className="w-4 h-4 mt-0.5" /> {error}</div>}
-      {!codigo && !error && (
+      {!codigo && !error && activeTab === 'Pagos' && (
         <div className="rounded-2xl border-2 border-dashed border-slate-200 py-16 text-center text-slate-400 print:hidden">
           <Building2 className="w-10 h-10 mx-auto mb-2" /> Busque un condominio para cobrar.
         </div>
       )}
       {codigo && !cobro && calculando && <div className="py-16 text-center text-slate-500 print:hidden"><RefreshCw className="w-6 h-6 animate-spin inline mr-2" /> Calculando…</div>}
 
-      {c && cobro && activeTab === 'NotasCredito' && (
+      {activeTab === 'NotasCredito' && (
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 print:hidden">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
             <div>
               <h2 className="text-lg font-semibold text-slate-800">Control de Saldos a Favor (Notas de Crédito)</h2>
-              <p className="text-xs text-slate-500 mt-0.5">Notas de crédito vinculadas al condominio {c.nombre} ({c.codigo})</p>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {c
+                  ? `Notas de crédito vinculadas al condominio ${c.nombre} (${c.codigo}) y sus locales`
+                  : 'Notas de crédito registradas en condominios y sus locales — busque o filtre por código (URB...), RIF o nombre'}
+              </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <div className="relative">
                 <input
                   type="text"
-                  placeholder="🔍 Filtrar por Cédula, RIF o Nombre..."
+                  placeholder="🔍 Filtrar por Código (URB...), Cédula, RIF o Nombre..."
                   value={filtroNotas}
                   onChange={e => setFiltroNotas(e.target.value)}
-                  className="text-xs px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 w-60"
+                  className="text-xs px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 w-72"
                 />
                 {filtroNotas && (
                   <button
                     onClick={() => setFiltroNotas('')}
                     className="absolute right-2 top-2 text-slate-400 hover:text-slate-600 text-xs font-bold"
+                    title="Limpiar filtro y ver todas las notas del condominio"
                   >
                     ×
                   </button>
                 )}
               </div>
-              <button
-                onClick={() => {
-                  setNotaEditando({
-                    id: `__directo__${c.codigo || c.identidad}`,
-                    isDirecto: true,
-                    detalles: JSON.stringify({
-                      monto_bs: saldoFavorActivo,
-                      origen_referencia: 'Ajuste manual de saldo a favor',
-                      motivo: 'Ajuste manual solicitado desde Caja'
-                    })
-                  });
-                  setNotaEditMonto(formatLocalNumberInput(saldoFavorActivo.toFixed(2).replace('.', ',')));
-                  setNotaEditRef('Ajuste Manual');
-                  setNotaEditMotivo('Ajuste manual de saldo a favor');
-                }}
-                className="text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 px-3 py-2 rounded-lg shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer"
-                title="Ajustar o poner en 0 el saldo a favor de este condominio manualmente"
-              >
-                ⚙️ Ajustar Saldo Directo
-              </button>
-              <button
-                onClick={() => setIsNotaModalOpen(true)}
-                className="text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-3.5 py-2 rounded-lg shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer"
-              >
-                + Generar Nota de Crédito Manual
-              </button>
+              {filtroNotas && notasCredito.length > 0 && (
+                <button
+                  onClick={() => setFiltroNotas('')}
+                  className="text-xs font-bold text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 px-2.5 py-2 rounded-lg transition-colors cursor-pointer"
+                >
+                  Ver todas ({notasCredito.length})
+                </button>
+              )}
+              {c && cobro && (
+                <>
+                  <button
+                    onClick={() => {
+                      setNotaEditando({
+                        id: `__directo__${c.codigo || c.identidad}`,
+                        isDirecto: true,
+                        detalles: JSON.stringify({
+                          monto_bs: saldoFavorActivo,
+                          origen_referencia: 'Ajuste manual de saldo a favor',
+                          motivo: 'Ajuste manual solicitado desde Caja'
+                        })
+                      });
+                      setNotaEditMonto(formatLocalNumberInput(saldoFavorActivo.toFixed(2).replace('.', ',')));
+                      setNotaEditRef('Ajuste Manual');
+                      setNotaEditMotivo('Ajuste manual de saldo a favor');
+                    }}
+                    className="text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 px-3 py-2 rounded-lg shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer"
+                    title="Ajustar o poner en 0 el saldo a favor de este condominio manualmente"
+                  >
+                    ⚙️ Ajustar Saldo Directo
+                  </button>
+                  <button
+                    onClick={() => setIsNotaModalOpen(true)}
+                    className="text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-3.5 py-2 rounded-lg shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer"
+                  >
+                    + Generar Nota de Crédito Manual
+                  </button>
+                </>
+              )}
             </div>
           </div>
           <div className="overflow-x-auto">
@@ -1116,6 +1175,7 @@ function Caja() {
               <thead className="text-xs text-slate-600 uppercase bg-slate-50 border-b">
                 <tr>
                   <th className="px-4 py-3">Fecha</th>
+                  <th className="px-4 py-3">Código / Inmueble</th>
                   <th className="px-4 py-3">Cédula / RIF</th>
                   <th className="px-4 py-3">Contribuyente</th>
                   <th className="px-4 py-3 text-right">Monto (Bs)</th>
@@ -1125,7 +1185,7 @@ function Caja() {
                 </tr>
               </thead>
               <tbody>
-                {isLoadingNotas ? <tr><td colSpan={7} className="text-center py-4 text-slate-500">Cargando...</td></tr> :
+                {isLoadingNotas ? <tr><td colSpan={8} className="text-center py-4 text-slate-500">Cargando...</td></tr> :
                 (() => {
                   const notasFiltradas = notasCredito.filter(n => {
                     if (!filtroNotas.trim()) return true;
@@ -1137,13 +1197,28 @@ function Caja() {
                     let details: any = {};
                     try { details = typeof n.detalles === 'string' ? JSON.parse(n.detalles) : (n.detalles || {}); } catch(e){}
                     const ref = String(details.origen_referencia || '').toLowerCase();
-                    return id.includes(f) || idClean.includes(fClean) || name.includes(f) || ref.includes(f);
+                    const motivo = String(details.motivo || '').toLowerCase();
+                    const codInm = String(details.codigo_inmueble || details.cod_inmueble || '').toLowerCase();
+                    const codCondo = String(details.codigo_condominio || '').toLowerCase();
+                    const codList = Array.isArray(details.codigos_inmuebles)
+                      ? details.codigos_inmuebles.map((x: any) => String(x || '').toLowerCase()).join(' ')
+                      : '';
+                    return (
+                      id.includes(f) ||
+                      idClean.includes(fClean) ||
+                      name.includes(f) ||
+                      ref.includes(f) ||
+                      motivo.includes(f) ||
+                      codInm.includes(f) ||
+                      codCondo.includes(f) ||
+                      codList.includes(f)
+                    );
                   });
 
                   if (notasFiltradas.length === 0) {
                     return (
                       <tr>
-                        <td colSpan={7} className="text-center py-6 text-slate-400">
+                        <td colSpan={8} className="text-center py-6 text-slate-400">
                           {filtroNotas.trim() 
                             ? `No se encontraron notas de crédito que coincidan con "${filtroNotas}".` 
                             : 'No se encontraron notas de crédito para este condominio.'}
@@ -1160,23 +1235,27 @@ function Caja() {
                     const rawMonto = details.monto ?? details.monto_bs ?? 0;
                     const formattedMonto = formatBs(rawMonto);
                     const esVigente = n.estado === 'Vigente';
-                    const docInm = String(details.codigo_inmueble || '').trim().toUpperCase();
+                    const docInm = String(details.codigo_inmueble || details.cod_inmueble || '').trim().toUpperCase();
+                    const docCondo = String(details.codigo_condominio || c?.codigo || '').trim().toUpperCase();
                     const docAmbito = String(details.ambito || '').trim().toUpperCase();
-                    const esNotaLocal = docAmbito === 'LOCAL' || (docInm && docInm !== String(c.codigo || '').toUpperCase());
+                    const esNotaLocal = docAmbito === 'LOCAL' || (docInm && docInm !== String(c?.codigo || docCondo || '').toUpperCase());
                     return (
                       <tr key={n.id} className="border-b hover:bg-slate-50">
                         <td className="px-4 py-3">{new Date(n.created_at).toLocaleDateString()}</td>
+                        <td className="px-4 py-3 font-mono font-bold text-slate-800">
+                          {docInm || docCondo || '-'}
+                        </td>
                         <td className="px-4 py-3 font-medium">{n.identidad}</td>
                         <td className="px-4 py-3">
                           <div className="font-medium text-slate-800">{n.contribuyente}</div>
                           <div className="mt-0.5">
                             {esNotaLocal ? (
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-800 border border-sky-300">
-                                🏠 Local Individual: {docInm || 'Unidad'}
+                                🏠 Local Individual: {docInm || 'Unidad'}{docCondo && docCondo !== docInm ? ` (${docCondo})` : ''}
                               </span>
                             ) : (
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                                🏢 Condominio ({c.codigo}) — Pago Completo / Abono
+                                🏢 Condominio ({docCondo || c?.codigo || '-'}) — Pago Completo / Abono
                               </span>
                             )}
                           </div>

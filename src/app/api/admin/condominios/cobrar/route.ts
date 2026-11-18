@@ -41,14 +41,28 @@ export async function POST(req: Request) {
       // diferenciando estrictamente CONDOMINIO (Pago Completo / Abono por Locales) vs LOCAL (Individual / Multas)
       let saldoFavorDisp = 0;
       const esModoContribuyente = cobro.modo === 'CONTRIBUYENTE' || !!sol.soloMultas;
+      const normCed = (s: any) => String(s || '').toUpperCase().trim().replace(/^[VEJPG]-?/, '').replace(/[^A-Z0-9]/g, '').replace(/^0+/, '');
+      const unidadesTarget = (cobro.lineas && cobro.lineas.length > 0)
+        ? cobro.lineas
+        : (esModoContribuyente
+            ? (cobro.estado?.renglones || []).filter((r: any) => {
+                if (sol.claves && sol.claves.length > 0) {
+                  return sol.claves.includes(r.clave) || (r.padreId && sol.claves.includes(r.padreId)) || (r.inmueble && sol.claves.includes(r.inmueble));
+                }
+                if (sol.identidad) {
+                  return normCed(r.identidad) === normCed(sol.identidad);
+                }
+                return false;
+              })
+            : []);
       const currId = esModoContribuyente
-        ? (cobro.facturas[0]?.identidad || sol.identidad || cobro.lineas[0]?.identidad)
+        ? (cobro.facturas[0]?.identidad || sol.identidad || unidadesTarget[0]?.identidad)
         : cobro.condo?.identidad;
       const condoCod = String(cobro.condo?.codigo || '').trim().toUpperCase();
       const condoRifClean = String(cobro.condo?.identidad || '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
       const codigosUnidadesCobro = Array.from(
         new Set(
-          (cobro.lineas || [])
+          unidadesTarget
             .flatMap((l: any) => [l.inmueble, l.padreInmueble])
             .map((x: any) => String(x || '').trim().toUpperCase())
             .filter(Boolean)
@@ -58,58 +72,65 @@ export async function POST(req: Request) {
 
       let saldoDocs = 0;
       try {
-        let qDocs = sb.from('documentos').select('*').eq('tipo', 'Nota de Credito').eq('estado', 'Vigente');
-        const orsDocs: string[] = [];
-        if (idVars.length > 0) orsDocs.push(...idVars.map(v => `identidad.eq.${v}`));
-        if (esModoContribuyente) {
-          if (codigosUnidadesCobro.length > 0) orsDocs.push(...codigosUnidadesCobro.map(c => `identidad.eq.${c}`));
-        } else if (condoCod) {
-          orsDocs.push(`identidad.eq.${condoCod}`);
-        }
-        if (orsDocs.length > 0) {
-          const { data: docsData } = await qDocs.or(orsDocs.join(','));
-          saldoDocs = (docsData || []).reduce((acc: number, n: any) => {
-            let det: any = {};
-            try { det = typeof n.detalles === 'string' ? JSON.parse(n.detalles) : (n.detalles || {}); } catch(e){}
+        const { data: docsData } = await sb
+          .from('documentos')
+          .select('*')
+          .eq('tipo', 'Nota de Credito')
+          .eq('estado', 'Vigente');
 
-            const docAmbito = String(det.ambito || '').trim().toUpperCase();
-            const docInm = String(det.codigo_inmueble || '').trim().toUpperCase();
-            const docCondo = String(det.codigo_condominio || '').trim().toUpperCase();
-            const docIdentClean = String(n.identidad || '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
+        const currIdClean = String(currId || '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
+        const idVarsSet = new Set(idVars.map(v => String(v || '').trim().toUpperCase()));
 
-            if (esModoContribuyente) {
-              // En modo Dueño Individual o Multas Separadas: NUNCA usar notas de crédito del Condominio matriz
-              // ni notas de crédito de otros inmuebles fuera del condominio que compartan el mismo RIF
-              if (docAmbito === 'CONDOMINIO' || (docInm && docInm === condoCod)) {
-                return acc;
-              }
-              if (docIdentClean === condoRifClean && (!docInm || !codigosUnidadesCobro.includes(docInm))) {
-                return acc;
-              }
-              if (docInm && !codigosUnidadesCobro.includes(docInm)) {
-                return acc;
-              }
-              const docIdentUpper = String(n.identidad || '').trim().toUpperCase();
-              if (!docInm && !codigosUnidadesCobro.includes(docIdentUpper) && (!docCondo || docCondo !== condoCod)) {
-                return acc;
-              }
-            } else {
-              // En modo CONDOMINIO (Pago Completo o Abono por Locales): NUNCA mezclar notas de locales individuales
-              if (docAmbito === 'LOCAL') {
-                return acc;
-              }
-              if (docInm && docInm !== condoCod) {
-                return acc;
-              }
-              if (docCondo && condoCod && docCondo !== condoCod) {
-                return acc;
-              }
+        saldoDocs = (docsData || []).reduce((acc: number, n: any) => {
+          let det: any = {};
+          try { det = typeof n.detalles === 'string' ? JSON.parse(n.detalles) : (n.detalles || {}); } catch(e){}
+
+          const docAmbito = String(det.ambito || '').trim().toUpperCase();
+          const docInm = String(det.codigo_inmueble || det.cod_inmueble || '').trim().toUpperCase();
+          const docCondo = String(det.codigo_condominio || '').trim().toUpperCase();
+          const docIdentUpper = String(n.identidad || '').trim().toUpperCase();
+          const docIdentClean = docIdentUpper.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+
+          const matchesIdent = (currIdClean && docIdentClean === currIdClean) || idVarsSet.has(docIdentUpper);
+          const matchesUnitCode = codigosUnidadesCobro.length > 0 && (
+            (docInm && codigosUnidadesCobro.includes(docInm)) ||
+            codigosUnidadesCobro.includes(docIdentUpper)
+          );
+          const matchesCondoCode = condoCod && (docCondo === condoCod || docInm === condoCod || docIdentUpper === condoCod);
+
+          if (esModoContribuyente) {
+            if (!matchesIdent && !matchesUnitCode) return acc;
+            // En modo Dueño Individual o Multas Separadas: NUNCA usar notas de crédito del Condominio matriz
+            // ni notas de crédito de otros inmuebles fuera del condominio que compartan el mismo RIF
+            if (docAmbito === 'CONDOMINIO' || (docInm && docInm === condoCod)) {
+              return acc;
             }
+            if (docIdentClean === condoRifClean && (!docInm || !codigosUnidadesCobro.includes(docInm))) {
+              return acc;
+            }
+            if (docInm && codigosUnidadesCobro.length > 0 && !codigosUnidadesCobro.includes(docInm)) {
+              return acc;
+            }
+            if (!docInm && codigosUnidadesCobro.length > 0 && !codigosUnidadesCobro.includes(docIdentUpper) && (!docCondo || docCondo !== condoCod)) {
+              return acc;
+            }
+          } else {
+            if (!matchesIdent && !matchesCondoCode) return acc;
+            // En modo CONDOMINIO (Pago Completo o Abono por Locales): NUNCA mezclar notas de locales individuales
+            if (docAmbito === 'LOCAL') {
+              return acc;
+            }
+            if (docInm && docInm !== condoCod) {
+              return acc;
+            }
+            if (docCondo && condoCod && docCondo !== condoCod) {
+              return acc;
+            }
+          }
 
-            const m = parseLocalFloat(det.monto_bs ?? det.monto ?? 0);
-            return acc + (isNaN(m) ? 0 : m);
-          }, 0);
-        }
+          const m = parseLocalFloat(det.monto_bs ?? det.monto ?? 0);
+          return acc + (isNaN(m) ? 0 : m);
+        }, 0);
       } catch (e) {
         console.warn('Error calculando saldo de notas de crédito en documentos:', e);
       }

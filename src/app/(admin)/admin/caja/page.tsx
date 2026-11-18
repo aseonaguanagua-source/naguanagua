@@ -5053,6 +5053,7 @@ export default function CajaPage() {
               <thead className="text-xs text-slate-600 uppercase bg-slate-50 border-b">
                 <tr>
                   <th className="px-4 py-3">Fecha</th>
+                  <th className="px-4 py-3">Código / Inmueble</th>
                   <th className="px-4 py-3">Cédula / RIF</th>
                   <th className="px-4 py-3">Contribuyente</th>
                   <th className="px-4 py-3 text-right">Monto (Bs)</th>
@@ -5063,23 +5064,31 @@ export default function CajaPage() {
               </thead>
               <tbody>
                 {isLoadingNotas ? (
-                  <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-500"><div className="flex items-center justify-center gap-2"><div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>Cargando notas de crédito...</div></td></tr>
+                  <tr><td colSpan={8} className="px-4 py-8 text-center text-slate-500"><div className="flex items-center justify-center gap-2"><div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>Cargando notas de crédito...</div></td></tr>
                 ) : notasCredito.length === 0 ? (
-                  <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-500">No hay notas de crédito registradas en el sistema.</td></tr>
+                  <tr><td colSpan={8} className="px-4 py-8 text-center text-slate-500">No hay notas de crédito registradas en el sistema.</td></tr>
                 ) : notasCredito.filter(n => {
                   if (!filtroNotas.trim()) return true;
                   const q = filtroNotas.trim().toLowerCase();
+                  const qClean = q.replace(/[-\s]/g, '');
                   let details: any = {};
                   try {
                     details = typeof n.detalles === 'string' ? JSON.parse(n.detalles) : (n.detalles || {});
                   } catch(e){}
+                  const codList = Array.isArray(details.codigos_inmuebles)
+                    ? details.codigos_inmuebles.map((x: any) => String(x || '').toLowerCase()).join(' ')
+                    : '';
+                  const idClean = String(n.identidad || '').toLowerCase().replace(/[-\s]/g, '');
                   return (
                     String(n.id || '').toLowerCase().includes(q) ||
                     String(n.identidad || '').toLowerCase().includes(q) ||
+                    idClean.includes(qClean) ||
                     String(n.contribuyente || '').toLowerCase().includes(q) ||
                     String(details.origen_referencia || '').toLowerCase().includes(q) ||
+                    String(details.motivo || '').toLowerCase().includes(q) ||
                     String(details.codigo_inmueble || details.cod_inmueble || '').toLowerCase().includes(q) ||
-                    String(details.codigo_condominio || '').toLowerCase().includes(q)
+                    String(details.codigo_condominio || '').toLowerCase().includes(q) ||
+                    codList.includes(q)
                   );
                 }).map(n => {
                   let details: any = {};
@@ -5088,9 +5097,11 @@ export default function CajaPage() {
                   } catch(e){}
                   const rawMonto = parseLocalFloat(details.monto_bs ?? details.monto ?? 0);
                   const formattedMonto = formatBs(rawMonto);
+                  const docInm = details.codigo_inmueble || details.cod_inmueble || details.codigo_condominio || (Array.isArray(details.codigos_inmuebles) && details.codigos_inmuebles.length > 0 ? details.codigos_inmuebles[0] : '-');
                   return (
                     <tr key={n.id} className="border-b hover:bg-slate-50">
                       <td className="px-4 py-3">{new Date(n.created_at).toLocaleDateString()}</td>
+                      <td className="px-4 py-3 font-mono font-bold text-slate-800">{docInm}</td>
                       <td className="px-4 py-3 font-medium">{n.identidad}</td>
                       <td className="px-4 py-3">{n.contribuyente}</td>
                       <td className="px-4 py-3 text-right font-bold text-emerald-600">Bs. {formattedMonto}</td>
