@@ -2531,12 +2531,6 @@ export default function CajaPage() {
   });
 
   const [cargandoTasaFecha, setCargandoTasaFecha] = useState(false);
-  const esElHato33302 = Boolean(
-    foundUser &&
-    (/314459325/.test(String(foundUser.Identidad || '')) ||
-      /URB033302|URB008338|URB008339|URB008340|URB008341/i.test(String(foundUser.CodCont || foundUser.cod_cont || '')))
-  );
-
   const fetchTasaHistorica = async (fechaParam?: string) => {
     const fecha = fechaParam || selectedUcdDate;
     if (!fecha) return;
@@ -2551,8 +2545,7 @@ export default function CajaPage() {
     setCargandoTasaFecha(true);
     try {
       const { euro, fechaValor } = await obtenerTasaEuroFecha(fecha);
-      const tasaAplicar = (esElHato33302 && fecha === '2026-11-05') ? 1005.26423 : euro;
-      setCustomBcvRate(String(tasaAplicar));
+      setCustomBcvRate(String(euro));
       setFechaTransaccion(fecha);
       setJustificacionBcv(`Tasa BCV Euro del ${fechaDMY(fecha)}${fechaValor !== fecha ? ` (publicada con fecha valor ${fechaDMY(fechaValor)})` : ''}`);
     } catch (e: any) {
@@ -2561,12 +2554,6 @@ export default function CajaPage() {
       setCargandoTasaFecha(false);
     }
   };
-
-  useEffect(() => {
-    if (esElHato33302 && selectedUcdDate === '2026-11-05' && customBcvRate && customBcvRate !== '1005.26423') {
-      setCustomBcvRate('1005.26423');
-    }
-  }, [esElHato33302, selectedUcdDate, customBcvRate]);
 
   // ── Monto acordado puntual (autorizado por la administración) ──
   // Solo para el inmueble indicado, solo en la fecha indicada y solo si se cobra TODA su deuda con retención 75%.
