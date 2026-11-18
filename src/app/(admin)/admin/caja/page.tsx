@@ -4918,7 +4918,16 @@ export default function CajaPage() {
       } catch {}
       
       const pagosFiltrados = (pagosHoy || []).filter(p => {
-        if (p.estado === 'Anulado' || p.estado === 'Reversado' || p.estado === 'Condonado' || p.estado === 'Rechazado') return false;
+        if (
+          p.estado === 'Anulado' ||
+          p.estado === 'Reversado' ||
+          p.estado === 'Condonado' ||
+          p.estado === 'Rechazado' ||
+          p.estado === 'Por Verificar' ||
+          p.estado === 'Pendiente'
+        ) {
+          return false;
+        }
         if (cajeroActual === 'Administrador' || cajeroActual === 'Sistema' || canViewAll) return true;
         const det = typeof p.detalles === 'object' ? p.detalles : (JSON.parse(p.detalles || '{}'));
         const pCajero = (det.cajero || det.analista || '').toLowerCase();

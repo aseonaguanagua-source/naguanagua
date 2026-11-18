@@ -80,7 +80,7 @@ const r2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
 const fechaVE = (d: any) => { const x = new Date(d); return isNaN(x.getTime()) ? '' : new Date(x.getTime() - 4 * 3600 * 1000).toISOString().slice(0, 10); };
 const dmy = (iso: string) => { const [y, m, d] = String(iso || '').slice(0, 10).split('-'); return d ? `${d}/${m}/${y}` : iso; };
 const esAnulado = (p: any) => {
-  if (['Anulado', 'Reversado', 'Condonado', 'Rechazado'].includes(String(p.estado || ''))) return true;
+  if (['Anulado', 'Reversado', 'Condonado', 'Rechazado', 'Por Verificar', 'Pendiente'].includes(String(p.estado || ''))) return true;
   if (String(p.estado || '') === 'Aprobado') return false;
   const det = parseDet(p);
   const caj = String(det?.cajero || det?.analista || '').trim();

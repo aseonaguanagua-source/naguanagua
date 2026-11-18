@@ -430,8 +430,17 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
   const getFilteredPagos = () => {
     const hasSearch = !!searchTerm.trim();
     return pagos.filter(p => {
-      // Excluir pagos anulados o rechazados
-      if (p.estado === 'Anulado' || p.estado === 'Reversado' || p.estado === 'Condonado' || p.estado === 'Rechazado') return false;
+      // Excluir pagos anulados, rechazados o aún pendientes por conciliar ("Por Verificar" / "Pendiente")
+      if (
+        p.estado === 'Anulado' ||
+        p.estado === 'Reversado' ||
+        p.estado === 'Condonado' ||
+        p.estado === 'Rechazado' ||
+        p.estado === 'Por Verificar' ||
+        p.estado === 'Pendiente'
+      ) {
+        return false;
+      }
       const det = parseDet(p);
       const d = obtenerFechaEfectivaCuadre(p, det);
       // En el Cuadre de Caja se audita lo cobrado por el cajero en ese turno/día específico.
@@ -476,9 +485,8 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
         if (forma === 'Saldo a Favor' && !isSaldoPago(p)) return false;
         if (forma === 'Retenciones IVA' && !isRetencionPago(p)) return false;
       }
-      // Las transferencias registradas por cajero deben salir en su cuadre
-      // Solo transferencias del portal web sin cajero requieren estar previamente conciliadas
-      if (isTransfPago(p) && !det.cajero && p.estado !== 'Aprobado' && p.estado !== 'Con Diferencia') return false;
+      // En Cuadre de Caja solo deben salir las transferencias que ya están conciliadas (Aprobado / Con Diferencia)
+      if (isTransfPago(p) && p.estado !== 'Aprobado' && p.estado !== 'Con Diferencia') return false;
 
       if (hasSearch && !coincideBusqueda(p, searchTerm, contribMap)) return false;
 

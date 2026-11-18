@@ -29,14 +29,23 @@ const safeD = (raw: any) => {
 };
 
 export const generarCuadreCajaPDF = (
-  pagosFiltrados: any[], 
+  pagosFiltradosRaw: any[], 
   fechaInicio: string,
   fechaFin: string,
   cajeroNombre: string = 'Todos',
   contribuyentes: any[] = []
 ) => {
+  const pagosFiltrados = (pagosFiltradosRaw || []).filter(
+    p =>
+      p.estado !== 'Por Verificar' &&
+      p.estado !== 'Pendiente' &&
+      p.estado !== 'Anulado' &&
+      p.estado !== 'Reversado' &&
+      p.estado !== 'Condonado' &&
+      p.estado !== 'Rechazado'
+  );
   if (!pagosFiltrados || pagosFiltrados.length === 0) {
-    alert("No hay pagos en el rango de fechas seleccionado.");
+    alert("No hay pagos conciliados en el rango de fechas seleccionado.");
     return;
   }
 
