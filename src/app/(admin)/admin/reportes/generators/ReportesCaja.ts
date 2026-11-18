@@ -1231,7 +1231,7 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
         c.border = BORDE;
         if (i === 2 || i === 3 || i === 5 || i === 6) c.numFmt = '#,##0.00';
       });
-      row.getCell(7).value = { formula: `IF(D${fp}="","",D${fp}-C${fp})` } as any;
+      row.getCell(6).value = { formula: `IF(D${fp}="","",C${fp}-D${fp})` } as any;
       totalCaja += x.monto;
       totalPersonasCaja += x.usuarios;
       fp++;
