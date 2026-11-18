@@ -873,6 +873,9 @@ export async function POST(req: Request) {
 
         d.reverso_aplicado = false;
         upd.detalles = d;
+
+        // Aprobar automáticamente cualquier comprobante de retención de IVA vinculado a este pago
+        await sb.from('pagos_reportados').update({ estado: 'Aprobado' }).filter('detalles->>pago_vinculado', 'eq', pagoId);
       }
     }
 

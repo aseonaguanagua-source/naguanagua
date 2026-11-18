@@ -116,19 +116,41 @@ export async function POST(req: Request) {
 
       saldoFavorDisp = saldoDocs >= 1.00 ? Math.round(saldoDocs * 100) / 100 : 0;
 
-      // Convenios de pago activos formalizados
+      // Convenios de pago activos formalizados (del condominio o de cualquiera de sus unidades)
       let conveniosList: any[] = [];
       try {
-        const condoIdVars = cobro.condo?.identidad ? getIdentidadVariantsExact(cobro.condo.identidad) : [];
-        const convIdentVars = Array.from(new Set([...idVars, ...condoIdVars, ...(condoCod ? [condoCod] : [])].filter(Boolean)));
-        let qConvs = sb.from('convenios_pago').select('*, convenios_cuotas(*)').eq('estado', 'Al Día');
-        if (convIdentVars.length > 0) {
-          qConvs = qConvs.in('identidad', convIdentVars);
-        } else {
-          qConvs = qConvs.limit(200);
+        const { data: allActiveConvs } = await sb
+          .from('convenios_pago')
+          .select('*, convenios_cuotas(*)')
+          .in('estado', ['Al Día', 'Activo']);
+
+        const renglones = cobro.estado?.renglones || [];
+        const unitIdDigitsSet = new Set<string>();
+        const unitInmDigitsSet = new Set<string>();
+        if (cobro.condo?.identidad) {
+          const d = String(cobro.condo.identidad).replace(/\D/g, '');
+          if (d.length >= 4) unitIdDigitsSet.add(d);
         }
-        const { data: convs } = await qConvs;
-        conveniosList = convs || [];
+        if (sol.identidad) {
+          const d = String(sol.identidad).replace(/\D/g, '');
+          if (d.length >= 4) unitIdDigitsSet.add(d);
+        }
+        renglones.forEach((r: any) => {
+          const dId = String(r.identidad || '').replace(/\D/g, '');
+          if (dId.length >= 4) unitIdDigitsSet.add(dId);
+          const dInm = String(r.inmueble || '').replace(/\D/g, '');
+          if (dInm.length >= 3) unitInmDigitsSet.add(dInm);
+          const dPadre = String(r.padreInmueble || '').replace(/\D/g, '');
+          if (dPadre.length >= 3) unitInmDigitsSet.add(dPadre);
+        });
+
+        conveniosList = (allActiveConvs || []).filter((cv: any) => {
+          const cvIdDigits = String(cv.identidad || '').replace(/\D/g, '');
+          const cvNumDigits = String(cv.numero || '').replace(/\D/g, '');
+          if (cvIdDigits.length >= 4 && unitIdDigitsSet.has(cvIdDigits)) return true;
+          if (cvNumDigits.length >= 3 && unitInmDigitsSet.has(cvNumDigits)) return true;
+          return false;
+        });
       } catch (err) {
         console.warn('Error fetching convenios in condominios/cobrar:', err);
       }

@@ -477,9 +477,26 @@ function Caja() {
   const c = cobro?.condo;
   const base = cobro?.estado;
   const porContrib = modo === 'CONTRIBUYENTE';
-  const conDeuda = useMemo(() => (base?.renglones || []).filter((r: any) => r.totalBs > 0.01), [base]);
   // Cédula con o sin prefijo (7436881 = V-7436881): se compara solo el número
   const normId = (s: any) => String(s || '').toUpperCase().trim().replace(/^[VEJPG]-?/, '').replace(/[^A-Z0-9]/g, '').replace(/^0+/, '');
+  const convenioDeUnidad = (r: any) => {
+    const rIdClean = String(r?.identidad || '').replace(/\D/g, '');
+    const inmCode = String(r?.inmueble || '').replace(/\D/g, '');
+    const padreCode = String(r?.padreInmueble || '').replace(/\D/g, '');
+    return (cobro?.convenios || []).find((cv: any) => {
+      const idClean = String(cv.identidad || '').replace(/\D/g, '');
+      const numClean = String(cv.numero || '').replace(/\D/g, '');
+      const matchId = idClean.length >= 4 && idClean === rIdClean;
+      const matchInm = (inmCode.length >= 3 && numClean.includes(inmCode)) || (padreCode.length >= 3 && numClean.includes(padreCode));
+      if (!matchId && !matchInm) return false;
+      const cuotasPend = (cv.convenios_cuotas || []).filter((q: any) => String(q?.estado || 'Pendiente').toLowerCase().includes('pend'));
+      return cuotasPend.length > 0 || !Array.isArray(cv.convenios_cuotas) || cv.convenios_cuotas.length === 0;
+    });
+  };
+  const conDeuda = useMemo(
+    () => (base?.renglones || []).filter((r: any) => r.totalBs > 0.01 || Boolean(convenioDeUnidad(r)) || claves.includes(r.clave)),
+    [base, cobro?.convenios, claves] // eslint-disable-line react-hooks/exhaustive-deps
+  );
   const visiblesU = useMemo(() => {
     const t = filtroU.trim().toUpperCase();
     const ced = porContrib ? normId(identidad) : '';
@@ -1917,28 +1934,23 @@ function Caja() {
                               {r.actividad && <div className="text-[10px] text-violet-700 font-bold truncate max-w-[340px]">{r.actividad}</div>}
                               {r.multasManuales?.map((m: any) => <div key={m.id} className="text-[10px] text-red-700">• Multa: {m.concepto} (Bs {fmtBs(m.montoBs)})</div>)}
                               {(() => {
-                                const convUnit = (cobro?.convenios || []).find((cv: any) => {
-                                  const idClean = (cv.identidad || '').replace(/\D/g, '');
-                                  const rIdClean = (r.identidad || '').replace(/\D/g, '');
-                                  const inmCode = (r.inmueble || '').replace(/\D/g, '');
-                                  const numClean = (cv.numero || '').replace(/\D/g, '');
-                                  return (idClean.length >= 4 && idClean === rIdClean) || (inmCode.length >= 3 && numClean.includes(inmCode));
-                                });
+                                const convUnit = convenioDeUnidad(r);
                                 if (!convUnit) return null;
-                                const cuotasPend = (convUnit.convenios_cuotas || []).filter((q: any) => (q.estado || '').toLowerCase().includes('pend')).length;
+                                const cuotasPendList = (convUnit.convenios_cuotas || []).filter((q: any) => String(q.estado || '').toLowerCase().includes('pend'));
+                                const cuotasPend = cuotasPendList.length;
+                                const saldoPendConv = cuotasPendList.reduce((acc: number, q: any) => acc + (parseFloat(q.monto) || 0), 0);
+                                const targetQuery = r.inmueble ? `codigo=${encodeURIComponent(r.inmueble)}` : `cedula=${encodeURIComponent(r.identidad || '')}`;
                                 return (
                                   <div className="mt-1.5 flex items-center gap-1.5 flex-wrap" onClick={e => e.stopPropagation()}>
                                     <span className="bg-orange-100 text-orange-950 border border-orange-300 px-2 py-0.5 rounded font-extrabold text-[10px] flex items-center gap-1 shadow-2xs">
-                                      📋 Convenio: {convUnit.numero} ({cuotasPend || convUnit.cuotas} cuotas pend.)
+                                      📋 Convenio: {convUnit.numero} ({cuotasPend || convUnit.cuotas} cuotas pend.{saldoPendConv > 0 ? ` · Bs ${fmtBs(saldoPendConv)}` : ''})
                                     </span>
                                     <a
-                                      href={`/admin/caja?cedula=${encodeURIComponent(r.identidad || '')}`}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-0.5 rounded font-bold text-[10px] transition-colors shadow-2xs"
+                                      href={`/admin/caja?${targetQuery}`}
+                                      className="bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-0.5 rounded font-bold text-[10px] transition-colors shadow-2xs inline-flex items-center gap-1"
                                       title="Cobrar cuota de convenio en Caja General"
                                     >
-                                      Cobrar en Caja General ↗
+                                      💳 Cobrar Cuota de Convenio ↗
                                     </a>
                                   </div>
                                 );
@@ -1993,6 +2005,10 @@ function Caja() {
                                     </button>
                                   )}
                                 </div>
+                              ) : convenioDeUnidad(r) ? (
+                                <span className="px-2 py-0.5 rounded bg-orange-100 text-orange-900 border border-orange-300 text-[10px] font-extrabold">
+                                  En Convenio
+                                </span>
                               ) : (
                                 <span className="text-slate-400 text-xs">—</span>
                               )}
@@ -2015,7 +2031,21 @@ function Caja() {
                               )}
                             </td>
                             <td className="px-2 text-right text-xs tabular-nums text-red-600">{dMultas > 0 ? fmtBs(dMultas) : '—'}</td>
-                            <td className={`px-4 text-right font-bold tabular-nums ${seleccionada ? 'text-red-700' : 'text-slate-400'}`}>Bs {fmtBs(dTotal)}</td>
+                            <td className={`px-4 text-right font-bold tabular-nums ${seleccionada ? 'text-red-700' : 'text-slate-400'}`}>
+                              <div>Bs {fmtBs(dTotal)}</div>
+                              {(() => {
+                                const convUnit = convenioDeUnidad(r);
+                                if (!convUnit) return null;
+                                const cuotasPendList = (convUnit.convenios_cuotas || []).filter((q: any) => String(q.estado || '').toLowerCase().includes('pend'));
+                                const saldoPendConv = cuotasPendList.reduce((acc: number, q: any) => acc + (parseFloat(q.monto) || 0), 0);
+                                if (saldoPendConv <= 0) return null;
+                                return (
+                                  <div className="text-[10px] font-extrabold text-orange-700">
+                                    Convenio: Bs {fmtBs(saldoPendConv)}
+                                  </div>
+                                );
+                              })()}
+                            </td>
                           </tr>
                         );
                       })}
@@ -2284,32 +2314,51 @@ function Caja() {
 
               {/* Información de Convenio si la unidad en cobro lo tiene */}
               {(() => {
+                const candidateUnits = [
+                  ...(cobro?.lineas || []),
+                  ...(base?.renglones || []).filter((r: any) =>
+                    claves.includes(r.clave) ||
+                    (porContrib && identidad && normId(r.identidad) === normId(identidad))
+                  ),
+                  ...(visiblesU.length <= 3 ? visiblesU : [])
+                ];
                 const convsEnCobro = (cobro?.convenios || []).filter((cv: any) => {
                   const idClean = (cv.identidad || '').replace(/\D/g, '');
                   const numClean = (cv.numero || '').replace(/\D/g, '');
-                  return cobro.lineas.some((l: any) => {
+                  return candidateUnits.some((l: any) => {
                     const lIdClean = (l.identidad || '').replace(/\D/g, '');
                     const lInmClean = (l.inmueble || '').replace(/\D/g, '');
                     return (idClean.length >= 4 && idClean === lIdClean) || (lInmClean.length >= 3 && numClean.includes(lInmClean));
                   });
                 });
                 if (convsEnCobro.length === 0) return null;
+                const firstConv = convsEnCobro[0];
+                const matchedUnit = candidateUnits.find((l: any) => {
+                  const idClean = (firstConv.identidad || '').replace(/\D/g, '');
+                  const numClean = (firstConv.numero || '').replace(/\D/g, '');
+                  const lIdClean = (l.identidad || '').replace(/\D/g, '');
+                  const lInmClean = (l.inmueble || '').replace(/\D/g, '');
+                  return (idClean.length >= 4 && idClean === lIdClean) || (lInmClean.length >= 3 && numClean.includes(lInmClean));
+                });
+                const targetUrl = matchedUnit?.inmueble
+                  ? `/admin/caja?codigo=${encodeURIComponent(matchedUnit.inmueble)}`
+                  : `/admin/caja?cedula=${encodeURIComponent(firstConv.identidad || '')}`;
+                const cuotasPendList = (firstConv.convenios_cuotas || []).filter((q: any) => String(q.estado || '').toLowerCase().includes('pend'));
+                const saldoPendConv = cuotasPendList.reduce((acc: number, q: any) => acc + (parseFloat(q.monto) || 0), 0);
                 return (
-                  <div className="rounded-xl bg-orange-500/15 border border-orange-400/40 text-orange-200 text-xs p-3 space-y-1.5 mb-2">
-                    <div className="font-extrabold flex items-center gap-1.5 text-orange-300">
+                  <div className="rounded-xl bg-orange-500/20 border border-orange-400/60 text-orange-100 text-xs p-3.5 space-y-2 mb-2 shadow-sm">
+                    <div className="font-extrabold flex items-center gap-1.5 text-orange-300 text-sm">
                       <span>📋</span>
                       <span>Convenio de Pago Activo ({convsEnCobro.map((c: any) => c.numero).join(', ')})</span>
                     </div>
-                    <p className="text-[11px] text-orange-200/90 leading-tight">
-                      Este propietario tiene un convenio formalizado. Las cuotas se cobran por Caja General.
+                    <p className="text-[11px] text-orange-100/90 leading-relaxed">
+                      Este local tiene sus períodos ordinarios refinanciados en convenio{cuotasPendList.length > 0 ? ` (${cuotasPendList.length} cuotas pendientes por Bs ${fmtBs(saldoPendConv)})` : ''}.
                     </p>
                     <a
-                      href={`/admin/caja?cedula=${encodeURIComponent(convsEnCobro[0].identidad || '')}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-300 hover:text-white underline pt-0.5"
+                      href={targetUrl}
+                      className="w-full py-2.5 px-3 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 transition-colors shadow-sm"
                     >
-                      Ir a Caja General para cobrar cuotas →
+                      💳 Cobrar Cuota(s) del Convenio en Caja General →
                     </a>
                   </div>
                 );

@@ -722,7 +722,7 @@ export default function CajaPage() {
     }
   };
 
-  const handleSearch = async () => {
+  const handleSearch = async (overrideQuery?: string | any) => {
     setIsSearching(true);
     try {
     setFoundUser(null);
@@ -743,15 +743,19 @@ export default function CajaPage() {
     setNotificacionConciliacion(null);
     setTotalBs(0);
 
-    // Extraer prefijo si fue pegado o escrito en el input (ej: J-075477308 o V075477308)
+    // Extraer prefijo si fue pegado o escrito en el input (ej: J-075477308 o V075477308) o pasado por parámetro URL
     let activePrefix = docType;
-    let inputClean = docNumber.trim();
+    let inputClean = (typeof overrideQuery === 'string' && overrideQuery.trim().length > 0)
+      ? overrideQuery.trim()
+      : docNumber.trim();
     const rawSearch = inputClean.toUpperCase();
     const prefixMatch = inputClean.match(/^([VEJPGvejpg])[-_\s]?(.*)$/);
     if (prefixMatch && !rawSearch.startsWith('AURI') && !rawSearch.startsWith('URB')) {
       activePrefix = prefixMatch[1].toUpperCase();
       inputClean = prefixMatch[2].trim();
       setDocType(activePrefix);
+      setDocNumber(inputClean);
+    } else if (typeof overrideQuery === 'string' && overrideQuery.trim().length > 0) {
       setDocNumber(inputClean);
     }
 
@@ -1778,6 +1782,16 @@ export default function CajaPage() {
         });
       });
       setCuotas(pendingCuotas);
+      if (pendingCuotas.length > 0) {
+        const saldoCuotasPend = Math.round(pendingCuotas.reduce((acc, q) => acc + (parseFloat(q.monto) || 0), 0) * 100) / 100;
+        if (deudaTotalFresh <= 0.01 && saldoCuotasPend > 0) {
+          setFoundUser((prev: any) => prev ? { ...prev, DeudaTotal: saldoCuotasPend } : prev);
+        }
+        // Si no tiene meses ordinarios pendientes (porque su deuda fue refinanciada en convenio), pre-seleccionar la próxima cuota pendiente
+        if (combined.length === 0) {
+          setSelectedCuotas([{ convId: pendingCuotas[0].convId, cuotaId: pendingCuotas[0].cuotaId }]);
+        }
+      }
 
       // Cargar servicios especiales y tala/poda pendientes vía API (bypassa RLS)
       let allServiciosData: any[] = [];
@@ -1861,6 +1875,12 @@ export default function CajaPage() {
         if (estNorm === 'anulado' || estNorm.startsWith('anulad')) return false;
         const detObj = typeof p.detalles === 'string' ? (() => { try { return JSON.parse(p.detalles); } catch { return {}; } })() : (p.detalles || {});
         if (detObj.anulado || detObj.factura_digital?.anulada || detObj.factura_anulada) return false;
+        // Excluir comprobantes auxiliares de Retención de IVA (su estatus depende del pago principal vinculado)
+        const tipoLower = String(p.tipo || '').toLowerCase();
+        const refUpper = String(p.referencia || '').trim().toUpperCase();
+        if (tipoLower.includes('retencion') || tipoLower.includes('retención') || refUpper.startsWith('RET-') || Boolean(detObj.pago_vinculado)) {
+          return false;
+        }
 
         const pagoCodes = new Set<string>();
         [detObj.cod_inmueble, detObj.codigo_inmueble, detObj.inmueble, detObj.cod_inmueble_hijo_original, p.cod_inmueble].forEach((c: any) => {
@@ -2158,6 +2178,17 @@ export default function CajaPage() {
       setIsSearching(false);
     }
   };
+
+  const autoSearchedQueryRef = useRef<string>('');
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const paramQuery = (params.get('codigo') || params.get('cedula') || params.get('q') || '').trim();
+    if (paramQuery && autoSearchedQueryRef.current !== paramQuery) {
+      autoSearchedQueryRef.current = paramQuery;
+      handleSearch(paramQuery);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const getCuotaMonto = useCallback((c: any): number => {
     const base = parseFloat(c?.monto || '0') || 0;
@@ -2611,7 +2642,8 @@ export default function CajaPage() {
   };
 
   const handlePayment = async () => {
-    const separadosEnCobro = codigosSeparados.size ? codigosDelCobro(true) : [];
+    const esSoloConvenioOServicio = (selectedCuotas.length > 0 || selectedServicios.length > 0 || selectedTalaPoda.length > 0) && selectedRecibos.length === 0;
+    const separadosEnCobro = (codigosSeparados.size && !esSoloConvenioOServicio) ? codigosDelCobro(true) : [];
     if (separadosEnCobro.length) {
       return alert(`Estos inmuebles pertenecen al módulo de CONDOMINIOS y se cobran en "Caja de Condominios":\n${separadosEnCobro.slice(0, 15).join(', ')}${separadosEnCobro.length > 15 ? '…' : ''}\n\nQuite esos meses de la selección o cobre en Condominios → Caja de Condominios.`);
     }
@@ -5096,7 +5128,7 @@ export default function CajaPage() {
         </div>
       )}
 
-      {foundUser && codigosSeparados.size > 0 && codigosDelCobro(false).length > 0 && (
+      {foundUser && codigosSeparados.size > 0 && codigosDelCobro(false).length > 0 && cuotas.length === 0 && (
         <div id="aviso-condominio-separado" className="bg-amber-50 text-amber-900 p-4 rounded-lg border border-amber-300 flex items-start gap-2 text-sm">
           <Building2 className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
           <div>
@@ -5428,9 +5460,18 @@ export default function CajaPage() {
                             Pago Individual Habilitado
                           </span>
                         )}
+                        {cuotas.length > 0 && (
+                          <span className="bg-orange-200 text-orange-950 font-extrabold text-[10px] px-2.5 py-0.5 rounded-full uppercase border border-orange-400">
+                            📋 Convenio Activo: {cuotas[0].numeroConv} ({cuotas.length} cuota{cuotas.length === 1 ? '' : 's'} pend.)
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs leading-relaxed opacity-90">
-                        {isCondominioPagoIndividual(foundUser.condominio_padre_id) ? (
+                        {cuotas.length > 0 ? (
+                          <>
+                            Este local es filial del condominio <strong>{foundUser.condominio_padre_nombre || foundUser.condominio_padre_id}</strong> y posee el Convenio de Pago activo <strong>{cuotas[0].numeroConv}</strong>. Sus cuotas pendientes se cobran directamente aquí en <strong>Caja General</strong>.
+                          </>
+                        ) : isCondominioPagoIndividual(foundUser.condominio_padre_id) ? (
                           <>
                             Este inmueble es filial del condominio <strong>{foundUser.condominio_padre_nombre || foundUser.condominio_padre_id}</strong>. Está autorizado por la administración tributaria para <strong>pagar de forma individual tanto sus meses de aseo como sus multas</strong>.
                           </>
@@ -6450,6 +6491,49 @@ export default function CajaPage() {
               </div>
             )}
 
+            {/* Si tiene cuotas de convenio pendientes, mostrarlas en primer lugar arriba de Recibos */}
+            {cuotas.length > 0 && (
+              <div className="bg-white rounded-lg shadow-sm border-2 border-orange-300 overflow-hidden">
+                <div className="bg-orange-50 px-4 py-3 border-b border-orange-200 flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <Handshake className="w-5 h-5 text-orange-600" />
+                    <h3 className="font-bold text-orange-900">Cuotas de Convenio de Pago ({cuotas[0]?.numeroConv})</h3>
+                    <span className="bg-orange-200 text-orange-900 text-xs font-extrabold px-2 py-0.5 rounded-full">
+                      {cuotas.length} pendiente{cuotas.length === 1 ? '' : 's'}
+                    </span>
+                  </div>
+                  <span className="text-xs font-semibold text-orange-800">
+                    Marque la(s) cuota(s) a cancelar
+                  </span>
+                </div>
+                <div className="p-4 space-y-2">
+                  {cuotas.map((c, i) => {
+                    const isSel = !!selectedCuotas.find(sc => sc.convId === c.convId && sc.cuotaId === c.cuotaId);
+                    return (
+                      <label key={i} className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer transition-colors ${isSel ? 'bg-orange-50 border-orange-400 ring-1 ring-orange-400' : 'hover:bg-slate-50 border-slate-200'}`}>
+                        <div className="flex items-center gap-3">
+                          <input 
+                            type="checkbox" 
+                            checked={isSel}
+                            onChange={() => toggleCuota(c.convId, c.cuotaId)}
+                            className="w-4 h-4 text-orange-600 rounded border-slate-300 focus:ring-orange-500"
+                          />
+                          <div>
+                            <p className="font-bold text-sm text-slate-900">{c.numeroConv} — Cuota {c.numeroCuota || (i + 1)}{c.totalCuotas ? ` de ${c.totalCuotas}` : ''}</p>
+                            <p className="text-xs text-slate-600">
+                              Vencimiento: <span className="font-mono font-semibold">{c.fecha}</span>
+                              {c.periodoCubierto ? ` • Cubre: ${c.periodoCubierto}` : (c.mesesCubiertos ? ` • Cubre: ${c.mesesCubiertos} meses` : '')}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="font-extrabold text-orange-700 text-sm">Bs. {getCuotaMonto(c).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Recibos de Aseo Mensual */}
             {!foundUser?.isServicioEspecialDirecto && (() => {
               const recibosConMonto = recibos.filter(
@@ -6782,37 +6866,17 @@ export default function CajaPage() {
               );
             })()}
 
-            <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
-              <div className="bg-orange-50 px-4 py-3 border-b border-orange-200 flex items-center gap-2">
-                <Handshake className="w-5 h-5 text-orange-600" />
-                <h3 className="font-bold text-orange-800">Cuotas de Convenio de Pago</h3>
-              </div>
-              <div className="p-4">
-                {cuotas.length === 0 ? (
+            {cuotas.length === 0 && (
+              <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+                <div className="bg-orange-50 px-4 py-3 border-b border-orange-200 flex items-center gap-2">
+                  <Handshake className="w-5 h-5 text-orange-600" />
+                  <h3 className="font-bold text-orange-800">Cuotas de Convenio de Pago</h3>
+                </div>
+                <div className="p-4">
                   <p className="text-sm text-slate-500">No hay cuotas pendientes.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {cuotas.map((c, i) => (
-                      <label key={i} className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer transition-colors ${selectedCuotas.find(sc => sc.convId === c.convId && sc.cuotaId === c.cuotaId) ? 'bg-orange-50 border-orange-200' : 'hover:bg-slate-50 border-slate-200'}`}>
-                        <div className="flex items-center gap-3">
-                          <input 
-                            type="checkbox" 
-                            checked={!!selectedCuotas.find(sc => sc.convId === c.convId && sc.cuotaId === c.cuotaId)}
-                            onChange={() => toggleCuota(c.convId, c.cuotaId)}
-                            className="w-4 h-4 text-orange-600 rounded border-slate-300 focus:ring-orange-500"
-                          />
-                          <div>
-                            <p className="font-semibold text-sm text-slate-800">{c.numeroConv} - Cuota {c.numeroCuota || (i + 1)}</p>
-                            <p className="text-xs text-slate-500">Fecha de Pago: {c.fecha}</p>
-                          </div>
-                        </div>
-                        <span className="font-bold text-orange-700">Bs. {getCuotaMonto(c).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                      </label>
-                    ))}
-                  </div>
-                )}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Tala y Poda */}
             {talaPoda.length > 0 && (

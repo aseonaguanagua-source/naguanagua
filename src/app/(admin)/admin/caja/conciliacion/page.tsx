@@ -1420,7 +1420,10 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
 
       // Aprobado: marcar recibos como Pagado o aplicar abono proporcional
       // Rechazado: devolver los recibos a Pendiente para que puedan pagarse en Caja
-      if (estatus === 'Rechazado') {
+      if (estatus === 'Aprobado') {
+        // Aprobar automáticamente cualquier comprobante de retención de IVA vinculado a este pago conciliado
+        await supabase.from('pagos_reportados').update({ estado: 'Aprobado' }).filter('detalles->>pago_vinculado', 'eq', pago.id);
+      } else if (estatus === 'Rechazado') {
         if (recibos.length > 0) {
           await supabase.from('facturas').update({ estado: 'Pendiente' }).in('referencia', recibos);
           if (det.cuotas && det.cuotas.length > 0) {

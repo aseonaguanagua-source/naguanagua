@@ -1062,7 +1062,7 @@ export default function ConveniosPagoPage() {
               })()}
             </div>
             
-            <div className="p-4 border-t border-slate-200 bg-slate-50 rounded-b-lg flex justify-between items-center">
+            <div className="p-4 border-t border-slate-200 bg-slate-50 rounded-b-lg flex justify-between items-center gap-3 flex-wrap">
               {viewCuotasModal.convenio?.estado !== 'Anulado' ? (
                 <button
                   type="button"
@@ -1076,12 +1076,22 @@ export default function ConveniosPagoPage() {
                   Convenio Anulado
                 </span>
               )}
-              <button 
-                onClick={() => setViewCuotasModal({isOpen: false, convenio: null})}
-                className="px-6 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-300 hover:bg-slate-50 rounded shadow-sm cursor-pointer"
-              >
-                Cerrar
-              </button>
+              <div className="flex items-center gap-2.5">
+                {viewCuotasModal.convenio?.estado !== 'Anulado' && (
+                  <a
+                    href={`/admin/caja?codigo=${encodeURIComponent(viewCuotasModal.convenio?.codigo_inmueble || viewCuotasModal.convenio?.identidad || '')}`}
+                    className="px-4 py-2 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded shadow-sm transition-colors inline-flex items-center gap-1.5"
+                  >
+                    💳 Cobrar Cuota en Caja
+                  </a>
+                )}
+                <button 
+                  onClick={() => setViewCuotasModal({isOpen: false, convenio: null})}
+                  className="px-6 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-300 hover:bg-slate-50 rounded shadow-sm cursor-pointer"
+                >
+                  Cerrar
+                </button>
+              </div>
             </div>
           </div>
         </div>

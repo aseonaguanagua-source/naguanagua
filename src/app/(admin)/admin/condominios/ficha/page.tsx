@@ -988,6 +988,16 @@ function Ficha() {
                                   {unidadDe(r.clave) && r.totalBs > 0.01 && (
                                     <Link href={`/admin/condominios/caja?codigo=${c.codigo}&unidad=${r.clave}`} onClick={ev => ev.stopPropagation()} title="Cobrar solo este local"
                                       className="px-2 py-0.5 rounded-md border border-sky-200 bg-sky-50 text-sky-800 text-[10px] font-extrabold hover:bg-sky-100 inline-flex items-center gap-1"><WalletIcon className="w-3 h-3" /> Cobrar</Link>
+                                  )}
+                                  {convUnidad && (
+                                    <Link
+                                      href={`/admin/caja?codigo=${encodeURIComponent(r.inmueble || u?.inmueble || r.identidad || '')}`}
+                                      onClick={ev => ev.stopPropagation()}
+                                      title={`Cobrar cuota de ${convUnidad.numero} en Caja`}
+                                      className="px-2 py-0.5 rounded-md border border-emerald-300 bg-emerald-600 text-white text-[10px] font-extrabold hover:bg-emerald-700 inline-flex items-center gap-1 shadow-2xs"
+                                    >
+                                      <WalletIcon className="w-3 h-3" /> Cobrar Convenio
+                                    </Link>
                                   )}</div>
                                 <div className="text-[11px] text-slate-500">
                                   {sinReg ? `${r.cantidad} unidad(es) — regístrelas para cobrarlas por separado` : `${r.propietario || 'Sin propietario'}${r.identidad ? ` · ${r.identidad}` : ''}`}
