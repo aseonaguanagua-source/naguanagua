@@ -437,13 +437,37 @@ export default function RetencionesDashboard() {
                 <p className="font-bold text-slate-800 text-sm">Factura N° {f.numeroFactura || '—'} <span className="text-xs text-slate-400 font-normal">· {fmtFecha(f.fechaEmision)}</span></p>
                 <span className={`inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full text-[11px] font-bold border ${ESTADO_FACT[f.estado].cls}`}>{ESTADO_FACT[f.estado].label}</span>
               </div>
-              <div className="text-right">
+              <div className="text-right space-y-1">
                 <div className="font-black text-slate-800 text-sm">Bs. {fmt(f.total)}</div>
-                {f.facturaUrl && (
-                  <a href={f.facturaUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 hover:underline">
-                    <FileText className="w-3.5 h-3.5" /> Ver factura
-                  </a>
-                )}
+                <div className="flex items-center justify-end gap-3 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      descargarDatosFactura({
+                        titulo: 'PLANILLA / DATOS DE FACTURA Y RETENCIÓN DE IVA',
+                        numeroFactura: f.numeroFactura,
+                        numeroControl: f.numeroControl,
+                        fecha: f.fechaEmision,
+                        agente: typeof window !== 'undefined' ? localStorage.getItem('portal_user') || '' : '',
+                        rifAgente: identidad,
+                        base: f.base,
+                        exento: f.exento,
+                        subtotal: f.subtotal,
+                        iva: f.iva,
+                        retenido: f.retenido,
+                        total: f.total,
+                      })
+                    }
+                    className="inline-flex items-center gap-1 text-xs font-bold text-blue-700 hover:underline cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5" /> Descargar Planilla
+                  </button>
+                  {f.facturaUrl && (
+                    <a href={f.facturaUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 hover:underline">
+                      <FileText className="w-3.5 h-3.5" /> Descargar Factura
+                    </a>
+                  )}
+                </div>
               </div>
             </div>
           ))}

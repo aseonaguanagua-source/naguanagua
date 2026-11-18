@@ -60,13 +60,14 @@ export async function GET(request: Request) {
       const pagadoCalc = r.pagado || (parseFloat(String(p.monto || 0)) || (totalCalc - retCalculado));
 
       // Determinar estado de la retención
+      const esLiberadaSinPlanilla = Boolean(
+        det.liberado_sin_planilla === true ||
+        det.exonerado_planilla_retencion === true ||
+        r.liberado_sin_planilla === true
+      );
       let estadoRet: any = r.estado || 'esperando_planilla';
-      if (det.retencion_aprobada === true || det.liberado_sin_planilla === true || det.exonerado_planilla_retencion === true || r.liberado_sin_planilla === true) {
+      if (det.retencion_aprobada === true || esLiberadaSinPlanilla) {
         estadoRet = 'aprobada';
-      }
-      // Si fue liberada sin planilla y no tuvo descuento de retención en el pago, no mostrarla como obligación de retención en el portal
-      if ((det.liberado_sin_planilla === true || det.exonerado_planilla_retencion === true) && retMonto <= 0) {
-        return;
       }
 
       facturas.push({
@@ -83,8 +84,9 @@ export async function GET(request: Request) {
         total: r.total || totalCalc,
         pagado: pagadoCalc,
         estado: estadoRet,
+        liberadoSinPlanilla: esLiberadaSinPlanilla,
         motivoRechazo: estadoRet === 'rechazada' ? (r.motivo_rechazo || '') : undefined,
-        // La factura solo se muestra cuando la retención fue aprobada
+        // La factura y planilla se habilitan cuando la retención fue aprobada o liberada desde Liberación sin Planilla
         facturaUrl: estadoRet === 'aprobada' ? (fd.url || null) : null,
       });
     });

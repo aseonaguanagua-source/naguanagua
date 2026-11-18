@@ -97,6 +97,7 @@ export default function LiberacionRetencionesPage() {
             ? {
                 ...it,
                 liberadoSinPlanilla: nuevoValor,
+                solvenciaEmitidaLiberacion: nuevoValor ? it.solvenciaEmitidaLiberacion : false,
                 liberadoAt: data.liberadoAt,
                 liberadoPor: data.liberadoPor,
                 retencionEstado: nuevoValor ? 'liberada_sin_planilla' : 'esperando_planilla',
@@ -107,8 +108,8 @@ export default function LiberacionRetencionesPage() {
       setFeedbackMsg({
         tipo: 'ok',
         texto: nuevoValor
-          ? `✅ Liberada sin planilla la operación de ${item.contribuyente} (${item.identidad}). La factura y la solvencia están desbloqueadas sin alterar el cierre.`
-          : `Check de liberación desactivado para ${item.contribuyente}.`,
+          ? `✅ Liberada sin planilla la factura/planilla de ${item.contribuyente} (${item.identidad}) en Soy Contribuyente sin alterar el cierre. Para habilitar también su Solvencia en el portal sin planilla, pulse el botón "Emitir Solvencia".`
+          : `Check de liberación desactivado para ${item.contribuyente}. En Soy Contribuyente vuelve a regirse por las reglas regulares.`,
       });
     } catch (e: any) {
       setFeedbackMsg({ tipo: 'err', texto: e.message });
@@ -252,27 +253,35 @@ export default function LiberacionRetencionesPage() {
     setSolvenciaId(item.pagoId);
     setFeedbackMsg(null);
     try {
-      // Si aún no tenía el check de liberación activo, activarlo automáticamente para que no tenga ningún bloqueo
-      if (!item.liberadoSinPlanilla) {
-        await fetch('/api/admin/retenciones/liberar', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            accion: 'toggle_check',
-            pagoId: item.pagoId,
-            liberar: true,
-            usuario: adminUser?.usuario || adminUser?.nombre || 'Administrador',
-          }),
-        });
-        setItems(prev =>
-          prev.map(it =>
-            it.pagoId === item.pagoId
-              ? { ...it, liberadoSinPlanilla: true, retencionEstado: 'liberada_sin_planilla' }
-              : it
-          )
-        );
+      // 1. Registrar en servidor que la Solvencia fue emitida desde este módulo (habilita descarga en Soy Contribuyente)
+      const resLib = await fetch('/api/admin/retenciones/liberar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accion: 'emitir_solvencia_liberada',
+          pagoId: item.pagoId,
+          usuario: adminUser?.usuario || adminUser?.nombre || 'Administrador',
+        }),
+      });
+      const dataLib = await resLib.json();
+      if (!resLib.ok || !dataLib.success) {
+        throw new Error(dataLib.error || 'No se pudo habilitar la solvencia.');
       }
 
+      setItems(prev =>
+        prev.map(it =>
+          it.pagoId === item.pagoId
+            ? {
+                ...it,
+                liberadoSinPlanilla: true,
+                solvenciaEmitidaLiberacion: true,
+                retencionEstado: 'liberada_sin_planilla',
+              }
+            : it
+        )
+      );
+
+      // 2. Verificar que no tenga meses de deuda ordinaria pendientes
       const rSolv = await fetch('/api/solvencia', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -299,7 +308,7 @@ export default function LiberacionRetencionesPage() {
       );
       setFeedbackMsg({
         tipo: 'ok',
-        texto: `✅ Certificado de Solvencia emitido y descargado para ${item.contribuyente} (${codInm || item.identidad}).`,
+        texto: `✅ Certificado de Solvencia emitido para ${item.contribuyente} (${codInm || item.identidad}) y habilitado para descarga en Soy Contribuyente junto con su planilla/factura.`,
       });
     } catch (e: any) {
       setFeedbackMsg({ tipo: 'err', texto: 'Error al generar Solvencia: ' + (e.message || 'Error') });
@@ -657,22 +666,26 @@ export default function LiberacionRetencionesPage() {
                             onClick={() => handleEmitirSolvencia(item)}
                             disabled={isBusySolv}
                             className={`px-2.5 py-1.5 rounded-lg font-bold text-[11px] inline-flex items-center gap-1 border transition-colors cursor-pointer disabled:opacity-50 ${
-                              item.esSolventeDeuda
+                              item.solvenciaEmitidaLiberacion
+                                ? 'bg-emerald-100 hover:bg-emerald-200 text-emerald-900 border-emerald-400'
+                                : item.esSolventeDeuda
                                 ? 'bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-300'
                                 : 'bg-slate-100 hover:bg-slate-200 text-slate-600 border-slate-300'
                             }`}
                             title={
-                              item.esSolventeDeuda
-                                ? 'Emitir y descargar Certificado de Solvencia PDF sin requerir planilla'
+                              item.solvenciaEmitidaLiberacion
+                                ? 'Solvencia emitida desde acá y habilitada en Soy Contribuyente (clic para descargar de nuevo)'
+                                : item.esSolventeDeuda
+                                ? 'Emitir Certificado de Solvencia desde acá para habilitar su descarga en Soy Contribuyente (si no se emite desde acá, aplica la regla regular)'
                                 : `El inmueble registra ${item.mesesDeudaMax} mes(es) de deuda pendiente`
                             }
                           >
                             {isBusySolv ? (
                               <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                             ) : (
-                              <Award className="w-3.5 h-3.5 text-amber-600" />
+                              <Award className={`w-3.5 h-3.5 ${item.solvenciaEmitidaLiberacion ? 'text-emerald-700' : 'text-amber-600'}`} />
                             )}
-                            <span>Solvencia</span>
+                            <span>{item.solvenciaEmitidaLiberacion ? '✓ Solvencia Emitida' : 'Emitir Solvencia'}</span>
                           </button>
                         </div>
                       </td>

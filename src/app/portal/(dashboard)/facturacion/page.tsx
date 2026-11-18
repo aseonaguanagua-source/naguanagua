@@ -337,14 +337,25 @@ export default function FacturacionPortalPage() {
                     </td>
                     <td className="px-5 py-3.5 text-center">
                       {fac.puedeVerFactura && fac.urlPdf ? (
-                        <a 
-                          href={fac.urlPdf} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg border border-emerald-200 transition-colors shadow-sm"
-                        >
-                          <ExternalLink className="w-3.5 h-3.5" /> Descargar Factura
-                        </a>
+                        <div className="inline-flex items-center justify-center gap-1.5 flex-wrap">
+                          <a 
+                            href={fac.urlPdf} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg border border-emerald-200 transition-colors shadow-sm"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" /> Descargar Factura
+                          </a>
+                          {fac.esAgenteRetencion && (
+                            <Link
+                              href="/portal/retenciones"
+                              className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg border border-blue-200 transition-colors shadow-sm"
+                              title="Descargar planilla / comprobante de retención"
+                            >
+                              <FileText className="w-3.5 h-3.5" /> Descargar Planilla
+                            </Link>
+                          )}
+                        </div>
                       ) : (
                         <div className="inline-flex flex-col items-center">
                           <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-400 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 cursor-not-allowed">

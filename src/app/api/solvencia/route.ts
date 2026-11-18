@@ -56,6 +56,126 @@ async function deudaModulo(codigo: string): Promise<{ enModulo: boolean; deudaBs
 }
 
 /**
+ * Verifica si un Agente de Retención tiene pagos/facturas con retención de IVA (75%) cuyo comprobante
+ * NO ha sido aprobado por Hacienda Municipal Y TAMPOCO ha sido habilitado/liberado desde el menú de Liberación sin Planilla.
+ */
+async function verificarBloqueoRetencionSolvencia(
+  idVariants: string[],
+  codigosAlcance: string[]
+): Promise<{ bloqueado: boolean; facturaRef?: string }> {
+  try {
+    if (!idVariants.length) return { bloqueado: false };
+    const [{ data: pagos }, { data: retsIva }] = await Promise.all([
+      sb
+        .from('pagos_reportados')
+        .select('id, identidad, referencia, tipo, estado, detalles')
+        .in('identidad', idVariants)
+        .eq('estado', 'Aprobado')
+        .order('created_at', { ascending: false })
+        .limit(100),
+      sb
+        .from('retenciones_iva')
+        .select('id, estado, factura_control, codigo_retencion')
+        .in('identidad', idVariants)
+        .eq('estado', 'Aprobado'),
+    ]);
+
+    if (!pagos || pagos.length === 0) return { bloqueado: false };
+
+    const aprobIds = new Set<string>();
+    const aprobControles = new Set<string>();
+    const aprobDocs = new Set<string>();
+    (retsIva || []).forEach((r: any) => {
+      if (r.id) aprobIds.add(String(r.id));
+      if (r.factura_control) aprobControles.add(String(r.factura_control).trim());
+      if (r.codigo_retencion) {
+        const cleanDoc = String(r.codigo_retencion).replace(/^FAC-/i, '').trim();
+        if (cleanDoc) aprobDocs.add(cleanDoc);
+      }
+    });
+
+    const alcanceUpper = new Set(codigosAlcance.map(c => String(c || '').trim().toUpperCase()).filter(Boolean));
+
+    for (const p of pagos) {
+      const refUpper = String(p.referencia || '').trim().toUpperCase();
+      const tipoUpper = String(p.tipo || '').trim().toUpperCase();
+      if (refUpper.startsWith('RET-') || refUpper.startsWith('RECH-') || tipoUpper.includes('RETENCION') || tipoUpper.includes('RETENCIÓN')) {
+        continue;
+      }
+      let det: any = {};
+      try {
+        det = typeof p.detalles === 'string' ? JSON.parse(p.detalles) : (p.detalles || {});
+      } catch {}
+      if (det?.pago_vinculado || det?.es_comprobante_retencion) continue;
+      if (det?.anulado || det?.factura_digital?.anulada || det?.factura_anulada) continue;
+
+      // Si se consulta un inmueble específico, filtrar pagos que correspondan a otro inmueble distinto del mismo RIF
+      if (alcanceUpper.size > 0) {
+        const pagoCodes = new Set<string>();
+        [det.codigo_inmueble, det.cod_inmueble, det.inmueble].forEach((raw: any) => {
+          if (!raw) return;
+          String(raw)
+            .split(/[,;\s|/]+/)
+            .map(s => s.trim().toUpperCase())
+            .filter(s => /^(URB|AURI)\d+/i.test(s))
+            .forEach(s => pagoCodes.add(s));
+        });
+        if (Array.isArray(det.recibos)) {
+          det.recibos.forEach((r: any) => {
+            const m = String(r || '').match(/((?:URB|AURI)\d+)/i);
+            if (m && m[1]) pagoCodes.add(m[1].toUpperCase());
+          });
+        }
+        if (pagoCodes.size > 0 && !Array.from(pagoCodes).some(c => alcanceUpper.has(c))) {
+          continue;
+        }
+      }
+
+      const fd = det.factura_digital || {};
+      const r = fd.retencion || {};
+      const montoRet = parseFloat(String(det.monto_retencion_iva || det.retencion_iva || r.retenido || 0)) || 0;
+      const tieneRetencion = Boolean(
+        montoRet > 0 ||
+        det.es_retencion === true ||
+        det.conRetencion === true ||
+        det.agente_retencion === true ||
+        r.estado
+      );
+      if (!tieneRetencion) continue;
+      // Solo exige planilla si la factura fue emitida o se descontó retención al pagar
+      if (!fd.emitida && montoRet <= 0) continue;
+
+      // 1. ¿Fue emitida / habilitada la solvencia específicamente desde el menú de Liberación sin Planilla?
+      const solvenciaEmitidaDesdeLiberacion = Boolean(det.solvencia_emitida_liberacion === true);
+      if (solvenciaEmitidaDesdeLiberacion) continue;
+
+      // 2. ¿Tiene planilla de retención aprobada por la vía regular (reglas de siempre)?
+      const numDoc = String(fd.numero_documento || '').trim();
+      const numCtrl = String(fd.numero_control || '').trim();
+      const tienePlanillaEnTablaAprobada = Boolean(
+        (r.retencion_id && aprobIds.has(String(r.retencion_id))) ||
+        (numCtrl && aprobControles.has(numCtrl)) ||
+        (numDoc && aprobDocs.has(numDoc))
+      );
+      const aprobadaRegular =
+        tienePlanillaEnTablaAprobada ||
+        (!det.liberado_sin_planilla && !det.exonerado_planilla_retencion && (det.retencion_aprobada === true || r.estado === 'aprobada'));
+      if (aprobadaRegular) continue;
+
+      return {
+        bloqueado: true,
+        facturaRef: numDoc ? `Factura N° ${numDoc}` : (p.referencia || 'Pago con Retención'),
+      };
+    }
+
+    return { bloqueado: false };
+  } catch (e) {
+    console.warn('[solvencia] Error verificando retenciones:', e);
+    return { bloqueado: false };
+  }
+}
+
+/**
  * POST /api/solvencia { identidad, inmueble? }
  * Regla única de solvencia (Contribuyentes, Certificados, reimpresión), en el servidor (sin timeouts de la llave pública).
  */
@@ -133,7 +253,17 @@ export async function POST(req: Request) {
         });
       }
 
-      return NextResponse.json({ solvente: true, mensaje: 'Solvente', inmueblesConDeuda: [] });
+      const blqInm = await verificarBloqueoRetencionSolvencia(variantes.length ? variantes : [identidad], codigosAlcance);
+      if (blqInm.bloqueado) {
+        return NextResponse.json({
+          solvente: false,
+          bloqueadoRetencion: true,
+          inmueblesConDeuda: [especifico],
+          mensaje: `EMISIÓN DENEGADA: ${especifico} registra ${blqInm.facturaRef || 'pagos'} con Retención de IVA (75%) sin planilla consignada o aprobada. Debe cargar su comprobante en la sección Retención o ser habilitado en Liberación sin Planilla.`
+        });
+      }
+
+      return NextResponse.json({ solvente: true, bloqueadoRetencion: false, mensaje: 'Solvente', inmueblesConDeuda: [] });
     }
 
     // GENERAL: todos los inmuebles no eliminados del RIF + facturas pendientes
@@ -158,7 +288,18 @@ export async function POST(req: Request) {
     }
 
     if (detalle.length) return NextResponse.json({ solvente: false, inmueblesConDeuda: conDeuda, bloqueadoRetencion: false, mensaje: `EMISIÓN DENEGADA: ${identidad} tiene obligaciones pendientes en: ${detalle.join(', ')}.` });
-    return NextResponse.json({ solvente: true, mensaje: 'Solvente', inmueblesConDeuda: [] });
+
+    const blqGen = await verificarBloqueoRetencionSolvencia(idList, vivos.map((i: any) => i.inmueble).filter(Boolean));
+    if (blqGen.bloqueado) {
+      return NextResponse.json({
+        solvente: false,
+        bloqueadoRetencion: true,
+        inmueblesConDeuda: conDeuda,
+        mensaje: `EMISIÓN DENEGADA: ${identidad} registra ${blqGen.facturaRef || 'pagos'} con Retención de IVA (75%) sin planilla consignada o aprobada. Debe cargar su comprobante en la sección Retención o ser habilitado en Liberación sin Planilla.`
+      });
+    }
+
+    return NextResponse.json({ solvente: true, bloqueadoRetencion: false, mensaje: 'Solvente', inmueblesConDeuda: [] });
   } catch (e: any) {
     return NextResponse.json({ solvente: false, mensaje: 'No se pudo verificar la deuda: ' + (e?.message || 'Error'), inmueblesConDeuda: [] }, { status: 200 });
   }

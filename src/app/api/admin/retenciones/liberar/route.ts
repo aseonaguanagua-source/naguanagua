@@ -310,6 +310,8 @@ export async function GET(request: Request) {
         liberadoSinPlanilla,
         liberadoAt: det.liberado_sin_planilla_at || null,
         liberadoPor: det.liberado_sin_planilla_por || null,
+        solvenciaEmitidaLiberacion: Boolean(det.solvencia_emitida_liberacion === true),
+        solvenciaEmitidaLiberacionAt: det.solvencia_emitida_liberacion_at || null,
         retencionEstado,
         numeroPlanilla: retRow?.numero_planilla || det.comprobante_retencion || null,
         planillaUrl: retRow?.planilla_url || det.comprobante_retencion_url || null,
@@ -440,6 +442,11 @@ export async function POST(request: Request) {
       det.retencion_aprobada = activar ? true : false;
       det.liberado_sin_planilla_at = activar ? ahora : null;
       det.liberado_sin_planilla_por = activar ? quien : null;
+      if (!activar) {
+        det.solvencia_emitida_liberacion = false;
+        det.solvencia_emitida_liberacion_at = null;
+        det.solvencia_emitida_liberacion_por = null;
+      }
 
       if (fd && typeof fd === 'object') {
         if (fd.retencion && typeof fd.retencion === 'object') {
@@ -484,8 +491,8 @@ export async function POST(request: Request) {
       await supabase.from('auditoria').insert({
         usuario: quien,
         accion: activar
-          ? 'Check activado: Liberación de factura y solvencia sin planilla de retención (sin alterar cierre)'
-          : 'Check desactivado: Liberación sin planilla revertida',
+          ? 'Check activado: Liberación de factura y planilla sin comprobante de retención (sin alterar cierre)'
+          : 'Check desactivado: Liberación sin planilla revertida (vuelve a reglas regulares)',
         categoria: 'FACTURACION',
         modulo: '/admin/liberacion-retenciones',
         detalles: {
@@ -501,8 +508,81 @@ export async function POST(request: Request) {
       return NextResponse.json({
         success: true,
         liberadoSinPlanilla: activar,
+        solvenciaEmitidaLiberacion: activar ? Boolean(det.solvencia_emitida_liberacion) : false,
         liberadoAt: activar ? ahora : null,
         liberadoPor: activar ? quien : null,
+      });
+    }
+
+    if (accion === 'emitir_solvencia_liberada') {
+      det.liberado_sin_planilla = true;
+      det.exonerado_planilla_retencion = true;
+      det.retencion_aprobada = true;
+      det.liberado_sin_planilla_at = det.liberado_sin_planilla_at || ahora;
+      det.liberado_sin_planilla_por = det.liberado_sin_planilla_por || quien;
+      det.solvencia_emitida_liberacion = true;
+      det.solvencia_emitida_liberacion_at = ahora;
+      det.solvencia_emitida_liberacion_por = quien;
+
+      if (fd && typeof fd === 'object') {
+        if (fd.retencion && typeof fd.retencion === 'object') {
+          fd.retencion = {
+            ...fd.retencion,
+            estado: 'aprobada',
+            liberado_sin_planilla: true,
+          };
+        }
+        det.factura_digital = fd;
+      }
+
+      const { error: errUp } = await supabase
+        .from('pagos_reportados')
+        .update({ detalles: det })
+        .eq('id', pago.id);
+
+      if (errUp) throw errUp;
+
+      await supabase
+        .from('pagos_reportados')
+        .update({ estado: 'Aprobado' })
+        .filter('detalles->>pago_vinculado', 'eq', pago.id);
+
+      const codes = extraerCodigosDePago(det);
+      const codInm = codes[0] || pago.identidad;
+      const hoy = new Date();
+      const vencDate = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).toISOString().slice(0, 10);
+      const numeroCertificado = `SOL-NAG-${hoy.getFullYear()}-${codInm}-${String(pago.identidad || '').replace(/\D/g, '').slice(-4) || '0000'}`;
+      try {
+        await supabase.from('certificados').upsert([{
+          codigo: numeroCertificado,
+          identidad: pago.identidad,
+          contribuyente: det.contribuyente || det.contribuyente_nombre || pago.identidad,
+          inmueble: codInm,
+          emision: hoy.toISOString().slice(0, 10),
+          vencimiento: vencDate,
+          estado: 'Vigente',
+        }], { onConflict: 'codigo' });
+      } catch {}
+
+      await supabase.from('auditoria').insert({
+        usuario: quien,
+        accion: 'Solvencia emitida y habilitada en Soy Contribuyente desde Liberación sin Planilla',
+        categoria: 'FACTURACION',
+        modulo: '/admin/liberacion-retenciones',
+        detalles: {
+          pago_id: pago.id,
+          identidad: pago.identidad,
+          inmueble: codInm,
+          certificado: numeroCertificado,
+        },
+      });
+
+      return NextResponse.json({
+        success: true,
+        liberadoSinPlanilla: true,
+        solvenciaEmitidaLiberacion: true,
+        solvenciaEmitidaLiberacionAt: ahora,
+        numeroCertificado,
       });
     }
 
