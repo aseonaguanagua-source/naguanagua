@@ -1121,8 +1121,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
 
   const deudaTotalContrib = (() => {
     const dContrib = contribInfo?._deudaTotal ? parseLocalFloat(contribInfo._deudaTotal) : 0;
-    if (dContrib > 0) return dContrib;
-    if (det.deuda_total_sistema) return parseLocalFloat(det.deuda_total_sistema);
+    if (dContrib > 0) return Math.round((totalAPagarCalc + dContrib) * 100) / 100;
     return totalAPagarCalc;
   })();
 
@@ -1860,9 +1859,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         const diffBrutoConcil = (!esAbonoParcialConcil && !det.es_abono && !det.es_pago_adicional && !esFilaRetencionPura && deudaNetaBancaria > 0 && montoConciliadoNum >= deudaNetaBancaria + 5.00)
           ? Math.round((montoConciliadoNum - deudaNetaBancaria) * 100) / 100
           : 0;
-        // Si el supuesto "excedente" coincide con el monto de la Retención de IVA (porque en Caja se colocó el monto bruto de la factura en lugar del neto transferido), NO generar Nota de Crédito por la retención
-        const esFalsoExcedentePorRetencion = retencionDocCalc > 0 && Math.abs(diffBrutoConcil - retencionDocCalc) <= 2.00;
-        const excedenteBrutoConcil = esFalsoExcedentePorRetencion ? 0 : diffBrutoConcil;
+        const excedenteBrutoConcil = diffBrutoConcil;
         const excedenteCaja = Math.max(0, Math.round((excedenteBrutoConcil - yaAcreditadoEnCaja) * 100) / 100);
 
         if (excedenteCaja >= 5.00 && !det.es_pago_adicional && !esFilaRetencionPura) {
@@ -2518,12 +2515,12 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
                 </div>
               )}
 
-              {/* Diferencia pendiente cuando monto conciliado < deuda total */}
-              {estatus === 'Aprobado' && montoConciliadoNum > 0 && montoReportadoNum < deudaTotalContrib - 0.05 && !esMultiPago && (
+              {/* Diferencia pendiente cuando el pago es parcial o quedan otros inmuebles con deuda activa */}
+              {estatus === 'Aprobado' && montoConciliadoNum > 0 && Math.max(montoConciliadoNum, montoReportadoNum) < deudaTotalContrib - 0.05 && !esMultiPago && (
                 <div className="border-t pt-2 mt-1">
                   <div className="flex justify-between text-sm">
                     <span className="text-amber-700 font-bold">⚠️ Deuda Restante (Pendiente de Pago)</span>
-                    <span className="text-amber-700 font-bold">- {fmt(deudaTotalContrib - montoReportadoNum)}</span>
+                    <span className="text-amber-700 font-bold">- {fmt(deudaTotalContrib - Math.max(montoConciliadoNum, montoReportadoNum))}</span>
                   </div>
                   {det.nota_cambio_tasa && (
                     <p className="text-xs text-amber-700 mt-1 bg-amber-50 border border-amber-200 rounded px-2 py-1">
@@ -2532,6 +2529,11 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
                   )}
                   <p className="text-xs text-slate-500 mt-1">El contribuyente tiene recibos adicionales o inmuebles pendientes no incluidos en este pago.</p>
                 </div>
+              )}
+              {estatus === 'Aprobado' && det.nota_cambio_tasa && Math.max(montoConciliadoNum, montoReportadoNum) >= deudaTotalContrib - 0.05 && (
+                <p className="text-xs text-amber-700 mt-2 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                  ⚠️ Ajuste por cambio de tasa BCV: {det.nota_cambio_tasa}. Tasa aplicada: {det.tasa_bcv_aplicada || det.tasa_bcv} Bs/$.
+                </p>
               )}
               {estatus === 'Con Diferencia' && parseLocalFloat(montoConciliado) > 0 && (
                 <div className="flex justify-between text-sm border-t pt-1 mt-1 text-amber-700 font-bold">
