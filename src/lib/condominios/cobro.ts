@@ -1034,12 +1034,13 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
                 const desdeActual = u.aseo_pendiente_desde || c.aseo_pendiente_desde;
                 const mesesRealesHoy = desdeActual ? M.mesesPendientes(desdeActual, hoy) : l.mesesDeuda;
                 const liquidaHastaHoy = l.meses >= mesesRealesHoy;
+                const renglonDeuda = cobro.estado.renglones.find(r => r.clave === l.clave)?.deuda;
                 const multasPagadasEnAseo = permitirMultas
-                    ? (cobro.estado.renglones.find(r => r.clave === l.clave)?.deuda?.porMes || []).slice(0, l.meses).filter(m => m.multaBs > 0).length
+                    ? (renglonDeuda?.porMes || []).slice(0, l.meses).filter(m => m.multaBs > 0).length
                     : 0;
                 if (permitirMultas && liquidaHastaHoy) {
                     upd.multa_meses = 0;
-                } else if (permitirMultas && !liquidaHastaHoy && l.meses >= l.mesesDeuda) {
+                } else if (permitirMultas && !liquidaHastaHoy) {
                     upd.multa_meses = Math.max(0, (Number(u.multa_meses) || 0) - multasPagadasEnAseo - (sol.omitirMultaSeptiembre && l.periodos.includes('2026-09') ? 1 : 0));
                 } else if (sol.omitirMultaSeptiembre && l.periodos.includes('2026-09') && l.multaMesesQueQuedan === 0 && liquidaHastaHoy) {
                     upd.multa_meses = 0;
@@ -1052,14 +1053,15 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
             }
             // Sincronizar en inmuebles para evitar bloqueos de solvencia
             if (u.inmueble && l.meses > 0 && !sol.soloMultas) {
-                const { data: curInm } = await sb.from('inmuebles').select('meses_deuda, deuda_mmv, multa_bs').ilike('inmueble', u.inmueble).limit(1).maybeSingle();
+                const { data: curInm } = await sb.from('inmuebles').select('meses_deuda, deuda_mmv, mmv_mes, multa_bs').ilike('inmueble', u.inmueble).limit(1).maybeSingle();
                 const desdeActual = u.aseo_pendiente_desde || c.aseo_pendiente_desde;
                 const mesesRealesHoy = desdeActual ? M.mesesPendientes(desdeActual, hoy) : l.mesesDeuda;
-                const nMesesRest = l.meses >= mesesRealesHoy ? 0 : Math.max(0, (parseInt(curInm?.meses_deuda || 0) || 0) - l.meses);
+                const nMesesRest = l.meses >= mesesRealesHoy ? 0 : Math.max(0, mesesRealesHoy - l.meses);
+                const tarifaMmvUnit = Number(u.tarifa_mmv || curInm?.mmv_mes || 0) || 0;
                 const permitirMultasInm = sol.incluirMultas === true;
                 const updInmLocal: any = {
                     meses_deuda: nMesesRest,
-                    deuda_mmv: nMesesRest === 0 ? 0 : (curInm?.deuda_mmv || 0),
+                    deuda_mmv: nMesesRest === 0 ? 0 : (tarifaMmvUnit > 0 ? r2(nMesesRest * tarifaMmvUnit) : (curInm?.deuda_mmv || 0)),
                     deuda_congelada_bs: nMesesRest === 0 ? 0 : undefined,
                 };
                 if (permitirMultasInm && nMesesRest <= 1) {
@@ -1081,11 +1083,12 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
                 else upd.multa_meses = Math.max(0, (Number(c.multa_meses) || 0) - l.meses);
             } else {
                 const permitirMultas = sol.incluirMultas === true;
+                const renglonCondo = cobro.estado.renglones.find(r => r.clave === l.clave)?.deuda;
                 const multasPagadasCondo = permitirMultas
-                    ? (cobro.estado.renglones.find(r => r.clave === l.clave)?.deuda?.porMes || []).slice(0, l.meses).filter(m => m.multaBs > 0).length
+                    ? (renglonCondo?.porMes || []).slice(0, l.meses).filter(m => m.multaBs > 0).length
                     : 0;
                 if (permitirMultas && liquidaCondoHoy) upd.multa_meses = 0;
-                else if (permitirMultas && !liquidaCondoHoy && l.meses >= l.mesesDeuda) upd.multa_meses = Math.max(0, (Number(c.multa_meses) || 0) - multasPagadasCondo - (sol.omitirMultaSeptiembre && l.periodos.includes('2026-09') ? 1 : 0));
+                else if (permitirMultas && !liquidaCondoHoy) upd.multa_meses = Math.max(0, (Number(c.multa_meses) || 0) - multasPagadasCondo - (sol.omitirMultaSeptiembre && l.periodos.includes('2026-09') ? 1 : 0));
                 else if (sol.omitirMultaSeptiembre && l.periodos.includes('2026-09') && l.multaMesesQueQuedan === 0 && liquidaCondoHoy) upd.multa_meses = 0;
                 else if (!permitirMultas && l.multaMesesQueQuedan > 0) upd.multa_meses = l.multaMesesQueQuedan;
             }
