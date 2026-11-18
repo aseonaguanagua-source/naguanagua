@@ -11,27 +11,32 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { codigoCondominio, identidad, nuevoMonto, motivo, usuario } = body;
+    const { codigoCondominio, codigoInmueble, identidad, nuevoMonto, motivo, usuario } = body;
 
     const montoNum = Math.max(0, Math.round(parseLocalFloat(nuevoMonto) * 100) / 100);
     const condoCod = codigoCondominio ? String(codigoCondominio).replace(/[,()]/g, '').trim().toUpperCase() : null;
+    const inmCod = codigoInmueble ? String(codigoInmueble).replace(/[,()]/g, '').trim().toUpperCase() : null;
+    const targetCod = inmCod || condoCod;
+    const esAjusteLocal = Boolean(inmCod && condoCod && inmCod !== condoCod);
     const targetId = identidad ? String(identidad).replace(/[,()]/g, '').trim().toUpperCase() : null;
 
-    if (!condoCod && !targetId) {
-      return NextResponse.json({ error: 'Se requiere el código del condominio o la cédula/RIF.' }, { status: 400 });
+    if (!targetCod && !targetId) {
+      return NextResponse.json({ error: 'Se requiere el código del inmueble/condominio o la cédula/RIF.' }, { status: 400 });
     }
 
-    // 1. Obtener saldo previo
+    // 1. Obtener saldo previo y actualizar inmuebles
     let saldoPrevio = 0;
     const idVars = targetId ? getIdentidadVariantsExact(targetId) : [];
 
     let qInm = supabase.from('inmuebles').select('id, inmueble, identidad, saldo_favor_bs, contribuyente');
-    if (idVars.length > 0 && condoCod) {
-      qInm = qInm.or(`${idVars.map(v => `identidad.eq.${v}`).join(',')},inmueble.eq.${condoCod}`);
+    if (esAjusteLocal && inmCod) {
+      qInm = qInm.eq('inmueble', inmCod);
+    } else if (idVars.length > 0 && targetCod) {
+      qInm = qInm.or(`${idVars.map(v => `identidad.eq.${v}`).join(',')},inmueble.eq.${targetCod}`);
     } else if (idVars.length > 0) {
       qInm = qInm.or(idVars.map(v => `identidad.eq.${v}`).join(','));
-    } else if (condoCod) {
-      qInm = qInm.eq('inmueble', condoCod);
+    } else if (targetCod) {
+      qInm = qInm.eq('inmueble', targetCod);
     }
 
     const { data: inms, error: errInm } = await qInm;
@@ -41,11 +46,10 @@ export async function POST(req: Request) {
 
     if (inms && inms.length > 0) {
       saldoPrevio = inms.reduce((acc, i) => acc + (parseFloat(i.saldo_favor_bs || '0') || 0), 0);
-      
-      // Actualizar el inmueble principal del condominio con el nuevo monto, y los demás en 0
-      const principal = inms.find(i => i.inmueble === condoCod) || inms[0];
+
+      const principal = inms.find(i => i.inmueble === targetCod) || inms[0];
       await supabase.from('inmuebles').update({ saldo_favor_bs: montoNum }).eq('id', principal.id);
-      
+
       for (const other of inms) {
         if (other.id !== principal.id && (parseFloat(other.saldo_favor_bs || '0') || 0) > 0) {
           await supabase.from('inmuebles').update({ saldo_favor_bs: 0 }).eq('id', other.id);
@@ -53,9 +57,24 @@ export async function POST(req: Request) {
       }
     }
 
-    // 2. Si es condominio, actualizar también abono_bs en tabla condominios
+    // 1b. Actualizar también condominio_unidades si corresponde a una unidad/local
+    if (targetCod) {
+      const { data: cuRows } = await supabase
+        .from('condominio_unidades')
+        .select('id, inmueble, abono_bs')
+        .eq('inmueble', targetCod);
+      if (cuRows && cuRows.length > 0) {
+        for (let idx = 0; idx < cuRows.length; idx++) {
+          const u = cuRows[idx];
+          saldoPrevio = Math.max(saldoPrevio, parseFloat(String(u.abono_bs || 0)) || 0);
+          await supabase.from('condominio_unidades').update({ abono_bs: idx === 0 ? montoNum : 0 }).eq('id', u.id);
+        }
+      }
+    }
+
+    // 2. Si es condominio (y NO es ajuste de un local individual), actualizar también abono_bs en tabla condominios
     let condoRow: any = null;
-    if (condoCod) {
+    if (condoCod && !esAjusteLocal) {
       const { data: cRow } = await supabase
         .from('condominios')
         .select('id, codigo, nombre, identidad, abono_bs')
@@ -73,41 +92,50 @@ export async function POST(req: Request) {
     // 3. Sincronizar la tabla `documentos` (tipo: 'Nota de Credito') para este codigo_inmueble / identidad
     const noAnularNotas = body.noAnularNotas === true;
     if (!noAnularNotas) {
-      const orsDocs: string[] = [];
-      if (idVars.length > 0) orsDocs.push(...idVars.map(v => `identidad.eq.${v}`));
-      if (condoCod) orsDocs.push(`identidad.eq.${condoCod}`);
+      const { data: docsData } = await supabase
+        .from('documentos')
+        .select('id, identidad, contribuyente, estado, detalles, created_at')
+        .eq('tipo', 'Nota de Credito')
+        .eq('estado', 'Vigente')
+        .order('created_at', { ascending: true });
 
-      let vigentesScope: any[] = [];
-      if (orsDocs.length > 0) {
-        const { data: docsData } = await supabase
-          .from('documentos')
-          .select('id, identidad, contribuyente, estado, detalles, created_at')
-          .eq('tipo', 'Nota de Credito')
-          .eq('estado', 'Vigente')
-          .or(orsDocs.join(','))
-          .order('created_at', { ascending: true });
+      const idVarsUpper = new Set(idVars.map(v => String(v || '').trim().toUpperCase()));
+      const targetIdClean = String(targetId || '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
 
-        vigentesScope = (docsData || []).filter((doc: any) => {
-          let det: any = {};
-          try { det = typeof doc.detalles === 'string' ? JSON.parse(doc.detalles) : (doc.detalles || {}); } catch {}
-          const docInm = String(det.codigo_inmueble || '').trim().toUpperCase();
-          const docCondo = String(det.codigo_condominio || '').trim().toUpperCase();
-          const docAmbito = String(det.ambito || '').trim().toUpperCase();
-          if (condoCod) {
-            if (condoRow) {
+      const vigentesScope = (docsData || []).filter((doc: any) => {
+        let det: any = {};
+        try { det = typeof doc.detalles === 'string' ? JSON.parse(doc.detalles) : (doc.detalles || {}); } catch {}
+        const docInm = String(det.codigo_inmueble || det.cod_inmueble || '').trim().toUpperCase();
+        const docCondo = String(det.codigo_condominio || '').trim().toUpperCase();
+        const docAmbito = String(det.ambito || '').trim().toUpperCase();
+        const docIdentUpper = String(doc.identidad || '').trim().toUpperCase();
+        const docIdentClean = docIdentUpper.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+        const matchesIdent = (targetIdClean && docIdentClean === targetIdClean) || idVarsUpper.has(docIdentUpper);
+
+        if (esAjusteLocal && inmCod) {
+          if (docInm === inmCod || docIdentUpper === inmCod) return true;
+          if (matchesIdent && (!docInm || docInm === inmCod) && docAmbito !== 'CONDOMINIO') return true;
+          return false;
+        }
+
+        if (targetCod) {
+          if (condoRow) {
+            if (docAmbito === 'LOCAL' && docInm && docInm !== targetCod) return false;
+            if (docInm === targetCod || docCondo === targetCod || docIdentUpper === targetCod) {
               if (docAmbito === 'LOCAL') return false;
-              if (docInm && docInm !== condoCod) return false;
-              if (docCondo && docCondo !== condoCod) return false;
               return true;
-            } else {
-              if (docAmbito === 'CONDOMINIO') return false;
-              if (docInm) return docInm === condoCod;
-              return String(doc.identidad || '').trim().toUpperCase() === condoCod;
             }
+            if (matchesIdent && docAmbito !== 'LOCAL' && (!docInm || docInm === targetCod)) return true;
+            return false;
+          } else {
+            if (docAmbito === 'CONDOMINIO') return false;
+            if (docInm === targetCod || docIdentUpper === targetCod) return true;
+            if (matchesIdent && (!docInm || docInm === targetCod)) return true;
+            return false;
           }
-          return true;
-        });
-      }
+        }
+        return matchesIdent;
+      });
 
       if (montoNum === 0) {
         for (const doc of vigentesScope) {

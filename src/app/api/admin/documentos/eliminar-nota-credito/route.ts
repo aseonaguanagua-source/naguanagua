@@ -103,7 +103,20 @@ export async function POST(req: Request) {
         }
       }
 
-      // 4c. Contribuyentes (saldo_favor_bs, si aplica en la tabla)
+      // 4c. Condominio Unidades (abono_bs)
+      if (codigoInm) {
+        const { data: cuRows } = await supabase.from('condominio_unidades').select('id, abono_bs').eq('inmueble', codigoInm);
+        let pendCu = montoBs;
+        for (const u of cuRows || []) {
+          const s = parseFloat(String(u.abono_bs || 0)) || 0;
+          if (pendCu <= 0.009 || s <= 0.009) continue;
+          const usa = Math.min(s, pendCu);
+          await supabase.from('condominio_unidades').update({ abono_bs: Math.max(0, Math.round((s - usa) * 100) / 100) }).eq('id', u.id);
+          pendCu = Math.max(0, Math.round((pendCu - usa) * 100) / 100);
+        }
+      }
+
+      // 4d. Contribuyentes (saldo_favor_bs, si aplica en la tabla)
       if (variantes.length > 0) {
         try {
           const { data: contRow } = await supabase.from('contribuyentes').select('id, identidad, saldo_favor_bs').in('identidad', variantes).limit(1).maybeSingle();

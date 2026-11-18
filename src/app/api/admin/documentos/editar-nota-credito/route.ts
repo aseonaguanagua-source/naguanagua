@@ -39,8 +39,8 @@ export async function POST(req: Request) {
     const montoAnteriorEfectivo = estabaAplicada ? 0 : montoAnterior;
     const montoNuevo = Math.round(parseLocalFloat(nuevoMonto) * 100) / 100;
 
-    if (isNaN(montoNuevo) || montoNuevo <= 0) {
-      return NextResponse.json({ error: 'El monto de la nota de crédito debe ser mayor a 0.' }, { status: 400 });
+    if (isNaN(montoNuevo) || montoNuevo < 0) {
+      return NextResponse.json({ error: 'El monto de la nota de crédito debe ser mayor o igual a 0.' }, { status: 400 });
     }
 
     const identidad = String(doc.identidad || details.rif || '').trim().toUpperCase();
@@ -60,19 +60,27 @@ export async function POST(req: Request) {
       : (details.motivo || 'Nota de Crédito modificada');
 
     const cleanDetails = { ...details };
-    if (estabaAplicada) {
+    if (estabaAplicada && montoNuevo > 0) {
       delete cleanDetails.ultima_aplicacion;
       delete cleanDetails.monto_aplicado;
       delete cleanDetails.fecha_aplicacion;
     }
 
+    const nuevoEstadoDoc = montoNuevo === 0 ? 'Anulado' : 'Vigente';
+
     const updatedDetails = {
       ...cleanDetails,
       monto: montoNuevo.toFixed(2),
       monto_bs: montoNuevo,
-      monto_original: montoNuevo,
+      monto_original: montoNuevo > 0 ? montoNuevo : (cleanDetails.monto_original ?? montoAnterior),
       origen_referencia: refFinal,
       motivo: motivoFinal,
+      ...(montoNuevo === 0 ? {
+        anulado_manual: true,
+        fecha_anulacion: new Date().toISOString(),
+        motivo_anulacion: motivoFinal || 'Ajustado a Bs. 0 manualmente',
+        usuario_anulacion: usuario || 'Admin',
+      } : {}),
       editado_el: new Date().toISOString(),
       editado_por: usuario || 'Admin',
       historial_ediciones: [
@@ -81,6 +89,7 @@ export async function POST(req: Request) {
           fecha: new Date().toISOString(),
           usuario: usuario || 'Admin',
           estado_anterior: doc.estado,
+          estado_nuevo: nuevoEstadoDoc,
           monto_anterior: montoAnterior,
           monto_nuevo: montoNuevo,
           diferencia: diff,
@@ -95,7 +104,7 @@ export async function POST(req: Request) {
     const { data: updatedDoc, error: errUpd } = await supabase
       .from('documentos')
       .update({
-        estado: 'Vigente',
+        estado: nuevoEstadoDoc,
         detalles: JSON.stringify(updatedDetails)
       })
       .eq('id', id)
@@ -155,6 +164,27 @@ export async function POST(req: Request) {
             const nuevoSf = Math.max(0, Math.round((s - usa) * 100) / 100);
             await supabase.from('inmuebles').update({ saldo_favor_bs: nuevoSf }).eq('id', inm.id);
             porDescontar = Math.max(0, Math.round((porDescontar - usa) * 100) / 100);
+          }
+        }
+      }
+
+      // Condominio Unidades (abono_bs)
+      if (codigoInm) {
+        const { data: cuRows } = await supabase.from('condominio_unidades').select('id, abono_bs').eq('inmueble', codigoInm);
+        if (cuRows && cuRows.length > 0) {
+          if (diff > 0) {
+            const u0 = cuRows[0];
+            const curSf = parseFloat(String(u0.abono_bs || 0)) || 0;
+            await supabase.from('condominio_unidades').update({ abono_bs: Math.max(0, Math.round((curSf + diff) * 100) / 100) }).eq('id', u0.id);
+          } else {
+            let porDesc = Math.abs(diff);
+            for (const u of cuRows) {
+              const s = parseFloat(String(u.abono_bs || 0)) || 0;
+              if (porDesc <= 0.009 || s <= 0.009) continue;
+              const usa = Math.min(s, porDesc);
+              await supabase.from('condominio_unidades').update({ abono_bs: Math.max(0, Math.round((s - usa) * 100) / 100) }).eq('id', u.id);
+              porDesc = Math.max(0, Math.round((porDesc - usa) * 100) / 100);
+            }
           }
         }
       }

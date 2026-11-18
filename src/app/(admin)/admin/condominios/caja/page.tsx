@@ -353,7 +353,8 @@ function Caja() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             codigoCondominio: cobro?.condo?.codigo || codigo,
-            identidad: cobro?.condo?.identidad,
+            codigoInmueble: notaEditando.codigoInmueble || undefined,
+            identidad: notaEditando.targetIdentidad || cobro?.condo?.identidad,
             nuevoMonto: montoParsed,
             motivo: notaEditMotivo.trim() || 'Ajuste manual desde Caja de Condominios',
             usuario: usuario()?.usuario || 'Admin'
@@ -1142,21 +1143,65 @@ function Caja() {
                 <>
                   <button
                     onClick={() => {
+                      const f = filtroNotas.trim().toLowerCase();
+                      const fClean = f.replace(/[-\s]/g, '');
+                      const vigentesFiltradas = notasCredito.filter(n => {
+                        if (n.estado !== 'Vigente') return false;
+                        if (!f) return true;
+                        const id = String(n.identidad || '').toLowerCase();
+                        const idClean = id.replace(/[-\s]/g, '');
+                        const name = String(n.contribuyente || '').toLowerCase();
+                        let details: any = {};
+                        try { details = typeof n.detalles === 'string' ? JSON.parse(n.detalles) : (n.detalles || {}); } catch(e){}
+                        const ref = String(details.origen_referencia || '').toLowerCase();
+                        const motivo = String(details.motivo || '').toLowerCase();
+                        const codInm = String(details.codigo_inmueble || details.cod_inmueble || '').toLowerCase();
+                        const codCondo = String(details.codigo_condominio || '').toLowerCase();
+                        const codList = Array.isArray(details.codigos_inmuebles)
+                          ? details.codigos_inmuebles.map((x: any) => String(x || '').toLowerCase()).join(' ')
+                          : '';
+                        return id.includes(f) || idClean.includes(fClean) || name.includes(f) || ref.includes(f) || motivo.includes(f) || codInm.includes(f) || codCondo.includes(f) || codList.includes(f);
+                      });
+
+                      // Si hay exactamente 1 nota vigente visible (por ejemplo, al filtrar un código como URB015093), abrir edición directa de esa nota
+                      if (vigentesFiltradas.length === 1) {
+                        handleAbrirEditarNota(vigentesFiltradas[0]);
+                        return;
+                      }
+
+                      const esModoContrib = cobro?.modo === 'CONTRIBUYENTE' || soloMultas;
+                      const unidadSel = esModoContrib
+                        ? (cobro.lineas?.[0] || (cobro.estado?.renglones || []).find((r: any) =>
+                            (claves.length > 0 && (claves.includes(r.clave) || (r.padreId && claves.includes(r.padreId)) || (r.inmueble && claves.includes(r.inmueble)))) ||
+                            (identidad.trim() && normId(r.identidad) === normId(identidad))
+                          ))
+                        : undefined;
+                      const codInmTarget = unidadSel?.padreInmueble || unidadSel?.inmueble || (f && /^(urb|auri)\d+$/i.test(f) ? f.toUpperCase() : undefined);
+                      const identTarget = unidadSel?.identidad || (esModoContrib ? identidad.trim() : undefined) || c.identidad;
+                      const sumaVigentes = vigentesFiltradas.reduce((acc, n) => {
+                        let det: any = {};
+                        try { det = typeof n.detalles === 'string' ? JSON.parse(n.detalles) : (n.detalles || {}); } catch(e){}
+                        return acc + (parseLocalFloat(det.monto_bs ?? det.monto ?? 0) || 0);
+                      }, 0);
+                      const montoBase = sumaVigentes > 0 ? Math.round(sumaVigentes * 100) / 100 : saldoFavorActivo;
+
                       setNotaEditando({
-                        id: `__directo__${c.codigo || c.identidad}`,
+                        id: `__directo__${codInmTarget || c.codigo || c.identidad}`,
                         isDirecto: true,
+                        codigoInmueble: codInmTarget,
+                        targetIdentidad: identTarget,
                         detalles: JSON.stringify({
-                          monto_bs: saldoFavorActivo,
+                          monto_bs: montoBase,
                           origen_referencia: 'Ajuste manual de saldo a favor',
                           motivo: 'Ajuste manual solicitado desde Caja'
                         })
                       });
-                      setNotaEditMonto(formatLocalNumberInput(saldoFavorActivo.toFixed(2).replace('.', ',')));
+                      setNotaEditMonto(formatLocalNumberInput(montoBase.toFixed(2).replace('.', ',')));
                       setNotaEditRef('Ajuste Manual');
                       setNotaEditMotivo('Ajuste manual de saldo a favor');
                     }}
                     className="text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 px-3 py-2 rounded-lg shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer"
-                    title="Ajustar o poner en 0 el saldo a favor de este condominio manualmente"
+                    title="Ajustar o poner en 0 el saldo a favor de este condominio o local manualmente"
                   >
                     ⚙️ Ajustar Saldo Directo
                   </button>
