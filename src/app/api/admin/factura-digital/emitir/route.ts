@@ -2528,14 +2528,21 @@ export async function POST(request: Request) {
           await supabase.from('pagos_reportados').update({ detalles: nuevosDetalles }).eq('id', pagoId);
         }
 
-        // Si este pago era parte de un Pago Múltiple / Abono Parcial que se acaba de completar al facturar,
-        // verificar si la deuda en `inmuebles` aún no había sido descontada (ej. cuando ambos pagos se registraron como abono) y descontarla.
-        if (detPago?.es_abono === true || nuevosDetalles.abono_completado === true || idsIntegrados.length > 0) {
-          const histRefsEmit = recibosPrin.filter((r: string) => r.startsWith('RECIB-HIST-') || r.startsWith('DUMMY-HIST-'));
-          const deudaPrevArr: any[] = Array.isArray(nuevosDetalles.deuda_previa)
-            ? nuevosDetalles.deuda_previa
-            : (Array.isArray(detPago?.deuda_previa) ? detPago.deuda_previa : []);
-          if (histRefsEmit.length > 0 && deudaPrevArr.length > 0) {
+        // Si este pago era parte de un Pago Múltiple / Abono Parcial o un pago multi-inmueble cuya deuda aún no había sido descontada
+        // (ej. cuando ambos pagos se registraron como abono, o cuando Conciliación falló por cod_inmueble separado por comas),
+        // verificar si la deuda en `inmuebles` sigue igual a `deuda_previa` y descontarla ahora.
+        const histRefsEmit = recibosPrin.filter((r: string) => r.startsWith('RECIB-HIST-') || r.startsWith('DUMMY-HIST-'));
+        const deudaPrevArr: any[] = Array.isArray(nuevosDetalles.deuda_previa)
+          ? nuevosDetalles.deuda_previa
+          : (Array.isArray(detPago?.deuda_previa) ? detPago.deuda_previa : []);
+        const totalCubiertoEmit =
+          totalEfectivoPagado +
+          (parseFloat(String(nuevosDetalles.monto_retencion_iva || detPago?.monto_retencion_iva || 0)) || 0) +
+          (parseFloat(String(nuevosDetalles.saldo_usado || detPago?.saldo_usado || saldoFavorUsado || 0)) || 0) +
+          (parseFloat(String(nuevosDetalles.abono_previo_descontado || detPago?.abono_previo_descontado || 0)) || 0);
+        const facturaCubiertaAl100 = totalAPagar > 0 && totalCubiertoEmit >= totalAPagar - 5.00;
+        if (facturaCubiertaAl100 && histRefsEmit.length > 0 && deudaPrevArr.length > 0) {
+          {
             const codesInRefs = Array.from(new Set(histRefsEmit.map((r: string) => {
               const m = r.match(/(?:RECIB-HIST|DUMMY-HIST)-([A-Z0-9_-]+?)(?:-M?\d+)?$/i);
               return m && m[1] ? m[1].toUpperCase() : '';

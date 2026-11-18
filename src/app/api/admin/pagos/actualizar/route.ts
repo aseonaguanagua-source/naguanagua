@@ -150,27 +150,34 @@ export async function POST(req: Request) {
         if (habiaDescontadoDeuda) {
           // Extraer primero los códigos de inmueble explícitamente afectados por ESTE pago
           const propCodesPago = new Set<string>();
+          const addSplitCodesPago = (val: any) => {
+            if (!val) return;
+            String(val).split(/[,;\s]+/).forEach(tok => {
+              const clean = tok.replace(/[^A-Z0-9_-]/gi, '').trim().toUpperCase();
+              if (clean && /^(?:URB|AURI|CONDO)/i.test(clean)) propCodesPago.add(clean);
+            });
+          };
           recibos.forEach((r: string) => {
             const m = String(r).match(/(?:RECIB-HIST|dummy-hist|CM|RECIB|MULTA)-([A-Z0-9_-]+?)(?:-M\d+)?$/i);
             if (m && m[1]) propCodesPago.add(m[1].toUpperCase());
             const mDir = String(r).match(/(URB\d+|AURI\d+)/i);
             if (mDir && mDir[1]) propCodesPago.add(mDir[1].toUpperCase());
           });
-          if (detMerged.cod_inmueble) propCodesPago.add(String(detMerged.cod_inmueble).trim().toUpperCase());
-          if (detMerged.codigo_inmueble) propCodesPago.add(String(detMerged.codigo_inmueble).trim().toUpperCase());
-          if (detMerged.inmueble) propCodesPago.add(String(detMerged.inmueble).trim().toUpperCase());
-          if (actualP.cod_inmueble) propCodesPago.add(String(actualP.cod_inmueble).trim().toUpperCase());
+          addSplitCodesPago(detMerged.cod_inmueble);
+          addSplitCodesPago(detMerged.codigo_inmueble);
+          addSplitCodesPago(detMerged.inmueble);
+          addSplitCodesPago(actualP.cod_inmueble);
           if (Array.isArray(detMerged.inmuebles)) {
             detMerged.inmuebles.forEach((ic: any) => {
-              if (typeof ic === 'string') propCodesPago.add(ic.trim().toUpperCase());
-              else if (ic?.inmueble) propCodesPago.add(String(ic.inmueble).trim().toUpperCase());
+              if (typeof ic === 'string') addSplitCodesPago(ic);
+              else if (ic?.inmueble) addSplitCodesPago(ic.inmueble);
             });
           }
           if (detMerged.recibo_caja) {
             const rcArr = Array.isArray(detMerged.recibo_caja) ? detMerged.recibo_caja : [detMerged.recibo_caja];
             rcArr.forEach((rc: any) => {
-              if (rc?.codContribuyente) propCodesPago.add(String(rc.codContribuyente).trim().toUpperCase());
-              if (rc?.inmueble) propCodesPago.add(String(rc.inmueble).trim().toUpperCase());
+              if (rc?.codContribuyente) addSplitCodesPago(rc.codContribuyente);
+              if (rc?.inmueble) addSplitCodesPago(rc.inmueble);
             });
           }
 

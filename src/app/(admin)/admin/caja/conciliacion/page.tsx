@@ -1216,14 +1216,22 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
       if (estatus === 'Aprobado' && (!updatedDet.deuda_previa || (Array.isArray(updatedDet.deuda_previa) && updatedDet.deuda_previa.length === 0))) {
         try {
           const propCodesSnap = new Set<string>();
+          const addSplitCodesSnap = (val: any) => {
+            if (!val) return;
+            String(val).split(/[,;\s]+/).forEach(tok => {
+              const clean = tok.replace(/[^A-Z0-9_-]/gi, '').trim().toUpperCase();
+              if (clean && /^(?:URB|AURI|CONDO)/i.test(clean)) propCodesSnap.add(clean);
+            });
+          };
           recibos.forEach((r: string) => {
             const m = r.match(/(?:RECIB-HIST|dummy-hist|CM|RECIB|MULTA)-([A-Z0-9_-]+?)(?:-M\d+)?$/i);
             if (m && m[1]) propCodesSnap.add(m[1].toUpperCase());
             const mDir = r.match(/(URB\d+|AURI\d+)/i);
             if (mDir && mDir[1]) propCodesSnap.add(mDir[1].toUpperCase());
           });
-          if (updatedDet.cod_inmueble) propCodesSnap.add(String(updatedDet.cod_inmueble).trim().toUpperCase());
-          if (updatedDet.codigo_inmueble) propCodesSnap.add(String(updatedDet.codigo_inmueble).trim().toUpperCase());
+          addSplitCodesSnap(updatedDet.cod_inmueble);
+          addSplitCodesSnap(updatedDet.codigo_inmueble);
+          addSplitCodesSnap(updatedDet.inmueble);
           const idVarsSnap = getIdentidadVariantsExact(pago.identidad);
           const orConditionsSnap = propCodesSnap.size > 0
             ? [
@@ -1355,6 +1363,10 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         payloadAct.referencia = `RECH-${pago.referencia}-${pago.id.slice(0, 6)}`;
       }
       await actualizarPago(pago.id, payloadAct, { soloSiEstado: pago.estado || 'Por Verificar' });
+      try {
+        const { clearAllIndexedDB } = await import('@/lib/indexedDbCache');
+        await clearAllIndexedDB();
+      } catch (_) {}
 
       // Si conciliarTodoElGrupo está activo y hay pagos vinculados, actualizar también los demás pagos del grupo SOLO AL APROBAR
       // Al rechazar un pago individual de un grupo/reparto, NO rechazar colateralmente los demás pagos válidos
@@ -1556,24 +1568,32 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
           : 0;
         // Recolectar códigos de inmuebles de referencias, detalles y del propio pago
         const propertyCodesFromRefs = new Set<string>();
+        const addSplitCodesRef = (val: any) => {
+          if (!val) return;
+          String(val).split(/[,;\s]+/).forEach(tok => {
+            const clean = tok.replace(/[^A-Z0-9_-]/gi, '').trim().toUpperCase();
+            if (clean && /^(?:URB|AURI|CONDO)/i.test(clean)) propertyCodesFromRefs.add(clean);
+          });
+        };
         recibos.forEach((r: string) => {
           const mHist = r.match(/(?:RECIB-HIST|dummy-hist)-([A-Z0-9_-]+?)(?:-M?\d+)?$/i);
           if (mHist && mHist[1]) propertyCodesFromRefs.add(mHist[1].toUpperCase());
           const mMulta = r.match(/MULTA-([A-Z0-9_-]+?)(?:-M?\d+)?$/i);
           if (mMulta && mMulta[1]) propertyCodesFromRefs.add(mMulta[1].toUpperCase());
         });
-        if (det.cod_inmueble) propertyCodesFromRefs.add(String(det.cod_inmueble).toUpperCase());
-        if (det.inmueble) propertyCodesFromRefs.add(String(det.inmueble).toUpperCase());
-        if (pago.cod_inmueble) propertyCodesFromRefs.add(String(pago.cod_inmueble).toUpperCase());
+        addSplitCodesRef(det.cod_inmueble);
+        addSplitCodesRef(det.codigo_inmueble);
+        addSplitCodesRef(det.inmueble);
+        addSplitCodesRef(pago.cod_inmueble);
         if (Array.isArray(det.inmuebles)) {
           det.inmuebles.forEach((ic: any) => {
-            if (typeof ic === 'string') propertyCodesFromRefs.add(ic.toUpperCase());
-            else if (ic?.inmueble) propertyCodesFromRefs.add(String(ic.inmueble).toUpperCase());
+            if (typeof ic === 'string') addSplitCodesRef(ic);
+            else if (ic?.inmueble) addSplitCodesRef(ic.inmueble);
           });
         }
         if (facs && facs.length > 0) {
           facs.forEach((f: any) => {
-            if (f.inmueble) propertyCodesFromRefs.add(String(f.inmueble).toUpperCase());
+            if (f.inmueble) addSplitCodesRef(f.inmueble);
           });
         }
 

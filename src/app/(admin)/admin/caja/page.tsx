@@ -1046,29 +1046,33 @@ export default function CajaPage() {
       // Obtener datos frescos del inmueble desde Supabase
       const userIdentVariants = getIdentidadVariantsExact(user.Identidad);
       let orFilterInms = '';
-      const searchedSpecificCode = String(user.cod_cont || String(user.CodCont || '').split(/\s+/)[0] || '').trim().toUpperCase();
+      const rawCodesTokens = String(user.cod_cont || user.CodCont || '')
+        .split(/[,;\s]+/)
+        .map(s => s.replace(/[^A-Z0-9_-]/gi, '').trim().toUpperCase())
+        .filter(s => /^(?:URB|AURI|CONDO)/i.test(s));
+      const searchedSpecificCode = rawCodesTokens[0] || '';
       if (isCodeFormat && searchedSpecificCode) {
         const specificCode = searchedSpecificCode;
         // REQUISITO: Cuando se busca por código, debe salir la información de ese código y de su local/unidad.
         // Si el código buscado pertenece a un local unificado (tiene padre_id hacia una matriz N/A del mismo local),
         // traer tanto la matriz como todas sus actividades hijas unificadas.
         // IMPORTANTE: NUNCA usar condominio_padre_id aquí, porque cargaría todas las demás unidades/locales de otros propietarios del edificio/centro comercial.
-        let parentPadreId = user.padre_id;
+        let parentPadreId = user.padre_id ? String(user.padre_id).split(/[,;\s]+/)[0].replace(/[^A-Z0-9_-]/gi, '').trim().toUpperCase() : '';
         if (!parentPadreId) {
           const mInmLocal = (inmuebles || []).find((i: any) => String(i.inmueble || '').toUpperCase() === specificCode);
           if (mInmLocal?.padre_id) {
-            parentPadreId = mInmLocal.padre_id;
+            parentPadreId = String(mInmLocal.padre_id).split(/[,;\s]+/)[0].replace(/[^A-Z0-9_-]/gi, '').trim().toUpperCase();
           }
         }
         if (!parentPadreId) {
           const { data: codeInmDb } = await supabase.from('inmuebles').select('padre_id').eq('inmueble', specificCode).maybeSingle();
           if (codeInmDb?.padre_id) {
-            parentPadreId = codeInmDb.padre_id;
+            parentPadreId = String(codeInmDb.padre_id).split(/[,;\s]+/)[0].replace(/[^A-Z0-9_-]/gi, '').trim().toUpperCase();
           }
         }
 
         const codesArray = [specificCode];
-        if (parentPadreId) codesArray.push(parentPadreId);
+        if (parentPadreId && !codesArray.includes(parentPadreId)) codesArray.push(parentPadreId);
 
         orFilterInms = [
           ...codesArray.map(c => `inmueble.eq.${c}`),
@@ -1082,7 +1086,12 @@ export default function CajaPage() {
           .select('inmueble')
           .or(initialIdentConditions);
 
-        const ownCodes = (ownInmList || []).map((i: any) => i.inmueble).filter(Boolean);
+        const ownCodes = Array.from(new Set(
+          (ownInmList || [])
+            .flatMap((i: any) => String(i.inmueble || '').split(/[,;\s]+/))
+            .map((c: string) => c.replace(/[^A-Z0-9_-]/gi, '').trim().toUpperCase())
+            .filter(Boolean)
+        ));
         if (ownCodes.length > 0) {
           orFilterInms = `${initialIdentConditions},${ownCodes.map((c: string) => `padre_id.eq.${c}`).join(',')}`;
         } else {
@@ -1141,7 +1150,7 @@ export default function CajaPage() {
       // Además, si se busca por RIF/Nombre (!isCodeFormat) y el contribuyente tiene inmuebles propios fuera de condominio (ej. URB007835 Sambil)
       // junto con locales dentro de un condominio centralizado (ej. A.S 24 URB016119 que se cobran por Caja de Condominios),
       // excluir los locales del condominio centralizado (salvo que tengan multa propia pendiente) para NO unificarlos con el inmueble individual.
-      const specificCode = (user.CodCont || user.cod_cont || '').toUpperCase();
+      const specificCode = searchedSpecificCode || String(user.CodCont || user.cod_cont || '').split(/[,;\s]+/)[0].replace(/[^A-Z0-9_-]/gi, '').trim().toUpperCase();
       const rawActiveInms = (inmFresh || []).filter((i: any) => {
         const st = String(i.estado || '').trim().toLowerCase();
         if (st === 'eliminado' || st === 'inactivo' || st === 'desactivado' || st === 'baja') return false;
@@ -1497,7 +1506,7 @@ export default function CajaPage() {
 
       // Si se buscó por código específico, aislar para que solo aparezcan facturas de ESTE inmueble o de sus hijos
       if (isCodeFormat && (user.CodCont || user.cod_cont)) {
-        const specificCode = String(user.CodCont || user.cod_cont).toUpperCase();
+        const specificCode = searchedSpecificCode || String(user.CodCont || user.cod_cont || '').split(/[,;\s]+/)[0].replace(/[^A-Z0-9_-]/gi, '').trim().toUpperCase();
         const allowedCodes = new Set([
           specificCode,
           ...activeInmFresh.map((i: any) => String(i.inmueble || '').toUpperCase())
@@ -1855,7 +1864,12 @@ export default function CajaPage() {
 
         const pagoCodes = new Set<string>();
         [detObj.cod_inmueble, detObj.codigo_inmueble, detObj.inmueble, detObj.cod_inmueble_hijo_original, p.cod_inmueble].forEach((c: any) => {
-          if (c) pagoCodes.add(String(c).trim().toLowerCase());
+          if (c) {
+            String(c).split(/[,;\s]+/).forEach(tok => {
+              const clean = tok.replace(/[^a-zA-Z0-9_-]/g, '').trim().toLowerCase();
+              if (clean) pagoCodes.add(clean);
+            });
+          }
         });
         if (Array.isArray(detObj.recibos)) {
           detObj.recibos.forEach((r: any) => {
@@ -1947,7 +1961,12 @@ export default function CajaPage() {
         const apCod = String(detObj?.codigo_inmueble || detObj?.cod_inmueble || '').toUpperCase();
         const apRecs = Array.isArray(detObj?.recibos) ? detObj.recibos : [];
         const apCodes = new Set<string>();
-        if (apCod) apCodes.add(apCod);
+        if (apCod) {
+          apCod.split(/[,;\s]+/).forEach(tok => {
+            const clean = tok.replace(/[^A-Z0-9_-]/gi, '').trim().toUpperCase();
+            if (clean) apCodes.add(clean);
+          });
+        }
         apRecs.forEach((r: string) => {
           const m = String(r).match(/(?:RECIB-HIST|CM)-([A-Z0-9_-]+?)(?:-M\d+)?$/i);
           if (m && m[1]) apCodes.add(m[1].toUpperCase());
@@ -3757,10 +3776,77 @@ export default function CajaPage() {
             }
           } else {
             // === ABONO PARCIAL / PAGO MÚLTIPLE ===
-            // No descontar actividades individuales ni acreditar el monto en saldo_favor_bs.
-            // El pago queda aprobado con es_abono: true y abono_completado: false para que Caja
-            // descuente automáticamente este primer abono del monto total del recibo y muestre
-            // exactamente la diferencia restante para el siguiente método de pago.
+            // Verificar si este abono, sumado a otros abonos ya aprobados del mismo contribuyente para estos mismos recibos,
+            // completa el 100% del monto objetivo (ej. cuando el cajero ingresó el 2do pago antes de que el 1er abono se reflejara en abonoPrevioAprobado).
+            let abonoCompletadoEnCaja = false;
+            try {
+              const variantesIdentCheck = getIdentidadVariantsExact(foundUser.Identidad);
+              const { data: otrosAbonosCheck } = await supabase
+                .from('pagos_reportados')
+                .select('id, monto, created_at, detalles')
+                .in('identidad', variantesIdentCheck)
+                .eq('estado', 'Aprobado')
+                .neq('id', pagoId);
+              const selSetUpper = new Set(selectedRecibos.map(r => String(r).toUpperCase()));
+              const hermanosQueComparten: any[] = [];
+              let sumaHermanosCaja = 0;
+              for (const oa of otrosAbonosCheck || []) {
+                let dOa: any = oa.detalles || {};
+                if (typeof dOa === 'string') { try { dOa = JSON.parse(dOa); } catch { dOa = {}; } }
+                if (!dOa?.es_abono || dOa?.abono_completado || dOa?.anulado || dOa?.factura_digital?.anulada || dOa?.factura_digital?.emitida) continue;
+                const recsOa: string[] = Array.isArray(dOa.recibos) ? dOa.recibos.map((r: any) => String(r).toUpperCase()) : [];
+                const comparte = recsOa.length > 0 && recsOa.some(r => selSetUpper.has(r));
+                const diffDias = Math.abs(Date.now() - new Date(oa.created_at || 0).getTime()) / (86400 * 1000);
+                if (comparte && diffDias <= 25) {
+                  sumaHermanosCaja += parseFloat(String(oa.monto || dOa.monto_abonado || 0)) || 0;
+                  hermanosQueComparten.push({ id: oa.id, detalles: dOa });
+                }
+              }
+              const montoObjTotal = totalConImpuestos > 0 ? totalConImpuestos : totalFacturaBruto;
+              if (montoObjTotal > 0 && hermanosQueComparten.length > 0 && (montoReal + sumaHermanosCaja + (descuentoSaldoFavor || 0)) >= montoObjTotal - 1.00) {
+                abonoCompletadoEnCaja = true;
+                for (const hq of hermanosQueComparten) {
+                  await supabase.from('pagos_reportados').update({
+                    detalles: { ...hq.detalles, abono_completado: true, completado_con_pago_id: pagoId }
+                  }).eq('id', hq.id);
+                }
+                await supabase.from('pagos_reportados').update({
+                  detalles: {
+                    ...fullDetalles,
+                    es_abono: false,
+                    abono_completado: true,
+                    abono_previo_descontado: Math.round(sumaHermanosCaja * 100) / 100,
+                    factura_digital: { emitida: false, pendiente: true, preparada_at: new Date().toISOString() }
+                  }
+                }).eq('id', pagoId);
+                for (const inm of userInmsClean) {
+                  const histRefsThisInm = histRefs.filter(r => r.includes(`-${inm.inmueble || inm.codigo}-`));
+                  const numMesesInm = Math.max(0, parseInt(String(inm.meses_deuda || 0)));
+                  if (selectedRecibos.includes('RECIB-DEUDA') || (histRefsThisInm.length >= numMesesInm && (numMesesInm > 0 || histRefsThisInm.length > 0))) {
+                    await supabase.from('inmuebles').update({
+                      deuda_mmv: 0,
+                      deuda_congelada_bs: 0,
+                      multa_bs: 0,
+                      meses_deuda: 0,
+                    }).eq('id', inm.id);
+                  } else if (histRefsThisInm.length > 0) {
+                    const nuevoMeses = Math.max(0, numMesesInm - histRefsThisInm.length);
+                    const d = parseFloat(String(inm.deuda_mmv || 0));
+                    const m = parseFloat(String(inm.multa_bs || 0));
+                    const nuevaDeudaMMV = nuevoMeses === 0 ? 0 : parseFloat(((d * nuevoMeses) / (numMesesInm || 1)).toFixed(6));
+                    const nuevaMultaBs = nuevoMeses === 0 ? 0 : parseFloat(((m * nuevoMeses) / (numMesesInm || 1)).toFixed(2));
+                    await supabase.from('inmuebles').update({
+                      meses_deuda: nuevoMeses,
+                      deuda_mmv: nuevaDeudaMMV,
+                      multa_bs: nuevaMultaBs,
+                      ...(nuevoMeses === 0 ? { deuda_congelada_bs: 0 } : {})
+                    }).eq('id', inm.id);
+                  }
+                }
+              }
+            } catch (eCompCaja) {
+              console.warn('Error verificando completitud de abonos en Caja:', eCompCaja);
+            }
           }
 
           if (!esAbonoDebito) {
