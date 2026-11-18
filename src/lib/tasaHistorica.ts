@@ -6,8 +6,9 @@ export const valorUCD = (tasaEuro: number) => (Number(tasaEuro) || 0) * FACTOR_U
 export async function obtenerTasaEuroFecha(fecha: string): Promise<{ euro: number; fechaValor: string }> {
   const res = await fetch(`/api/bcv/historico?fecha=${encodeURIComponent(fecha)}`, { cache: 'no-store' });
   const j = await res.json().catch(() => ({}));
-  if (!res.ok || !j?.success || !(Number(j.euro) > 0)) throw new Error(j?.error || 'No se pudo obtener la tasa de esa fecha');
-  return { euro: Number(j.euro), fechaValor: String(j.fecha_valor) };
+  const valExacto = Number(j?.euro_exacto || j?.euro || 0);
+  if (!res.ok || !j?.success || !(valExacto > 0)) throw new Error(j?.error || 'No se pudo obtener la tasa de esa fecha');
+  return { euro: valExacto, fechaValor: String(j.fecha_valor) };
 }
 
 export const fechaDMY = (iso: string) => {

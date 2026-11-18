@@ -66,8 +66,9 @@ export async function GET(req: Request) {
           success: true,
           fecha_solicitada: fecha,
           fecha_valor: todayStr,
-          euro: r2(Number(liveBcv.tcmmv)),
+          euro: Number(liveBcv.tcmmv),
           euro_exacto: Number(liveBcv.tcmmv),
+          euro_redondeado: r2(Number(liveBcv.tcmmv)),
         });
       }
     }
@@ -79,7 +80,14 @@ export async function GET(req: Request) {
       else break;
     }
     if (!reg) return NextResponse.json({ success: false, error: 'No hay tasa publicada para esa fecha' }, { status: 404 });
-    return NextResponse.json({ success: true, fecha_solicitada: fecha, fecha_valor: reg.fecha, euro: r2(reg.promedio), euro_exacto: reg.promedio });
+    return NextResponse.json({
+      success: true,
+      fecha_solicitada: fecha,
+      fecha_valor: reg.fecha,
+      euro: reg.promedio,
+      euro_exacto: reg.promedio,
+      euro_redondeado: r2(reg.promedio),
+    });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e?.message || 'Error consultando la tasa' }, { status: 502 });
   }

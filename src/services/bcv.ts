@@ -74,10 +74,10 @@ export async function getTasaBCV(sync: boolean = false) {
     console.error('Error fetching cached rates from sistema_config:', e);
   }
 
-  // 4. Si NO es forzado (sync=false) y ya tenemos la tasa fijada para el día de HOY:
-  // Retornar la tasa congelada del día. Esto GARANTIZA que los montos de la tarde sean EXACTAMENTE
-  // iguales a los de la mañana, sin fluctuar por la publicación vespertina del BCV.
-  if (!sync && fechaDiariaGuardada === todayStr && tasaDiariaGuardada && !isNaN(tasaDiariaGuardada) && tasaDiariaGuardada > 0) {
+  // 4. Si ya tenemos la tasa fijada con fecha valor de HOY:
+  // Retornar la tasa congelada del día (incluso si sync=true en la tarde cuando el BCV ya publicó la tasa de mañana),
+  // garantizando que los montos de la tarde sean EXACTAMENTE iguales a los de la mañana y coincidan con el histórico BCV.
+  if (fechaDiariaGuardada === todayStr && tasaDiariaGuardada && !isNaN(tasaDiariaGuardada) && tasaDiariaGuardada > 10) {
     return {
       success: true,
       euro: tasaDiariaGuardada,
@@ -89,7 +89,7 @@ export async function getTasaBCV(sync: boolean = false) {
   }
 
   // 5. Si es fin de semana y tenemos la tasa semanal fijada (del viernes), usarla
-  if (!sync && isWeekend && tasaSemanalGuardada && !isNaN(tasaSemanalGuardada) && tasaSemanalGuardada > 0) {
+  if (isWeekend && tasaSemanalGuardada && !isNaN(tasaSemanalGuardada) && tasaSemanalGuardada > 10) {
     return {
       success: true,
       euro: tasaSemanalGuardada,
