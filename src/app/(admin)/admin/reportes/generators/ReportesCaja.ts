@@ -38,13 +38,13 @@ function insertarEncabezadoLogos(
       console.warn('No se pudo incrustar logo en ReportesCaja:', e);
     }
   };
-  addImg((logos as any).instituto || logos.alcaldia, opts.leftCol, 0.15, opts.logoW || 155, opts.logoH || 52);
-  addImg(logos.iamec, opts.rightCol, 0.2, opts.rightLogoW || 150, opts.rightLogoH || 46);
+  addImg((logos as any).instituto || logos.alcaldia, opts.leftCol, 0.15, opts.logoW || 135, opts.logoH || 45);
+  addImg(logos.iamec, opts.rightCol, 0.18, opts.rightLogoW || 135, opts.rightLogoH || 42);
 
   const lines = [
     { txt: 'REPÚBLICA BOLIVARIANA DE VENEZUELA - ESTADO CARABOBO', size: 10, bold: true, color: 'FF000000' },
-    { txt: 'INSTITUTO AUTÓNOMO MUNICIPAL DE ECOSOCIALISMO DE NAGUANAGUA (IAMEC)', size: 11, bold: true, color: 'FF000000' },
-    { txt: titulo, size: 12, bold: true, color: 'FF1F4E78' },
+    { txt: 'INSTITUTO AUTÓNOMO MUNICIPAL DE ECOSOCIALISMO DE NAGUANAGUA (IAMEC)', size: 10.5, bold: true, color: 'FF000000' },
+    { txt: titulo, size: 11, bold: true, color: 'FF1F4E78' },
     { txt: subtitulo, size: 9.5, bold: true, color: 'FF334155' },
   ];
   lines.forEach((l, idx) => {
@@ -453,23 +453,23 @@ export async function generarTotalPuntosVenta(pagos: any[], fechaInicio: string,
   // Hoja 2: RESUMEN POR DIA (Total_MES + Total_semana lado a lado)
   const res = wb.addWorksheet('RESUMEN');
   res.columns = [
-    { width: 10 }, // A: Dia sem
-    { width: 8 },  // B: DIA
-    { width: 18 }, // C: MONTO (Bs.)
-    { width: 12 }, // D: USUARIOS
-    { width: 10 }, // E: ACTIVAS
-    { width: 4 },  // F: separador
-    { width: 14 }, // G: SEMANA
-    { width: 18 }, // H: MONTO
-    { width: 12 }, // I: USUARIOS
-    { width: 12 }, // J: CAJAS ACT
+    { width: 12 }, // A: Dia sem
+    { width: 10 }, // B: DIA
+    { width: 22 }, // C: MONTO (Bs.)
+    { width: 14 }, // D: USUARIOS
+    { width: 14 }, // E: ACTIVAS
+    { width: 6 },  // F: separador
+    { width: 16 }, // G: SEMANA
+    { width: 22 }, // H: MONTO
+    { width: 14 }, // I: USUARIOS
+    { width: 14 }, // J: CAJAS ACT
   ] as any;
   insertarEncabezadoLogos(
     wb,
     res,
     'TOTAL PUNTOS DE VENTA — RESUMEN DIARIO Y SEMANAL',
     `RIF: G-20008614-9   |   Período: ${dmy(fechaInicio)} al ${dmy(fechaFin)}`,
-    { leftCol: 0.1, rightCol: 8.15, textColStart: 3, textColEnd: 8 }
+    { leftCol: 0.08, rightCol: 8.08, textColStart: 3, textColEnd: 8, logoW: 135, logoH: 45, rightLogoW: 135, rightLogoH: 42 }
   );
 
   const cabCyan = (wsTarget: any, fila: number, valores: string[], desde = 1) => {
@@ -594,13 +594,13 @@ export async function generarTotalPuntosVenta(pagos: any[], fechaInicio: string,
   [...porDia.keys()].sort().forEach(dia => {
     const [, mm, dd] = dia.split('-');
     const ws = wb.addWorksheet(`${dd}-${mm}`);
-    ws.columns = [{ width: 12 }, { width: 18 }, { width: 9 }, { width: 24 }, { width: 18 }, { width: 11 }] as any;
+    ws.columns = [{ width: 22 }, { width: 24 }, { width: 14 }, { width: 32 }, { width: 24 }, { width: 22 }] as any;
     insertarEncabezadoLogos(
       wb,
       ws,
       `PUNTOS DE VENTA DEL DÍA ${dmy(dia)}`,
       'RIF: G-20008614-9',
-      { leftCol: 0.08, rightCol: 4.5, textColStart: 2, textColEnd: 5, logoW: 135, logoH: 45, rightLogoW: 135, rightLogoH: 42 }
+      { leftCol: 0.08, rightCol: 5.08, textColStart: 2, textColEnd: 5, logoW: 135, logoH: 45, rightLogoW: 135, rightLogoH: 42 }
     );
     cabCyan(ws, 6, ['CAJAS', 'CAJERO', 'ACTIVA', 'UBICACION', 'MONTO (Bs.)', 'USUARIOS'], 1);
     const m = porDia.get(dia)!;
@@ -1181,11 +1181,11 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
   wsPto.columns = [
     { width: 18 },
     { width: 14 },
-    { width: 26 },
-    { width: 18 },
-    { width: 16 },
+    { width: 28 },
     { width: 20 },
-    { width: 16 },
+    { width: 18 },
+    { width: 24 },
+    { width: 18 },
     { width: 14 },
   ] as any;
   insertarEncabezadoLogos(
@@ -1193,7 +1193,7 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
     wsPto,
     'CONCILIACIÓN DE PUNTOS DE VENTA (DÉBITO / CRÉDITO)',
     `RIF: G-20008614-9   |   Período: ${dmy(fIni || fechaInicio)} al ${dmy(fFin || fechaFin)}`,
-    { leftCol: 0.12, rightCol: 6.4, textColStart: 3, textColEnd: 6 }
+    { leftCol: 0.12, rightCol: 6.08, textColStart: 3, textColEnd: 6 }
   );
   const pto = new Map<string, Map<string, { monto: number; usuarios: number }>>();
   deb.forEach(p => {
@@ -1273,8 +1273,8 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
   // Resumen
   wsRes.columns = [
     { width: 22 },
+    { width: 56 },
     { width: 38 },
-    { width: 24 },
     { width: 22 },
   ] as any;
   insertarEncabezadoLogos(
@@ -1282,7 +1282,7 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
     wsRes,
     'RESUMEN GENERAL DE CONCILIACIONES BANCARIAS Y PUNTOS DE VENTA',
     `RIF: G-20008614-9   |   Período de registro: ${dmy(fIni || fechaInicio)} al ${dmy(fFin || fechaFin)}`,
-    { leftCol: 0.08, rightCol: 3.05, textColStart: 2, textColEnd: 3 }
+    { leftCol: 0.08, rightCol: 3.08, textColStart: 2, textColEnd: 3 }
   );
   cab(wsRes, 6, ['CONCEPTO / MES DE RECAUDACIÓN', 'MONTO CONCILIADO (Bs.)'], 2);
   let fr = 7; let totalMes = 0;

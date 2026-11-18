@@ -747,12 +747,12 @@ export const generarLibroVentas = async (pagosFiltrados: any[], contribuyentes: 
   ws.views = [{ state: 'frozen', ySplit: 6 }];
 
   // ── Hoja Resumen y Declaración ──
-  wsRes.getColumn(1).width = 62; wsRes.getColumn(2).width = 22; wsRes.getColumn(3).width = 22; wsRes.getColumn(4).width = 22;
+  wsRes.getColumn(1).width = 68; wsRes.getColumn(2).width = 25; wsRes.getColumn(3).width = 25; wsRes.getColumn(4).width = 24;
   for (let r = 1; r <= 4; r++) {
     wsRes.getRow(r).height = 18;
   }
-  addLogoToSheet(wsRes, (logos as any).instituto || logos.alcaldia, 0.05, 0.15, 155, 52);
-  addLogoToSheet(wsRes, logos.iamec, 2.85, 0.2, 150, 46);
+  addLogoToSheet(wsRes, (logos as any).instituto || logos.alcaldia, 0.05, 0.15, 135, 45);
+  addLogoToSheet(wsRes, logos.iamec, 3.05, 0.18, 135, 42);
 
   const put = (r: number, vals: any[], opts: { bold?: boolean; fill?: string; fmt?: boolean } = {}) => {
     vals.forEach((v, k) => {
@@ -764,10 +764,10 @@ export const generarLibroVentas = async (pagosFiltrados: any[], contribuyentes: 
       c.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
     });
   };
-  wsRes.mergeCells('A1:D1'); wsRes.getCell('A1').value = 'REPÚBLICA BOLIVARIANA DE VENEZUELA - ESTADO CARABOBO'; wsRes.getCell('A1').font = { bold: true, size: 10.5 }; wsRes.getCell('A1').alignment = { horizontal: 'center', vertical: 'middle' };
-  wsRes.mergeCells('A2:D2'); wsRes.getCell('A2').value = ORGANISMO; wsRes.getCell('A2').font = { bold: true, size: 11.5 }; wsRes.getCell('A2').alignment = { horizontal: 'center', vertical: 'middle' };
-  wsRes.mergeCells('A3:D3'); wsRes.getCell('A3').value = 'RESUMEN DEL LIBRO DE VENTAS (DECLARACIÓN IVA)'; wsRes.getCell('A3').font = { bold: true, size: 12, color: { argb: 'FF1F4E78' } }; wsRes.getCell('A3').alignment = { horizontal: 'center', vertical: 'middle' };
-  wsRes.mergeCells('A4:D4'); wsRes.getCell('A4').value = `RIF: ${RIF_IAMEC}   |   Período: ${dmy(fIni)} al ${dmy(fFin)}`; wsRes.getCell('A4').font = { bold: true, size: 9.5, color: { argb: 'FF334155' } }; wsRes.getCell('A4').alignment = { horizontal: 'center', vertical: 'middle' };
+  wsRes.mergeCells('A1:C1'); wsRes.getCell('A1').value = 'REPÚBLICA BOLIVARIANA DE VENEZUELA - ESTADO CARABOBO'; wsRes.getCell('A1').font = { bold: true, size: 10 }; wsRes.getCell('A1').alignment = { horizontal: 'center', vertical: 'middle' };
+  wsRes.mergeCells('A2:C2'); wsRes.getCell('A2').value = ORGANISMO; wsRes.getCell('A2').font = { bold: true, size: 10.5 }; wsRes.getCell('A2').alignment = { horizontal: 'center', vertical: 'middle' };
+  wsRes.mergeCells('A3:C3'); wsRes.getCell('A3').value = 'RESUMEN DEL LIBRO DE VENTAS (DECLARACIÓN IVA)'; wsRes.getCell('A3').font = { bold: true, size: 11, color: { argb: 'FF1F4E78' } }; wsRes.getCell('A3').alignment = { horizontal: 'center', vertical: 'middle' };
+  wsRes.mergeCells('A4:C4'); wsRes.getCell('A4').value = `RIF: ${RIF_IAMEC}   |   Período: ${dmy(fIni)} al ${dmy(fFin)}`; wsRes.getCell('A4').font = { bold: true, size: 9.5, color: { argb: 'FF334155' } }; wsRes.getCell('A4').alignment = { horizontal: 'center', vertical: 'middle' };
 
   put(6, ['DATOS GENERALES DE LA OFICINA DE RECAUDACIÓN', '', '', ''], { bold: true, fill: 'FFD9E1F2' });
   put(7, ['Organismo / Entidad: Oficina de Recaudación de Aseo Urbano - Naguanagua', 'RIF:', RIF_IAMEC, '']);

@@ -9,27 +9,41 @@ export const dibujarYDescargarPDF = async (data: any, isPreview = false) => {
   try {
     const doc = new jsPDF();
     
-    // Header background (gray bar)
-    doc.setFillColor(230, 230, 230); // light gray
-    doc.rect(0, 0, 210, 40, 'F');
-    
-    // IAMEC Naguanagua logo only
-    doc.addImage(logos.iamec, 'PNG', 15, 8, 45, 25);
-    
-    // Header Text
-    doc.setFontSize(22);
+    // Header background (subtle institutional bar)
+    doc.setFillColor(245, 247, 250);
+    doc.rect(0, 0, 210, 44, 'F');
+    doc.setDrawColor(203, 213, 225);
+    doc.setLineWidth(0.4);
+    doc.line(14, 44, 196, 44);
+
+    // Logos institucionales (Alcaldía izquierda, IAMEC derecha — proporción exacta 652x233 -> 38x13.5)
+    doc.addImage(logos.alcaldia, 'PNG', 14, 11, 38, 13.5);
+    doc.addImage(logos.iamec, 'PNG', 158, 11, 38, 13.5);
+
+    // Membrete institucional central
+    doc.setTextColor(30, 41, 59);
     doc.setFont("helvetica", "bold");
-    doc.setTextColor(50, 50, 50);
-    doc.text("CERTIFICADO DE SOLVENCIA", 200, 20, { align: "right" });
-    
-    doc.setFontSize(10);
+    doc.setFontSize(7.5);
+    doc.text("REPÚBLICA BOLIVARIANA DE VENEZUELA - ESTADO CARABOBO", 105, 11, { align: "center" });
+    doc.setFontSize(8);
+    doc.text("ALCALDÍA BOLIVARIANA DE NAGUANAGUA", 105, 15, { align: "center" });
+    doc.text("INSTITUTO AUTÓNOMO MUNICIPAL DE ECOSOCIALISMO (IAMEC)", 105, 19, { align: "center" });
     doc.setFont("helvetica", "normal");
-    doc.setTextColor(100, 100, 100);
-    doc.text(`Nº Certificado: ${data.codigo}`, 200, 28, { align: "right" });
-    
+    doc.setFontSize(7.5);
+    doc.text("RIF: G-20008614-9", 105, 22.8, { align: "center" });
+
+    // Título del Certificado
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(15, 23, 42);
+    doc.text("CERTIFICADO DE SOLVENCIA", 105, 30.5, { align: "center" });
+
     const fechaEmision = new Date(data.emision);
     const fechaActualStr = fechaEmision.toLocaleDateString('es-VE');
-    doc.text(`Fecha: ${fechaActualStr}`, 200, 34, { align: "right" });
+    doc.setFontSize(8.5);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(71, 85, 105);
+    doc.text(`Nº Certificado: ${data.codigo}   |   Fecha de Emisión: ${fechaActualStr}`, 105, 36.5, { align: "center" });
     
     // Section 1: DATOS DEL CONTRIBUYENTE & DETALLES DEL INMUEBLE
     doc.setFontSize(10);
