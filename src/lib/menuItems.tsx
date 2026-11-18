@@ -31,6 +31,7 @@ export const MENU_ASEO: MenuItem[] = [
   { icon: Briefcase, name: 'Caja / Pagos', href: '/admin/caja' },
   { icon: Landmark, name: 'Conciliacion Bancaria', href: '/admin/caja/conciliacion' },
   { icon: FileText, name: 'Facturación Electrónica', href: '/admin/facturacion-electronica' },
+  { icon: FileCheck, name: 'Liberación Sin Planilla', href: '/admin/liberacion-retenciones' },
   { icon: FileSpreadsheet, name: 'Emisión de recibos', href: '/admin/estado-cuenta' },
   { icon: Handshake, name: 'Convenios de Pago', href: '/admin/convenios-pago' },
   { icon: Award, name: 'Certificados Emitidos', href: '/admin/certificados' },

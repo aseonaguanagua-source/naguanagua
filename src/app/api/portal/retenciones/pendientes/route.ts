@@ -61,7 +61,13 @@ export async function GET(request: Request) {
 
       // Determinar estado de la retención
       let estadoRet: any = r.estado || 'esperando_planilla';
-      if (det.retencion_aprobada === true) estadoRet = 'aprobada';
+      if (det.retencion_aprobada === true || det.liberado_sin_planilla === true || det.exonerado_planilla_retencion === true || r.liberado_sin_planilla === true) {
+        estadoRet = 'aprobada';
+      }
+      // Si fue liberada sin planilla y no tuvo descuento de retención en el pago, no mostrarla como obligación de retención en el portal
+      if ((det.liberado_sin_planilla === true || det.exonerado_planilla_retencion === true) && retMonto <= 0) {
+        return;
+      }
 
       facturas.push({
         pagoId: p.id,

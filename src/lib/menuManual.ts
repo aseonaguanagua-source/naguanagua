@@ -170,6 +170,15 @@ export const MANUAL_MENU: Record<string, ManualOpcion> = {
       'Soporte del Libro de Ventas.',
     ],
   },
+  '/admin/liberacion-retenciones': {
+    desc: 'Liberación de emisión/entrega de facturas y solvencias sin planilla de retención (ex-agentes de retención y cierres pasados).',
+    proposito: 'Permite habilitar la emisión o envío de facturas y solvencias para contribuyentes que dejaron de ser agentes de retención sin exigir planilla y sin alterar el cierre ni el Libro de Ventas de meses pasados.',
+    funciones: [
+      'Check para liberar emisión y visualización de factura sin planilla de retención.',
+      'Botón directo para enviar o emitir la factura por correo sin montar planilla.',
+      'Emisión de Certificado de Solvencia sin modificar cierres anteriores.',
+    ],
+  },
   '/admin/estado-cuenta': {
     desc: 'Emisión de recibos y estados de cuenta oficiales para entregar al contribuyente.',
     proposito: 'Permite generar los documentos oficiales de cobro (recibos y estados de cuenta) para su entrega o envío al contribuyente.',

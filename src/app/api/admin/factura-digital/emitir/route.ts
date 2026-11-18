@@ -127,7 +127,8 @@ export async function POST(request: Request) {
       montoTotal, isCondominio, concepto, montoServicio, montoMulta, 
       correoDestino, enviarCorreo = true, dryRun = false, totalManual, motivoAjuste, usuario,
       esRetencion, referencia, modulo, fechaEmisionOverride, fechaPagoOverride, fecha, reemitir = false,
-      direccionOverride, bancoOverride, formaPagoOverride, conceptoMultaOverride, llevaMulta
+      direccionOverride, bancoOverride, formaPagoOverride, conceptoMultaOverride, llevaMulta,
+      liberarSinPlanilla = false
     } = await request.json();
     const r2 = (n: number) => Math.round(n * 100) / 100;
     // Total editado a mano en la verificación/emisión (con IVA). Si viene, la factura totaliza ESE monto.
@@ -2221,7 +2222,21 @@ export async function POST(request: Request) {
     const esComodin = !candEmail || isFictitiousEmail(candEmail) || candEmail.toLowerCase() === fallbackEmail.toLowerCase();
     const emailFinal = esComodin ? fallbackEmail : candEmail;
 
-    if (enviarCorreo && !conRetencion) {
+    const esLiberadoSinPlanilla = Boolean(
+      liberarSinPlanilla ||
+      nuevosDetalles?.liberado_sin_planilla === true ||
+      nuevosDetalles?.exonerado_planilla_retencion === true ||
+      dm?.liberado_sin_planilla === true ||
+      dm?.exonerado_planilla_retencion === true
+    );
+    if (esLiberadoSinPlanilla) {
+      nuevosDetalles.liberado_sin_planilla = true;
+      nuevosDetalles.exonerado_planilla_retencion = true;
+      nuevosDetalles.retencion_aprobada = true;
+      nuevosDetalles.liberado_sin_planilla_at = nuevosDetalles.liberado_sin_planilla_at || new Date().toISOString();
+    }
+
+    if (enviarCorreo && (!conRetencion || esLiberadoSinPlanilla)) {
       try {
         const envioInfo = await enviarFacturaConCopiaInterna({
           contribuyente: razonSocialFinal || 'Contribuyente',
@@ -2235,6 +2250,16 @@ export async function POST(request: Request) {
           esCorreoComodin: esComodin,
         });
         nuevosDetalles.factura_digital.envio_correo = envioInfo;
+        if (esLiberadoSinPlanilla) {
+          const ahoraEnv = new Date().toISOString();
+          nuevosDetalles.liberado_factura_enviada_at = ahoraEnv;
+          nuevosDetalles.factura_digital.ultimo_envio_correo = {
+            fecha: ahoraEnv,
+            destinatario: emailFinal,
+            exito: envioInfo.clienteEnviado || envioInfo.copiaInternaEnviada,
+            liberado_sin_planilla: true,
+          };
+        }
       } catch (mailErr: any) {
         console.warn('Aviso enviando correos de factura digital:', mailErr.message);
       }
@@ -2244,13 +2269,14 @@ export async function POST(request: Request) {
     nuevosDetalles.factura_digital.es_correo_comodin = esComodin;
     nuevosDetalles.factura_digital.requiere_actualizacion_correo = esComodin;
 
-    // ── Agente de retención: estado del flujo (la factura queda retenida hasta aprobar la planilla) ──
+    // ── Agente de retención: estado del flujo (la factura queda retenida hasta aprobar la planilla, salvo si fue liberada sin planilla) ──
     if (conRetencion && nuevosDetalles.factura_digital?.emitida) {
       const porcRet = Number((pagoRow?.detalles as any)?.porcentaje_retencion || (detPago as any)?.porcentaje_retencion) === 100 ? 100 : 75;
       nuevosDetalles.porcentaje_retencion = porcRet;
       nuevosDetalles.factura_digital.retencion = {
         ...(nuevosDetalles.factura_digital.retencion || {}),
-        estado: nuevosDetalles.factura_digital.retencion?.estado || 'esperando_planilla',
+        estado: esLiberadoSinPlanilla ? 'aprobada' : (nuevosDetalles.factura_digital.retencion?.estado || 'esperando_planilla'),
+        liberado_sin_planilla: esLiberadoSinPlanilla ? true : nuevosDetalles.factura_digital.retencion?.liberado_sin_planilla,
         porcentaje_retencion: porcRet,
         ...calcularRetencion(totalGravado, totalIVA, totalExento, porcRet),
       };
@@ -2448,6 +2474,12 @@ export async function POST(request: Request) {
     }
 
     await supabase.from('pagos_reportados').update(updatePayload).eq('id', pagoId);
+    if (esLiberadoSinPlanilla || conRetencion) {
+      await supabase
+        .from('pagos_reportados')
+        .update({ estado: 'Aprobado' })
+        .filter('detalles->>pago_vinculado', 'eq', pagoId);
+    }
 
     // Sincronizar pagos adicionales / abonos parciales vinculados a esta transacción múltiple
     try {
@@ -2634,9 +2666,9 @@ export async function POST(request: Request) {
       console.warn('Aviso sincronizando pagos hijos:', syncErr.message);
     }
 
-    // Correo con los DATOS de la factura (no la factura) para que el agente llene su comprobante de retención
+    // Correo con los DATOS de la factura (no la factura) para que el agente llene su comprobante de retención (solo si no fue liberado sin planilla)
     let retencionInfo: any = null;
-    if (conRetencion && nuevosDetalles.factura_digital?.emitida && !nuevosDetalles.factura_digital.simulated) {
+    if (conRetencion && !esLiberadoSinPlanilla && nuevosDetalles.factura_digital?.emitida && !nuevosDetalles.factura_digital.simulated) {
       const origin = new URL(request.url).origin;
       retencionInfo = await enviarDatosFacturaRetencion(pagoId, portalRetencionesUrl(origin)).catch((e: any) => ({ ok: false, correo: null, error: e.message }));
     }

@@ -18,6 +18,7 @@ export const ROUTE_PERMISSIONS_MAP: Record<string, string[]> = {
   '/admin/caja': ['ver_caja', 'gestionar_pagos'],
   '/admin/caja/conciliacion': ['ver_conciliacion'],
   '/admin/facturacion-electronica': ['emitir_recibos', 'ver_caja'],
+  '/admin/liberacion-retenciones': ['emitir_recibos', 'ver_caja', 'emitir_solvencia'],
   '/admin/estado-cuenta': ['ver_estado_cuenta', 'descargar_pdf_ec', 'ver_caja'],
   '/admin/convenios-pago': ['ver_convenios'],
   '/admin/certificados': ['ver_certificados', 'emitir_solvencia', 'ver_caja'],

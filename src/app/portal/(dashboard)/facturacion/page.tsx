@@ -144,9 +144,11 @@ export default function FacturacionPortalPage() {
 
           const matchedRet = retMap.get(`FAC-${numDoc}`) || (numCtrl !== 'N/A' ? retMap.get(numCtrl) : undefined);
 
+          const esLiberadoSinPlanilla = Boolean(det.liberado_sin_planilla || det.exonerado_planilla_retencion || r.liberado_sin_planilla);
+
           if (esAgente) {
             // Verificar estado en fd.retencion o en retenciones_iva
-            let st = r.estado;
+            let st = esLiberadoSinPlanilla ? 'aprobada' : r.estado;
             if (!st || st === 'esperando_planilla') {
               if (matchedRet?.estado === 'Aprobado') st = 'aprobada';
               else if (matchedRet?.estado === 'Rechazado') st = 'rechazada';
@@ -155,8 +157,8 @@ export default function FacturacionPortalPage() {
 
             retEstado = st || 'esperando_planilla';
 
-            // REGLA FUNDAMENTAL: Si son agentes de retención, la factura solo sale después de su aprobación de planilla
-            if (retEstado !== 'aprobada' && det.retencion_aprobada !== true) {
+            // REGLA FUNDAMENTAL: Si son agentes de retención, la factura solo sale después de su aprobación de planilla (o si fue liberada sin planilla)
+            if (retEstado !== 'aprobada' && det.retencion_aprobada !== true && !esLiberadoSinPlanilla) {
               puedeVer = false;
               if (retEstado === 'esperando_planilla') {
                 motivoBloqueo = 'Debe cargar su comprobante de retención del 75% en la sección Retención.';

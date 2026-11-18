@@ -1425,6 +1425,15 @@ export default function FacturacionElectronicaPage() {
 
           {/* BOTONES DE ACCIÓN PRINCIPALES */}
           <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            <a
+              href="/admin/liberacion-retenciones"
+              className="px-4 py-2.5 rounded-xl border-2 border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 font-extrabold text-xs flex items-center gap-2 transition-all shadow-xs cursor-pointer"
+              title="Liberar emisión o envío de facturas y solvencias sin exigir planilla de retención (sin alterar cierres pasados)"
+            >
+              <CheckSquare className="w-4 h-4 text-emerald-600" />
+              <span>Liberación sin Planilla (Ex-Agentes)</span>
+            </a>
+
             {/* Botón Verificar Facturación */}
             <button
               onClick={() => {
@@ -1792,12 +1801,14 @@ export default function FacturacionElectronicaPage() {
                           {pago.mesesServicio > 0 ? `${pago.mesesServicio} mes(es)` : ''}{pago.mesesServicio > 0 && pago.tieneMulta ? ' + ' : ''}{pago.tieneMulta ? 'multa' : ''}
                         </span>
                         {pago.conRetencion && (() => {
-                          const est: string | null = pago.retencionEstado;
+                          const esLibSinPlanilla = Boolean(pago.detalles?.liberado_sin_planilla || pago.detalles?.exonerado_planilla_retencion);
+                          const est: string | null = esLibSinPlanilla ? 'liberada_sin_planilla' : pago.retencionEstado;
                           const m: Record<string, [string, string]> = {
                             esperando_planilla: ['Retención: esperando comprobante', 'bg-amber-100 text-amber-800 border-amber-300'],
                             planilla_recibida: ['Retención: comprobante por revisar', 'bg-blue-100 text-blue-800 border-blue-300'],
                             rechazada: ['Retención: comprobante rechazado', 'bg-red-100 text-red-800 border-red-300'],
                             aprobada: ['Retención aprobada · factura enviada', 'bg-emerald-100 text-emerald-800 border-emerald-300'],
+                            liberada_sin_planilla: ['✓ Liberada sin planilla · factura habilitada', 'bg-emerald-100 text-emerald-800 border-emerald-300'],
                           };
                           const [txt, cls] = est ? m[est] || [est, 'bg-slate-100 text-slate-700 border-slate-300'] : ['Agente de retención (la factura no se envía al emitir)', 'bg-violet-100 text-violet-800 border-violet-300'];
                           return (

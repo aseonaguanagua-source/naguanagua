@@ -1178,7 +1178,7 @@ export async function GET(request: Request) {
           }
         }
       }
-      const stRet = (retRow?.estado === 'Aprobado' || det?.retencion_aprobada === true || fd?.retencion?.estado === 'aprobada')
+      const stRet = (retRow?.estado === 'Aprobado' || det?.retencion_aprobada === true || fd?.retencion?.estado === 'aprobada' || det?.liberado_sin_planilla === true || det?.exonerado_planilla_retencion === true)
         ? 'aprobada'
         : (fd?.retencion?.estado || (retRow ? (retRow.estado === 'Pendiente' ? 'planilla_recibida' : String(retRow.estado).toLowerCase()) : null));
 
@@ -1504,7 +1504,13 @@ export async function GET(request: Request) {
       } else if (filter === 'anuladas') {
         filtered = filtered.filter(i => i.procesado && (i.facturaAnulada || i.notaCredito || i.estado === 'Anulado' || i.estado === 'Rechazado'));
       } else if (filter === 'retenciones' || filter === 'retenciones_pendientes') {
-        filtered = filtered.filter(i => i.conRetencion && (i.retencionEstado === 'planilla_recibida' || i.retencionEstado === 'esperando_planilla' || (!i.facturaEmitida && i.conRetencion)));
+        filtered = filtered.filter(i =>
+          i.conRetencion &&
+          !i.detalles?.liberado_sin_planilla &&
+          !i.detalles?.exonerado_planilla_retencion &&
+          i.retencionEstado !== 'aprobada' &&
+          (i.retencionEstado === 'planilla_recibida' || i.retencionEstado === 'esperando_planilla' || (!i.facturaEmitida && i.conRetencion))
+        );
       }
     if (moduloFiltro === 'Contribuyentes') filtered = filtered.filter(i => !i.condominio);
     else if (moduloFiltro === 'Condominios') filtered = filtered.filter(i => !!i.condominio);
