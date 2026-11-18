@@ -707,18 +707,24 @@ export default function FacturacionElectronicaPage() {
     }
   };
 
-  // Enviar / reenviar un recibo individual
+  // Enviar / reenviar un recibo individual (permitiendo confirmar o editar el correo destino)
   const enviarReciboIndividual = async (pago: any) => {
-    if (!confirm(`¿Enviar el recibo de ${pago.contribuyente} (${pago.identidad}) por Bs ${fmtBs(pago.monto)}?`)) return;
+    const correoDefault = String(pago.correo || pago.reciboCorreo || pago.detalles?.recibo_digital?.correo || '').trim();
+    const correoInput = prompt(
+      `Confirmar o editar el correo destino para enviar el recibo de ${pago.contribuyente} (${pago.identidad}) por Bs ${fmtBs(pago.monto)}:`,
+      correoDefault
+    );
+    if (correoInput === null) return;
+    const correoDestino = correoInput.trim();
     try {
       const r = await fetch('/api/admin/recibos-digitales/enviar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pagoIds: [pago.id] })
+        body: JSON.stringify({ pagoIds: [pago.id], correoDestino: correoDestino || undefined })
       });
       const d = await r.json();
       const it = d.items?.[0];
-      alert(it?.ok ? `Recibo enviado ${it.correo ? 'a ' + it.correo : '(solo copia de archivo: el contribuyente no tiene correo)'}` : `No se pudo enviar: ${it?.omitido || it?.error || d.error}`);
+      alert(it?.ok ? `Recibo enviado exitosamente ${it.correo ? 'a ' + it.correo : '(solo copia de archivo)'}${it.resendId ? ` (ID: ${it.resendId.slice(0, 8)})` : ''}` : `No se pudo enviar: ${it?.omitido || it?.error || d.error}`);
       loadPagos();
     } catch (e: any) {
       alert('Error: ' + e.message);
@@ -1811,9 +1817,50 @@ export default function FacturacionElectronicaPage() {
                             </span>
                           </div>
                         ) : (
-                          <div className="flex items-center gap-1.5 text-slate-700 font-mono text-[11px]">
-                            <Mail className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                            <span>{pago.correo}</span>
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1.5 text-slate-700 font-mono text-[11px]">
+                              <Mail className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                              <span>{pago.correo}</span>
+                            </div>
+                            {(() => {
+                              const fd = pago.detalles?.factura_digital;
+                              const rd = pago.detalles?.recibo_digital;
+                              const correoActual = String(pago.correo || '').trim().toLowerCase();
+                              if (pago.documento === 'recibo') {
+                                const correoEnv = String(rd?.correo || '').trim().toLowerCase();
+                                if (!rd?.enviado) return null;
+                                const difiere = correoEnv && correoActual && correoEnv !== correoActual;
+                                return difiere ? (
+                                  <span className="inline-block text-[9.5px] font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">
+                                    ⚠ Enviado antes a: {correoEnv} (pulse Reenviar)
+                                  </span>
+                                ) : (
+                                  <span className="inline-block text-[9.5px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-1.5 py-0.5" title={rd?.resend_id ? `Resend ID: ${rd.resend_id}` : 'Entregado al servidor de correo'}>
+                                    ✓ Entregado a: {correoEnv || correoActual}{rd?.resend_id ? ` · ID ${String(rd.resend_id).slice(0, 8)}` : ''}
+                                  </span>
+                                );
+                              }
+                              if (!pago.facturaEmitida) return null;
+                              const ult = fd?.ultimo_envio_correo;
+                              const correoEmit = String(fd?.correo_utilizado || '').trim().toLowerCase();
+                              const destReal = (ult && ult.modo !== 'PRUEBA' && ult.exito ? String(ult.destinatario || '').trim().toLowerCase() : '') || correoEmit;
+                              const difiere = destReal && correoActual && destReal !== correoActual;
+                              if (difiere) {
+                                return (
+                                  <span className="inline-block text-[9.5px] font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5" title="El correo actual de la ficha fue actualizado después de la emisión; pulse Enviar para reenviar al nuevo correo">
+                                    ⚠ Enviada a: {destReal} (pulse Enviar para actualizar)
+                                  </span>
+                                );
+                              }
+                              if (destReal) {
+                                return (
+                                  <span className="inline-block text-[9.5px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-1.5 py-0.5" title={ult?.resend_id ? `Resend ID: ${ult.resend_id}` : 'Entregado al servidor de correo'}>
+                                    ✓ Entregado a: {destReal}{ult?.resend_id ? ` · ID ${String(ult.resend_id).slice(0, 8)}` : ''}
+                                  </span>
+                                );
+                              }
+                              return null;
+                            })()}
                           </div>
                         )}
                       </td>

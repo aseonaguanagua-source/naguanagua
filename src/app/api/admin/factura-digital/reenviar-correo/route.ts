@@ -121,11 +121,11 @@ export async function POST(request: Request) {
     }
     const attachments = [{ filename: `Factura_${numeroControl || numeroDocumento}.pdf`, content: pdf }];
 
-    const testMode = process.env.EMAIL_TEST_MODE !== 'false';
+    const testMode = process.env.EMAIL_TEST_MODE === 'true';
     const defaultTestEmail = process.env.TEST_EMAIL || 'aseonaguanagua@globalgreenca.com';
 
-    // Determinar destino: si está en modo prueba o se especificó correo destino
-    const targetEmail = testMode ? defaultTestEmail : (correoDestino || defaultTestEmail);
+    // Determinar destino: si está explícitamente en modo prueba o se especificó correo destino
+    const targetEmail = testMode ? defaultTestEmail : String(correoDestino || '').trim();
 
     if (!targetEmail) {
       return NextResponse.json({ error: 'No se especificó correo destino' }, { status: 400 });
@@ -146,6 +146,20 @@ export async function POST(request: Request) {
 
     let emailSent = false;
     let emailError: string | null = null;
+    let resendId: string | null = null;
+    const montoFinal = montoFacturaDb > 0 ? montoFacturaDb : parseFloat(monto || '0');
+    const fechaFmt = fecha ? new Date(fecha).toLocaleDateString('es-VE') : new Date().toLocaleDateString('es-VE');
+    const textContent = [
+      `ALCALDÍA DE NAGUANAGUA - IAMEC (R.I.F. G-20008614-9)`,
+      `COMPROBANTE FISCAL DIGITAL (SENIAT / THE FACTORY HKA)`,
+      ``,
+      `Estimado(a) ${contribuyente || 'Contribuyente'} (R.I.F./Cédula: ${identidad || 'N/A'}),`,
+      `Adjunto a este correo encontrará su Factura Fiscal Digital en formato PDF.`,
+      ``,
+      `Número de Control SENIAT: ${numeroControl || 'N/A'}`,
+      `Fecha de Emisión: ${fechaFmt}`,
+      `Monto Total de la Factura: Bs ${montoFinal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+    ].join('\n');
 
     try {
       // En modo prueba o cuentas nuevas de Resend, usar onboarding@resend.dev para entregar sin esperar DNS
@@ -154,6 +168,7 @@ export async function POST(request: Request) {
           from: fromEmail,
           to: [targetEmail],
           subject: subject,
+          text: textContent,
           html: htmlContent,
           attachments
         });
@@ -163,6 +178,7 @@ export async function POST(request: Request) {
             from: fromEmail,
             to: ['aseonaguanagua@globalgreenca.com'],
             subject: subject + ` (Destino original: ${targetEmail})`,
+            text: textContent,
             html: htmlContent,
             attachments
           });
@@ -172,6 +188,7 @@ export async function POST(request: Request) {
           console.warn('[Resend Error]:', sendResult.error);
         } else {
           emailSent = true;
+          resendId = (sendResult as any)?.data?.id || null;
         }
       } catch (sendErr: any) {
         console.warn('Advertencia al enviar correo vía Resend:', sendErr.message);
@@ -186,11 +203,15 @@ export async function POST(request: Request) {
         try { det = JSON.parse(det); } catch(e) { det = {}; }
       }
       det.factura_digital = det.factura_digital || {};
+      if (!testMode && emailSent && targetEmail) {
+        det.factura_digital.correo_utilizado = targetEmail;
+      }
       det.factura_digital.ultimo_envio_correo = {
         destinatario: targetEmail,
         fecha: new Date().toISOString(),
         modo: testMode ? 'PRUEBA' : 'PRODUCCIÓN',
         exito: emailSent,
+        resend_id: resendId,
         error: emailError
       };
       await supabase.from('pagos_reportados').update({ detalles: det }).eq('id', pagoId);

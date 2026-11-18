@@ -306,8 +306,11 @@ export function construirReciboHtml(d: DatosRecibo, opts: { esCopiaInterna?: boo
 }
 
 /** Envía el recibo al contribuyente (si tiene correo real) y copia al archivo interno. Marca el pago como enviado. */
-export async function enviarRecibo(pagoId: string): Promise<{ ok: boolean; clienteEnviado: boolean; copiaInternaEnviada: boolean; correo: string | null; error?: string; omitido?: string }> {
+export async function enviarRecibo(pagoId: string, correoOverride?: string): Promise<{ ok: boolean; clienteEnviado: boolean; copiaInternaEnviada: boolean; correo: string | null; resendId?: string | null; error?: string; omitido?: string }> {
   const d = await cargarDatosRecibo(pagoId);
+  if (correoOverride && String(correoOverride).trim().includes('@')) {
+    d.correoCliente = String(correoOverride).trim().toLowerCase();
+  }
   if (d.clasif.documento !== 'recibo') {
     return { ok: false, clienteEnviado: false, copiaInternaEnviada: false, correo: null, omitido: 'Este pago corresponde a FACTURA comercial, no a recibo.' };
   }
@@ -315,6 +318,20 @@ export async function enviarRecibo(pagoId: string): Promise<{ ok: boolean; clien
   const from = process.env.RESEND_FROM || DEFAULT_RESEND_FROM;
   const backup = TheFactoryHKA.getBackupEmail();
   const asunto = `Recibo de pago ${d.numeroRecibo} - IAMEC Naguanagua`;
+  const textoPlano = [
+    `ALCALDÍA DE NAGUANAGUA - IAMEC (R.I.F. G-20008614-9)`,
+    `RECIBO DE PAGO - SERVICIO DE ASEO URBANO`,
+    ``,
+    `Estimado(a) ${d.contribuyente} (C.I./R.I.F.: ${d.identidad}),`,
+    `Hemos recibido su pago. Adjunto a este correo encontrará su recibo en formato PDF.`,
+    ``,
+    `N° de Recibo: ${d.numeroRecibo}`,
+    `Fecha de pago: ${d.fechaPago}`,
+    `Referencia: ${d.referenciaTexto || d.pago.referencia || 'N/A'}`,
+    `Total Pagado: Bs ${fmtBs(d.montoTotal ?? d.pago.monto)}`,
+    ``,
+    `Instituto Autónomo Municipal de Ecosocialismo Naguanagua (IAMEC)`,
+  ].join('\n');
 
   // MODO DE PRUEBA: Bloquear envíos de correos de recibos
   if (TheFactoryHKA.isDemoMode() && process.env.RESEND_FORCE_ENABLE !== 'true') {
@@ -324,6 +341,7 @@ export async function enviarRecibo(pagoId: string): Promise<{ ok: boolean; clien
 
   let clienteEnviado = false;
   let copiaInternaEnviada = false;
+  let resendId: string | null = null;
   let error: string | undefined;
 
   // PDF adjunto (cliente y copia de archivo). Si fallara la generación, el correo sale igual con el detalle en el cuerpo.
@@ -336,8 +354,20 @@ export async function enviarRecibo(pagoId: string): Promise<{ ok: boolean; clien
 
   if (d.correoCliente) {
     try {
-      const r = await resend.emails.send({ from, to: [d.correoCliente], subject: asunto, html: construirReciboHtml(d), attachments });
-      if (r.error) error = r.error.message; else clienteEnviado = true;
+      const r = await resend.emails.send({
+        from,
+        to: [d.correoCliente],
+        subject: asunto,
+        text: textoPlano,
+        html: construirReciboHtml(d),
+        attachments,
+      });
+      if (r.error) {
+        error = r.error.message;
+      } else {
+        clienteEnviado = true;
+        resendId = (r as any)?.data?.id || null;
+      }
     } catch (e: any) { error = e.message; }
   }
   if (backup) {
@@ -345,6 +375,7 @@ export async function enviarRecibo(pagoId: string): Promise<{ ok: boolean; clien
       const r = await resend.emails.send({
         from, to: [backup],
         subject: `[ARCHIVO RECIBOS] ${d.numeroRecibo} - ${d.contribuyente} (${d.identidad})`,
+        text: textoPlano,
         html: construirReciboHtml(d, { esCopiaInterna: true }),
         attachments,
       });
@@ -365,9 +396,10 @@ export async function enviarRecibo(pagoId: string): Promise<{ ok: boolean; clien
     correo: d.correoCliente,
     cliente_enviado: clienteEnviado,
     copia_interna: copiaInternaEnviada,
+    resend_id: resendId,
     error: ok ? null : (error || (d.correoCliente ? 'No se pudo entregar' : 'Sin correo del contribuyente')),
   };
   await supabase.from('pagos_reportados').update({ detalles: det }).eq('id', pagoId);
 
-  return { ok, clienteEnviado, copiaInternaEnviada, correo: d.correoCliente, error };
+  return { ok, clienteEnviado, copiaInternaEnviada, correo: d.correoCliente, resendId, error };
 }

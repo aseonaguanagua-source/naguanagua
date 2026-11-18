@@ -7,7 +7,7 @@ export const maxDuration = 60;
 /** Envía por correo los recibos (no fiscales) de los pagos indicados. Máx. 20 por llamada. */
 export async function POST(request: Request) {
   try {
-    const { pagoIds } = await request.json().catch(() => ({}));
+    const { pagoIds, correoDestino } = await request.json().catch(() => ({}));
     if (!Array.isArray(pagoIds) || pagoIds.length === 0) {
       return NextResponse.json({ error: 'Debe indicar los pagos a enviar (pagoIds).' }, { status: 400 });
     }
@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     const items: any[] = [];
     for (const pagoId of pagoIds) {
       try {
-        items.push({ pagoId, ...(await enviarRecibo(String(pagoId))) });
+        items.push({ pagoId, ...(await enviarRecibo(String(pagoId), correoDestino ? String(correoDestino).trim() : undefined)) });
       } catch (e: any) {
         items.push({ pagoId, ok: false, error: e.message });
       }
