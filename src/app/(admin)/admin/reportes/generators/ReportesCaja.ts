@@ -115,12 +115,61 @@ function limpiarRefVisible(p: any, det?: any): string {
   return s.trim();
 }
 
+const CAJAS_OFICIALES_SISTEMA: { caja: string; cajero: string; alias: string[] }[] = [
+  { caja: 'CAJA A', cajero: 'ARIANNY', alias: ['arianny', 'a-arianny', 'arianny seijas'] },
+  { caja: 'CAJA B', cajero: 'MAIRA', alias: ['maira', 'b-maira', 'maira castellano'] },
+  { caja: 'CAJA C', cajero: 'DANIELA', alias: ['daniela', 'c-daniela', 'daniela gonzalez'] },
+  { caja: 'CAJA D', cajero: 'OTTO', alias: ['otto', 'd-otto', 'otto schram'] },
+  { caja: 'CAJA E', cajero: 'LUIS', alias: ['luis', 'e-luis', 'luis vivas'] },
+  { caja: 'CAJA F', cajero: 'OMAR', alias: ['omar', 'f-omar', 'omar lopez'] },
+  { caja: 'CAJA H', cajero: 'MARIANNY', alias: ['marianny', 'h-marianny', 'marianny orta'] },
+  { caja: 'CAJA J', cajero: 'NANY', alias: ['nany', 'j-nany', 'nany lovera'] },
+  { caja: 'CAJA K', cajero: 'JOHANA', alias: ['johana', 'k-johana', 'johana peña', 'johana pena'] },
+  { caja: 'CAJA M', cajero: 'VALENTINA', alias: ['valentina', 'm-valentina', 'valentina castellanos'] },
+  { caja: 'CAJA N', cajero: 'PATRICIA', alias: ['patricia', 'n-patricia', 'patricia povis'] },
+  { caja: 'CAJA O', cajero: 'CARLIETH', alias: ['carlieth', 'o-carlieth', 'carlieth palencia'] },
+  { caja: 'CAJA P', cajero: 'MARIANGEL', alias: ['mariangel', 'p-mariangel', 'mariangel adarmes'] },
+  { caja: 'CAJA R', cajero: 'DAMARY', alias: ['damary', 'damaris', 'r-damary', 'r-damaris', 'damary viña', 'damary vina'] },
+];
+
+async function cargarMapaCajasSistema(): Promise<Map<string, string>> {
+  const mapa = new Map<string, string>();
+  CAJAS_OFICIALES_SISTEMA.forEach(c => mapa.set(c.caja, c.cajero));
+  try {
+    const { data: trabs } = await supabase
+      .from('trabajadores')
+      .select('usuario, nombre, estado, letra');
+    (trabs || []).forEach((t: any) => {
+      const est = String(t?.estado || 'Activo').trim().toLowerCase();
+      if (est === 'suspendido' || est === 'eliminado' || est === 'inactivo') return;
+      const letra = String(t?.letra || '').trim().toUpperCase();
+      if (!letra || letra === 'DZ' || letra === 'Z' || letra === 'X' || letra === 'Q') return;
+      const cajaKey = `CAJA ${letra}`;
+      if (!mapa.has(cajaKey)) {
+        const nom = String(t?.nombre || t?.usuario || '').trim().split(/\s+/)[0].toUpperCase();
+        mapa.set(cajaKey, nom || letra);
+      }
+    });
+  } catch {}
+  return mapa;
+}
+
 /** "M-valentina" -> { caja: 'CAJA M', cajero: 'VALENTINA' } */
 function cajaDe(det: any) {
-  const raw = String(det.cajero || det.analista || '').trim();
+  const raw = String(det?.cajero || det?.analista || det?.recibo_caja?.[0]?.caja || det?.usuario || '').trim();
   if (/dzara/i.test(raw)) return { caja: 'CAJA DZ', cajero: 'DZARA' };
+  const rawLow = raw.toLowerCase();
+  for (const c of CAJAS_OFICIALES_SISTEMA) {
+    if (c.alias.includes(rawLow)) {
+      return { caja: c.caja, cajero: c.cajero };
+    }
+  }
   const m = raw.match(/^([A-Za-z]{1,2})-(.+)$/);
-  if (m) return { caja: `CAJA ${m[1].toUpperCase()}`, cajero: m[2].toUpperCase() };
+  if (m) {
+    const cajaKey = `CAJA ${m[1].toUpperCase()}`;
+    const oficial = CAJAS_OFICIALES_SISTEMA.find(c => c.caja === cajaKey);
+    return { caja: cajaKey, cajero: oficial ? oficial.cajero : m[2].toUpperCase() };
+  }
   return { caja: raw ? raw.toUpperCase() : 'SIN CAJA', cajero: raw.toUpperCase() };
 }
 
@@ -137,7 +186,37 @@ function cab(ws: any, fila: number, valores: string[], desde = 1) {
 
 // ─────────────────────────── TOTAL PUNTOS DE VENTA ───────────────────────────
 export async function generarTotalPuntosVenta(pagos: any[], fechaInicio: string, fechaFin: string, contribuyentes: any[] = []) {
-  const deb = pagos.filter(p => !esAnulado(p) && esDebito(p) && !esRetencion(p) && !/saldo a favor|nota de cr[eé]dito/i.test(String(p.tipo || '')));
+  let sourcePagos = pagos;
+  try {
+    const fresh: any[] = [];
+    let from = 0;
+    const PAGE = 1000;
+    while (true) {
+      const { data, error } = await supabase
+        .from('pagos_reportados')
+        .select('*')
+        .not('estado', 'in', '(Reversado,Condonado)')
+        .order('created_at', { ascending: false })
+        .range(from, from + PAGE - 1);
+      if (error || !data || data.length === 0) break;
+      fresh.push(...data);
+      if (data.length < PAGE) break;
+      from += PAGE;
+    }
+    if (fresh.length > 0) {
+      sourcePagos = fresh;
+    }
+  } catch {}
+
+  const fIni = String(fechaInicio || '').slice(0, 10);
+  const fFin = String(fechaFin || '').slice(0, 10);
+  const deb = sourcePagos.filter(p => {
+    if (esAnulado(p) || !esDebito(p) || esRetencion(p)) return false;
+    if (/saldo a favor|nota de cr[eé]dito/i.test(String(p.tipo || ''))) return false;
+    const dia = fechaVE(p.created_at);
+    if ((fIni && dia < fIni) || (fFin && dia > fFin)) return false;
+    return true;
+  });
   if (!deb.length) { alert('No hay pagos por punto de venta en el rango.'); return; }
   const inmMap = await cargarInmMapPagos(deb);
   const nombreDe = (id: string, det: any, p: any) => {
@@ -150,16 +229,16 @@ export async function generarTotalPuntosVenta(pagos: any[], fechaInicio: string,
   };
 
   const porDia = new Map<string, Map<string, { cajero: string; monto: number; usuarios: number }>>();
-  const todasCajas = new Map<string, string>();
+  const todasCajas = await cargarMapaCajasSistema();
   deb.forEach(p => {
     const det = parseDet(p);
     const dia = fechaVE(p.created_at);
     if (!dia) return;
     const { caja, cajero } = cajaDe(det);
-    todasCajas.set(caja, cajero);
+    if (!todasCajas.has(caja)) todasCajas.set(caja, cajero);
     if (!porDia.has(dia)) porDia.set(dia, new Map());
     const m = porDia.get(dia)!;
-    if (!m.has(caja)) m.set(caja, { cajero, monto: 0, usuarios: 0 });
+    if (!m.has(caja)) m.set(caja, { cajero: todasCajas.get(caja) || cajero, monto: 0, usuarios: 0 });
     const c = m.get(caja)!;
     c.monto += Number(p.monto) || 0;
     c.usuarios += 1;
@@ -1195,7 +1274,11 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
     `RIF: G-20008614-9   |   Período: ${dmy(fIni || fechaInicio)} al ${dmy(fFin || fechaFin)}`,
     { leftCol: 0.12, rightCol: 6.08, textColStart: 3, textColEnd: 6 }
   );
+  const mapaCajasSistema = await cargarMapaCajasSistema();
   const pto = new Map<string, Map<string, { monto: number; usuarios: number }>>();
+  mapaCajasSistema.forEach((_cajero, cajaKey) => {
+    pto.set(cajaKey, new Map());
+  });
   deb.forEach(p => {
     const det = parseDet(p);
     const dia = normalizarFechaYMD(fechaVE(p.created_at));
@@ -1208,8 +1291,10 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
   });
   let fp = 6; let totalPunto = 0;
   [...pto.keys()].sort().forEach(caja => {
+    const cajeroNom = mapaCajasSistema.get(caja) || '';
+    const labelCajaHeader = cajeroNom ? `${caja} (${cajeroNom})` : caja;
     cab(wsPto, fp++, [
-      caja,
+      labelCajaHeader,
       'FECHA',
       'TOTAL EMITIDO POR EL SISTEMA',
       'CIERRE DE PUNTO',
@@ -1222,20 +1307,32 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
     let totalCaja = 0;
     let totalPersonasCaja = 0;
 
-    [...m.keys()].sort().forEach(dia => {
-      const x = m.get(dia)!;
+    if (m.size === 0) {
       const row = wsPto.getRow(fp);
-      ['', dmy(dia), r2(x.monto), null, null, null, null, x.usuarios].forEach((v, i) => {
+      ['', `${dmy(fIni || fechaInicio)} al ${dmy(fFin || fechaFin)}`, 0, null, null, null, null, 0].forEach((v, i) => {
         const c = row.getCell(i + 1);
         c.value = v as any;
         c.border = BORDE;
         if (i === 2 || i === 3 || i === 5 || i === 6) c.numFmt = '#,##0.00';
       });
       row.getCell(6).value = { formula: `IF(D${fp}="","",C${fp}-D${fp})` } as any;
-      totalCaja += x.monto;
-      totalPersonasCaja += x.usuarios;
       fp++;
-    });
+    } else {
+      [...m.keys()].sort().forEach(dia => {
+        const x = m.get(dia)!;
+        const row = wsPto.getRow(fp);
+        ['', dmy(dia), r2(x.monto), null, null, null, null, x.usuarios].forEach((v, i) => {
+          const c = row.getCell(i + 1);
+          c.value = v as any;
+          c.border = BORDE;
+          if (i === 2 || i === 3 || i === 5 || i === 6) c.numFmt = '#,##0.00';
+        });
+        row.getCell(6).value = { formula: `IF(D${fp}="","",C${fp}-D${fp})` } as any;
+        totalCaja += x.monto;
+        totalPersonasCaja += x.usuarios;
+        fp++;
+      });
+    }
 
     // Requisito: AGREGAR EL TOTAL GENERAL POR CADA CAJA
     const rTotCaja = wsPto.getRow(fp++);

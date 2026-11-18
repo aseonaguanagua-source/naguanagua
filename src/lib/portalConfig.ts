@@ -61,26 +61,12 @@ export async function esCondominioDoc(doc: string): Promise<boolean> {
   const sb = createClient(supabaseUrl, supabaseKey);
 
   try {
-    // 1. Verificar si está registrado en la tabla oficial de condominios (residencial o comercial, cualquier modalidad)
+    // 1. Consultar en paralelo condominios, unidades de condominio (condominio_unidades) e inmuebles asociados al documento
     const orCondo = [
       ...variantes.map(v => `identidad.eq.${v}`),
       `codigo.eq.${rawUpper}`
     ].join(',');
 
-    const { data: cMatches } = await sb
-      .from('condominios')
-      .select('id, codigo, identidad, estado')
-      .or(orCondo)
-      .limit(10);
-
-    if (cMatches && cMatches.some(c => {
-      const est = String(c.estado || 'Activo').trim().toLowerCase();
-      return est !== 'eliminado' && est !== 'inactivo';
-    })) {
-      return true;
-    }
-
-    // 2. Consultar en paralelo unidades de condominio (condominio_unidades) e inmuebles asociados al documento
     const orUnidades = [
       ...variantes.map(v => `identidad.eq.${v}`),
       `inmueble.eq.${rawUpper}`
@@ -91,7 +77,12 @@ export async function esCondominioDoc(doc: string): Promise<boolean> {
       `inmueble.eq.${rawUpper}`
     ].join(',');
 
-    const [{ data: uMatches }, { data: inms }] = await Promise.all([
+    const [{ data: cMatches }, { data: uMatches }, { data: inms }] = await Promise.all([
+      sb
+        .from('condominios')
+        .select('id, codigo, identidad, estado')
+        .or(orCondo)
+        .limit(20),
       sb
         .from('condominio_unidades')
         .select('id, inmueble, condominio_id, estado')
@@ -104,6 +95,25 @@ export async function esCondominioDoc(doc: string): Promise<boolean> {
         .or(orInm)
         .limit(100),
     ]);
+
+    // Códigos de inmuebles que fueron desactivados o eliminados en la tabla maestra `inmuebles`
+    const codigosInactivosEnPadron = new Set<string>(
+      (inms || [])
+        .filter(i => {
+          const est = String(i.estado || 'Activo').trim().toLowerCase();
+          return est === 'eliminado' || est === 'inactivo' || est === 'desactivado';
+        })
+        .map(i => String(i.inmueble || '').trim().toUpperCase())
+        .filter(Boolean)
+    );
+
+    const condominiosActivosReales = (cMatches || []).filter(c => {
+      const est = String(c.estado || 'Activo').trim().toLowerCase();
+      if (est === 'eliminado' || est === 'inactivo' || est === 'desactivado') return false;
+      const code = String(c.codigo || '').trim().toUpperCase();
+      if (code && codigosInactivosEnPadron.has(code)) return false;
+      return true;
+    });
 
     const activos = (inms || []).filter(i => {
       const est = String(i.estado || 'Activo').trim().toLowerCase();
@@ -121,9 +131,13 @@ export async function esCondominioDoc(doc: string): Promise<boolean> {
       );
 
       const condoCodesSet = new Set<string>();
+      condominiosActivosReales.forEach(c => {
+        const code = String(c.codigo || '').trim().toUpperCase();
+        if (code) condoCodesSet.add(code);
+      });
       (uMatches || []).forEach(u => {
         const c = String(u.inmueble || '').trim().toUpperCase();
-        if (c) condoCodesSet.add(c);
+        if (c && !codigosInactivosEnPadron.has(c)) condoCodesSet.add(c);
       });
 
       if (inmCodes.length > 0) {
@@ -134,14 +148,14 @@ export async function esCondominioDoc(doc: string): Promise<boolean> {
 
         (unitByInm || []).forEach(u => {
           const c = String(u.inmueble || '').trim().toUpperCase();
-          if (c) condoCodesSet.add(c);
+          if (c && !codigosInactivosEnPadron.has(c)) condoCodesSet.add(c);
         });
 
         (condoByCode || []).forEach(c => {
           const est = String(c.estado || 'Activo').trim().toLowerCase();
-          if (est !== 'eliminado' && est !== 'inactivo') {
-            const code = String(c.codigo || '').trim().toUpperCase();
-            if (code) condoCodesSet.add(code);
+          const code = String(c.codigo || '').trim().toUpperCase();
+          if (est !== 'eliminado' && est !== 'inactivo' && code && !codigosInactivosEnPadron.has(code)) {
+            condoCodesSet.add(code);
           }
         });
       }

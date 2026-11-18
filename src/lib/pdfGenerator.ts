@@ -145,6 +145,27 @@ export const dibujarYDescargarPDF = async (data: any, isPreview = false) => {
     const splitNote = doc.splitTextToSize(noteText, 180);
     doc.text(splitNote, 15, 240);
 
+    // ── LOGOS INSTITUCIONALES DEL FOOTER (Lacava, Elizabeth, Naguanagua Te Quiero) ──
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.3);
+    doc.line(14, 266, 196, 266);
+    const yFoot = 272;
+    try {
+      if ((logos as any).lacava) {
+        doc.addImage((logos as any).lacava, 'PNG', 14, yFoot, 36, 9.3, undefined, 'FAST');
+      }
+    } catch {}
+    try {
+      if ((logos as any).elizabeth) {
+        doc.addImage((logos as any).elizabeth, 'PNG', 84, yFoot + 0.5, 42, 8, undefined, 'FAST');
+      }
+    } catch {}
+    try {
+      if ((logos as any).naguanaguaTeQuiero) {
+        doc.addImage((logos as any).naguanaguaTeQuiero, 'PNG', 161, yFoot - 2, 35, 13.5, undefined, 'FAST');
+      }
+    } catch {}
+
     doc.save(`Solvencia_${data.identidad}_${data.codigo}.pdf`);
   } catch (e: any) {
     alert("Error al generar PDF de Solvencia: " + e.message);

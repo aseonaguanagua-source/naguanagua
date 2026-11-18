@@ -514,6 +514,27 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
       const noteText = "Nota: Este documento es válido únicamente para los fines establecidos por la normativa municipal vigente y pierde su validez una vez vencida la fecha de expiración indicada. Cualquier alteración o modificación invalida el presente certificado.";
       const splitNote = doc.splitTextToSize(noteText, 180);
       doc.text(splitNote, 15, 240);
+
+      // ── LOGOS INSTITUCIONALES DEL FOOTER (Lacava, Elizabeth, Naguanagua Te Quiero) ──
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.3);
+      doc.line(14, 266, 196, 266);
+      const yFoot = 272;
+      try {
+        if ((logos as any).lacava) {
+          doc.addImage((logos as any).lacava, 'PNG', 14, yFoot, 36, 9.3, undefined, 'FAST');
+        }
+      } catch {}
+      try {
+        if ((logos as any).elizabeth) {
+          doc.addImage((logos as any).elizabeth, 'PNG', 84, yFoot + 0.5, 42, 8, undefined, 'FAST');
+        }
+      } catch {}
+      try {
+        if ((logos as any).naguanaguaTeQuiero) {
+          doc.addImage((logos as any).naguanaguaTeQuiero, 'PNG', 161, yFoot - 2, 35, 13.5, undefined, 'FAST');
+        }
+      } catch {}
       
       doc.save(`Solvencia_${unidad.numero_unidad}_${new Date().getTime()}.pdf`);
     } catch (e: any) {

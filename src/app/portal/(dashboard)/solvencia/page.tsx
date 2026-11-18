@@ -680,6 +680,13 @@ export default function SolvenciaPage() {
                 <span>Sistema de Recaudación Tributaria Municipal · IAMEC Naguanagua</span>
               </div>
 
+              {/* LOGOS INSTITUCIONALES DEL FOOTER */}
+              <div className="mt-5 pt-4 border-t border-slate-200 flex items-center justify-between gap-4">
+                <img src="/logos/LACAVA.png" alt="Gobernación de Carabobo" className="h-8 sm:h-10 object-contain" />
+                <img src="/logos/ELIZABETH.png" alt="Gestión Municipal Elizabeth Niño" className="h-7 sm:h-9 object-contain" />
+                <img src="/logos/NAGUANAGUATEQUIERO.png" alt="Naguanagua Te Quiero" className="h-9 sm:h-11 object-contain" />
+              </div>
+
             </div>
 
           </div>

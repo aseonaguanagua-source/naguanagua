@@ -19,7 +19,7 @@ import * as M from './motor';
 import { calcularEstado, cargarCondominio, tasaVigente, EstadoCuenta, RenglonEstado, fmtFechaDMY } from './servicio';
 import { descontarSaldoFavor, acreditarSaldoFavor } from '@/lib/saldoFavor';
 import { sanitizarDireccionFiscal } from '@/lib/formatters';
-import { siguienteCorrelativoRecibo } from '@/lib/correlativoRecibo';
+import { siguienteCorrelativoRecibo, generarCodigoControlWeb } from '@/lib/correlativoRecibo';
 
 const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -718,10 +718,11 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
         });
 
         const [corrCondo] = await siguienteCorrelativoRecibo(1);
+        const ctrlWebCondo = generarCodigoControlWeb(corrCondo, String(f.identidad || c.codigo || ''));
 
         const reciboCajaItem = {
             reciboNo: corrCondo,
-            controlWeb: `WEB-${corrCondo}`,
+            controlWeb: ctrlWebCondo,
             fechaEmision: fechaTransaccion || new Date().toISOString().slice(0, 10),
             fechaTransaccion: fechaTransaccion,
             fechaIngresoCaja: new Date().toISOString().slice(0, 10),

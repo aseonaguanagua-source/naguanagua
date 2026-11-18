@@ -4,7 +4,7 @@ import { extraerCodigoInmueble, parseDetalles } from '@/lib/documentoPago';
 import { isResidencialInm } from '@/lib/calculos';
 import { desglosarPago, COLS_INMUEBLE_DESGLOSE, LineaDesglose } from '@/lib/desglosePago';
 import { resolverConceptoPeriodoPago } from '@/lib/facturaPeriodoHelper';
-import { obtenerCorrelativoReciboPago } from '@/lib/correlativoRecibo';
+import { obtenerCorrelativoReciboPago, generarCodigoControlWeb } from '@/lib/correlativoRecibo';
 
 /** Conceptos del recibo a partir del desglose por período (base, IVA, retención y multa de cada mes). */
 function conceptosDeDesglose(lineas: LineaDesglose[]) {
@@ -67,13 +67,19 @@ export async function GET(request: Request) {
     const refNum = await obtenerCorrelativoReciboPago(pago);
 
     if (Array.isArray(det.recibo_caja) && det.recibo_caja.length > 0) {
-      // Recibo original de Caja: respetar el reciboNo/controlWeb que ya tenía guardado al emitirse
+      // Recibo original de Caja: respetar el reciboNo/controlWeb que ya tenía guardado al emitirse (asegurando que controlWeb sea distinto a reciboNo)
       const recibos = det.recibo_caja.map((rc: any, idx: number) => {
         const suffix = det.recibo_caja.length > 1 ? `-${idx + 1}` : '';
+        const rNo = rc.reciboNo || `${refNum}${suffix}`;
+        const existingWebCore = String(rc.controlWeb || '').replace(/^WEB-/i, '').trim();
+        const rNoCore = String(rNo || '').replace(/^WEB-/i, '').trim();
+        const ctrlWeb = (!rc.controlWeb || existingWebCore === rNoCore)
+          ? generarCodigoControlWeb(rNo, String(pago.id || rc.codContribuyente || ''))
+          : rc.controlWeb;
         const cleanRc = {
           ...rc,
-          reciboNo: rc.reciboNo || `${refNum}${suffix}`,
-          controlWeb: rc.controlWeb || `WEB-${rc.reciboNo || `${refNum}${suffix}`}`,
+          reciboNo: rNo,
+          controlWeb: ctrlWeb,
         };
         const generico = Array.isArray(rc?.conceptos) && rc.conceptos.length === 1 && /Servicio de Aseo Urbano y Domiciliario|Abono/i.test(rc.conceptos[0]?.descripcion || '');
         if (det.recibo_caja.length === 1 && generico && desglose.cuadra) {
@@ -210,7 +216,7 @@ export async function GET(request: Request) {
         const ivaTot = esRes ? 0 : r2(subMonto - subTot);
         return {
           reciboNo: `${refNum}-${idx + 1}`,
-          controlWeb: `WEB-${refNum}-${idx + 1}`,
+          controlWeb: generarCodigoControlWeb(`${refNum}-${idx + 1}`, String(pago.id || cod || '')),
           fechaEmision: String(det.fecha_transaccion || pago.created_at || '').slice(0, 10),
           codContribuyente: cod,
           razonSocial: inm?.contribuyente || det.contribuyente || cont?.nombre || '',
@@ -242,7 +248,7 @@ export async function GET(request: Request) {
 
     const recibo = {
       reciboNo: refNum,
-      controlWeb: `WEB-${refNum}`,
+      controlWeb: generarCodigoControlWeb(refNum, String(pago.id || codigos[0] || '')),
       fechaEmision: String(det.fecha_transaccion || pago.created_at || '').slice(0, 10),
       codContribuyente: codigos[0] || pago.identidad,
       razonSocial: inmPrincipal?.contribuyente || det.contribuyente || cont?.nombre || '',

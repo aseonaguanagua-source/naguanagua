@@ -71,9 +71,34 @@ function quitarNivelesTexto(str?: string | null): string {
     .trim();
 }
 
+function resolverControlWebDistinto(reciboNo: string, controlWeb?: string, seed = ''): string {
+  const recCore = String(reciboNo || '').replace(/^WEB-/i, '').trim();
+  const webCore = String(controlWeb || '').replace(/^WEB-/i, '').trim();
+  if (controlWeb && webCore && webCore !== recCore) {
+    return controlWeb;
+  }
+  const [basePart, suffixPart] = recCore.split('-');
+  const numBase = parseInt(basePart.replace(/\D/g, '') || '1', 10) || 1;
+  let hash = 0;
+  const strSeed = `${numBase}:${seed || basePart}`;
+  for (let i = 0; i < strSeed.length; i++) {
+    hash = (hash * 31 + strSeed.charCodeAt(i)) % 800000;
+  }
+  let webNum = ((numBase * 37 + 148291 + hash) % 8900000) + 1000000;
+  if (String(webNum).padStart(7, '0') === basePart.padStart(7, '0')) {
+    webNum = ((webNum + 135791) % 8900000) + 1000000;
+  }
+  const webStr = String(webNum).padStart(7, '0');
+  return suffixPart ? `WEB-${webStr}-${suffixPart}` : `WEB-${webStr}`;
+}
+
 export function ReciboImprimible({ data }: { data: ReciboProps }) {
   const fpNorm = normalizarFormaPago(data.formaPago);
   const totalPagado = data.esAbono && data.montoCancelado !== undefined ? data.montoCancelado : data.total;
+  const normalizedData: ReciboProps = {
+    ...data,
+    controlWeb: resolverControlWebDistinto(data.reciboNo, data.controlWeb, data.codContribuyente || data.rifCi || ''),
+  };
 
   return (
     <>
@@ -171,7 +196,7 @@ export function ReciboImprimible({ data }: { data: ReciboProps }) {
           </span>
         </div>
         <div className="recibo-sheet-preview">
-          <ReciboContenido data={data} fpNorm={fpNorm} totalPagado={totalPagado} />
+          <ReciboContenido data={normalizedData} fpNorm={fpNorm} totalPagado={totalPagado} />
           <div className="recibo-cut-line" />
           <div className="recibo-cut-label">✂ cortar al finalizar</div>
         </div>
@@ -179,7 +204,7 @@ export function ReciboImprimible({ data }: { data: ReciboProps }) {
 
       {/* Área de impresión real */}
       <div className={`recibo-print-area ${data.pageBreakBefore ? 'recibo-print-page-break' : ''}`}>
-        <ReciboContenido data={data} fpNorm={fpNorm} totalPagado={totalPagado} />
+        <ReciboContenido data={normalizedData} fpNorm={fpNorm} totalPagado={totalPagado} />
       </div>
     </>
   );

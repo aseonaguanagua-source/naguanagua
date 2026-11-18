@@ -4,6 +4,26 @@ const CONFIG_ID_CORRELATIVO = 'correlativo_recibos_caja';
 const CORTE_CORRELATIVO_NUEVO = '2026-11-17T19:50:00Z';
 
 /**
+ * Genera un Número de Control Web (`WEB-XXXXXXX`) de 7 dígitos distinto al `reciboNo` y distinto a la referencia bancaria.
+ */
+export function generarCodigoControlWeb(reciboNo: string, seed = ''): string {
+  const recClean = String(reciboNo || '').replace(/^WEB-/i, '').trim();
+  const [basePart, suffixPart] = recClean.split('-');
+  const numBase = parseInt(basePart.replace(/\D/g, '') || '1', 10) || 1;
+  let hash = 0;
+  const strSeed = `${numBase}:${seed || basePart}`;
+  for (let i = 0; i < strSeed.length; i++) {
+    hash = (hash * 31 + strSeed.charCodeAt(i)) % 800000;
+  }
+  let webNum = ((numBase * 37 + 148291 + hash) % 8900000) + 1000000;
+  if (String(webNum).padStart(7, '0') === basePart.padStart(7, '0')) {
+    webNum = ((webNum + 135791) % 8900000) + 1000000;
+  }
+  const webStr = String(webNum).padStart(7, '0');
+  return suffixPart ? `WEB-${webStr}-${suffixPart}` : `WEB-${webStr}`;
+}
+
+/**
  * Obtiene y avanza el siguiente número correlativo de recibos de caja en `sistema_config`
  * (sin usar nunca la referencia bancaria ni del punto de venta).
  */
@@ -100,10 +120,16 @@ export async function obtenerCorrelativoReciboPago(pago: any): Promise<string> {
     if (Array.isArray(det.recibo_caja) && det.recibo_caja.length > 0) {
       nuevoDet.recibo_caja = det.recibo_caja.map((rc: any, idx: number) => {
         const suffix = det.recibo_caja.length > 1 ? `-${idx + 1}` : '';
+        const rNo = rc.reciboNo || `${corrStr}${suffix}`;
+        const existingWebCore = String(rc.controlWeb || '').replace(/^WEB-/i, '').trim();
+        const rNoCore = String(rNo || '').replace(/^WEB-/i, '').trim();
+        const ctrlWeb = (!rc.controlWeb || existingWebCore === rNoCore)
+          ? generarCodigoControlWeb(rNo, String(pago.id || rc.codContribuyente || ''))
+          : rc.controlWeb;
         return {
           ...rc,
-          reciboNo: rc.reciboNo || `${corrStr}${suffix}`,
-          controlWeb: rc.controlWeb || `WEB-${corrStr}${suffix}`,
+          reciboNo: rNo,
+          controlWeb: ctrlWeb,
         };
       });
     }
