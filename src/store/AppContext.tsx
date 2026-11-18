@@ -957,7 +957,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 sumSaldoFavor = stats.reduce((acc, s) => acc + s.saldoFavor, 0);
               }
 
-              const matchedPrimaryInm = targetInms[0];
+              const matchedPrimaryInm = targetInms.find((i: any) => i.es_condominio === true || i.clasificacion === 'Condominio') || targetInms[0];
+              const isParentCondoNow = targetInms.some((i: any) => i.es_condominio === true || i.clasificacion === 'Condominio');
+              const condoChildrenCount = (freshInms || []).filter((i: any) => i.condominio_padre_id).length;
               return {
                 ...c,
                 Identidad: matchedPrimaryInm?.identidad || freshContrib?.identidad || c.Identidad,
@@ -965,6 +967,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 Telefono: freshContrib?.telefono || matchedPrimaryInm?.telefono || c.Telefono,
                 Contribuyente: matchedPrimaryInm?.contribuyente || freshContrib?.nombre || c.Contribuyente,
                 Direccion: matchedPrimaryInm?.direccion || freshContrib?.direccion || c.Direccion,
+                Clasificacion: isParentCondoNow ? 'Condominio' : (c.Clasificacion || matchedPrimaryInm?.clasificacion),
+                isCondominio: isParentCondoNow,
+                es_condominio: isParentCondoNow,
+                ...(isParentCondoNow && condoChildrenCount > 0 ? { cant_inmuebles: condoChildrenCount, unidadesCount: condoChildrenCount } : {}),
                 DeudaBs: sumDeudaBs,
                 MesesDeuda: maxMeses,
                 DeudaMMV: sumMMV,
@@ -1640,6 +1646,75 @@ export function AppProvider({ children }: { children: ReactNode }) {
         } catch (_) {}
       }
 
+      // 4. Clasificar o desmarcar como Condominio cuando se marque la casilla "Clasificado como Condominio"
+      const origIsCondo = Boolean(orig.isCondominio || orig.es_condominio || String(orig.Clasificacion || '').toLowerCase() === 'condominio');
+      const nowIsCondo = Boolean(data.isCondominio);
+      if (nowIsCondo || (data.isCondominio === false && origIsCondo)) {
+        const naCodesList = Array.isArray(data.__naParentCodes)
+          ? data.__naParentCodes.map((c: string) => String(c || '').trim().toUpperCase()).filter(Boolean)
+          : [];
+        const rawCodesRow = String(data.CodCont || data.cod_cont || data.Inmueble || '')
+          .trim()
+          .split(/\s+/)
+          .map((c: string) => c.trim().toUpperCase())
+          .filter((c: string) => c && c !== 'PRINCIPAL' && c !== 'PENDIENTE');
+        const codigosLocalesEnv = Array.isArray(data.locales) && data.locales.length > 0
+          ? data.locales.map((l: any) => String(l.codigo || '').trim().toUpperCase()).filter(Boolean)
+          : codigosPropios;
+        const codigoPadreCand =
+          naCodesList[0] ||
+          rawCodesRow.find((c: string) => !codigosLocalesEnv.includes(c)) ||
+          rawCodesRow[0] ||
+          codigosLocalesEnv[0] ||
+          '';
+
+        const resCondo = await fetch('/api/admin/condominios', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            accion: nowIsCondo ? 'convertir_a_condominio' : 'desmarcar_condominio',
+            identidad: identidadExacta,
+            nombre: data.Contribuyente,
+            clasificacion: nuevaClasificacion,
+            codigoPadre: codigoPadreCand,
+            naParentCodes: naCodesList,
+            codigosLocales: codigosLocalesEnv,
+            cantidadInmuebles: data.cantidadInmuebles || codigosLocalesEnv.length || 1,
+            telefono: data.Telefono,
+            correo: data.Correo,
+            direccion: data.Direccion,
+            notas: notaToSave,
+            agente_retencion: data.esAgenteRetencion,
+          }),
+        });
+        const condoJson = await resCondo.json().catch(() => ({}));
+        if (!resCondo.ok) {
+          throw new Error(condoJson?.error || 'Error al clasificar como condominio');
+        }
+        cambios.push(
+          nowIsCondo
+            ? `CLASIFICADO COMO CONDOMINIO (${condoJson.codigoPadre || codigoPadreCand})`
+            : `DESMARCADO DE CONDOMINIO (${condoJson.codigoPadre || codigoPadreCand})`
+        );
+        try {
+          const freshCondos = await fetch('/api/admin/condominios?ligero=1', { cache: 'no-store' })
+            .then((r) => r.json())
+            .then((j) => j?.condominios || []);
+          if (Array.isArray(freshCondos) && freshCondos.length > 0) {
+            setCondominios(
+              freshCondos.map((c: any) => ({
+                id: c.codigo,
+                codigo_inmueble: c.codigo,
+                identidad: c.identidad,
+                nombre: c.nombre,
+                razon_social: c.nombre,
+                tipo: c.tipo,
+              }))
+            );
+          }
+        } catch (_) {}
+      }
+
       // Recargar del servidor (fuente de verdad) en lugar de parchear el estado local
       for (const idRef of Array.from(identidadesRefrescar)) {
         if (idRef) await refreshUserData(idRef).catch(() => {});
@@ -1812,6 +1887,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // 2. Inmuebles / actividades (upsert por inmueble para reactivar si venía eliminado de condominio)
       const { error } = await supabase.from('inmuebles').upsert(rowsToUpsert, { onConflict: 'inmueble' });
       if (error) throw new Error('No se pudieron registrar los inmuebles: ' + error.message);
+
+      if (data.isCondominio) {
+        await fetch('/api/admin/condominios', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            accion: 'convertir_a_condominio',
+            identidad,
+            nombre: data.Contribuyente,
+            clasificacion: data.Clasificacion || 'Comercial',
+            codigoPadre: codigos[0] || '',
+            codigosLocales: codigos,
+            cantidadInmuebles: data.cantidadInmuebles || codigos.length || 1,
+            telefono: data.Telefono,
+            correo: data.Correo,
+            direccion: data.Direccion,
+            notas: data.Notas_Adicionales || data.Nota || null,
+            agente_retencion: data.esAgenteRetencion,
+          }),
+        }).catch(() => {});
+      }
 
       await refreshUserData(identidad).catch(() => {});
       await addAuditLog('NUEVO_CONTRIBUYENTE', `Se registró un nuevo contribuyente: ${data.Contribuyente} (Identidad: ${identidad}) | Inmuebles: ${rowsToUpsert.map(r => `${r.inmueble} ${r.actividad_principal} (${r.mmv_mes} MMV)`).join('; ')}`);

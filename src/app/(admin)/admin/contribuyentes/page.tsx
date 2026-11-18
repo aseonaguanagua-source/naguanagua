@@ -2608,7 +2608,7 @@ function ContribuyentesPageContent() {
       }
     }
 
-    let isCondominio = autoClasificacion === 'Condominio';
+    let isCondominio = Boolean(row.isCondominio || row.es_condominio || autoClasificacion === 'Condominio');
     let locales: any[] = [];
     let cantidadInmuebles = 1;
     let TipoResidencia = ordenanzaData.tiposResidenciales[0].label;
@@ -2627,6 +2627,7 @@ function ContribuyentesPageContent() {
       if (codes.length > 0) {
         if (codes.includes(String(i.inmueble || '').toUpperCase())) return true;
         if (codes.includes(String(i.padre_id || '').toUpperCase())) return true;
+        if (codes.includes(String(i.condominio_padre_id || '').toUpperCase())) return true;
         return false;
       }
       if (!row.condominio_padre_id && !row.es_condominio && i.condominio_padre_id) return false;
@@ -2636,12 +2637,12 @@ function ContribuyentesPageContent() {
       return false;
     });
 
-    // 2. Traer también directo de Supabase para tener 100% certeza de traer todas las actividades (incluyendo hijas con padre_id)
+    // 2. Traer también directo de Supabase para tener 100% certeza de traer todas las actividades (incluyendo hijas con padre_id o condominio_padre_id)
     try {
       const idVariants = getIdentidadVariantsExact(row.Identidad || '');
       let q = supabase.from('inmuebles').select('*').neq('estado', 'Eliminado').neq('estado', 'Inactivo');
       if (codes.length > 0) {
-        q = q.or(`${codes.map(c => `inmueble.eq.${c}`).join(',')},${codes.map(c => `padre_id.eq.${c}`).join(',')}`);
+        q = q.or(`${codes.map(c => `inmueble.eq.${c}`).join(',')},${codes.map(c => `padre_id.eq.${c}`).join(',')},${codes.map(c => `condominio_padre_id.eq.${c}`).join(',')}`);
       } else if (idVariants.length > 0) {
         q = q.or(idVariants.map(v => `identidad.eq.${v}`).join(','));
       }
@@ -2655,7 +2656,12 @@ function ContribuyentesPageContent() {
       }
       const allFoundCodes = misInmuebles.map(i => i.inmueble).filter(Boolean);
       if (allFoundCodes.length > 0) {
-        const { data: hijos } = await supabase.from('inmuebles').select('*').neq('estado', 'Eliminado').neq('estado', 'Inactivo').in('padre_id', allFoundCodes);
+        const { data: hijos } = await supabase
+          .from('inmuebles')
+          .select('*')
+          .neq('estado', 'Eliminado')
+          .neq('estado', 'Inactivo')
+          .or(`padre_id.in.(${allFoundCodes.join(',')}),condominio_padre_id.in.(${allFoundCodes.join(',')})`);
         if (hijos && hijos.length > 0) {
           const byCode = new Map(misInmuebles.map((i: any) => [i.inmueble, i]));
           hijos.forEach((h: any) => {
@@ -2666,18 +2672,22 @@ function ContribuyentesPageContent() {
       }
     } catch (_) {}
 
+    if (misInmuebles.some((i: any) => i.es_condominio === true || String(i.clasificacion || '').toLowerCase() === 'condominio')) {
+      isCondominio = true;
+    }
+
     misInmuebles.sort((a: any, b: any) => (a.inmueble || '').localeCompare(b.inmueble || ''));
     const usoDe = (inm: any) => (isResidencialInm(inm) ? 'Residencial' : 'Comercial');
 
-    // Si hay un contenedor padre N/A (ej. URB033361) que tiene actividades hijas vinculadas (padre_id),
+    // Si hay un contenedor padre N/A (ej. URB033361 o URB033682) que tiene actividades hijas vinculadas (padre_id o condominio_padre_id),
     // mostrar en las tarjetas editables únicamente las actividades reales y sincronizar el contenedor N/A automáticamente al guardar
     const padresConHijosSet = new Set(
-      misInmuebles.map((i: any) => String(i.padre_id || '').trim().toUpperCase()).filter(Boolean)
+      misInmuebles.map((i: any) => String(i.padre_id || i.condominio_padre_id || '').trim().toUpperCase()).filter(Boolean)
     );
     const naParents = misInmuebles.filter((i: any) => {
       const code = String(i.inmueble || '').trim().toUpperCase();
       const act = String(i.actividad_principal || '').trim().toUpperCase();
-      return !i.padre_id && act === 'N/A' && padresConHijosSet.has(code);
+      return !i.padre_id && !i.condominio_padre_id && (act === 'N/A' || i.es_condominio === true) && padresConHijosSet.has(code);
     });
     const naParentCodes = naParents.map((p: any) => String(p.inmueble || '').trim().toUpperCase()).filter(Boolean);
     const inmParaLocales = naParentCodes.length > 0
@@ -2823,7 +2833,7 @@ function ContribuyentesPageContent() {
       __naParentCodes: naParentCodes,
       Nota: '',
     });
-    setOriginalData({ ...row, Contribuyente: contribuyenteEfectivo, Identidad: identidadEfectiva, Direccion: direccionEfectiva, Clasificacion: autoClasificacion, ActividadComercial, TipoResidencia, NivelMetraje });
+    setOriginalData({ ...row, Contribuyente: contribuyenteEfectivo, Identidad: identidadEfectiva, Direccion: direccionEfectiva, Clasificacion: autoClasificacion, ActividadComercial, TipoResidencia, NivelMetraje, isCondominio, es_condominio: isCondominio });
     setEditingId(identidadEfectiva);
     setIsNew(false);
     setShowSuccess(false);
@@ -3216,10 +3226,14 @@ function ContribuyentesPageContent() {
           }))
         : dataToSave.locales;
 
+      const esCondoFinal = Boolean(dataToSave.isCondominio);
       const finalSavedState = {
         ...dataToSave,
         Contribuyente: contribUnificado,
         Identidad: identidadUnificada || dataToSave.Identidad,
+        isCondominio: esCondoFinal,
+        es_condominio: esCondoFinal,
+        ...(esCondoFinal ? { Clasificacion: 'Condominio' } : {}),
         locales: updatedLocalesWithOrig,
       };
       setFormData(finalSavedState);
@@ -3237,6 +3251,9 @@ function ContribuyentesPageContent() {
           ...(dataToSave.__naParentCodes || []),
           String(dataToSave.CodCont || '').trim().toUpperCase(),
         ].filter(Boolean));
+        const cantLocalesFinal = Array.isArray(updatedLocalesWithOrig) && updatedLocalesWithOrig.length > 0
+          ? updatedLocalesWithOrig.length
+          : 1;
         setServerResults((prev: any[]) => prev.map((sr: any) => {
           const srCode = String(sr.CodCont || sr.cod_cont || '').trim().toUpperCase();
           if ((srCode && targetCodes.has(srCode)) || sr.Identidad === editingId) {
@@ -3247,10 +3264,18 @@ function ContribuyentesPageContent() {
               Telefono: finalTelefono,
               Correo: finalCorreo,
               Direccion: dataToSave.Direccion,
+              isCondominio: esCondoFinal,
+              es_condominio: esCondoFinal,
+              Clasificacion: esCondoFinal ? 'Condominio' : dataToSave.Clasificacion,
+              ...(esCondoFinal ? { cant_inmuebles: cantLocalesFinal, unidadesCount: cantLocalesFinal } : {}),
             };
           }
           return sr;
         }));
+      }
+      const activeSearch = serverSearchTerm.trim() || tableSearchTerm.trim();
+      if (activeSearch.length >= 3) {
+        detectarCondominiosAsociados(activeSearch).catch(() => {});
       }
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);

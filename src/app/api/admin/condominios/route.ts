@@ -105,6 +105,254 @@ export async function GET(req: Request) {
   }
 }
 
+/**
+ * POST /api/admin/condominios
+ * Convierte un contribuyente / inmueble matriz y sus locales asociados en un Condominio
+ * (o revierte la clasificación de Condominio a Individual/Matriz cuando se desmarca).
+ */
+export async function POST(req: Request) {
+  try {
+    const body = await req.json();
+    const accion = String(body.accion || 'convertir_a_condominio').trim();
+    const identidad = String(body.identidad || '').trim().toUpperCase();
+    const nombre = String(body.nombre || '').trim().toUpperCase();
+    const clasificacion = String(body.clasificacion || 'Comercial').trim();
+    const esResidencial = clasificacion.toUpperCase().includes('RESIDENCIAL');
+    const codigosLocales: string[] = Array.isArray(body.codigosLocales)
+      ? body.codigosLocales.map((c: any) => String(c || '').trim().toUpperCase()).filter(Boolean)
+      : [];
+    const naParentCodes: string[] = Array.isArray(body.naParentCodes)
+      ? body.naParentCodes.map((c: any) => String(c || '').trim().toUpperCase()).filter(Boolean)
+      : [];
+    let codigoPadre = String(body.codigoPadre || naParentCodes[0] || '').trim().toUpperCase();
+
+    // Buscar inmuebles asociados en BD
+    const todosCodigos = Array.from(new Set([codigoPadre, ...naParentCodes, ...codigosLocales].filter(Boolean)));
+    let inmsBD: any[] = [];
+    if (todosCodigos.length > 0) {
+      const orParts = [
+        `inmueble.in.(${todosCodigos.join(',')})`,
+        `padre_id.in.(${todosCodigos.join(',')})`,
+        `condominio_padre_id.in.(${todosCodigos.join(',')})`,
+      ];
+      const { data } = await sb.from('inmuebles').select('*').neq('estado', 'Eliminado').or(orParts.join(','));
+      inmsBD = data || [];
+    }
+    if (inmsBD.length === 0 && identidad) {
+      const idClean = identidad.replace(/-/g, '');
+      const { data } = await sb
+        .from('inmuebles')
+        .select('*')
+        .neq('estado', 'Eliminado')
+        .or(`identidad.eq.${identidad},identidad.eq.${idClean}`);
+      inmsBD = data || [];
+    }
+
+    if (!codigoPadre) {
+      const naRow = inmsBD.find(
+        (r: any) =>
+          r.es_condominio === true ||
+          String(r.clasificacion || '').toLowerCase() === 'condominio' ||
+          String(r.actividad_principal || '').trim().toUpperCase() === 'N/A'
+      );
+      if (naRow?.inmueble) {
+        codigoPadre = String(naRow.inmueble).trim().toUpperCase();
+      } else if (codigosLocales.length > 0) {
+        codigoPadre = codigosLocales[0];
+      } else if (inmsBD.length > 0) {
+        codigoPadre = String(inmsBD[0].inmueble || '').trim().toUpperCase();
+      }
+    }
+
+    if (!codigoPadre) {
+      return NextResponse.json({ error: 'No se encontró un código de inmueble para clasificar como condominio.' }, { status: 400 });
+    }
+
+    const parentRow = inmsBD.find((r: any) => String(r.inmueble || '').trim().toUpperCase() === codigoPadre) || inmsBD[0] || {};
+    const hijosRows = inmsBD.filter(
+      (r: any) =>
+        String(r.inmueble || '').trim().toUpperCase() !== codigoPadre &&
+        !['eliminado', 'inactivo', 'desactivado'].includes(String(r.estado || '').trim().toLowerCase())
+    );
+
+    if (accion === 'desmarcar_condominio') {
+      const nuevaClase = esResidencial ? 'Residencial' : 'Individual';
+      await sb
+        .from('inmuebles')
+        .update({ es_condominio: false, clasificacion: nuevaClase })
+        .eq('inmueble', codigoPadre);
+
+      if (hijosRows.length > 0) {
+        const hijosCodes = hijosRows.map((h: any) => h.inmueble).filter(Boolean);
+        await sb
+          .from('inmuebles')
+          .update({ condominio_padre_id: null, padre_id: codigoPadre, es_condominio: false, clasificacion: 'Individual' })
+          .in('inmueble', hijosCodes);
+      }
+
+      const { data: existingCondo } = await sb.from('condominios').select('id').eq('codigo', codigoPadre).maybeSingle();
+      if (existingCondo?.id) {
+        await sb.from('condominios').update({ estado: 'Eliminado' }).eq('id', existingCondo.id);
+      }
+
+      return NextResponse.json({
+        ok: true,
+        codigoPadre,
+        es_condominio: false,
+        unidades: hijosRows.length,
+      });
+    }
+
+    // accion === 'convertir_a_condominio'
+    const cantUnidades = Math.max(
+      1,
+      hijosRows.length || parseInt(String(body.cantidadInmuebles || parentRow.cant_inmuebles || 1), 10) || 1
+    );
+
+    // 1. Actualizar inmueble padre en `inmuebles`
+    const updParent: Record<string, any> = {
+      es_condominio: true,
+      clasificacion: 'Condominio',
+      padre_id: null,
+      condominio_padre_id: null,
+      cant_inmuebles: cantUnidades,
+    };
+    if (nombre) updParent.contribuyente = nombre;
+    if (identidad) updParent.identidad = identidad;
+    if (body.direccion) updParent.direccion = String(body.direccion).trim();
+    if (body.telefono && String(body.telefono).trim().length >= 7) updParent.telefono = String(body.telefono).trim();
+    if (body.correo && String(body.correo).includes('@')) updParent.correo_electronico = String(body.correo).trim().toLowerCase();
+
+    await sb.from('inmuebles').update(updParent).eq('inmueble', codigoPadre);
+
+    // 2. Actualizar inmuebles hijos en `inmuebles`
+    if (hijosRows.length > 0) {
+      const hijosCodes = hijosRows.map((h: any) => h.inmueble).filter(Boolean);
+      await sb
+        .from('inmuebles')
+        .update({
+          condominio_padre_id: codigoPadre,
+          padre_id: null,
+          es_condominio: false,
+          clasificacion: 'Individual',
+          cant_inmuebles: 1,
+        })
+        .in('inmueble', hijosCodes);
+    }
+
+    // 3. Crear o actualizar registro en `condominios`
+    const mesesPadre =
+      hijosRows.length > 0
+        ? Math.max(...hijosRows.map((h: any) => Math.max(0, parseInt(String(h.meses_deuda || 0), 10) || 0)))
+        : Math.max(0, parseInt(String(parentRow.meses_deuda || 0), 10) || 0);
+    const aseoDesdeCondo = pendienteDesdeParaMeses(mesesPadre);
+    const multaMesesCondo = Math.max(0, mesesPadre - 1);
+
+    const esAgenteCondo =
+      body.agente_retencion !== undefined
+        ? Boolean(body.agente_retencion)
+        : Boolean(parentRow.agente_retencion || hijosRows.some((h: any) => h.agente_retencion === true));
+
+    const condoPayload: Record<string, any> = {
+      codigo: codigoPadre,
+      identidad: identidad || parentRow.identidad || null,
+      nombre: nombre || parentRow.contribuyente || codigoPadre,
+      tipo: esResidencial ? 'RESIDENCIAL' : 'COMERCIAL',
+      modalidad: esResidencial ? 'CENTRALIZADO' : 'INDIVIDUAL',
+      permite_pago_por_unidad: !esResidencial,
+      permite_abonos: true,
+      cobro_tarifa_por_unidad: false,
+      cant_declarada: cantUnidades,
+      actividad: esResidencial
+        ? parentRow.actividad_principal && parentRow.actividad_principal !== 'N/A'
+          ? parentRow.actividad_principal
+          : 'APARTAMENTO (ZONA A)'
+        : 'N/A',
+      tarifa_mmv: esResidencial
+        ? Number(parentRow.mmv_mes) > 0 && Number(parentRow.mmv_mes) <= 2
+          ? Number(parentRow.mmv_mes)
+          : 0.8
+        : 1.98,
+      agente_retencion: esAgenteCondo,
+      telefono: body.telefono || parentRow.telefono || null,
+      correo: body.correo || parentRow.correo_electronico || null,
+      direccion: body.direccion || parentRow.direccion || null,
+      notas: body.notas || parentRow.notas || null,
+      estado: 'Activo',
+      aseo_pendiente_desde: aseoDesdeCondo,
+      multa_meses: multaMesesCondo,
+    };
+
+    const { data: existingCondo } = await sb.from('condominios').select('*').eq('codigo', codigoPadre).maybeSingle();
+    let condoId = existingCondo?.id;
+    if (condoId) {
+      const { error: errUpdC } = await sb.from('condominios').update(condoPayload).eq('id', condoId);
+      if (errUpdC) throw new Error(errUpdC.message);
+    } else {
+      const { data: insertedCondo, error: errInsC } = await sb
+        .from('condominios')
+        .insert([condoPayload])
+        .select('id')
+        .single();
+      if (errInsC) throw new Error(errInsC.message);
+      condoId = insertedCondo?.id;
+    }
+
+    // 4. Sincronizar unidades en `condominio_unidades`
+    if (condoId && hijosRows.length > 0) {
+      const { data: existingUnits } = await sb
+        .from('condominio_unidades')
+        .select('id, inmueble')
+        .eq('condominio_id', condoId);
+      const unitByInm = new Map<string, string>();
+      (existingUnits || []).forEach((u: any) => {
+        if (u.inmueble) unitByInm.set(String(u.inmueble).trim().toUpperCase(), u.id);
+      });
+
+      for (const h of hijosRows) {
+        const codH = String(h.inmueble || '').trim().toUpperCase();
+        if (!codH) continue;
+        const actH = String(h.actividad_principal || 'INMUEBLES Y LOCALES DESOCUPADOS').trim();
+        const esDesocupado = /DESOCUPAD/i.test(actH);
+        const mH = Math.max(0, parseInt(String(h.meses_deuda ?? mesesPadre), 10) || 0);
+        const numLocalRaw = String(h.numero_local || '').trim();
+        const numeroUnit =
+          numLocalRaw && numLocalRaw !== 'NO_APLICA' && numLocalRaw !== 'N/A' ? numLocalRaw : codH;
+
+        const unitPayload: Record<string, any> = {
+          condominio_id: condoId,
+          inmueble: codH,
+          numero: numeroUnit,
+          identidad: h.identidad || identidad || parentRow.identidad || null,
+          propietario: h.contribuyente || nombre || parentRow.contribuyente || null,
+          actividad: actH,
+          tarifa_mmv: Number(h.mmv_mes) > 0 ? Number(h.mmv_mes) : esResidencial ? 0.8 : 1.98,
+          estado: esDesocupado ? 'Desocupada' : 'Activa',
+          aseo_pendiente_desde: pendienteDesdeParaMeses(mH),
+          multa_meses: Math.max(0, mH - 1),
+        };
+
+        const existingUnitId = unitByInm.get(codH);
+        if (existingUnitId) {
+          await sb.from('condominio_unidades').update(unitPayload).eq('id', existingUnitId);
+        } else {
+          await sb.from('condominio_unidades').insert([unitPayload]);
+        }
+      }
+    }
+
+    return NextResponse.json({
+      ok: true,
+      condominioId: condoId,
+      codigoPadre,
+      es_condominio: true,
+      unidades: hijosRows.length,
+    });
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message || 'Error al clasificar condominio' }, { status: 500 });
+  }
+}
+
 const EDITABLES = ['modalidad', 'cant_declarada', 'tarifa_mmv', 'tarifa_fija_bs', 'actividad', 'agente_retencion',
   'permite_pago_por_unidad', 'permite_abonos', 'cobro_tarifa_por_unidad', 'correo', 'telefono', 'administradora', 'notas', 'estado',
   'tipo', 'nombre', 'identidad', 'multa_meses', 'direccion'] as const;
