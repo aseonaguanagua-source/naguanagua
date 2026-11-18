@@ -1,15 +1,16 @@
 import { supabase } from '@/lib/supabase';
 import { getIdentidadVariantsExact as getIdentidadVariants } from '@/lib/formatters';
+import { isTerrenoInm } from '@/lib/calculos';
 
 /**
  * Regla ÚNICA de solvencia (Contribuyentes, Certificados, reimpresión).
- *  - Se ignoran inmuebles "Eliminado" (igual que Caja).
+ *  - Se ignoran inmuebles "Eliminado" y "TERRENO" (a los terrenos no se les genera deuda).
  *  - Si se pide un inmueble específico, solo cuenta ESE inmueble (y sus unidades
  *    si es condominio). Otro inmueble del mismo RIF con deuda no lo bloquea.
  *  - 'general' = todos los inmuebles no eliminados del RIF + facturas pendientes.
  */
 export const inmuebleTieneDeuda = (i: any) =>
-  i?.estado !== 'Eliminado' && (
+  i?.estado !== 'Eliminado' && !isTerrenoInm(i) && (
     parseInt(String(i?.meses_deuda || 0), 10) > 0 ||
     parseFloat(String(i?.deuda_mmv || 0)) > 0.0001 ||
     parseFloat(String(i?.deuda_congelada_bs || 0)) > 0.01 ||
@@ -43,7 +44,7 @@ async function evaluarSolvenciaLocal(identidad: string, inmuebleSpec: string = '
 
   const { data: inmsRif, error } = await supabase
     .from('inmuebles')
-    .select('id, inmueble, estado, meses_deuda, deuda_mmv, deuda_congelada_bs, multa_bs, condominio_padre_id, padre_id')
+    .select('id, inmueble, estado, actividad_principal, meses_deuda, deuda_mmv, deuda_congelada_bs, multa_bs, condominio_padre_id, padre_id')
     .in('identidad', variantes);
   if (error) return { solvente: false, mensaje: 'No se pudo verificar la deuda: ' + error.message, inmueblesConDeuda: [] };
 
@@ -53,7 +54,7 @@ async function evaluarSolvenciaLocal(identidad: string, inmuebleSpec: string = '
     if (!principal) {
       const { data: pDb } = await supabase
         .from('inmuebles')
-        .select('id, inmueble, estado, meses_deuda, deuda_mmv, deuda_congelada_bs, multa_bs, condominio_padre_id, padre_id')
+        .select('id, inmueble, estado, actividad_principal, meses_deuda, deuda_mmv, deuda_congelada_bs, multa_bs, condominio_padre_id, padre_id')
         .eq('inmueble', especifico)
         .limit(1)
         .maybeSingle();
@@ -62,7 +63,7 @@ async function evaluarSolvenciaLocal(identidad: string, inmuebleSpec: string = '
 
     const { data: hijos } = await supabase
       .from('inmuebles')
-      .select('id, inmueble, estado, meses_deuda, deuda_mmv, deuda_congelada_bs, multa_bs, condominio_padre_id, padre_id')
+      .select('id, inmueble, estado, actividad_principal, meses_deuda, deuda_mmv, deuda_congelada_bs, multa_bs, condominio_padre_id, padre_id')
       .or(`condominio_padre_id.in.(${[especifico, principal?.id].filter(Boolean).join(',')}),padre_id.in.(${[especifico, principal?.id].filter(Boolean).join(',')})`);
     
     alcance = [...(principal ? [principal] : []), ...(hijos || [])];

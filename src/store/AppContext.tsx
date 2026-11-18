@@ -1850,7 +1850,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (u.uso !== 'Residencial' && !isTerrenoInm(act) && !(mmv > 0)) throw new Error(`No hay tarifa en la ordenanza para la actividad "${act || '(vacía)'}".`);
         if (u.uso === 'Residencial' && !(mmv > 0)) throw new Error(`No hay tarifa en la ordenanza para "${act || '(vacío)'}".`);
         const prevMeses = Number(reutilizables[idx]?.meses_deuda) || 0;
-        const mesesActivos = prevMeses > 0 ? prevMeses : 1;
+        const mesesActivos = isTerrenoInm(act) ? 0 : (prevMeses > 0 ? prevMeses : 1);
         return {
           inmueble: codigos[idx],
           identidad,

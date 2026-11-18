@@ -57,10 +57,19 @@ export function resolverConceptoPeriodoPago(pago: any): string {
   if (!pago) return 'Servicio de Aseo Urbano Comercial';
   const det = pago.detalles || {};
 
-  // 0. Si es un pago de Servicio Especial / Extraordinario
+  // 0. Si es un pago de Servicio Especial / Extraordinario / Inspección
   const srvs = Array.isArray(det.servicios) ? det.servicios : [];
   if (srvs.length > 0 || String(pago.referencia || '').startsWith('SRV-')) {
-    const srvRef = srvs[0] || pago.referencia;
+    const rawFirst = srvs[0];
+    const srvRef = (typeof rawFirst === 'string' ? rawFirst : rawFirst?.referencia) || pago.referencia;
+    const rcArr = Array.isArray(det.recibo_caja) ? det.recibo_caja : (det.recibo_caja ? [det.recibo_caja] : []);
+    const rcDesc = String(rcArr[0]?.conceptos?.[0]?.descripcion || rawFirst?.descripcion || det.concepto || '').trim();
+    if (rcDesc && !/^servicio\s+(especial|extraordinario)/i.test(rcDesc)) {
+      const prefijo = /verificaci[oó]n\s+de\s+terreno|inspecci[oó]n/i.test(rcDesc) && !/^inspecci[oó]n/i.test(rcDesc)
+        ? `Inspección - ${rcDesc}`
+        : rcDesc;
+      return srvRef ? `${prefijo} (${srvRef})` : prefijo;
+    }
     return `Servicio Especial - ${srvRef || 'Extraordinario'}`;
   }
   if (String(det.tipo_pago || '').toUpperCase().includes('SERVICIO') || String(det.concepto || '').toUpperCase().includes('SERVICIO ESPECIAL') || String(det.concepto || '').toUpperCase().includes('SERVICIO EXTRAORDINARIO')) {

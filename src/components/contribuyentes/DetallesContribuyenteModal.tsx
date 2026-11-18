@@ -39,10 +39,10 @@ interface DetallesContribuyenteModalProps {
   onRefresh?: () => void;
 }
 
-function formatPeriodosPagados(det: any, p?: any): string {
+function formatPeriodosPagados(det: any, p?: any, serviciosEspList?: any[]): string {
   if (!det && !p) return '—';
 
-  // 0. Si es un pago de Servicio Especial / Extraordinario
+  // 0. Si es un pago de Servicio Especial / Extraordinario / Inspección / Visto Bueno
   const srvs = Array.isArray(det?.servicios) ? det.servicios : [];
   const esSrvEsp = srvs.length > 0 ||
     String(p?.referencia || '').startsWith('SRV-') ||
@@ -51,14 +51,41 @@ function formatPeriodosPagados(det: any, p?: any): string {
     String(det?.concepto || '').toUpperCase().includes('SERVICIO EXTRAORDINARIO');
 
   if (esSrvEsp) {
-    if (srvs.length > 0) {
-      const ref = typeof srvs[0] === 'string' ? srvs[0] : srvs[0]?.referencia;
-      return `Servicio Especial (${ref || 'SRV'})`;
+    const rawFirst = srvs.length > 0 ? srvs[0] : null;
+    const ref = (typeof rawFirst === 'string' ? rawFirst : rawFirst?.referencia) ||
+      (String(p?.referencia || '').startsWith('SRV-') ? String(p.referencia) : '');
+    const matchedSrv = Array.isArray(serviciosEspList)
+      ? serviciosEspList.find((s: any) =>
+          (ref && String(s?.referencia || '').trim().toUpperCase() === String(ref).trim().toUpperCase()) ||
+          (p?.id && String(s?.pago_id || '') === String(p.id))
+        )
+      : null;
+
+    const rcArr = Array.isArray(det?.recibo_caja) ? det.recibo_caja : (det?.recibo_caja ? [det.recibo_caja] : []);
+    const rcConcepto = String(rcArr[0]?.conceptos?.[0]?.descripcion || '').trim();
+    const descSrv = String(matchedSrv?.descripcion || rawFirst?.descripcion || rcConcepto || det?.concepto || '').trim();
+    const tipoCat = `${matchedSrv?.tipo || ''} ${matchedSrv?.categoria || ''} ${rawFirst?.tipo || ''} ${det?.tipo_servicio || ''} ${descSrv}`.toUpperCase();
+
+    let etiquetaBase = 'Servicio Especial';
+    if (/INSPECCI[OÓ]N|VERIFICACI[OÓ]N\s+DE\s+TERRENO/i.test(tipoCat)) {
+      etiquetaBase = 'Inspección';
+    } else if (/VISTO[_\s]*BUENO/i.test(tipoCat)) {
+      etiquetaBase = 'Visto Bueno Ambiental';
+    } else if (/TALA|PODA/i.test(tipoCat)) {
+      etiquetaBase = 'Tala y Poda';
+    } else if (/ESCOMBRO|CHATARRA|CAUCHO|VEGETAL/i.test(tipoCat)) {
+      etiquetaBase = 'Recolección Especial';
     }
-    if (String(p?.referencia || '').startsWith('SRV-')) {
-      return `Servicio Especial (${p.referencia})`;
-    }
-    return 'Servicio Especial';
+
+    const descLimpia = descSrv && !/^servicio\s+(especial|extraordinario)/i.test(descSrv)
+      ? descSrv
+      : '';
+    const incluyeEtiqueta = descLimpia && descLimpia.toUpperCase().includes(etiquetaBase.toUpperCase().slice(0, 6));
+    const textoPrincipal = descLimpia
+      ? (incluyeEtiqueta || etiquetaBase === 'Servicio Especial' ? descLimpia : `${etiquetaBase}: ${descLimpia}`)
+      : etiquetaBase;
+
+    return ref ? `${textoPrincipal} (${ref})` : textoPrincipal;
   }
 
   // 1. Si viene explícito en periodos_pagados
@@ -2547,7 +2574,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                                 let det: any = {};
                                 try { det = typeof p.detalles === 'string' ? JSON.parse(p.detalles) : (p.detalles || {}); } catch {}
                                 const facturaDigital = det.factura_digital;
-                                const periodoTexto = formatPeriodosPagados(det, p);
+                                const periodoTexto = formatPeriodosPagados(det, p, serviciosEspDb);
                                 const codsPago = codigosDePago(det, p);
                                 const codsTexto = codsPago.length > 0 ? codsPago.join(', ') : (p.inmueble || '---');
                                 const desglosePorInm: Record<string, number> = {};
@@ -2593,7 +2620,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                               </td>
                               <td className="px-4 py-2.5">
                                 <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold border ${
-                                  periodoTexto.includes('Servicio Especial')
+                                  periodoTexto.includes('Servicio Especial') || periodoTexto.includes('Inspección') || periodoTexto.includes('Visto Bueno') || periodoTexto.includes('Tala y Poda') || (Array.isArray(det?.servicios) && det.servicios.length > 0)
                                     ? 'bg-emerald-50 text-emerald-800 border-emerald-300 font-bold'
                                     : periodoTexto.includes('Retención')
                                     ? 'bg-purple-50 text-purple-800 border-purple-200/80'
