@@ -23,17 +23,17 @@ function dibujarLogosPie(doc: jsPDF) {
   const yFoot = 282;
   try {
     if ((logos as any).lacava) {
-      doc.addImage((logos as any).lacava, 'PNG', 14, yFoot, 34, 8.5, undefined, 'FAST');
+      doc.addImage((logos as any).lacava, 'PNG', 14, yFoot, 34, 8.8, undefined, 'FAST');
     }
   } catch { }
   try {
     if ((logos as any).elizabeth) {
-      doc.addImage((logos as any).elizabeth, 'PNG', 85, yFoot, 40, 7.5, undefined, 'FAST');
+      doc.addImage((logos as any).elizabeth, 'PNG', 85, yFoot + 0.5, 40, 7.5, undefined, 'FAST');
     }
   } catch { }
   try {
     if ((logos as any).naguanaguaTeQuiero) {
-      doc.addImage((logos as any).naguanaguaTeQuiero, 'PNG', 162, yFoot - 2, 34, 12, undefined, 'FAST');
+      doc.addImage((logos as any).naguanaguaTeQuiero, 'PNG', 163, yFoot - 2, 33, 13, undefined, 'FAST');
     }
   } catch { }
 }
@@ -53,26 +53,26 @@ export function generarPdfEstadoCuentaCondominio(
   const sym = esEur ? '€ ' : 'Bs. ';
   const fmtM = (montoBs: number) => `${sym}${fmtBs(toCurr(montoBs))}`;
 
-  const drawHeader = (pageNumber: number, totalPages: number) => {
+  const drawHeader = (_pageNumber: number, _totalPages: number) => {
     try {
-      if (logos.alcaldia) doc.addImage(logos.alcaldia, 'PNG', 14, 8, 16, 20, undefined, 'FAST');
-      if (logos.iamec) doc.addImage(logos.iamec, 'PNG', 32, 9, 30, 16, undefined, 'FAST');
-      if (logos.instituto) doc.addImage(logos.instituto, 'PNG', 174, 8, 20, 20, undefined, 'FAST');
+      const logoIzq = (logos as any).instituto || logos.alcaldia;
+      if (logoIzq) doc.addImage(logoIzq, 'PNG', 14, 8, 38, 13, undefined, 'FAST');
+      if (logos.iamec) doc.addImage(logos.iamec, 'PNG', 158, 8.5, 38, 12, undefined, 'FAST');
     } catch (err) { }
 
     // ── TÍTULO ──
-    doc.setFontSize(16);
+    doc.setFontSize(15);
     doc.setFont('helvetica', 'bold');
-    doc.text('ESTADO DE CUENTA CONDOMINIO', 105, 18, { align: 'center' });
+    doc.text('ESTADO DE CUENTA CONDOMINIO', 105, 15, { align: 'center' });
 
     doc.setFontSize(8);
     doc.setTextColor(220, 38, 38);
     const fechaEmision = new Date().toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric' });
     const tc = (e as any)?.tasaCongelada || c?.tasa_congelada_activa || null;
     if (tc && tc.activa && tc.desde && tc.hasta) {
-      doc.text(`TASA CONGELADA POR EL PERÍODO DEL ${fmtDMY(tc.desde)} AL ${fmtDMY(tc.hasta)}   |   TASA EURO BCV: Bs. ${fmtBs(tasaEur)}`, 105, 23, { align: 'center' });
+      doc.text(`TASA CONGELADA POR EL PERÍODO DEL ${fmtDMY(tc.desde)} AL ${fmtDMY(tc.hasta)}   |   TASA EURO BCV: Bs. ${fmtBs(tasaEur)}`, 105, 24, { align: 'center' });
     } else {
-      doc.text(`TASA VIGENTE HASTA: ${fechaEmision}   |   TASA EURO BCV: Bs. ${fmtBs(tasaEur)}`, 105, 23, { align: 'center' });
+      doc.text(`TASA VIGENTE HASTA: ${fechaEmision}   |   TASA EURO BCV: Bs. ${fmtBs(tasaEur)}`, 105, 24, { align: 'center' });
     }
     doc.setTextColor(0, 0, 0);
 
@@ -82,8 +82,6 @@ export function generarPdfEstadoCuentaCondominio(
     doc.setFontSize(7.5);
     doc.setFont('helvetica', 'italic');
     doc.text(`Generado por: ${cajero}   |   Fecha: ${fechaEmision}`, 14, 36);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Página ${pageNumber} de ${totalPages}   |   Nro.: ${docNro}`, 196, 36, { align: 'right' });
     doc.line(14, 38, 196, 38);
   };
 
@@ -290,24 +288,24 @@ export function generarPdfMultasCondominio(c: any, e: EstadoCuenta, cajero: stri
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const docNro = Math.floor(100000 + Math.random() * 900000).toString();
 
-  const drawHeader = (pageNumber: number, totalPages: number) => {
+  const drawHeader = (_pageNumber: number, _totalPages: number) => {
     try {
-      if (logos.alcaldia) doc.addImage(logos.alcaldia, 'PNG', 14, 8, 16, 20, undefined, 'FAST');
-      if (logos.iamec) doc.addImage(logos.iamec, 'PNG', 32, 9, 30, 16, undefined, 'FAST');
-      if (logos.instituto) doc.addImage(logos.instituto, 'PNG', 174, 8, 20, 20, undefined, 'FAST');
+      const logoIzq = (logos as any).instituto || logos.alcaldia;
+      if (logoIzq) doc.addImage(logoIzq, 'PNG', 14, 8, 38, 13, undefined, 'FAST');
+      if (logos.iamec) doc.addImage(logos.iamec, 'PNG', 158, 8.5, 38, 12, undefined, 'FAST');
     } catch (err) { }
 
-    doc.setFontSize(16);
+    doc.setFontSize(15);
     doc.setFont('helvetica', 'bold');
-    doc.text('REPORTE DE MULTAS CONDOMINIO', 105, 18, { align: 'center' });
+    doc.text('REPORTE DE MULTAS CONDOMINIO', 105, 15, { align: 'center' });
 
     doc.setFontSize(8);
     doc.setTextColor(220, 38, 38);
     const tcMultas = (e as any)?.tasaCongelada || c?.tasa_congelada_activa || null;
     if (tcMultas && tcMultas.activa && tcMultas.desde && tcMultas.hasta) {
-      doc.text(`TASA CONGELADA POR EL PERÍODO DEL ${fmtDMY(tcMultas.desde)} AL ${fmtDMY(tcMultas.hasta)}   |   TASA: Bs. ${fmtBs(e.tasa)}`, 105, 23, { align: 'center' });
+      doc.text(`TASA CONGELADA POR EL PERÍODO DEL ${fmtDMY(tcMultas.desde)} AL ${fmtDMY(tcMultas.hasta)}   |   TASA: Bs. ${fmtBs(e.tasa)}`, 105, 24, { align: 'center' });
     } else {
-      doc.text(`TASA VIGENTE HASTA: ${e.tasa}`, 105, 23, { align: 'center' });
+      doc.text(`TASA VIGENTE HASTA: ${e.tasa}`, 105, 24, { align: 'center' });
     }
     doc.setTextColor(0, 0, 0);
 
@@ -316,8 +314,6 @@ export function generarPdfMultasCondominio(c: any, e: EstadoCuenta, cajero: stri
     doc.setFontSize(7.5);
     doc.setFont('helvetica', 'italic');
     doc.text(`Generado por: ${cajero}`, 14, 36);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Página ${pageNumber} de ${totalPages}   |   Nro.: ${docNro}`, 196, 36, { align: 'right' });
     doc.line(14, 38, 196, 38);
   };
 
@@ -456,24 +452,24 @@ export async function generarPdfEstadoCuentaUnidad(
     }
   }
 
-  const drawHeader = (pageNumber: number, totalPages: number) => {
+  const drawHeader = (_pageNumber: number, _totalPages: number) => {
     try {
-      if (logos.alcaldia) doc.addImage(logos.alcaldia, 'PNG', 14, 8, 16, 20, undefined, 'FAST');
-      if (logos.iamec) doc.addImage(logos.iamec, 'PNG', 32, 9, 30, 16, undefined, 'FAST');
-      if (logos.instituto) doc.addImage(logos.instituto, 'PNG', 174, 8, 20, 20, undefined, 'FAST');
+      const logoIzq = (logos as any).instituto || logos.alcaldia;
+      if (logoIzq) doc.addImage(logoIzq, 'PNG', 14, 8, 38, 13, undefined, 'FAST');
+      if (logos.iamec) doc.addImage(logos.iamec, 'PNG', 158, 8.5, 38, 12, undefined, 'FAST');
     } catch (err) { }
 
-    doc.setFontSize(16);
+    doc.setFontSize(15);
     doc.setFont('helvetica', 'bold');
-    doc.text(esEur ? 'ESTADO DE CUENTA (EUROS €)' : 'ESTADO DE CUENTA', 105, 18, { align: 'center' });
+    doc.text(esEur ? 'ESTADO DE CUENTA (EUROS €)' : 'ESTADO DE CUENTA', 105, 15, { align: 'center' });
 
     doc.setFontSize(8);
     doc.setTextColor(220, 38, 38);
     const tcUnidad = c?.tasa_congelada_activa || null;
     if (tcUnidad && tcUnidad.activa && tcUnidad.desde && tcUnidad.hasta) {
-      doc.text(`TASA CONGELADA POR EL PERÍODO DEL ${fmtDMY(tcUnidad.desde)} AL ${fmtDMY(tcUnidad.hasta)}   |   TASA EURO BCV: Bs. ${fmtBs(tasaEur)}`, 105, 23, { align: 'center' });
+      doc.text(`TASA CONGELADA POR EL PERÍODO DEL ${fmtDMY(tcUnidad.desde)} AL ${fmtDMY(tcUnidad.hasta)}   |   TASA EURO BCV: Bs. ${fmtBs(tasaEur)}`, 105, 24, { align: 'center' });
     } else {
-      doc.text(`TASA VIGENTE HASTA: ${new Date().toLocaleDateString('es-VE')}`, 105, 23, { align: 'center' });
+      doc.text(`TASA VIGENTE HASTA: ${new Date().toLocaleDateString('es-VE')}`, 105, 24, { align: 'center' });
     }
     doc.setTextColor(0, 0, 0);
 
@@ -482,8 +478,6 @@ export async function generarPdfEstadoCuentaUnidad(
     doc.setFontSize(7.5);
     doc.setFont('helvetica', 'italic');
     doc.text(`Generado por: ${cajero}`, 14, 32);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Página ${pageNumber} de ${totalPages}   |   Nro.: ${docNro}`, 196, 32, { align: 'right' });
     doc.line(14, 34, 196, 34);
   };
 

@@ -55,8 +55,12 @@ function addExecutiveHeader(
   doc.rect(0, 24, pageW, 1.8, 'F');
 
   try {
+    const logoIzq = (logos as any)?.instituto || logos?.alcaldia;
+    if (logoIzq) {
+      doc.addImage(logoIzq, 'PNG', 10, 4, 38, 13);
+    }
     if (logos?.iamec) {
-      doc.addImage(logos.iamec, 'PNG', 10, 3, 36, 17);
+      doc.addImage(logos.iamec, 'PNG', pageW - 48, 4.5, 38, 12);
     }
   } catch {}
 

@@ -722,17 +722,17 @@ export default function EstadoCuentaPage() {
 
       const docNro = Math.floor(10000 + Math.random() * 90000);
 
-      // ── LOGOS INSTITUCIONALES HEADER (Alcaldía, IAMEC e Instituto) ──
+      // ── LOGOS INSTITUCIONALES HEADER (Instituto e IAMEC) ──
       try {
-        if ((logos as any).alcaldia) doc.addImage((logos as any).alcaldia, 'PNG', 14, 8, 16, 20, undefined, 'FAST');
-        if ((logos as any).iamec) doc.addImage((logos as any).iamec, 'PNG', 32, 9, 30, 16, undefined, 'FAST');
-        if ((logos as any).instituto) doc.addImage((logos as any).instituto, 'PNG', 174, 8, 20, 20, undefined, 'FAST');
+        const logoIzq = (logos as any).instituto || (logos as any).alcaldia;
+        if (logoIzq) doc.addImage(logoIzq, 'PNG', 14, 8, 38, 13, undefined, 'FAST');
+        if ((logos as any).iamec) doc.addImage((logos as any).iamec, 'PNG', 158, 8.5, 38, 12, undefined, 'FAST');
       } catch(e) {}
 
       // ── TÍTULO ──
-      doc.setFontSize(18);
+      doc.setFontSize(16);
       doc.setFont('helvetica', 'bold');
-      doc.text('ESTADO DE CUENTA', 105, 15, { align: 'center' });
+      doc.text('ESTADO DE CUENTA', 105, 14.5, { align: 'center' });
 
       doc.setFontSize(8.5);
       if (isMultiActivity) {
@@ -1080,17 +1080,17 @@ export default function EstadoCuentaPage() {
       const yFoot = 282;
       try {
         if ((logos as any).lacava) {
-          doc.addImage((logos as any).lacava, 'PNG', 14, yFoot, 34, 8.5, undefined, 'FAST');
+          doc.addImage((logos as any).lacava, 'PNG', 14, yFoot, 34, 8.8, undefined, 'FAST');
         }
       } catch {}
       try {
         if ((logos as any).elizabeth) {
-          doc.addImage((logos as any).elizabeth, 'PNG', 85, yFoot, 40, 7.5, undefined, 'FAST');
+          doc.addImage((logos as any).elizabeth, 'PNG', 85, yFoot + 0.5, 40, 7.5, undefined, 'FAST');
         }
       } catch {}
       try {
         if ((logos as any).naguanaguaTeQuiero) {
-          doc.addImage((logos as any).naguanaguaTeQuiero, 'PNG', 162, yFoot - 2, 34, 12, undefined, 'FAST');
+          doc.addImage((logos as any).naguanaguaTeQuiero, 'PNG', 163, yFoot - 2, 33, 13, undefined, 'FAST');
         }
       } catch {}
     }

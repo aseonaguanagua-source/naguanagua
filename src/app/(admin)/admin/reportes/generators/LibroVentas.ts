@@ -43,7 +43,7 @@ export const fechaEmisionDoc = (p: any, det?: any): string => {
   }
   return fechaISO(p?.created_at);
 };
-const dmy = (iso: string) => { const [y, m, d] = String(iso || '').split('-'); return d ? `${d}/${m}/${y}` : iso; };
+const dmy = (iso: string) => { const [y, m, d] = String(iso || '').slice(0, 10).split('-'); return d ? `${d}/${m}/${y}` : iso; };
 
 const cleanId = (s: any) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 
@@ -529,20 +529,26 @@ export const generarLibroVentas = async (pagosFiltrados: any[], contribuyentes: 
   ];
   const n = headers.length;
   const per = (() => {
-    const d = new Date(`${fechaInicio}T12:00:00`);
+    const d = new Date(`${fIni}T12:00:00`);
     return isNaN(d.getTime()) ? '' : `${MESES[d.getMonth()].toUpperCase()} ${d.getFullYear()}`;
   })();
-  const titulo = (row: number, txt: string, size = 12) => {
-    ws.mergeCells(row, 1, row, n);
-    const c = ws.getCell(row, 1);
-    c.value = txt; c.font = { name: 'Arial', size, bold: true }; c.alignment = { horizontal: 'center' };
+  [7, 11, 16, 34, 12, 14, 12, 11, 11, 9, 12, 15, 13, 14, 15, 8, 14, 15, 8, 14, 14, 13, 18, 12].forEach((w, i) => { ws.getColumn(i + 1).width = w; });
+  for (let r = 1; r <= 4; r++) {
+    ws.getRow(r).height = 18;
+  }
+  const titulo = (row: number, txt: string, size = 11.5, color = 'FF000000') => {
+    ws.mergeCells(row, 4, row, 14);
+    const c = ws.getCell(row, 4);
+    c.value = txt;
+    c.font = { name: 'Arial', size, bold: true, color: { argb: color } };
+    c.alignment = { horizontal: 'center', vertical: 'middle' };
   };
-  const addLogo = (base64Str: string, colFrom: number, rowFrom: number, width: number, height: number) => {
+  const addLogoToSheet = (targetWs: any, base64Str: string, colFrom: number, rowFrom: number, width: number, height: number) => {
     try {
       if (!base64Str) return;
       const base64Data = base64Str.split(',')[1] || base64Str;
       const imageId = wb.addImage({ base64: base64Data, extension: 'png' });
-      ws.addImage(imageId, {
+      targetWs.addImage(imageId, {
         tl: { col: colFrom, row: rowFrom },
         ext: { width, height }
       });
@@ -550,16 +556,13 @@ export const generarLibroVentas = async (pagosFiltrados: any[], contribuyentes: 
       console.warn('No se pudo incrustar logo en Libro de Ventas:', e);
     }
   };
-  addLogo(logos.instituto || logos.alcaldia, 0.4, 0.2, 140, 60);
-  addLogo(logos.iamec, 18.2, 0.2, 140, 60);
+  addLogoToSheet(ws, (logos as any).instituto || logos.alcaldia, 0.25, 0.15, 160, 54);
+  addLogoToSheet(ws, logos.iamec, 14.3, 0.2, 160, 49);
 
-  titulo(1, 'REPÚBLICA BOLIVARIANA DE VENEZUELA - ESTADO CARABOBO', 11);
-  titulo(2, ORGANISMO, 12);
-  titulo(3, `LIBRO DE VENTAS E INGRESOS POR SERVICIO DE ASEO URBANO${tipo === 'Mensual' && per ? ' - ' + per : ''}`, 12);
-  ws.getCell(4, 1).value = `RIF: ${RIF_IAMEC}`;
-  ws.getCell(4, 1).font = { bold: true };
-  ws.getCell(4, 12).value = `Período: ${dmy(fechaInicio)} al ${dmy(fechaFin)}`;
-  ws.getCell(4, 12).font = { bold: true };
+  titulo(1, 'REPÚBLICA BOLIVARIANA DE VENEZUELA - ESTADO CARABOBO', 10.5);
+  titulo(2, ORGANISMO, 11.5);
+  titulo(3, `LIBRO DE VENTAS E INGRESOS POR SERVICIO DE ASEO URBANO${tipo === 'Mensual' && per ? ' - ' + per : ''}`, 11.5, 'FF1F4E78');
+  titulo(4, `RIF: ${RIF_IAMEC}   |   Período: ${dmy(fIni)} al ${dmy(fFin)}`, 9.5, 'FF334155');
 
   const hr = ws.getRow(6);
   headers.forEach((h, i) => {
@@ -571,7 +574,6 @@ export const generarLibroVentas = async (pagosFiltrados: any[], contribuyentes: 
     c.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
   });
   hr.height = 42;
-  [7, 11, 16, 34, 12, 14, 12, 11, 11, 9, 12, 15, 13, 14, 15, 8, 14, 15, 8, 14, 14, 13, 18, 12].forEach((w, i) => { ws.getColumn(i + 1).width = w; });
 
   const T = { total: 0, exento: 0, exon: 0, baseC: 0, ivaC: 0, baseN: 0, ivaN: 0, ret: 0, igtf: 0 };
   let facturas = 0;
@@ -745,7 +747,13 @@ export const generarLibroVentas = async (pagosFiltrados: any[], contribuyentes: 
   ws.views = [{ state: 'frozen', ySplit: 6 }];
 
   // ── Hoja Resumen y Declaración ──
-  wsRes.getColumn(1).width = 62; wsRes.getColumn(2).width = 22; wsRes.getColumn(3).width = 22; wsRes.getColumn(4).width = 18;
+  wsRes.getColumn(1).width = 62; wsRes.getColumn(2).width = 22; wsRes.getColumn(3).width = 22; wsRes.getColumn(4).width = 22;
+  for (let r = 1; r <= 4; r++) {
+    wsRes.getRow(r).height = 18;
+  }
+  addLogoToSheet(wsRes, (logos as any).instituto || logos.alcaldia, 0.05, 0.15, 155, 52);
+  addLogoToSheet(wsRes, logos.iamec, 2.85, 0.2, 150, 46);
+
   const put = (r: number, vals: any[], opts: { bold?: boolean; fill?: string; fmt?: boolean } = {}) => {
     vals.forEach((v, k) => {
       const c = wsRes.getCell(r, k + 1);
@@ -756,16 +764,19 @@ export const generarLibroVentas = async (pagosFiltrados: any[], contribuyentes: 
       c.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
     });
   };
-  wsRes.mergeCells('A1:D1'); wsRes.getCell('A1').value = ORGANISMO; wsRes.getCell('A1').font = { bold: true, size: 13 }; wsRes.getCell('A1').alignment = { horizontal: 'center' };
-  wsRes.mergeCells('A2:D2'); wsRes.getCell('A2').value = 'RESUMEN DEL LIBRO DE VENTAS (DECLARACIÓN IVA)'; wsRes.getCell('A2').font = { bold: true, size: 12 }; wsRes.getCell('A2').alignment = { horizontal: 'center' };
-  put(4, ['DATOS GENERALES DE LA OFICINA DE RECAUDACIÓN', '', '', ''], { bold: true, fill: 'FFD9E1F2' });
-  put(5, ['Organismo / Entidad: Oficina de Recaudación de Aseo Urbano - Naguanagua', 'RIF:', RIF_IAMEC, '']);
-  put(6, [`Período Impositivo: ${per || ''} (${dmy(fechaInicio)} al ${dmy(fechaFin)})`, 'Fecha de Elaboración:', fechaISO(new Date()), '']);
-  put(7, ['Marco Normativo: Providencia SNAT/2025/000054 / L-IVA', 'Estatus del Período:', ventas.length ? 'CON OPERACIONES' : 'SIN OPERACIONES', '']);
+  wsRes.mergeCells('A1:D1'); wsRes.getCell('A1').value = 'REPÚBLICA BOLIVARIANA DE VENEZUELA - ESTADO CARABOBO'; wsRes.getCell('A1').font = { bold: true, size: 10.5 }; wsRes.getCell('A1').alignment = { horizontal: 'center', vertical: 'middle' };
+  wsRes.mergeCells('A2:D2'); wsRes.getCell('A2').value = ORGANISMO; wsRes.getCell('A2').font = { bold: true, size: 11.5 }; wsRes.getCell('A2').alignment = { horizontal: 'center', vertical: 'middle' };
+  wsRes.mergeCells('A3:D3'); wsRes.getCell('A3').value = 'RESUMEN DEL LIBRO DE VENTAS (DECLARACIÓN IVA)'; wsRes.getCell('A3').font = { bold: true, size: 12, color: { argb: 'FF1F4E78' } }; wsRes.getCell('A3').alignment = { horizontal: 'center', vertical: 'middle' };
+  wsRes.mergeCells('A4:D4'); wsRes.getCell('A4').value = `RIF: ${RIF_IAMEC}   |   Período: ${dmy(fIni)} al ${dmy(fFin)}`; wsRes.getCell('A4').font = { bold: true, size: 9.5, color: { argb: 'FF334155' } }; wsRes.getCell('A4').alignment = { horizontal: 'center', vertical: 'middle' };
 
-  put(9, ['RESUMEN DE VENTAS Y DÉBITOS FISCALES', '', '', ''], { bold: true, fill: 'FFD9E1F2' });
-  put(10, ['Concepto / Descripción del Rubro', 'Base Imponible (Bs.)', 'Débito Fiscal (Bs.)', '% Total'], { bold: true, fill: 'FF1F4E78' });
-  for (let k = 1; k <= 4; k++) wsRes.getCell(10, k).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+  put(6, ['DATOS GENERALES DE LA OFICINA DE RECAUDACIÓN', '', '', ''], { bold: true, fill: 'FFD9E1F2' });
+  put(7, ['Organismo / Entidad: Oficina de Recaudación de Aseo Urbano - Naguanagua', 'RIF:', RIF_IAMEC, '']);
+  put(8, [`Período Impositivo: ${per ? per + ' ' : ''}(${dmy(fIni)} al ${dmy(fFin)})`, 'Fecha de Elaboración:', dmy(fechaISO(new Date())), '']);
+  put(9, ['Marco Normativo: Providencia SNAT/2025/000054 / L-IVA', 'Estatus del Período:', ventas.length ? 'CON OPERACIONES' : 'SIN OPERACIONES', '']);
+
+  put(11, ['RESUMEN DE VENTAS Y DÉBITOS FISCALES', '', '', ''], { bold: true, fill: 'FFD9E1F2' });
+  put(12, ['Concepto / Descripción del Rubro', 'Base Imponible (Bs.)', 'Débito Fiscal (Bs.)', '% Total'], { bold: true, fill: 'FF1F4E78' });
+  for (let k = 1; k <= 4; k++) wsRes.getCell(12, k).font = { bold: true, color: { argb: 'FFFFFFFF' } };
   const totalBase = T.exento + T.exon + T.baseC + T.baseN;
   const pct = (x: number) => (totalBase > 0 ? x / totalBase : 0);
   const rubros: [string, number, number][] = [
@@ -777,24 +788,24 @@ export const generarLibroVentas = async (pagosFiltrados: any[], contribuyentes: 
     ['Total Ventas Afectadas en Alícuota Reducida (8%)', 0, 0],
     ['Total Ventas Afectadas en Alícuota General + Adicional (31%)', 0, 0],
   ];
-  rubros.forEach((rb, k) => put(11 + k, [rb[0], r2(rb[1]), r2(rb[2]), pct(rb[1])], { fmt: true }));
-  put(18, ['TOTAL DE VENTAS INTERNAS Y DÉBITOS FISCALES', r2(totalBase), r2(T.ivaC + T.ivaN), totalBase > 0 ? 1 : 0], { bold: true, fmt: true, fill: 'FFE7E6E6' });
+  rubros.forEach((rb, k) => put(13 + k, [rb[0], r2(rb[1]), r2(rb[2]), pct(rb[1])], { fmt: true }));
+  put(20, ['TOTAL DE VENTAS INTERNAS Y DÉBITOS FISCALES', r2(totalBase), r2(T.ivaC + T.ivaN), totalBase > 0 ? 1 : 0], { bold: true, fmt: true, fill: 'FFE7E6E6' });
 
-  put(20, ['COMPLEMENTO DE RETENCIONES Y AJUSTES', '', '', ''], { bold: true, fill: 'FFD9E1F2' });
-  put(21, ['Total IVA Retenido por Compradores (Soportes Recibidos)', r2(T.ret), '', ''], { fmt: true });
-  put(22, ['Ajuste a los Débitos Fiscales de Períodos Anteriores', 0, '', ''], { fmt: true });
-  put(23, ['Total General IVA Cobrado / Facturado en el Mes', r2(T.ivaC + T.ivaN), '', ''], { fmt: true });
+  put(22, ['COMPLEMENTO DE RETENCIONES Y AJUSTES', '', '', ''], { bold: true, fill: 'FFD9E1F2' });
+  put(23, ['Total IVA Retenido por Compradores (Soportes Recibidos)', r2(T.ret), '', ''], { fmt: true });
+  put(24, ['Ajuste a los Débitos Fiscales de Períodos Anteriores', 0, '', ''], { fmt: true });
+  put(25, ['Total General IVA Cobrado / Facturado en el Mes', r2(T.ivaC + T.ivaN), '', ''], { fmt: true });
 
   const anuladas = facturasAnuladasCount;
-  put(25, ['ESTADÍSTICAS DEL PERÍODO', '', '', ''], { bold: true, fill: 'FFD9E1F2' });
-  put(26, ['FACTURAS EMITIDAS (VIGENTES SENIAT)', facturas, '', '']);
-  put(27, ['FACTURAS ANULADAS (NOTA DE CRÉDITO)', anuladas, '', '']);
-  put(28, ['TOTAL FACTURAS GENERADAS (EMITIDAS + ANULADAS)', facturas + anuladas, '', '']);
-  put(29, ['DOCUMENTOS (FACTURAS + RECIBOS) REGISTRADOS', ventas.length, '', '']);
-  put(30, ['USUARIOS RESIDENCIALES ATENDIDOS INCLUYENDO CONDOMINIOS', usuariosRes.size, '', '']);
-  put(31, ['USUARIOS COMERCIALES ATENDIDOS INCLUYENDO CENTROS COMERCIALES', usuariosCom.size, '', '']);
-  put(33, ['Notas: Contribuyente = RIF J/G; No contribuyente = cédula V/E. Las retenciones de IVA se reflejan en la línea de su factura.', '', '', '']);
+  put(27, ['ESTADÍSTICAS DEL PERÍODO', '', '', ''], { bold: true, fill: 'FFD9E1F2' });
+  put(28, ['FACTURAS EMITIDAS (VIGENTES SENIAT)', facturas, '', '']);
+  put(29, ['FACTURAS ANULADAS (NOTA DE CRÉDITO)', anuladas, '', '']);
+  put(30, ['TOTAL FACTURAS GENERADAS (EMITIDAS + ANULADAS)', facturas + anuladas, '', '']);
+  put(31, ['DOCUMENTOS (FACTURAS + RECIBOS) REGISTRADOS', ventas.length, '', '']);
+  put(32, ['USUARIOS RESIDENCIALES ATENDIDOS INCLUYENDO CONDOMINIOS', usuariosRes.size, '', '']);
+  put(33, ['USUARIOS COMERCIALES ATENDIDOS INCLUYENDO CENTROS COMERCIALES', usuariosCom.size, '', '']);
+  put(35, ['Notas: Contribuyente = RIF J/G; No contribuyente = cédula V/E. Las retenciones de IVA se reflejan en la línea de su factura.', '', '', '']);
 
   const buffer = await wb.xlsx.writeBuffer();
-  saveAs(new Blob([buffer]), `Libro_Ventas_${fechaInicio}_${fechaFin}.xlsx`);
+  saveAs(new Blob([buffer]), `Libro_Ventas_${fIni}_${fFin}.xlsx`);
 };

@@ -4,6 +4,58 @@ import { supabase } from '@/lib/supabase';
 import { parseDet, montosPago, cargarInmMapPagos, codigosDePago, resolverCodigoPrincipalInm } from './LibroVentas';
 import { obtenerNroReciboWeb } from './ReporteRecibosPagos';
 import { clasificarBancoDestino } from '@/lib/cuentasBancarias';
+import { logos } from '@/lib/logosBase64';
+
+function insertarEncabezadoLogos(
+  wb: any,
+  ws: any,
+  titulo: string,
+  subtitulo: string,
+  opts: {
+    leftCol: number;
+    rightCol: number;
+    textColStart: number;
+    textColEnd: number;
+    logoW?: number;
+    logoH?: number;
+    rightLogoW?: number;
+    rightLogoH?: number;
+  }
+) {
+  for (let r = 1; r <= 4; r++) {
+    ws.getRow(r).height = 18;
+  }
+  const addImg = (base64Str: string, colFrom: number, rowFrom: number, width: number, height: number) => {
+    try {
+      if (!base64Str) return;
+      const base64Data = base64Str.split(',')[1] || base64Str;
+      const imageId = wb.addImage({ base64: base64Data, extension: 'png' });
+      ws.addImage(imageId, {
+        tl: { col: colFrom, row: rowFrom },
+        ext: { width, height },
+      });
+    } catch (e) {
+      console.warn('No se pudo incrustar logo en ReportesCaja:', e);
+    }
+  };
+  addImg((logos as any).instituto || logos.alcaldia, opts.leftCol, 0.15, opts.logoW || 155, opts.logoH || 52);
+  addImg(logos.iamec, opts.rightCol, 0.2, opts.rightLogoW || 150, opts.rightLogoH || 46);
+
+  const lines = [
+    { txt: 'REPÚBLICA BOLIVARIANA DE VENEZUELA - ESTADO CARABOBO', size: 10, bold: true, color: 'FF000000' },
+    { txt: 'INSTITUTO AUTÓNOMO MUNICIPAL DE ECOSOCIALISMO DE NAGUANAGUA (IAMEC)', size: 11, bold: true, color: 'FF000000' },
+    { txt: titulo, size: 12, bold: true, color: 'FF1F4E78' },
+    { txt: subtitulo, size: 9.5, bold: true, color: 'FF334155' },
+  ];
+  lines.forEach((l, idx) => {
+    const rowNum = idx + 1;
+    ws.mergeCells(rowNum, opts.textColStart, rowNum, opts.textColEnd);
+    const cell = ws.getCell(rowNum, opts.textColStart);
+    cell.value = l.txt;
+    cell.font = { name: 'Arial', size: l.size, bold: l.bold, color: { argb: l.color } };
+    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+  });
+}
 
 const cleanId = (s: any) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 
@@ -126,11 +178,14 @@ export async function generarTotalPuntosVenta(pagos: any[], fechaInicio: string,
   [12, 12, 18, 18, 16, 14, 12, 14, 16, 16, 15, 15, 34, 15, 8, 13, 13].forEach((w, i) => {
     wsDet.getColumn(i + 1).width = w;
   });
-  wsDet.mergeCells(1, 1, 1, colsDet.length);
-  wsDet.getCell(1, 1).value = `REPORTE DETALLADO DE COBROS POR PUNTO DE VENTA (DÉBITO) — TODAS LAS CAJAS (${dmy(fechaInicio)} AL ${dmy(fechaFin)})`;
-  wsDet.getCell(1, 1).font = { bold: true, size: 12 };
-  wsDet.getCell(1, 1).alignment = { horizontal: 'center', vertical: 'middle' };
-  cab(wsDet, 3, colsDet, 1);
+  insertarEncabezadoLogos(
+    wb,
+    wsDet,
+    'REPORTE DETALLADO DE COBROS POR PUNTO DE VENTA (DÉBITO) — TODAS LAS CAJAS',
+    `RIF: G-20008614-9   |   Período: ${dmy(fechaInicio)} al ${dmy(fechaFin)}`,
+    { leftCol: 0.15, rightCol: 15.05, textColStart: 3, textColEnd: 15 }
+  );
+  cab(wsDet, 6, colsDet, 1);
 
   const esCreditoPunto = (p: any, det: any): boolean => {
     const raw = `${p?.tipo || ''} ${p?.banco || ''} ${det?.tipo_tarjeta || ''} ${det?.forma_pago || ''}`;
@@ -153,7 +208,7 @@ export async function generarTotalPuntosVenta(pagos: any[], fechaInicio: string,
     porCajaItems.get(caja)!.push({ p, det });
   });
 
-  let fdRow = 4;
+  let fdRow = 7;
   let granTotalDeb = 0;
   let granSoloDebito = 0, granSoloCredito = 0;
   let granBase = 0, granIva = 0, granExento = 0;
@@ -409,10 +464,13 @@ export async function generarTotalPuntosVenta(pagos: any[], fechaInicio: string,
     { width: 12 }, // I: USUARIOS
     { width: 12 }, // J: CAJAS ACT
   ] as any;
-  res.mergeCells('A1:E1');
-  res.getCell('A1').value = `TOTAL PUNTOS DE VENTA ${dmy(fechaInicio)} AL ${dmy(fechaFin)}`;
-  res.getCell('A1').font = { bold: true, size: 12 };
-  res.getCell('A1').alignment = { horizontal: 'center', vertical: 'middle' };
+  insertarEncabezadoLogos(
+    wb,
+    res,
+    'TOTAL PUNTOS DE VENTA — RESUMEN DIARIO Y SEMANAL',
+    `RIF: G-20008614-9   |   Período: ${dmy(fechaInicio)} al ${dmy(fechaFin)}`,
+    { leftCol: 0.1, rightCol: 8.15, textColStart: 3, textColEnd: 8 }
+  );
 
   const cabCyan = (wsTarget: any, fila: number, valores: string[], desde = 1) => {
     const r = wsTarget.getRow(fila);
@@ -427,8 +485,8 @@ export async function generarTotalPuntosVenta(pagos: any[], fechaInicio: string,
     r.height = 24;
   };
 
-  cabCyan(res, 3, ['Dia sem', 'DIA', 'MONTO (Bs.)', 'USUARIOS', 'ACTIVAS'], 1);
-  cabCyan(res, 3, ['SEMANA', 'MONTO', 'USUARIOS', 'CAJAS ACT'], 7);
+  cabCyan(res, 6, ['Dia sem', 'DIA', 'MONTO (Bs.)', 'USUARIOS', 'ACTIVAS'], 1);
+  cabCyan(res, 6, ['SEMANA', 'MONTO', 'USUARIOS', 'CAJAS ACT'], 7);
 
   // Construir calendario completo del mes (o rango seleccionado) para Total_MES y agrupar por semana para Total_semana
   const startDt = new Date(`${fechaInicio.slice(0, 10)}T12:00:00`);
@@ -444,7 +502,7 @@ export async function generarTotalPuntosVenta(pagos: any[], fechaInicio: string,
     diasCalendario.push(...[...porDia.keys()].sort());
   }
 
-  let f = 4;
+  let f = 7;
   let tM = 0, tU = 0;
   const semanasResumen: { label: string; monto: number; usuarios: number; cajasAct: number }[] = [];
   let semIdx = 1;
@@ -511,7 +569,7 @@ export async function generarTotalPuntosVenta(pagos: any[], fechaInicio: string,
   });
 
   // Llenar tabla derecha Total_semana (columnas G..J)
-  let fSem = 4;
+  let fSem = 7;
   semanasResumen.forEach(sem => {
     const row = res.getRow(fSem++);
     [sem.label, r2(sem.monto), sem.usuarios, sem.cajasAct].forEach((v, i) => {
@@ -537,10 +595,16 @@ export async function generarTotalPuntosVenta(pagos: any[], fechaInicio: string,
     const [, mm, dd] = dia.split('-');
     const ws = wb.addWorksheet(`${dd}-${mm}`);
     ws.columns = [{ width: 12 }, { width: 18 }, { width: 9 }, { width: 24 }, { width: 18 }, { width: 11 }] as any;
-    ws.mergeCells('A1:F1'); ws.getCell('A1').value = `PUNTOS DE VENTA ${dmy(dia)}`; ws.getCell('A1').font = { bold: true, size: 12 };
-    cabCyan(ws, 3, ['CAJAS', 'CAJERO', 'ACTIVA', 'UBICACION', 'MONTO (Bs.)', 'USUARIOS'], 1);
+    insertarEncabezadoLogos(
+      wb,
+      ws,
+      `PUNTOS DE VENTA DEL DÍA ${dmy(dia)}`,
+      'RIF: G-20008614-9',
+      { leftCol: 0.08, rightCol: 4.5, textColStart: 2, textColEnd: 5, logoW: 135, logoH: 45, rightLogoW: 135, rightLogoH: 42 }
+    );
+    cabCyan(ws, 6, ['CAJAS', 'CAJERO', 'ACTIVA', 'UBICACION', 'MONTO (Bs.)', 'USUARIOS'], 1);
     const m = porDia.get(dia)!;
-    let r = 4; let sm = 0, su = 0;
+    let r = 7; let sm = 0, su = 0;
     cajasOrden.forEach(caja => {
       const c = m.get(caja);
       const nomCajero = c?.cajero || todasCajas.get(caja) || '';
@@ -890,7 +954,14 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
   const cols = ['Fecha Pago', 'Banco Emisor', 'Banco Destino', 'Referencia', 'Forma de Pago', 'Monto Pagado', 'Fecha Factura', 'Nro Serie', 'Código Cliente', 'Razón Social', 'Cajero / Operador', 'Aseo Urbano', '% IVA', 'Monto IVA', 'Retención IVA', 'Nota de Crédito', 'Exento'];
   [12, 18, 15, 14, 14, 15, 12, 12, 14, 34, 20, 15, 7, 13, 13, 13, 13].forEach((w, i) => { wsBan.getColumn(i + 2).width = w; });
   wsBan.getColumn(1).width = 3;
-  let f = 1;
+  insertarEncabezadoLogos(
+    wb,
+    wsBan,
+    'CONCILIACIÓN BANCARIA DE TRANSFERENCIAS Y DEPÓSITOS',
+    `RIF: G-20008614-9   |   Período: ${dmy(fIni || fechaInicio)} al ${dmy(fFin || fechaFin)}`,
+    { leftCol: 1.15, rightCol: 16.05, textColStart: 4, textColEnd: 16 }
+  );
+  let f = 6;
   const totalesMes: [string, number, number, number][] = [];
   [...porMes.keys()].sort().forEach(key => {
     const [y, m] = key.split('-');
@@ -1117,6 +1188,13 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
     { width: 16 },
     { width: 14 },
   ] as any;
+  insertarEncabezadoLogos(
+    wb,
+    wsPto,
+    'CONCILIACIÓN DE PUNTOS DE VENTA (DÉBITO / CRÉDITO)',
+    `RIF: G-20008614-9   |   Período: ${dmy(fIni || fechaInicio)} al ${dmy(fFin || fechaFin)}`,
+    { leftCol: 0.12, rightCol: 6.4, textColStart: 3, textColEnd: 6 }
+  );
   const pto = new Map<string, Map<string, { monto: number; usuarios: number }>>();
   deb.forEach(p => {
     const det = parseDet(p);
@@ -1128,7 +1206,7 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
     if (!m.has(dia)) m.set(dia, { monto: 0, usuarios: 0 });
     const x = m.get(dia)!; x.monto += Number(p.monto) || 0; x.usuarios += 1;
   });
-  let fp = 1; let totalPunto = 0;
+  let fp = 6; let totalPunto = 0;
   [...pto.keys()].sort().forEach(caja => {
     cab(wsPto, fp++, [
       caja,
@@ -1193,34 +1271,63 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
   fp++;
 
   // Resumen
-  wsRes.getColumn(1).width = 34; wsRes.getColumn(2).width = 22;
-  wsRes.getCell('A1').value = 'RESUMEN DE CONCILIACIONES'; wsRes.getCell('A1').font = { bold: true, size: 12 };
-  wsRes.getCell('A2').value = `Período de registro: ${dmy(fIni || fechaInicio)} al ${dmy(fFin || fechaFin)}`;
-  let fr = 4; let totalMes = 0;
+  wsRes.columns = [
+    { width: 22 },
+    { width: 38 },
+    { width: 24 },
+    { width: 22 },
+  ] as any;
+  insertarEncabezadoLogos(
+    wb,
+    wsRes,
+    'RESUMEN GENERAL DE CONCILIACIONES BANCARIAS Y PUNTOS DE VENTA',
+    `RIF: G-20008614-9   |   Período de registro: ${dmy(fIni || fechaInicio)} al ${dmy(fFin || fechaFin)}`,
+    { leftCol: 0.08, rightCol: 3.05, textColStart: 2, textColEnd: 3 }
+  );
+  cab(wsRes, 6, ['CONCEPTO / MES DE RECAUDACIÓN', 'MONTO CONCILIADO (Bs.)'], 2);
+  let fr = 7; let totalMes = 0;
   totalesMes.forEach(([k, v, vBan, vBga]) => {
-    wsRes.getCell(fr, 1).value = k;
-    wsRes.getCell(fr, 2).value = r2(v);
-    wsRes.getCell(fr, 2).numFmt = '#,##0.00';
+    wsRes.getCell(fr, 2).value = k;
+    wsRes.getCell(fr, 2).border = BORDE;
+    wsRes.getCell(fr, 3).value = r2(v);
+    wsRes.getCell(fr, 3).numFmt = '#,##0.00';
+    wsRes.getCell(fr, 3).border = BORDE;
     fr++;
     if (vBan > 0 || vBga > 0) {
-      wsRes.getCell(fr, 1).value = `   • Banesco`;
-      wsRes.getCell(fr, 2).value = r2(vBan || 0);
-      wsRes.getCell(fr, 2).numFmt = '#,##0.00';
-      wsRes.getCell(fr, 1).font = { italic: true, size: 9, color: { argb: 'FF047857' } };
-      wsRes.getCell(fr, 2).font = { size: 9, color: { argb: 'FF047857' } };
+      wsRes.getCell(fr, 2).value = `   • Banesco`;
+      wsRes.getCell(fr, 2).border = BORDE;
+      wsRes.getCell(fr, 3).value = r2(vBan || 0);
+      wsRes.getCell(fr, 3).numFmt = '#,##0.00';
+      wsRes.getCell(fr, 3).border = BORDE;
+      wsRes.getCell(fr, 2).font = { italic: true, size: 9, color: { argb: 'FF047857' } };
+      wsRes.getCell(fr, 3).font = { size: 9, color: { argb: 'FF047857' } };
       fr++;
-      wsRes.getCell(fr, 1).value = `   • Bancamiga`;
-      wsRes.getCell(fr, 2).value = r2(vBga || 0);
-      wsRes.getCell(fr, 2).numFmt = '#,##0.00';
-      wsRes.getCell(fr, 1).font = { italic: true, size: 9, color: { argb: 'FF0284C7' } };
-      wsRes.getCell(fr, 2).font = { size: 9, color: { argb: 'FF0284C7' } };
+      wsRes.getCell(fr, 2).value = `   • Bancamiga`;
+      wsRes.getCell(fr, 2).border = BORDE;
+      wsRes.getCell(fr, 3).value = r2(vBga || 0);
+      wsRes.getCell(fr, 3).numFmt = '#,##0.00';
+      wsRes.getCell(fr, 3).border = BORDE;
+      wsRes.getCell(fr, 2).font = { italic: true, size: 9, color: { argb: 'FF0284C7' } };
+      wsRes.getCell(fr, 3).font = { size: 9, color: { argb: 'FF0284C7' } };
       fr++;
     }
     totalMes += v;
   });
-  wsRes.getCell(fr, 1).value = 'VENTAS POR PUNTO'; wsRes.getCell(fr, 2).value = r2(totalPunto); wsRes.getCell(fr, 2).numFmt = '#,##0.00'; fr++;
-  wsRes.getCell(fr, 1).value = 'TOTAL DEL MES'; wsRes.getCell(fr, 2).value = r2(totalMes + totalPunto); wsRes.getCell(fr, 2).numFmt = '#,##0.00';
-  wsRes.getCell(fr, 1).font = { bold: true }; wsRes.getCell(fr, 2).font = { bold: true };
+  wsRes.getCell(fr, 2).value = 'VENTAS POR PUNTO';
+  wsRes.getCell(fr, 2).border = BORDE;
+  wsRes.getCell(fr, 3).value = r2(totalPunto);
+  wsRes.getCell(fr, 3).numFmt = '#,##0.00';
+  wsRes.getCell(fr, 3).border = BORDE;
+  fr++;
+  wsRes.getCell(fr, 2).value = 'TOTAL DEL MES';
+  wsRes.getCell(fr, 2).border = BORDE;
+  wsRes.getCell(fr, 2).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
+  wsRes.getCell(fr, 3).value = r2(totalMes + totalPunto);
+  wsRes.getCell(fr, 3).numFmt = '#,##0.00';
+  wsRes.getCell(fr, 3).border = BORDE;
+  wsRes.getCell(fr, 3).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
+  wsRes.getCell(fr, 2).font = { bold: true };
+  wsRes.getCell(fr, 3).font = { bold: true };
 
   const buf = await wb.xlsx.writeBuffer();
   saveAs(new Blob([buf]), `Conciliacion_Transferencias_${fechaInicio.slice(0, 10)}_${fechaFin.slice(0, 10)}.xlsx`);

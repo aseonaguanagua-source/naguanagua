@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { isResidencialInm } from '@/lib/calculos';
 import { clasificarPago } from '@/lib/documentoPago';
 import { codigosDePago, cargarInmMapPagos, parseDet } from './LibroVentas';
+import { logos } from '@/lib/logosBase64';
 
 export interface ReciboPagoRow {
   id: string;
@@ -456,22 +457,51 @@ export async function generarReporteRecibosPagos(
   ws.getColumn(9).width = 15;  // MULTAS
   ws.getColumn(10).width = 18; // TOTAL
 
-  // Título: Fila 1 (Merge B1:J1)
-  ws.mergeCells('B1:J1');
-  const titCell = ws.getCell('B1');
-  titCell.value = 'REPORTE DE RECIBOS DE PAGOS';
-  titCell.font = { name: 'Arial', size: 14, bold: true, color: { argb: 'FF1F4E78' } };
-  titCell.alignment = { horizontal: 'center', vertical: 'middle' };
-  ws.getRow(1).height = 30;
+  // Encabezado institucional y logos (Filas 1 a 4)
+  for (let r = 1; r <= 4; r++) {
+    ws.getRow(r).height = 18;
+  }
+  const addLogo = (base64Str: string, colFrom: number, rowFrom: number, width: number, height: number) => {
+    try {
+      if (!base64Str) return;
+      const base64Data = base64Str.split(',')[1] || base64Str;
+      const imageId = wb.addImage({ base64: base64Data, extension: 'png' });
+      ws.addImage(imageId, {
+        tl: { col: colFrom, row: rowFrom } as any,
+        ext: { width, height },
+      });
+    } catch (e) {
+      console.warn('No se pudo incrustar logo en ReporteRecibosPagos:', e);
+    }
+  };
+  addLogo((logos as any).instituto || logos.alcaldia, 1.15, 0.15, 155, 52);
+  addLogo(logos.iamec, 8.35, 0.2, 150, 46);
 
-  // Subtítulo con período: Fila 2 (Merge B2:J2)
-  ws.mergeCells('B2:J2');
-  const subTit = ws.getCell('B2');
-  subTit.value = `Período: ${dmy(fechaInicio.slice(0, 10))} al ${dmy(fechaFin.slice(0, 10))}`;
-  subTit.font = { name: 'Arial', size: 10, italic: true };
+  ws.mergeCells('D1:H1');
+  const orgCell1 = ws.getCell('D1');
+  orgCell1.value = 'REPÚBLICA BOLIVARIANA DE VENEZUELA - ESTADO CARABOBO';
+  orgCell1.font = { name: 'Arial', size: 10, bold: true };
+  orgCell1.alignment = { horizontal: 'center', vertical: 'middle' };
+
+  ws.mergeCells('D2:H2');
+  const orgCell2 = ws.getCell('D2');
+  orgCell2.value = 'INSTITUTO AUTÓNOMO MUNICIPAL DE ECOSOCIALISMO DE NAGUANAGUA (IAMEC)';
+  orgCell2.font = { name: 'Arial', size: 11, bold: true };
+  orgCell2.alignment = { horizontal: 'center', vertical: 'middle' };
+
+  ws.mergeCells('D3:H3');
+  const titCell = ws.getCell('D3');
+  titCell.value = 'REPORTE DE RECIBOS DE PAGOS';
+  titCell.font = { name: 'Arial', size: 13, bold: true, color: { argb: 'FF1F4E78' } };
+  titCell.alignment = { horizontal: 'center', vertical: 'middle' };
+
+  ws.mergeCells('D4:H4');
+  const subTit = ws.getCell('D4');
+  subTit.value = `RIF: G-20008614-9   |   Período: ${dmy(fechaInicio.slice(0, 10))} al ${dmy(fechaFin.slice(0, 10))}`;
+  subTit.font = { name: 'Arial', size: 9.5, italic: true, bold: true };
   subTit.alignment = { horizontal: 'center', vertical: 'middle' };
 
-  // Cabecera: Fila 3
+  // Cabecera: Fila 6
   const headers = [
     'N° Op.',
     'CODIGO',
@@ -484,7 +514,7 @@ export async function generarReporteRecibosPagos(
     'TOTAL'
   ];
 
-  const hRow = ws.getRow(3);
+  const hRow = ws.getRow(6);
   hRow.height = 24;
   headers.forEach((h, idx) => {
     const colIdx = idx + 2; // Empezando en columna B (2)
@@ -496,7 +526,7 @@ export async function generarReporteRecibosPagos(
     cell.border = BORDE;
   });
 
-  let rowIdx = 4;
+  let rowIdx = 7;
   let totalAseo = 0;
   let totalMultas = 0;
   let totalGeneral = 0;

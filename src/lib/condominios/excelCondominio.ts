@@ -59,15 +59,18 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
     });
     r.height = 32;
   };
-  const logosEn = (ws: any) => {
+  const logosEn = (ws: any, rightCol: number) => {
     try {
-      if (logos.alcaldia) {
-        const al = wb.addImage({ base64: logos.alcaldia, extension: 'jpeg' });
-        ws.addImage(al, { tl: { col: 0, row: 0 }, ext: { width: 80, height: 80 } });
+      const logoIzq = (logos as any).instituto || logos.alcaldia;
+      if (logoIzq) {
+        const b64Izq = logoIzq.split(',')[1] || logoIzq;
+        const al = wb.addImage({ base64: b64Izq, extension: 'png' });
+        ws.addImage(al, { tl: { col: 0.15, row: 0.15 }, ext: { width: 155, height: 52 } });
       }
       if (logos.iamec) {
-        const ia = wb.addImage({ base64: logos.iamec, extension: 'jpeg' });
-        ws.addImage(ia, { tl: { col: 2.4, row: 0 }, ext: { width: 80, height: 80 } });
+        const b64Der = logos.iamec.split(',')[1] || logos.iamec;
+        const ia = wb.addImage({ base64: b64Der, extension: 'png' });
+        ws.addImage(ia, { tl: { col: rightCol, row: 0.2 }, ext: { width: 150, height: 46 } });
       }
     } catch { /* sin logos */ }
   };
@@ -78,22 +81,38 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
     const [y, m, d] = s.split('-');
     return `${d}/${m}/${y}`;
   };
-  const encabezado = (ws: any, titulo: string, ancho: number) => {
-    logosEn(ws);
-    ws.mergeCells(1, 4, 1, ancho); ws.getCell(1, 4).value = 'INSTITUTO AUTÓNOMO MUNICIPAL DE ECOSOCIALISMO DE NAGUANAGUA (IAMEC)';
-    ws.getCell(1, 4).font = { bold: true, size: 12 };
-    const sufijoMon = enUCD ? ' (EXPRESADO EN UCD)' : (enEUR ? ' (EXPRESADO EN EUROS €)' : ' (EXPRESADO EN BOLÍVARES)');
-    ws.mergeCells(2, 4, 2, ancho); ws.getCell(2, 4).value = titulo + sufijoMon;
-    ws.getCell(2, 4).font = { bold: true, size: 11 };
-    ws.mergeCells(3, 4, 3, ancho); ws.getCell(3, 4).value = `CONDOMINIO: ${c?.nombre || ''} (${c?.codigo || ''})${c?.identidad ? ' · RIF ' + c.identidad : ''}`;
-    ws.getCell(3, 4).font = { bold: true, size: 10 };
-    ws.mergeCells(4, 4, 4, ancho);
-    if (tc && tc.activa && tc.desde && tc.hasta) {
-      ws.getCell(4, 4).value = `Fecha: ${new Date().toLocaleString('es-VE')} · TASA CONGELADA POR EL PERÍODO DEL ${fmtDMY(tc.desde)} AL ${fmtDMY(tc.hasta)}: Bs. ${tasaStr} · Valor UCD (Euro × 57): ${ucd.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · Emitido por: ${cajero || 'Administrador'}`;
-    } else {
-      ws.getCell(4, 4).value = `Fecha: ${new Date().toLocaleString('es-VE')} · Tasa Euro BCV: ${tasaStr} · Valor UCD (Euro × 57): ${ucd.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · Emitido por: ${cajero || 'Administrador'}`;
+  const encabezado = (ws: any, titulo: string, ancho: number, rightLogoCol?: number) => {
+    for (let r = 1; r <= 4; r++) {
+      ws.getRow(r).height = 18;
     }
-    ws.getCell(4, 4).font = { size: 9, bold: Boolean(tc && tc.activa) };
+    const rCol = rightLogoCol !== undefined ? rightLogoCol : Math.max(ancho - 1.8, 4.1);
+    logosEn(ws, rCol);
+    const colIniTexto = 3;
+    const colFinTexto = Math.max(colIniTexto, ancho >= 8 ? ancho - 2 : ancho);
+    ws.mergeCells(1, colIniTexto, 1, colFinTexto);
+    ws.getCell(1, colIniTexto).value = 'INSTITUTO AUTÓNOMO MUNICIPAL DE ECOSOCIALISMO DE NAGUANAGUA (IAMEC)';
+    ws.getCell(1, colIniTexto).font = { bold: true, size: 12 };
+    ws.getCell(1, colIniTexto).alignment = { horizontal: 'center', vertical: 'middle' };
+
+    const sufijoMon = enUCD ? ' (EXPRESADO EN UCD)' : (enEUR ? ' (EXPRESADO EN EUROS €)' : ' (EXPRESADO EN BOLÍVARES)');
+    ws.mergeCells(2, colIniTexto, 2, colFinTexto);
+    ws.getCell(2, colIniTexto).value = titulo + sufijoMon;
+    ws.getCell(2, colIniTexto).font = { bold: true, size: 11 };
+    ws.getCell(2, colIniTexto).alignment = { horizontal: 'center', vertical: 'middle' };
+
+    ws.mergeCells(3, colIniTexto, 3, colFinTexto);
+    ws.getCell(3, colIniTexto).value = `CONDOMINIO: ${c?.nombre || ''} (${c?.codigo || ''})${c?.identidad ? ' · RIF ' + c.identidad : ''}`;
+    ws.getCell(3, colIniTexto).font = { bold: true, size: 10 };
+    ws.getCell(3, colIniTexto).alignment = { horizontal: 'center', vertical: 'middle' };
+
+    ws.mergeCells(4, colIniTexto, 4, colFinTexto);
+    if (tc && tc.activa && tc.desde && tc.hasta) {
+      ws.getCell(4, colIniTexto).value = `Fecha: ${new Date().toLocaleString('es-VE')} · TASA CONGELADA POR EL PERÍODO DEL ${fmtDMY(tc.desde)} AL ${fmtDMY(tc.hasta)}: Bs. ${tasaStr} · Valor UCD (Euro × 57): ${ucd.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · Emitido por: ${cajero || 'Administrador'}`;
+    } else {
+      ws.getCell(4, colIniTexto).value = `Fecha: ${new Date().toLocaleString('es-VE')} · Tasa Euro BCV: ${tasaStr} · Valor UCD (Euro × 57): ${ucd.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · Emitido por: ${cajero || 'Administrador'}`;
+    }
+    ws.getCell(4, colIniTexto).font = { size: 9, bold: Boolean(tc && tc.activa) };
+    ws.getCell(4, colIniTexto).alignment = { horizontal: 'center', vertical: 'middle' };
   };
 
   const renglones = e?.renglones || [];
@@ -101,8 +120,8 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
 
   // ── Hoja 1: Resumen ──
   const ws1 = wb.addWorksheet('Resumen');
-  ws1.columns = [{ width: 14 }, { width: 14 }, { width: 14 }, { width: 46 }, { width: 22 }] as any;
-  encabezado(ws1, 'ESTADO DE CUENTA DE CONDOMINIO - RESUMEN', 5);
+  ws1.columns = [{ width: 14 }, { width: 14 }, { width: 14 }, { width: 48 }, { width: 24 }, { width: 22 }] as any;
+  encabezado(ws1, 'ESTADO DE CUENTA DE CONDOMINIO - RESUMEN', 5, 5.05);
   const multasManuales = renglones.reduce((s, r) => s + (r.multasManualesBs || 0), 0);
   const multaExtra = renglones.reduce((s, r) => s + (r.multaExtraBs || 0), 0);
   const totales = e?.totales || { baseBs: 0, multaBs: 0, ivaBs: 0, retencionBs: 0, totalBs: 0, mesesMax: 0, unidadesConDeuda: 0 };
@@ -160,8 +179,8 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
 
   // ── Hoja 2: Deuda consolidada mes a mes ──
   const ws2 = wb.addWorksheet('Deuda consolidada');
-  ws2.columns = [{ width: 14 }, { width: 14 }, { width: 14 }, { width: 16 }, { width: 18 }, { width: 18 }, { width: 18 }, { width: 18 }] as any;
-  encabezado(ws2, 'DEUDA CONSOLIDADA MES A MES', 8);
+  ws2.columns = [{ width: 14 }, { width: 14 }, { width: 14 }, { width: 16 }, { width: 18 }, { width: 18 }, { width: 18 }, { width: 18 }, { width: 18 }] as any;
+  encabezado(ws2, 'DEUDA CONSOLIDADA MES A MES', 9, 7.2);
   const porPeriodo = new Map<string, { unidades: number; base: number; multa: number; iva: number; total: number }>();
   cobran.forEach(r => {
     const pm = r.deuda?.porMes || [];

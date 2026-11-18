@@ -206,30 +206,50 @@ export async function generarReporteServiciosExcel(opts: GenerarReporteServicios
     }
   };
 
-  // Filas 1 a 8 de encabezado con altura explícita (15pt) para que el anclaje de imágenes sea exacto en Excel, Numbers y QuickLook
-  for (let r = 1; r <= 8; r++) {
-    const emptyRow = ws.addRow([]);
-    emptyRow.height = 15;
+  // Filas 1 a 5 de encabezado institucional con altura explícita
+  for (let r = 1; r <= 4; r++) {
+    const hRow = ws.addRow([]);
+    hRow.height = 20;
   }
-  ['A2:F2', 'A3:F3', 'A4:F4', 'A5:F5', 'A6:F6'].forEach(range => {
-    try { ws.mergeCells(range); } catch {}
+  const sepRow = ws.addRow([]);
+  sepRow.height = 10;
+
+  // Logos superiores bien proporcionados y visibles (Instituto a la izquierda, IAMEC a la derecha)
+  addLogo((logos as any).instituto || logos.alcaldia, 0.2, 0.15, 195, 66);
+  addLogo(logos.iamec, 6.05, 0.2, 195, 60);
+
+  const headerLines = [
+    { txt: 'REPÚBLICA BOLIVARIANA DE VENEZUELA - ESTADO CARABOBO', size: 10, color: 'FF000000' },
+    { txt: 'INSTITUTO AUTÓNOMO MUNICIPAL DE ECOSOCIALISMO DE NAGUANAGUA (IAMEC)', size: 11.5, color: 'FF000000' },
+    { txt: 'GESTIÓN INTEGRAL DE RESIDUOS Y SERVICIOS ESPECIALES', size: 10.5, color: 'FF166534' },
+    {
+      txt: fechaInicio && fechaFin
+        ? `RIF: G-20008614-9   |   Período: ${dmy(fechaInicio)} al ${dmy(fechaFin)}`
+        : 'RIF: G-20008614-9',
+      size: 9.5,
+      color: 'FF334155',
+    },
+  ];
+  headerLines.forEach((l, idx) => {
+    const rNum = idx + 1;
+    ws.mergeCells(`D${rNum}:E${rNum}`);
+    const c = ws.getCell(`D${rNum}`);
+    c.value = l.txt;
+    c.font = { name: 'Calibri', size: l.size, bold: true, color: { argb: l.color } };
+    c.alignment = { horizontal: 'center', vertical: 'middle' };
   });
 
-  // Logos superiores (Instituto a la izquierda, IAMEC a la derecha dentro del ancho de la tabla)
-  addLogo((logos as any).instituto || logos.alcaldia, 0.18, 1.05, 151, 54);
-  addLogo(logos.iamec, 6.3, 1.05, 140, 43);
-
-  // Fila 9: Cinta verde "SERVICIOS ESPECIALES Y EXTRAORDINARIOS"
+  // Fila 6: Cinta verde "SERVICIOS ESPECIALES Y EXTRAORDINARIOS"
   const tituloCinta =
     tipoFiltro && tipoFiltro !== 'Todos' && tipoFiltro !== 'esp_ext' && TIPO_LABEL[tipoFiltro]
       ? `REPORTE DE ${TIPO_LABEL[tipoFiltro].toUpperCase()}`
       : 'SERVICIOS ESPECIALES Y EXTRAORDINARIOS';
 
-  const row9 = ws.getRow(9);
-  row9.height = 18;
-  ws.mergeCells('A9:H9');
+  const row6 = ws.getRow(6);
+  row6.height = 22;
+  ws.mergeCells('A6:H6');
   for (let c = 1; c <= 8; c++) {
-    const cell = row9.getCell(c);
+    const cell = row6.getCell(c);
     cell.value = tituloCinta;
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF92D050' } };
     cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FF000000' } };
@@ -237,7 +257,7 @@ export async function generarReporteServiciosExcel(opts: GenerarReporteServicios
     cell.border = BORDE;
   }
 
-  // Fila 10: Encabezados de tabla
+  // Fila 7: Encabezados de tabla
   const headers = [
     'Tipo de Servicio',
     'Fecha',
@@ -248,18 +268,18 @@ export async function generarReporteServiciosExcel(opts: GenerarReporteServicios
     'Monto a Pagar',
     'Pagado',
   ];
-  const row10 = ws.getRow(10);
-  row10.height = 30.75;
+  const row7 = ws.getRow(7);
+  row7.height = 30.75;
   headers.forEach((h, idx) => {
-    const cell = row10.getCell(idx + 1);
+    const cell = row7.getCell(idx + 1);
     cell.value = h;
     cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FF000000' } };
     cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
     cell.border = BORDE;
   });
 
-  // Filas de datos (desde fila 11)
-  const startDataRow = 11;
+  // Filas de datos (desde fila 8)
+  const startDataRow = 8;
   let sumaMonto = 0;
 
   filtrados.forEach((s: any) => {
@@ -403,14 +423,14 @@ export async function generarReporteServiciosExcel(opts: GenerarReporteServicios
   cellTotalVal.border = BORDE;
 
   // Filas inferiores explícitas e incrustación de los 3 logos institucionales debajo de la tabla
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 4; i++) {
     const fr = ws.addRow([]);
-    fr.height = 18;
+    fr.height = 20;
   }
   const footerStartRow = totalRow.number + 1;
-  addLogo((logos as any).naguanaguaTeQuiero, 0.30, footerStartRow + 0.2, 113, 45);
-  addLogo((logos as any).lacava, 3.8, footerStartRow + 0.8, 93, 24);
-  addLogo((logos as any).elizabeth, 6.3, footerStartRow + 0.8, 120, 23);
+  addLogo((logos as any).naguanaguaTeQuiero, 0.4, footerStartRow + 0.1, 145, 58);
+  addLogo((logos as any).lacava, 3.4, footerStartRow + 0.45, 140, 36);
+  addLogo((logos as any).elizabeth, 5.9, footerStartRow + 0.5, 165, 31);
 
   const buffer = await wb.xlsx.writeBuffer();
   const rangoNombre = fechaInicio && fechaFin ? `_${fechaInicio}_al_${fechaFin}` : '';

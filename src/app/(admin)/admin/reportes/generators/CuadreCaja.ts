@@ -45,8 +45,12 @@ export const generarCuadreCajaPDF = (
   const pageHeight = doc.internal.pageSize.height;
   
   try {
+    const logoIzq = (logos as any)?.instituto || logos?.alcaldia;
+    if (logoIzq) {
+      doc.addImage(logoIzq, 'PNG', 40, 18, 115, 39);
+    }
     if (logos && logos.iamec) {
-      doc.addImage(logos.iamec, 'PNG', 40, 20, 110, 40);
+      doc.addImage(logos.iamec, 'PNG', pageWidth - 150, 20, 110, 34);
     }
   } catch (e) {
     console.warn("Logo no pudo cargarse en CuadreCaja:", e);

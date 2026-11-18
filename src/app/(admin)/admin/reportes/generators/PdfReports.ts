@@ -69,8 +69,12 @@ export const generarCorteCajaPDF = (
   // HEADER
   // ==============================
   try {
+    const logoIzq = (logos as any)?.instituto || logos?.alcaldia;
+    if (logoIzq) {
+      doc.addImage(logoIzq, 'PNG', 40, 18, 115, 39);
+    }
     if (logos && logos.iamec) {
-      doc.addImage(logos.iamec, 'PNG', 40, 20, 110, 40);
+      doc.addImage(logos.iamec, 'PNG', pageWidth - 150, 20, 110, 34);
     }
   } catch (e) {
     console.warn("Logo no pudo cargarse en el PDF:", e);
@@ -578,8 +582,16 @@ export const generarIngresoBancarioPDF = (
   const pageWidth = doc.internal.pageSize.width;
   const pageHeight = doc.internal.pageSize.height;
   
-  if (logos.iamec) {
-    doc.addImage(logos.iamec, 'PNG', 40, 20, 110, 40);
+  try {
+    const logoIzq = (logos as any)?.instituto || logos?.alcaldia;
+    if (logoIzq) {
+      doc.addImage(logoIzq, 'PNG', 40, 18, 115, 39);
+    }
+    if (logos.iamec) {
+      doc.addImage(logos.iamec, 'PNG', pageWidth - 150, 20, 110, 34);
+    }
+  } catch (e) {
+    console.warn("Logo no pudo cargarse en IngresoBancario:", e);
   }
   
   doc.setFont('helvetica', 'bold');

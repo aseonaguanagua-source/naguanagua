@@ -4,6 +4,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { descargarPdfBlob } from './PdfReports';
 import { supabase } from '@/lib/supabase';
+import { logos } from '@/lib/logosBase64';
 import {
   isResidencialInm,
   isTerrenoInm,
@@ -190,12 +191,49 @@ export async function generarMorososExcel(
 
   ws.columns = headers.map(() => ({ width: 30 }));
 
-  const hRow = ws.getRow(1);
-  hRow.height = 18;
+  for (let r = 1; r <= 4; r++) {
+    ws.getRow(r).height = 18;
+  }
+  const addLogo = (base64Str: string, colFrom: number, rowFrom: number, width: number, height: number) => {
+    try {
+      if (!base64Str) return;
+      const base64Data = base64Str.split(',')[1] || base64Str;
+      const imageId = wb.addImage({ base64: base64Data, extension: 'png' });
+      ws.addImage(imageId, {
+        tl: { col: colFrom, row: rowFrom } as any,
+        ext: { width, height },
+      });
+    } catch (e) {
+      console.warn('No se pudo incrustar logo en Morosos Excel:', e);
+    }
+  };
+  addLogo((logos as any).instituto || logos.alcaldia, 0.15, 0.15, 165, 56);
+  addLogo(logos.iamec, 13.8, 0.2, 160, 50);
+
+  const todayDisplay = new Date().toLocaleDateString('es-VE');
+  const headerTitles = [
+    { txt: 'REPÚBLICA BOLIVARIANA DE VENEZUELA - ESTADO CARABOBO', size: 10, color: 'FF000000' },
+    { txt: 'INSTITUTO AUTÓNOMO MUNICIPAL DE ECOSOCIALISMO DE NAGUANAGUA (IAMEC)', size: 11, color: 'FF000000' },
+    { txt: 'RÉCORD DE MOROSOS / LISTA DE COBRANZAS', size: 13, color: 'FF1F4E78' },
+    { txt: `RIF: G-20008614-9   |   Fecha de corte: ${todayDisplay}   |   Total registros: ${rows.length}`, size: 9.5, color: 'FF334155' },
+  ];
+  headerTitles.forEach((ht, i) => {
+    const rNum = i + 1;
+    ws.mergeCells(rNum, 2, rNum, 14);
+    const c = ws.getCell(rNum, 2);
+    c.value = ht.txt;
+    c.font = { name: 'Calibri', size: ht.size, bold: true, color: { argb: ht.color } };
+    c.alignment = { horizontal: 'center', vertical: 'middle' };
+  });
+
+  const hRow = ws.getRow(6);
+  hRow.height = 22;
   headers.forEach((h, idx) => {
     const cell = hRow.getCell(idx + 1);
     cell.value = h;
-    cell.font = { name: 'Calibri', size: 10, bold: true };
+    cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F4E78' } };
+    cell.alignment = { horizontal: 'center', vertical: 'middle' };
   });
 
   let sumMontoMes = 0;
@@ -250,7 +288,7 @@ export async function generarMorososExcel(
       .replace(/^\d+\s*-\s*(?=[A-Za-z])/, '')
       .trim();
 
-    const row = ws.getRow(idx + 2);
+    const row = ws.getRow(idx + 7);
     row.height = 15;
     const vals = [
       idNum,
@@ -288,7 +326,7 @@ export async function generarMorososExcel(
   });
 
   // Fila de totales al final
-  const totRow = ws.getRow(rows.length + 2);
+  const totRow = ws.getRow(rows.length + 7);
   totRow.height = 18;
   totRow.getCell(10).value = 'TOTAL GENERAL:';
   totRow.getCell(10).font = { name: 'Calibri', size: 11, bold: true };
@@ -330,25 +368,41 @@ export async function generarMorososPDF(
   const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
   const pageW = 210;
 
-  // Header
-  doc.setFillColor(15, 23, 42);
-  doc.rect(0, 0, pageW, 22, 'F');
-  doc.setTextColor(255, 255, 255);
+  // Header con logos institucionales (izquierda y derecha)
+  try {
+    const logoIzq = (logos as any).instituto || logos.alcaldia;
+    if (logoIzq) {
+      doc.addImage(logoIzq, 'PNG', 12, 6, 38, 13, undefined, 'FAST');
+    }
+    if (logos.iamec) {
+      doc.addImage(logos.iamec, 'PNG', pageW - 50, 6.5, 38, 12, undefined, 'FAST');
+    }
+  } catch (e) {
+    console.warn('No se pudo cargar logo en Morosos PDF:', e);
+  }
+
+  doc.setTextColor(15, 23, 42);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(14);
-  doc.text('LISTA DE COBRANZAS / REPORTE DE MOROSOS', pageW / 2, 10, { align: 'center' });
+  doc.setFontSize(12);
+  doc.text('LISTA DE COBRANZAS / REPORTE DE MOROSOS', pageW / 2, 12, { align: 'center' });
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
-  doc.text('IAMEC Naguanagua - Municipio Naguanagua', pageW / 2, 16, { align: 'center' });
+  doc.setTextColor(71, 85, 105);
+  doc.text('IAMEC Naguanagua - Municipio Naguanagua (RIF: G-20008614-9)', pageW / 2, 17, { align: 'center' });
+
+  doc.setDrawColor(15, 23, 42);
+  doc.setLineWidth(0.4);
+  doc.line(14, 22, pageW - 14, 22);
+  doc.setLineWidth(0.2);
 
   doc.setTextColor(0, 0, 0);
   doc.setFontSize(8);
-  doc.text('Fecha: ' + todayStr, 14, 28);
-  doc.text('Total morosos: ' + rows.length.toLocaleString('es-VE'), pageW / 2, 28, { align: 'center' });
+  doc.text('Fecha: ' + todayStr, 14, 27);
+  doc.text('Total morosos: ' + rows.length.toLocaleString('es-VE'), pageW / 2, 27, { align: 'center' });
   doc.text(
     'Deuda total: Bs. ' + totalDeuda.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
     pageW - 14,
-    28,
+    27,
     { align: 'right' }
   );
   doc.setDrawColor(200, 200, 200);
