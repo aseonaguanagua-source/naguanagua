@@ -36,7 +36,7 @@ export default function MorososView({ contribuyentes = [], tcmmv = 0, onBack }: 
   const [inmueblesDirectos, setInmueblesDirectos] = useState<any[]>([]);
   const [condosModulo, setCondosModulo] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filtroMeses, setFiltroMeses] = useState<'todos' | 'criticos' | 'leves'>('todos');
+  const [filtroMeses, setFiltroMeses] = useState<'todos' | 'todos_incl_0' | 'solventes_0' | 'criticos' | 'leves'>('todos');
   const [filtroTipo, setFiltroTipo] = useState<string>('todos');
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -170,7 +170,7 @@ export default function MorososView({ contribuyentes = [], tcmmv = 0, onBack }: 
       );
     }
 
-    return applyCondosModulo(construirListaMorosos([], contribuyentes, tcmmv));
+    return applyCondosModulo(construirListaMorosos([], contribuyentes, tcmmv, true));
 
     function applyCondosModulo(baseList: any[]) {
       if (!condosModulo || condosModulo.length === 0) {
@@ -184,12 +184,11 @@ export default function MorososView({ contribuyentes = [], tcmmv = 0, onBack }: 
         if (primaryCod && condoCodSet.has(primaryCod)) return false;
         return true;
       });
-      const condoMorosos = condosModulo
-        .filter((c: any) => Number(c.deudaBs || 0) > 0.01 && Number(c.meses || 0) > 0)
+      const condoRows = condosModulo
         .map((c: any) => {
-          const meses = Math.max(1, Number(c.meses || 1));
-          const totalDeudaBs = Math.round(Number(c.deudaBs || 0) * 100) / 100;
-          const multaTotalBs = Math.round(Number(c.multaBs || 0) * 100) / 100;
+          const meses = Math.max(0, Number(c.meses || 0));
+          const totalDeudaBs = meses > 0 ? Math.round(Number(c.deudaBs || 0) * 100) / 100 : 0;
+          const multaTotalBs = meses > 0 ? Math.round(Number(c.multaBs || 0) * 100) / 100 : 0;
           const deudaSinMultaBs = Math.max(0, Math.round((totalDeudaBs - multaTotalBs) * 100) / 100);
           const esRes = String(c.tipo || '').toUpperCase() === 'RESIDENCIAL';
           return {
@@ -200,12 +199,12 @@ export default function MorososView({ contribuyentes = [], tcmmv = 0, onBack }: 
             clasificacion: 'Condominio',
             uso: 'Condominio',
             tipoInm: esRes ? 'Residencial' : 'Comercial',
-            actividad: c.actividad && c.actividad !== 'N/A' ? c.actividad : 'N/A',
+            actividad: c.actividad && c.actividad !== 'N/A' ? c.actividad : (esRes ? 'CONDOMINIO RESIDENCIAL' : 'CONDOMINIO COMERCIAL'),
             direccion: c.direccion || 'NAGUANAGUA',
             telefono: c.telefono || 'Sin Telefono',
             agenteRetencion: Boolean(c.agente_retencion),
             mesesPendientes: meses,
-            periodos: generarPeriodosPorMeses(meses),
+            periodos: meses > 0 ? generarPeriodosPorMeses(meses) : 'AL DÍA (SOLVENTE)',
             montoMes: Math.round(Number(c.mensualBs || 0) * 100) / 100,
             deudaSinMultaBs,
             multaTotalBs,
@@ -213,7 +212,7 @@ export default function MorososView({ contribuyentes = [], tcmmv = 0, onBack }: 
             _fromCondosModulo: true,
           };
         });
-      return [...nonCondoRows, ...condoMorosos].sort(
+      return [...nonCondoRows, ...condoRows].sort(
         (a, b) => b.mesesPendientes - a.mesesPendientes || b.totalDeudaBs - a.totalDeudaBs
       );
     }
@@ -223,11 +222,16 @@ export default function MorososView({ contribuyentes = [], tcmmv = 0, onBack }: 
   const morososFiltrados = useMemo(() => {
     let list = morososList;
 
-    if (filtroMeses === 'criticos') {
+    if (filtroMeses === 'todos') {
+      list = list.filter((m) => m.mesesPendientes > 0);
+    } else if (filtroMeses === 'solventes_0') {
+      list = list.filter((m) => m.mesesPendientes === 0);
+    } else if (filtroMeses === 'criticos') {
       list = list.filter((m) => m.mesesPendientes >= 3);
     } else if (filtroMeses === 'leves') {
-      list = list.filter((m) => m.mesesPendientes < 3);
+      list = list.filter((m) => m.mesesPendientes >= 1 && m.mesesPendientes < 3);
     }
+    // Si es 'todos_incl_0', incluye tanto > 0 como 0 meses
 
     if (filtroTipo !== 'todos') {
       list = list.filter((m) =>
@@ -265,7 +269,10 @@ export default function MorososView({ contribuyentes = [], tcmmv = 0, onBack }: 
   }, [morososFiltrados, currentPage]);
 
   // Métricas
-  const totalMorosos = morososList.length;
+  const totalMorosos = useMemo(
+    () => morososList.filter((m) => m.mesesPendientes > 0).length,
+    [morososList]
+  );
   const deudaTotal = useMemo(
     () => morososList.reduce((s, m) => s + (Number(m.totalDeudaBs) || 0), 0),
     [morososList]
@@ -440,7 +447,9 @@ export default function MorososView({ contribuyentes = [], tcmmv = 0, onBack }: 
             onChange={(e) => setFiltroMeses(e.target.value as any)}
             className="border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
           >
-            <option value="todos">Todos los meses adeudados</option>
+            <option value="todos">Todos los meses adeudados (1+ meses)</option>
+            <option value="todos_incl_0">📋 Todos (Incluir 0 meses / Solventes)</option>
+            <option value="solventes_0">🟢 Solventes / Al Día (0 meses)</option>
             <option value="criticos">🔴 Morosos Críticos (3+ meses)</option>
             <option value="leves">🟡 Morosos Recientes (1-2 meses)</option>
           </select>

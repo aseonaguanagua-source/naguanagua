@@ -42,7 +42,8 @@ export function generarPeriodosPorMeses(mesesDeuda: number): string {
 export function construirListaMorosos(
   facturasOrMorosos: any[],
   contribuyentes: any[],
-  tcmmv: number
+  tcmmv: number,
+  includeZeroMonths = false
 ): any[] {
   // Caso 1: Ya viene la lista procesada desde MorososView
   if (
@@ -61,19 +62,26 @@ export function construirListaMorosos(
         const estado = String(c.Estado || c.estado || 'Activo').trim().toLowerCase();
         if (['eliminado', 'inactivo', 'desactivado'].includes(estado)) return false;
         if (c.isChildNormal || c.padre_id) return false;
-        const meses = parseInt(String(c.MesesDeuda ?? c.meses_deuda ?? 0), 10) || 0;
+        if (c.condominio_padre_id && !c.isCondominio && !c.es_condominio) {
+          const claseLower = String(c.Clasificacion || c.clasificacion || c.tipo || '').toLowerCase();
+          if (!claseLower.includes('comercial')) return false;
+        }
+        const meses = Math.max(0, parseInt(String(c.MesesDeuda ?? c.meses_deuda ?? 0), 10) || 0);
         const deudaBs =
           typeof c.DeudaBs === 'number'
             ? c.DeudaBs
             : parseFloat(String(c.DeudaCongelada || 0)) +
               parseFloat(String(c.MultaBs || 0)) +
               parseFloat(String(c.DeudaMMV || 0)) * 57 * 0.128 * (tcmmv || 1);
+        if (includeZeroMonths && meses === 0) return true;
         return meses > 0 && deudaBs > 0.01;
       })
       .map((c: any) => {
-        const meses = parseInt(String(c.MesesDeuda ?? c.meses_deuda ?? 0), 10) || 0;
+        const meses = Math.max(0, parseInt(String(c.MesesDeuda ?? c.meses_deuda ?? 0), 10) || 0);
         const totalDeudaBs =
-          typeof c.DeudaBs === 'number' && c.DeudaBs > 0
+          meses === 0
+            ? 0
+            : typeof c.DeudaBs === 'number' && c.DeudaBs > 0
             ? c.DeudaBs
             : Math.round(
                 (parseFloat(String(c.DeudaCongelada || 0)) +
@@ -92,7 +100,7 @@ export function construirListaMorosos(
           clasificacion,
           telefono: c.Telefono || c.telefono || '—',
           mesesPendientes: meses,
-          periodos: generarPeriodosPorMeses(meses),
+          periodos: meses > 0 ? generarPeriodosPorMeses(meses) : 'AL DÍA (SOLVENTE)',
           totalDeudaBs,
         };
       })
@@ -152,52 +160,83 @@ export async function generarMorososExcel(
   const tasa = tcmmv > 0 ? tcmmv : 1;
 
   // Si rawRows no proviene ya fusionado con el Módulo de Condominios, sincronizar todos los condominios en vivo
-  if (!rawRows.some((r: any) => r?._fromCondosModulo)) {
-    try {
-      const resCondos = await fetch('/api/admin/condominios', { cache: 'no-store' });
-      const jCondos = await resCondos.json();
-      if (Array.isArray(jCondos?.filas) && jCondos.filas.length > 0) {
-        const condoCodSet = new Set(
-          jCondos.filas.map((c: any) => String(c.codigo || '').trim().toUpperCase()).filter(Boolean)
-        );
-        const nonCondoRows = rawRows.filter((r: any) => {
-          const primaryCod = String(r.cod_cont || '').split(/\s+/)[0]?.trim().toUpperCase();
-          return !(primaryCod && condoCodSet.has(primaryCod));
-        });
-        const condoMorosos = jCondos.filas
-          .filter((c: any) => Number(c.deudaBs || 0) > 0.01 && Number(c.meses || 0) > 0)
-          .map((c: any) => {
-            const meses = Math.max(1, Number(c.meses || 1));
-            const totalDeudaBs = r2(Number(c.deudaBs || 0));
-            const multaTotalBs = r2(Number(c.multaBs || 0));
-            const deudaSinMultaBs = Math.max(0, r2(totalDeudaBs - multaTotalBs));
-            const esRes = String(c.tipo || '').toUpperCase() === 'RESIDENCIAL';
-            return {
-              id: c.codigo,
-              cod_cont: c.codigo,
-              contribuyente: c.nombre || c.codigo,
-              identidad: c.identidad || '—',
-              clasificacion: 'Condominio',
-              uso: 'Condominio',
-              tipoInm: esRes ? 'Residencial' : 'Comercial',
-              actividad: c.actividad && c.actividad !== 'N/A' ? c.actividad : 'N/A',
-              direccion: c.direccion || 'NAGUANAGUA',
-              telefono: c.telefono || 'Sin Telefono',
-              agenteRetencion: Boolean(c.agente_retencion),
-              mesesPendientes: meses,
-              periodos: generarPeriodosPorMeses(meses),
-              montoMes: r2(Number(c.mensualBs || 0)),
-              deudaSinMultaBs,
-              multaTotalBs,
-              totalDeudaBs,
-              _fromCondosModulo: true,
-            };
-          });
-        rawRows = [...nonCondoRows, ...condoMorosos].sort(
-          (a, b) => b.mesesPendientes - a.mesesPendientes || b.totalDeudaBs - a.totalDeudaBs
-        );
-      }
-    } catch (_) {}
+  let allCondosFromApi: any[] = [];
+  try {
+    const resCondos = await fetch('/api/admin/condominios', { cache: 'no-store' });
+    const jCondos = await resCondos.json();
+    if (Array.isArray(jCondos?.filas)) {
+      allCondosFromApi = jCondos.filas;
+    }
+  } catch (_) {}
+
+  if (!rawRows.some((r: any) => r?._fromCondosModulo) && allCondosFromApi.length > 0) {
+    const condoCodSet = new Set(
+      allCondosFromApi.map((c: any) => String(c.codigo || '').trim().toUpperCase()).filter(Boolean)
+    );
+    const nonCondoRows = rawRows.filter((r: any) => {
+      const primaryCod = String(r.cod_cont || '').split(/\s+/)[0]?.trim().toUpperCase();
+      return !(primaryCod && condoCodSet.has(primaryCod));
+    });
+    const condoRows = allCondosFromApi
+      .map((c: any) => {
+        const meses = Math.max(0, Number(c.meses || 0));
+        const totalDeudaBs = meses > 0 ? r2(Number(c.deudaBs || 0)) : 0;
+        const multaTotalBs = meses > 0 ? r2(Number(c.multaBs || 0)) : 0;
+        const deudaSinMultaBs = Math.max(0, r2(totalDeudaBs - multaTotalBs));
+        const esRes = String(c.tipo || '').toUpperCase() === 'RESIDENCIAL';
+        return {
+          id: c.codigo,
+          cod_cont: c.codigo,
+          contribuyente: c.nombre || c.codigo,
+          identidad: c.identidad || '—',
+          clasificacion: 'Condominio',
+          uso: 'Condominio',
+          tipoInm: esRes ? 'Residencial' : 'Comercial',
+          actividad: c.actividad && c.actividad !== 'N/A' ? c.actividad : (esRes ? 'CONDOMINIO RESIDENCIAL' : 'CONDOMINIO COMERCIAL'),
+          direccion: c.direccion || 'NAGUANAGUA',
+          telefono: c.telefono || 'Sin Telefono',
+          agenteRetencion: Boolean(c.agente_retencion),
+          mesesPendientes: meses,
+          periodos: meses > 0 ? generarPeriodosPorMeses(meses) : 'AL DÍA (SOLVENTE)',
+          montoMes: r2(Number(c.mensualBs || 0)),
+          deudaSinMultaBs,
+          multaTotalBs,
+          totalDeudaBs,
+          _fromCondosModulo: true,
+        };
+      });
+    rawRows = [...nonCondoRows, ...condoRows].sort(
+      (a, b) => b.mesesPendientes - a.mesesPendientes || b.totalDeudaBs - a.totalDeudaBs
+    );
+  } else if (allCondosFromApi.length > 0 && rawRows.some((r: any) => r?._fromCondosModulo) && !rawRows.some((r: any) => Number(r.mesesPendientes) === 0)) {
+    // Si la vista envió solo los morosos (sin filtrar un mes específico), anexar los condominios en 0 meses para que en el Excel puedan filtrar por 0 meses
+    const existingCods = new Set(rawRows.map((r: any) => String(r.cod_cont || '').split(/\s+/)[0]?.trim().toUpperCase()));
+    const solventCondos = allCondosFromApi
+      .filter((c: any) => Number(c.meses || 0) === 0 && !existingCods.has(String(c.codigo || '').trim().toUpperCase()))
+      .map((c: any) => {
+        const esRes = String(c.tipo || '').toUpperCase() === 'RESIDENCIAL';
+        return {
+          id: c.codigo,
+          cod_cont: c.codigo,
+          contribuyente: c.nombre || c.codigo,
+          identidad: c.identidad || '—',
+          clasificacion: 'Condominio',
+          uso: 'Condominio',
+          tipoInm: esRes ? 'Residencial' : 'Comercial',
+          actividad: c.actividad && c.actividad !== 'N/A' ? c.actividad : (esRes ? 'CONDOMINIO RESIDENCIAL' : 'CONDOMINIO COMERCIAL'),
+          direccion: c.direccion || 'NAGUANAGUA',
+          telefono: c.telefono || 'Sin Telefono',
+          agenteRetencion: Boolean(c.agente_retencion),
+          mesesPendientes: 0,
+          periodos: 'AL DÍA (SOLVENTE)',
+          montoMes: r2(Number(c.mensualBs || 0)),
+          deudaSinMultaBs: 0,
+          multaTotalBs: 0,
+          totalDeudaBs: 0,
+          _fromCondosModulo: true,
+        };
+      });
+    rawRows = [...rawRows, ...solventCondos];
   }
 
   // Enriquecer con datos en vivo de la tabla inmuebles y excluir los que ya estén solventes en la BD
@@ -240,7 +279,8 @@ export async function generarMorososExcel(
   }
 
   const rows = rawRows.filter((r: any) => {
-    if (r._fromCondosModulo) return Number(r.totalDeudaBs || 0) > 0.01 && Number(r.mesesPendientes || 0) > 0;
+    if (r._fromCondosModulo) return Number(r.mesesPendientes ?? 0) >= 0;
+    if (Number(r.mesesPendientes) === 0) return true;
     const cod = String(r.cod_cont || '').split(/\s+/)[0]?.trim();
     const inm = inmByCode.get(cod);
     if (!inm) return true;
@@ -334,15 +374,27 @@ export async function generarMorososExcel(
     const cod = String(r.cod_cont || '').split(/\s+/)[0]?.trim() || '';
     const inm = inmByCode.get(cod) || r._rawInm || {};
     const esRes = inm.inmueble ? isResidencialInm(inm) : String(r.clasificacion || '').toLowerCase() !== 'comercial';
-    const meses = Math.max(1, parseInt(String(r.mesesPendientes || inm.meses_deuda || 1), 10) || 1);
+    const rawMesesVal = r.mesesPendientes !== undefined && r.mesesPendientes !== null ? Number(r.mesesPendientes) : Number(inm.meses_deuda ?? 1);
+    const meses = Math.max(0, isNaN(rawMesesVal) ? 1 : Math.floor(rawMesesVal));
 
     // Calcular Monto x mes, Deuda total Ves (sin multa), Multa total Ves y Total Ves
     let montoMes = Number(r.montoMes || 0);
-    let deudaSinMulta = Number(r.deudaSinMultaBs || 0);
-    let multaVes = Number(r.multaTotalBs ?? -1);
-    let totalVes = r2(Number(r.totalDeudaBs || 0));
+    let deudaSinMulta = meses === 0 ? 0 : Number(r.deudaSinMultaBs || 0);
+    let multaVes = meses === 0 ? 0 : Number(r.multaTotalBs ?? -1);
+    let totalVes = meses === 0 ? 0 : r2(Number(r.totalDeudaBs || 0));
 
-    if (!montoMes || multaVes < 0) {
+    if (meses === 0) {
+      if (!montoMes && inm.inmueble) {
+        const bMesRaw = calcularMensualidad(inm, tasa);
+        const baseMes = r2(bMesRaw);
+        const ivaMes = esRes ? 0 : r2(baseMes * 0.16);
+        const retMes = !esRes && inm.agente_retencion === true ? r2(ivaMes * 0.75) : 0;
+        montoMes = r2(baseMes + ivaMes - retMes);
+      }
+      deudaSinMulta = 0;
+      multaVes = 0;
+      totalVes = 0;
+    } else if (!montoMes || multaVes < 0) {
       const bMesRaw = inm.inmueble ? calcularMensualidad(inm, tasa) : 0;
       const baseMes = r2(bMesRaw);
       const ivaMes = esRes ? 0 : r2(baseMes * 0.16);
@@ -428,6 +480,12 @@ export async function generarMorososExcel(
     sumMulta += r2(multaVes);
     sumTotal += r2(totalVes);
   });
+
+  // Activar autofiltro en la fila 6 para que en Excel puedan filtrar directamente por Meses pendientes (0, 1, 2, 3...), Uso, Tipo, etc.
+  ws.autoFilter = {
+    from: { row: 6, column: 1 },
+    to: { row: Math.max(6, rows.length + 6), column: headers.length },
+  };
 
   // Fila de totales al final
   const totRow = ws.getRow(rows.length + 7);
