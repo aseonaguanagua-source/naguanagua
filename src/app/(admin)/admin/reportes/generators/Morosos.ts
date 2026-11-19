@@ -343,18 +343,30 @@ export async function generarMorososExcel(
     let totalVes = r2(Number(r.totalDeudaBs || 0));
 
     if (!montoMes || multaVes < 0) {
-      const bMes = inm.inmueble ? calcularMensualidad(inm, tasa) : 0;
-      const ivaMes = esRes ? 0 : bMes * 0.16;
-      const retMes = !esRes && inm.agente_retencion === true ? ivaMes * 0.75 : 0;
-      const netoMes = r2(bMes + ivaMes - retMes);
+      const bMesRaw = inm.inmueble ? calcularMensualidad(inm, tasa) : 0;
+      const baseMes = r2(bMesRaw);
+      const ivaMes = esRes ? 0 : r2(baseMes * 0.16);
+      const retMes = !esRes && inm.agente_retencion === true ? r2(ivaMes * 0.75) : 0;
+      const netoMes = r2(baseMes + ivaMes - retMes);
 
       const exoneradoTotal = isExoneradoTotalMultas(inm.notas);
       const exoneradosCount = getMesesExoneradosCount(inm.notas);
       const mesesConMora = exoneradoTotal ? 0 : Math.max(0, meses - 1 - exoneradosCount);
       const tasaMora = esRes ? 0.1 : 0.12;
+      const multaMes = r2(baseMes * tasaMora);
+      const rowMultaBs = parseFloat(String(inm.multa_bs || 0)) || 0;
       const multaCalc = exoneradoTotal
         ? 0
-        : r2(bMes * tasaMora * mesesConMora + (parseFloat(String(inm.multa_bs || 0)) || 0));
+        : (meses > 0 ? r2(multaMes * mesesConMora) : rowMultaBs);
+
+      const baseTotal = r2(baseMes * meses);
+      const ivaTotal = r2(ivaMes * meses);
+      const retTotal = !esRes && inm.agente_retencion === true ? r2(ivaTotal * 0.75) : 0;
+      const congTotal = parseFloat(String(inm.deuda_congelada_bs || 0)) || 0;
+      const saldoFavor = parseFloat(String(inm.saldo_favor_bs || 0)) || 0;
+      if (baseMes > 0) {
+        totalVes = r2(Math.max(0, baseTotal + ivaTotal + multaCalc + congTotal - retTotal - saldoFavor));
+      }
 
       montoMes = netoMes > 0 ? netoMes : r2(totalVes / meses);
       multaVes = Math.min(totalVes, Math.max(0, multaCalc));

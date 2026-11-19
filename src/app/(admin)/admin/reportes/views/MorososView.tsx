@@ -115,17 +115,20 @@ export default function MorososView({ contribuyentes = [], tcmmv = 0, onBack }: 
         const mesesConMora = Math.max(0, totalMeses - 1);
         const tasaMora = esRes ? 0.1 : 0.12;
 
-        const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
-        const base2 = r2(bMes * totalMeses);
-        const iva2 = esRes ? 0 : r2(base2 * 0.16);
-        const multa2 = r2(bMes * tasaMora * mesesConMora);
+        const r2 = (n: number) => Math.round(((Number(n) || 0) + Number.EPSILON) * 100) / 100;
+        const baseMes = r2(bMes);
+        const ivaMes = esRes ? 0 : r2(baseMes * 0.16);
+        const multaMes = r2(baseMes * tasaMora);
+        const base2 = r2(baseMes * totalMeses);
+        const iva2 = r2(ivaMes * totalMeses);
+        const rowMultaBs = parseFloat(String(row.multa_bs || 0)) || 0;
+        const multa2 = totalMeses > 0 ? r2(multaMes * mesesConMora) : rowMultaBs;
         const ret2 =
           !esRes && row.agente_retencion === true ? r2(iva2 * 0.75) : 0;
         const saldoFavor = parseFloat(String(row.saldo_favor_bs || 0)) || 0;
         const rowCongelada = parseFloat(String(row.deuda_congelada_bs || 0)) || 0;
-        const rowMultaBs = parseFloat(String(row.multa_bs || 0)) || 0;
         const rowDeudaBs = r2(
-          Math.max(0, base2 + iva2 + multa2 + rowCongelada + rowMultaBs - ret2 - saldoFavor)
+          Math.max(0, base2 + iva2 + multa2 + rowCongelada - ret2 - saldoFavor)
         );
 
         if (!map.has(groupKey)) {

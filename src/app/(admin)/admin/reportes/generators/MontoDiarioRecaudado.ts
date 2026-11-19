@@ -1,7 +1,9 @@
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
+import { supabase } from '@/lib/supabase';
 import { logos } from '@/lib/logosBase64';
 import { clasificarBancoDestino } from '@/lib/cuentasBancarias';
+import { aplicarMontoReporte } from '../montoReporte';
 
 /**
  * Generador del reporte oficial en Excel: "MONTO DIARIO RECAUDADO"
@@ -24,24 +26,150 @@ const BORDE = {
 
 const r2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
 
+const dmy = (iso: string) => {
+  const [y, m, d] = String(iso || '').slice(0, 10).split('-');
+  return d ? `${d}/${m}/${y}` : iso;
+};
+
 const fechaVE = (d: any) => {
   const x = new Date(d);
   return isNaN(x.getTime()) ? '' : new Date(x.getTime() - 4 * 3600 * 1000).toISOString().slice(0, 10);
 };
 
+function parseDet(p: any): any {
+  if (!p?.detalles) return {};
+  if (typeof p.detalles === 'object') return p.detalles;
+  try { return JSON.parse(p.detalles); } catch { return {}; }
+}
+
 const esAnulado = (p: any) => {
-  if (['Anulado', 'Reversado', 'Condonado', 'Rechazado'].includes(String(p.estado || ''))) return true;
+  if (['Anulado', 'Reversado', 'Condonado', 'Rechazado', 'Por Verificar', 'Pendiente'].includes(String(p.estado || ''))) return true;
   if (String(p.estado || '') === 'Aprobado') return false;
-  let det: any = {};
-  try { det = typeof p.detalles === 'string' ? JSON.parse(p.detalles) : (p.detalles || {}); } catch {}
+  const det = parseDet(p);
   const caj = String(det?.cajero || det?.analista || '').trim();
   if (/^(dz-)?dzara$|^c-dzara$/i.test(caj)) return true;
   return false;
 };
+
+function isSaldoPago(p: any) {
+  const t = String(p.tipo || '').toUpperCase().trim();
+  const det = parseDet(p);
+  if (t && !t.includes('SALDO') && !t.includes('NOTA DE CREDITO') && !t.includes('NOTA DE CRÉDITO')) {
+    return false;
+  }
+  const paList = Array.isArray(det.pagos_agregados) ? det.pagos_agregados : [];
+  if (paList.some((x: any) => x?.metodo && !String(x.metodo).toUpperCase().includes('SALDO'))) {
+    return false;
+  }
+  const detTipo = String(det.tipo || '').toUpperCase();
+  return t.includes('SALDO') || t.includes('NOTA DE CREDITO') || t.includes('NOTA DE CRÉDITO') ||
+         detTipo.includes('SALDO') || detTipo.includes('NOTA DE CREDITO') || detTipo.includes('NOTA DE CRÉDITO') ||
+         Boolean(det.es_saldo_a_favor || det.es_nota_credito);
+}
+
 const esRetencion = (p: any) => /retenci/i.test(String(p.tipo || ''));
-const esSaldoFavor = (p: any) => /saldo a favor|nota de cr[eé]dito/i.test(String(p.tipo || ''));
-const esDebito = (p: any) => /^(d[eé]bito|cr[eé]dito|tmd|tvd)\b|punto|tarjeta/i.test(String(p.tipo || '').trim());
-const esTransferencia = (p: any) => /transfer|m[oó]vil|pago m/i.test(String(p.tipo || ''));
+const esSaldoFavor = (p: any) => /saldo a favor|nota de cr[eé]dito/i.test(String(p.tipo || '')) || isSaldoPago(p);
+const esDebito = (p: any) => !esSaldoFavor(p) && /^(d[eé]bito|cr[eé]dito|tmd|tvd)\b|punto|tarjeta/i.test(String(p.tipo || '').trim());
+
+function parseMontoNumero(v: any): number {
+  if (typeof v === 'number') return isNaN(v) ? 0 : v;
+  if (!v) return 0;
+  const s = String(v).trim();
+  if (s.includes(',') && s.includes('.')) {
+    return Number(s.lastIndexOf(',') > s.lastIndexOf('.') ? s.replace(/\./g, '').replace(',', '.') : s.replace(/,/g, '')) || 0;
+  }
+  if (s.includes(',')) return Number(s.replace(',', '.')) || 0;
+  return Number(s) || 0;
+}
+
+function obtenerMontoTransfCuadre(p: any, det?: any): number {
+  const d = det || parseDet(p);
+  const mBase = parseMontoNumero(p?.monto);
+  const mConc = parseMontoNumero(d?.monto_conciliado);
+  const esMultiple = Boolean(
+    d?.es_pago_adicional ||
+    d?.abono_completado ||
+    (Array.isArray(d?.pagos_agregados) && d.pagos_agregados.filter((x: any) => !/saldo\s*a\s*favor|nota\s*de\s*cr[eé]dito/i.test(String(x?.metodo || x?.tipo || x?.referencia || ''))).length > 1) ||
+    (Array.isArray(d?.formasPago) && d.formasPago.filter((x: any) => !/saldo\s*a\s*favor|nota\s*de\s*cr[eé]dito/i.test(String(x?.metodo || x?.tipo || x?.referencia || ''))).length > 1)
+  );
+  if (esMultiple && mBase > 0 && mConc > mBase + 1) {
+    return mBase;
+  }
+  if (mConc > 0 && (!Array.isArray(d?.pagos_agregados) || !d.pagos_agregados.some((x: any) => /saldo\s*a\s*favor/i.test(String(x?.referencia || x?.metodo || ''))))) {
+    return mConc;
+  }
+  return mBase || mConc;
+}
+
+const parseFechaCaracas = (raw: any): Date | null => {
+  if (!raw) return null;
+  const str = String(raw).trim();
+  const dmyMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if (dmyMatch) {
+    const ymd = `${dmyMatch[3]}-${dmyMatch[2].padStart(2, '0')}-${dmyMatch[1].padStart(2, '0')}`;
+    const d = new Date(`${ymd}T12:00:00-04:00`);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  if (/^\d{4}-\d{2}-\d{2}(T00:00:00(\.000)?(Z|\+00:00)?)?$/i.test(str)) {
+    const d = new Date(`${str.slice(0, 10)}T12:00:00-04:00`);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  const d = new Date(str);
+  return isNaN(d.getTime()) ? null : d;
+};
+
+const obtenerFechaEfectivaCuadre = (p: any, det: any, pagoPorId: Map<string, any>): Date => {
+  const corrList = Array.isArray(det.correcciones_reporte) ? det.correcciones_reporte : [];
+  const lastCorr = corrList.length > 0 ? corrList[corrList.length - 1] : null;
+  const corrTieneFecha = Boolean(
+    lastCorr?.fecha_nueva &&
+    String(lastCorr.fecha_anterior || '').slice(0, 10) !== String(lastCorr.fecha_nueva).slice(0, 10)
+  );
+  if (corrTieneFecha && lastCorr?.fecha_nueva) {
+    const dCorr = parseFechaCaracas(lastCorr.fecha_nueva);
+    if (dCorr) return dCorr;
+  }
+  if (!esDebito(p)) {
+    const fd = det.factura_digital || {};
+    const pagoPadre = det.pago_principal_id ? pagoPorId.get(String(det.pago_principal_id)) : null;
+    const detPadre = pagoPadre ? parseDet(pagoPadre) : null;
+    const fdPadre = detPadre?.factura_digital || {};
+    const rc0 = Array.isArray(det.recibo_caja) ? det.recibo_caja[0] : det.recibo_caja;
+    const rcPadre0 = Array.isArray(detPadre?.recibo_caja) ? detPadre.recibo_caja[0] : detPadre?.recibo_caja;
+
+    const candidatos = [
+      det.fecha_emision_override,
+      (fd.emitida || fd.numero_documento || fd.numero_control) ? fd.fecha_emision : '',
+      detPadre?.fecha_emision_override,
+      (fdPadre?.emitida || fdPadre?.numero_documento || fdPadre?.numero_control) ? fdPadre.fecha_emision : '',
+      rc0?.fechaEmision,
+      rcPadre0?.fechaEmision,
+      det.fecha_transaccion,
+      rc0?.fechaIngresoCaja,
+      rcPadre0?.fechaIngresoCaja,
+      det.fecha_ingreso_caja,
+    ];
+    for (const c of candidatos) {
+      const dCand = parseFechaCaracas(c);
+      if (dCand) return dCand;
+    }
+    const createdStr = String(p.created_at || '');
+    if (createdStr.includes('T16:00:00') && det.recibo_caja_at) {
+      const dReal = new Date(det.recibo_caja_at);
+      if (!isNaN(dReal.getTime())) return dReal;
+    }
+  }
+  return new Date(p.created_at);
+};
+
+const formatDiaCaracas = (d: Date, fallbackCreatedAt?: any): string => {
+  try {
+    if (!isNaN(d.getTime())) {
+      return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' }).format(d);
+    }
+  } catch {}
+  return fechaVE(fallbackCreatedAt);
+};
 
 export interface MontoDiarioParams {
   pagos: any[];
@@ -58,67 +186,70 @@ export async function generarMontoDiarioRecaudado({
 }: MontoDiarioParams) {
   const dFromStr = String(fechaInicio || '').split('T')[0];
   const dToStr = String(fechaFin || '').split('T')[0];
-  const s = new Date(dFromStr + 'T00:00:00');
-  const e = new Date(dToStr + 'T23:59:59');
 
-  const vivos = pagos.filter((p: any) => {
-    if (esAnulado(p) || esRetencion(p) || esSaldoFavor(p)) return false;
-    if (esTransferencia(p) && String(p.estado || '') !== 'Aprobado') return false;
-    const d = new Date(p.created_at);
-    return d >= s && d <= e;
-  });
+  // Consultar siempre la base de datos fresca igual que Total Puntos de Venta y Cuadre de Caja
+  let rawPagos = pagos;
+  try {
+    const fresh: any[] = [];
+    let from = 0;
+    const PAGE = 1000;
+    while (true) {
+      const { data, error } = await supabase
+        .from('pagos_reportados')
+        .select('*')
+        .not('estado', 'in', '(Reversado,Condonado)')
+        .order('created_at', { ascending: false })
+        .range(from, from + PAGE - 1);
+      if (error || !data || data.length === 0) break;
+      fresh.push(...data);
+      if (data.length < PAGE) break;
+      from += PAGE;
+    }
+    if (fresh.length > 0) {
+      rawPagos = fresh;
+    }
+  } catch {}
 
-  if (!vivos.length) {
-    alert('No hay pagos registrados en el rango de fechas seleccionado.');
-    return;
+  const pagoPorId = new Map<string, any>();
+  for (const p of (rawPagos || [])) {
+    if (p?.id) pagoPorId.set(String(p.id), p);
   }
 
   // Agrupar por día YYYY-MM-DD
   interface DiaData {
     fecha: string;
     puntoBs: number;
-    puntoEur: number;
     transfBs: number;
-    transfEur: number;
     banescoBs: number;
-    banescoEur: number;
     bancamigaBs: number;
-    bancamigaEur: number;
-    tasasBcv: number[];
-    tasaUcd: number[];
+    tasasPosDia: number[];
+    tasasTodasDia: number[];
   }
 
   const agrupadoPorDia = new Map<string, DiaData>();
-
-  vivos.forEach((p: any) => {
-    const fDia = fechaVE(p.created_at);
-    if (!fDia) return;
-
+  const ensureDia = (fDia: string): DiaData => {
     if (!agrupadoPorDia.has(fDia)) {
       agrupadoPorDia.set(fDia, {
         fecha: fDia,
         puntoBs: 0,
-        puntoEur: 0,
         transfBs: 0,
-        transfEur: 0,
         banescoBs: 0,
-        banescoEur: 0,
         bancamigaBs: 0,
-        bancamigaEur: 0,
-        tasasBcv: [],
-        tasaUcd: []
+        tasasPosDia: [],
+        tasasTodasDia: [],
       });
     }
+    return agrupadoPorDia.get(fDia)!;
+  };
 
-    const diaObj = agrupadoPorDia.get(fDia)!;
-    let det: any = {};
-    try {
-      det = typeof p.detalles === 'object' ? p.detalles : JSON.parse(p.detalles || '{}');
-    } catch {
-      det = {};
-    }
+  // 1) PUNTOS DE VENTA (Débito / Crédito / TMD / TVD):
+  // Exactamente el mismo filtro y suma que generarTotalPuntosVenta en ReportesCaja.ts
+  rawPagos.forEach((p: any) => {
+    if (esAnulado(p) || esRetencion(p) || esSaldoFavor(p)) return;
+    const det = parseDet(p);
 
-    // Tasa BCV / Euro aplicada al pago
+    // Registrar tasa BCV oficial del día de creación para el cálculo de la moda diaria
+    const diaCreacion = fechaVE(p.created_at);
     const rate = Number(
       det.tasa_bcv ||
       det.tasaBcv ||
@@ -126,49 +257,96 @@ export async function generarMontoDiarioRecaudado({
       det.tasa ||
       det.tasa_bcv_conciliacion ||
       det.tasa_bcv_original ||
-      tcmmvActual ||
-      1
-    ) || 1;
-
-    diaObj.tasasBcv.push(rate);
-    if (det.tcmmv || det.tasaUcd) {
-      diaObj.tasaUcd.push(Number(det.tcmmv || det.tasaUcd) || rate);
-    }
-
-    const fpMatch = (Array.isArray(det.formasPago) ? det.formasPago : []).find(
-      (fp: any) => String(fp?.referencia || '').trim() === String(p.referencia || '').trim()
-    );
-    const montoBs = esTransferencia(p)
-      ? (Number(det.monto_conciliado || fpMatch?.monto || (Array.isArray(det.formasPago) && det.formasPago.length === 1 ? det.formasPago[0]?.monto : 0) || p.monto) || 0)
-      : (Number(p.monto) || 0);
-    const montoEur = rate > 0 ? r2(montoBs / rate) : 0;
+      0
+    ) || 0;
 
     if (esDebito(p)) {
+      if (!diaCreacion || (dFromStr && diaCreacion < dFromStr) || (dToStr && diaCreacion > dToStr)) return;
+      const montoBs = Number(p.monto) || 0;
+      if (montoBs <= 0) return;
+      const diaObj = ensureDia(diaCreacion);
       diaObj.puntoBs += montoBs;
-      diaObj.puntoEur += montoEur;
-    } else if (esTransferencia(p)) {
-      diaObj.transfBs += montoBs;
-      diaObj.transfEur += montoEur;
-    } else {
-      diaObj.transfBs += montoBs;
-      diaObj.transfEur += montoEur;
+      if (rate > 10) {
+        diaObj.tasasPosDia.push(r2(rate));
+        diaObj.tasasTodasDia.push(r2(rate));
+      }
+      const bClass = clasificarBancoDestino(p);
+      if (bClass === 'Bancamiga') {
+        diaObj.bancamigaBs += montoBs;
+      } else {
+        diaObj.banescoBs += montoBs;
+      }
+    }
+  });
+
+  // 2) TRANSFERENCIAS Y DEPÓSITOS CONCILIADOS:
+  // Exactamente la misma fecha efectiva (obtenerFechaEfectivaCuadre) y monto (obtenerMontoTransfCuadre + aplicarMontoReporte) que CuadreCaja.tsx
+  const pagosConMontoReporte = (rawPagos || []).map((p: any) => aplicarMontoReporte(p));
+  pagosConMontoReporte.forEach((p: any) => {
+    if (esAnulado(p) || esRetencion(p) || esSaldoFavor(p) || esDebito(p)) return;
+    const det = parseDet(p);
+    const dEf = obtenerFechaEfectivaCuadre(p, det, pagoPorId);
+    const fDia = formatDiaCaracas(dEf, p.created_at);
+    if (!fDia || (dFromStr && fDia < dFromStr) || (dToStr && fDia > dToStr)) return;
+
+    const tUpper = String(p.tipo || '').toUpperCase().trim();
+    const isDeposito = tUpper.includes('DEPOSITO') || tUpper.includes('DEPÓSITO');
+    const montoBs = isDeposito ? (parseFloat(p.monto) || 0) : obtenerMontoTransfCuadre(p, det);
+    if (montoBs <= 0) return;
+
+    const diaObj = ensureDia(fDia);
+    diaObj.transfBs += montoBs;
+
+    const rate = Number(
+      det.tasa_bcv_conciliacion ||
+      det.tasa_bcv ||
+      det.tasaBcv ||
+      det.tcmmv ||
+      det.tasa ||
+      det.tasa_bcv_original ||
+      0
+    ) || 0;
+    if (rate > 10) {
+      diaObj.tasasTodasDia.push(r2(rate));
     }
 
     const bClass = clasificarBancoDestino(p);
     if (bClass === 'Bancamiga') {
       diaObj.bancamigaBs += montoBs;
-      diaObj.bancamigaEur += montoEur;
     } else {
       diaObj.banescoBs += montoBs;
-      diaObj.banescoEur += montoEur;
     }
   });
 
-  const diasOrdenados = Array.from(agrupadoPorDia.keys()).sort();
+  const diasOrdenados = Array.from(agrupadoPorDia.keys())
+    .filter((d) => {
+      const obj = agrupadoPorDia.get(d)!;
+      return r2(obj.puntoBs) > 0 || r2(obj.transfBs) > 0;
+    })
+    .sort();
+
   if (!diasOrdenados.length) {
     alert('No hay información diaria de pagos para el período.');
     return;
   }
+
+  // Función para obtener la tasa oficial BCV del día (moda de las operaciones POS del día)
+  const obtenerModaTasa = (tasas: number[], fallback: number): number => {
+    if (!tasas.length) return fallback;
+    const counts = new Map<number, number>();
+    let bestRate = tasas[0];
+    let bestCount = 0;
+    for (const t of tasas) {
+      const k = r2(t);
+      const c = (counts.get(k) || 0) + 1;
+      counts.set(k, c);
+      if (c > bestCount) {
+        bestCount = c;
+        bestRate = k;
+      }
+    }
+    return bestRate;
+  };
 
   const primerDia = diasOrdenados[0];
   const fechaObj = new Date(primerDia + 'T12:00:00');
@@ -198,7 +376,12 @@ export async function generarMontoDiarioRecaudado({
     { key: 'bancamiga_eur', width: 24 },
   ];
 
-  // Incrustar logos en encabezado
+  // Incrustar logos y membrete institucional en filas 1..4
+  for (let i = 0; i < 4; i++) {
+    const r = ws.addRow([]);
+    r.height = 18;
+  }
+
   const addLogo = (base64Str: string, colFrom: number, rowFrom: number, width: number, height: number) => {
     try {
       if (!base64Str) return;
@@ -213,13 +396,23 @@ export async function generarMontoDiarioRecaudado({
     }
   };
 
-  addLogo(logos.instituto || logos.alcaldia, 0.4, 0.2, 170, 75);
-  addLogo(logos.iamec, 10.2, 0.2, 160, 70);
+  addLogo(logos.instituto || logos.alcaldia, 0.25, 0.15, 160, 68);
+  addLogo(logos.iamec, 10.35, 0.15, 155, 65);
 
-  // Dejar 4 filas para el encabezado con logos
-  for (let i = 0; i < 4; i++) {
-    ws.addRow([]);
-  }
+  const headerLines = [
+    { txt: 'REPÚBLICA BOLIVARIANA DE VENEZUELA - ESTADO CARABOBO', size: 10, bold: true, color: 'FF000000' },
+    { txt: 'INSTITUTO AUTÓNOMO MUNICIPAL DE ECOSOCIALISMO DE NAGUANAGUA (IAMEC)', size: 10.5, bold: true, color: 'FF000000' },
+    { txt: 'REPORTE CONSOLIDADO DE RECAUDACIÓN DIARIA (PUNTO DE VENTA Y TRANSFERENCIAS)', size: 11, bold: true, color: 'FF1F4E78' },
+    { txt: `RIF: G-20008614-9   |   Período: ${dmy(dFromStr)} al ${dmy(dToStr)}`, size: 9.5, bold: true, color: 'FF334155' },
+  ];
+  headerLines.forEach((l, idx) => {
+    const rowNum = idx + 1;
+    ws.mergeCells(rowNum, 3, rowNum, 10);
+    const cell = ws.getCell(rowNum, 3);
+    cell.value = l.txt;
+    cell.font = { name: 'Arial', size: l.size, bold: l.bold, color: { argb: l.color } };
+    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+  });
 
   // Título: MONTO DIARIO RECAUDADO
   const titleRow = ws.addRow(['MONTO DIARIO RECAUDADO']);
@@ -270,6 +463,7 @@ export async function generarMontoDiarioRecaudado({
   let sumBanescoEur = 0;
   let sumBancamigaBs = 0;
   let sumBancamigaEur = 0;
+  let ultimaTasaValida = r2(tcmmvActual || 1007.4);
 
   // Llenar datos de cada día
   diasOrdenados.forEach((dia) => {
@@ -281,23 +475,21 @@ export async function generarMontoDiarioRecaudado({
     // Formatear etiqueta de fecha: DD/MM/YY
     const fechaLabel = `${diaNum}/${mesNum}/${String(anio).slice(-2)}`;
 
-    // Tasas promedio del día o última tasa
-    const tasaBcvDia = dData.tasasBcv.length
-      ? dData.tasasBcv.reduce((acc, t) => acc + t, 0) / dData.tasasBcv.length
-      : tcmmvActual || 1;
-
-    const tasaUcdDia = dData.tasaUcd.length
-      ? dData.tasaUcd.reduce((acc, t) => acc + t, 0) / dData.tasaUcd.length
-      : tasaBcvDia;
+    // Tasa oficial BCV del día (moda de operaciones POS del día; si no hubo POS ese día, moda general del día)
+    const tasaBcvDia = dData.tasasPosDia.length
+      ? obtenerModaTasa(dData.tasasPosDia, ultimaTasaValida)
+      : (dData.tasasTodasDia.length ? obtenerModaTasa(dData.tasasTodasDia, ultimaTasaValida) : ultimaTasaValida);
+    ultimaTasaValida = tasaBcvDia;
+    const tasaUcdDia = tasaBcvDia;
 
     const pBs = r2(dData.puntoBs);
-    const pEur = r2(dData.puntoEur);
+    const pEur = tasaBcvDia > 0 ? r2(pBs / tasaBcvDia) : 0;
     const tBs = r2(dData.transfBs);
-    const tEur = r2(dData.transfEur);
+    const tEur = tasaBcvDia > 0 ? r2(tBs / tasaBcvDia) : 0;
     const banBs = r2(dData.banescoBs);
-    const banEur = r2(dData.banescoEur);
+    const banEur = tasaBcvDia > 0 ? r2(banBs / tasaBcvDia) : 0;
     const bgaBs = r2(dData.bancamigaBs);
-    const bgaEur = r2(dData.bancamigaEur);
+    const bgaEur = tasaBcvDia > 0 ? r2(bgaBs / tasaBcvDia) : 0;
 
     sumPuntoBs += pBs;
     sumPuntoEur += pEur;
