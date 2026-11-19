@@ -43,9 +43,9 @@ export async function POST(request: Request) {
 
     if (records && records.length > 1) {
       records = [...records].sort((a: any, b: any) => {
-        const aInd = !a.condominio_padre_id && !a.padre_id && !a.es_condominio ? 0 : 1;
-        const bInd = !b.condominio_padre_id && !b.padre_id && !b.es_condominio ? 0 : 1;
-        return aInd - bInd;
+        const aRank = a.es_condominio ? 0 : (!a.condominio_padre_id && !a.padre_id ? 1 : 2);
+        const bRank = b.es_condominio ? 0 : (!b.condominio_padre_id && !b.padre_id ? 1 : 2);
+        return aRank - bRank;
       });
     }
 
@@ -75,23 +75,26 @@ export async function POST(request: Request) {
       }
     }
 
+    // Buscar también si existe como condominio matriz en la tabla `condominios`
+    const orCondoTbl = [...variantes.map(v => `identidad.eq.${v}`), `codigo.eq.${String(identidad).trim().toUpperCase()}`].join(',');
+    const { data: cMatriz } = await supabase
+      .from("condominios")
+      .select("id, codigo, nombre, identidad, estado, correo, telefono")
+      .or(orCondoTbl)
+      .neq("estado", "Eliminado")
+      .limit(1);
+    const condoMatrizRow = cMatriz && cMatriz.length > 0 ? cMatriz[0] : null;
+
     // Si no está en inmuebles ni en contribuyentes, buscar en condominios o condominio_unidades
     let condoRec: any = null;
     if ((!records || records.length === 0) && !contribRec) {
-      const orCondoTbl = [...variantes.map(v => `identidad.eq.${v}`), `codigo.eq.${String(identidad).trim().toUpperCase()}`].join(',');
-      const { data: cMatriz } = await supabase
-        .from("condominios")
-        .select("id, codigo, nombre, identidad, estado, correo, telefono")
-        .or(orCondoTbl)
-        .neq("estado", "Eliminado")
-        .limit(1);
-      if (cMatriz && cMatriz.length > 0) {
+      if (condoMatrizRow) {
         condoRec = {
-          propietario: cMatriz[0].nombre,
-          inmueble: cMatriz[0].codigo,
-          identidad: cMatriz[0].identidad || cMatriz[0].codigo,
-          correo: cMatriz[0].correo || '',
-          telefono: cMatriz[0].telefono || '',
+          propietario: condoMatrizRow.nombre,
+          inmueble: condoMatrizRow.codigo,
+          identidad: condoMatrizRow.identidad || condoMatrizRow.codigo,
+          correo: condoMatrizRow.correo || '',
+          telefono: condoMatrizRow.telefono || '',
           estado: 'Activo'
         };
       } else {
@@ -116,10 +119,11 @@ export async function POST(request: Request) {
 
     const user = (records && records.length > 0) ? {
       ...records[0],
-      cod_cont: (records[0] as any).inmueble || records[0].cod_cont || records[0].identidad,
+      contribuyente: condoMatrizRow?.nombre || records[0].contribuyente,
+      cod_cont: condoMatrizRow?.codigo || (records[0] as any).inmueble || records[0].cod_cont || records[0].identidad,
       clave_portal: records.find((r: any) => r.clave_portal)?.clave_portal || contribRec?.clave_portal || null,
-      correo_electronico: records.find((r: any) => r.correo_electronico)?.correo_electronico || contribRec?.email || '',
-      telefono: records.find((r: any) => r.telefono)?.telefono || contribRec?.telefono || ''
+      correo_electronico: condoMatrizRow?.correo || records.find((r: any) => r.correo_electronico)?.correo_electronico || contribRec?.email || '',
+      telefono: condoMatrizRow?.telefono || records.find((r: any) => r.telefono)?.telefono || contribRec?.telefono || ''
     } : (contribRec ? {
       contribuyente: contribRec?.nombre,
       cod_cont: contribRec?.identidad,

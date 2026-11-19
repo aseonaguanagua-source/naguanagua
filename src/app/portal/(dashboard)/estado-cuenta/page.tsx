@@ -563,11 +563,14 @@ export default function EstadoCuentaPage() {
     const docNorm = portalDoc.replace(/-/g, '').toUpperCase();
     const myContribuyente = contribuyentes?.find((c: any) => (c.Identidad || '').replace(/-/g, '').toUpperCase() === docNorm);
 
+    const mainInm = misInmuebles.find((i: any) => i.es_condominio && !i.condominio_padre_id)
+      || misInmuebles.find((i: any) => !i.condominio_padre_id)
+      || misInmuebles[0];
     const viewData = {
-      Contribuyente: contribuyenteMaster?.nombre || misInmuebles[0]?.contribuyente || myContribuyente?.Contribuyente || (typeof window !== 'undefined' ? localStorage.getItem('portal_user') : '') || 'Contribuyente',
+      Contribuyente: contribuyenteMaster?.nombre || mainInm?.contribuyente || myContribuyente?.Contribuyente || (typeof window !== 'undefined' ? localStorage.getItem('portal_user') : '') || 'Contribuyente',
       Identidad: portalDoc,
-      Telefono: contribuyenteMaster?.telefono || misInmuebles[0]?.telefono || myContribuyente?.Telefono || '',
-      Direccion: contribuyenteMaster?.direccion || misInmuebles[0]?.direccion || myContribuyente?.Direccion || 'Naguanagua, Edo. Carabobo'
+      Telefono: contribuyenteMaster?.telefono || mainInm?.telefono || myContribuyente?.Telefono || '',
+      Direccion: contribuyenteMaster?.direccion || mainInm?.direccion || myContribuyente?.Direccion || 'Naguanagua, Edo. Carabobo'
     };
 
     const target = targetLocalId || selectedLocal;

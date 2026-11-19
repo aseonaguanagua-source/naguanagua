@@ -59,15 +59,29 @@ export default function DatosContribuyentePage() {
 
         const rInm = inmsData && inmsData.length > 0
           ? (
+              inmsData.find(i => i.es_condominio === true && !i.condominio_padre_id) ||
               inmsData.find(i => !i.condominio_padre_id && !i.padre_id && !i.es_condominio && (i.actividad_principal || '').trim().toUpperCase() !== 'N/A') ||
               inmsData.find(i => !i.condominio_padre_id && !i.es_condominio) ||
+              inmsData.find(i => !i.condominio_padre_id) ||
               inmsData.find(i => (i.actividad_principal || '').trim().toUpperCase() !== 'N/A') ||
               inmsData[0]
             )
           : null;
 
+        let condoMatriz: any = null;
+        if (rInm?.es_condominio || !inmsData || inmsData.length === 0 || inmsData.every(i => i.es_condominio || i.condominio_padre_id)) {
+          const { data: cMat } = await supabase
+            .from('condominios')
+            .select('codigo, nombre, identidad, correo, telefono, direccion')
+            .neq('estado', 'Eliminado')
+            .or(orFilter)
+            .limit(1)
+            .maybeSingle();
+          condoMatriz = cMat;
+        }
+
         let condoData: any = null;
-        if (!inmsData || inmsData.length === 0) {
+        if ((!inmsData || inmsData.length === 0) && !condoMatriz) {
           const { data: cUnit } = await supabase
             .from('condominio_unidades')
             .select('propietario, inmueble, actividad, telefono, correo')
@@ -78,8 +92,8 @@ export default function DatosContribuyentePage() {
           condoData = cUnit;
         }
 
-        const freshNombre = contribData?.nombre || rInm?.contribuyente || condoData?.propietario || nombre;
-        const freshCodigo = rInm?.inmueble || condoData?.inmueble || codigo;
+        const freshNombre = condoMatriz?.nombre || contribData?.nombre || rInm?.contribuyente || condoData?.propietario || nombre;
+        const freshCodigo = condoMatriz?.codigo || rInm?.inmueble || condoData?.inmueble || codigo;
 
         if (freshNombre && freshNombre !== nombre) {
           localStorage.setItem('portal_user', freshNombre);
@@ -92,13 +106,13 @@ export default function DatosContribuyentePage() {
           ...prev,
           nombre: freshNombre,
           codigo: freshCodigo,
-          email: rInm?.correo_electronico || contribData?.email || condoData?.correo || prev.email,
-          telefonoMovil: rInm?.telefono || contribData?.telefono || condoData?.telefono || prev.telefonoMovil,
-          direccion: rInm?.direccion || contribData?.direccion || prev.direccion,
+          email: condoMatriz?.correo || rInm?.correo_electronico || contribData?.email || condoData?.correo || prev.email,
+          telefonoMovil: condoMatriz?.telefono || rInm?.telefono || contribData?.telefono || condoData?.telefono || prev.telefonoMovil,
+          direccion: condoMatriz?.direccion || rInm?.direccion || contribData?.direccion || prev.direccion,
           nombreComercial: (rInm?.actividad_principal && rInm.actividad_principal.trim().toUpperCase() !== 'N/A') 
             ? formatActividad(rInm.actividad_principal) 
             : (condoData?.actividad ? formatActividad(condoData.actividad) : freshNombre),
-          esCondominio: !!(rInm?.es_condominio || (rInm?.actividad_principal?.toLowerCase().includes('condominio') && !rInm?.actividad_principal?.toLowerCase().includes('oficina')) || condoData)
+          esCondominio: !!(condoMatriz || rInm?.es_condominio || (rInm?.actividad_principal?.toLowerCase().includes('condominio') && !rInm?.actividad_principal?.toLowerCase().includes('oficina')) || condoData)
         }));
       }
     };
