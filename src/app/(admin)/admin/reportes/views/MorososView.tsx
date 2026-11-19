@@ -34,6 +34,7 @@ export default function MorososView({ contribuyentes = [], tcmmv = 0, onBack }: 
   const [exportingExcel, setExportingExcel] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
   const [inmueblesDirectos, setInmueblesDirectos] = useState<any[]>([]);
+  const [condosModulo, setCondosModulo] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filtroMeses, setFiltroMeses] = useState<'todos' | 'criticos' | 'leves'>('todos');
   const [filtroTipo, setFiltroTipo] = useState<string>('todos');
@@ -75,6 +76,21 @@ export default function MorososView({ contribuyentes = [], tcmmv = 0, onBack }: 
       cargarDatos();
     }
   }, [contribuyentes?.length]);
+
+  useEffect(() => {
+    let mounted = true;
+    fetch('/api/admin/condominios', { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((j) => {
+        if (mounted && Array.isArray(j?.filas)) {
+          setCondosModulo(j.filas);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   // Construir lista de morosos desde inmueblesDirectos (si se recargó manualmente o si contribuyentes estaba vacío)
   // o desde contribuyentes en memoria (fuente canónica agrupada de AppContext).
@@ -146,13 +162,59 @@ export default function MorososView({ contribuyentes = [], tcmmv = 0, onBack }: 
         }
       }
 
-      return Array.from(map.values())
-        .filter((x) => x.mesesPendientes > 0 && x.totalDeudaBs > 0.01)
-        .sort((a, b) => b.mesesPendientes - a.mesesPendientes || b.totalDeudaBs - a.totalDeudaBs);
+      return applyCondosModulo(
+        Array.from(map.values()).filter((x) => x.mesesPendientes > 0 && x.totalDeudaBs > 0.01)
+      );
     }
 
-    return construirListaMorosos([], contribuyentes, tcmmv);
-  }, [inmueblesDirectos, contribuyentes, tcmmv]);
+    return applyCondosModulo(construirListaMorosos([], contribuyentes, tcmmv));
+
+    function applyCondosModulo(baseList: any[]) {
+      if (!condosModulo || condosModulo.length === 0) {
+        return baseList.sort((a, b) => b.mesesPendientes - a.mesesPendientes || b.totalDeudaBs - a.totalDeudaBs);
+      }
+      const condoCodSet = new Set(
+        condosModulo.map((c: any) => String(c.codigo || '').trim().toUpperCase()).filter(Boolean)
+      );
+      const nonCondoRows = baseList.filter((r: any) => {
+        const primaryCod = String(r.cod_cont || '').split(/\s+/)[0]?.trim().toUpperCase();
+        if (primaryCod && condoCodSet.has(primaryCod)) return false;
+        return true;
+      });
+      const condoMorosos = condosModulo
+        .filter((c: any) => Number(c.deudaBs || 0) > 0.01 && Number(c.meses || 0) > 0)
+        .map((c: any) => {
+          const meses = Math.max(1, Number(c.meses || 1));
+          const totalDeudaBs = Math.round(Number(c.deudaBs || 0) * 100) / 100;
+          const multaTotalBs = Math.round(Number(c.multaBs || 0) * 100) / 100;
+          const deudaSinMultaBs = Math.max(0, Math.round((totalDeudaBs - multaTotalBs) * 100) / 100);
+          const esRes = String(c.tipo || '').toUpperCase() === 'RESIDENCIAL';
+          return {
+            id: c.codigo,
+            cod_cont: c.codigo,
+            contribuyente: c.nombre || c.codigo,
+            identidad: c.identidad || '—',
+            clasificacion: 'Condominio',
+            uso: 'Condominio',
+            tipoInm: esRes ? 'Residencial' : 'Comercial',
+            actividad: c.actividad && c.actividad !== 'N/A' ? c.actividad : 'N/A',
+            direccion: c.direccion || 'NAGUANAGUA',
+            telefono: c.telefono || 'Sin Telefono',
+            agenteRetencion: Boolean(c.agente_retencion),
+            mesesPendientes: meses,
+            periodos: generarPeriodosPorMeses(meses),
+            montoMes: Math.round(Number(c.mensualBs || 0) * 100) / 100,
+            deudaSinMultaBs,
+            multaTotalBs,
+            totalDeudaBs,
+            _fromCondosModulo: true,
+          };
+        });
+      return [...nonCondoRows, ...condoMorosos].sort(
+        (a, b) => b.mesesPendientes - a.mesesPendientes || b.totalDeudaBs - a.totalDeudaBs
+      );
+    }
+  }, [inmueblesDirectos, contribuyentes, tcmmv, condosModulo]);
 
   // Filtrado reactivo en la tabla
   const morososFiltrados = useMemo(() => {

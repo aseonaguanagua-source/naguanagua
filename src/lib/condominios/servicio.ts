@@ -925,7 +925,11 @@ export async function resumenGeneral() {
     return {
       codigo: c.codigo, nombre: c.nombre, identidad: c.identidad, tipo: c.tipo, modalidad: c.modalidad, estado: c.estado,
       cant_declarada: c.cant_declarada, unidades: us.length, mensualBs: e.mensual.condominioBs,
-      meses: e.totales.mesesMax, deudaBs: e.totales.totalBs, cobro_tarifa_por_unidad: !!c.cobro_tarifa_por_unidad, porActividad: e.porActividad,
+      meses: e.totales.mesesMax, deudaBs: e.totales.totalBs,
+      baseBs: e.totales.baseBs, multaBs: e.totales.multaBs, ivaBs: e.totales.ivaBs, retencionBs: e.totales.retencionBs,
+      direccion: c.direccion || 'NAGUANAGUA', telefono: c.telefono || 'Sin Telefono',
+      actividad: c.actividad || 'N/A', agente_retencion: Boolean(c.agente_retencion),
+      cobro_tarifa_por_unidad: !!c.cobro_tarifa_por_unidad, porActividad: e.porActividad,
       permite_pago_por_unidad: !!c.permite_pago_por_unidad, permite_abonos: c.permite_abonos !== false, origen: c.origen || 'MIGRACION',
       tasaAplicada: tasaEfectiva,
       tasaCongelada: tcActiva,

@@ -148,8 +148,57 @@ export async function generarMorososExcel(
   contribuyentes: any[],
   tcmmv: number
 ): Promise<void> {
-  const rawRows = construirListaMorosos(facturasPendientesOrMorosos, contribuyentes, tcmmv);
+  let rawRows = construirListaMorosos(facturasPendientesOrMorosos, contribuyentes, tcmmv);
   const tasa = tcmmv > 0 ? tcmmv : 1;
+
+  // Si rawRows no proviene ya fusionado con el Módulo de Condominios, sincronizar todos los condominios en vivo
+  if (!rawRows.some((r: any) => r?._fromCondosModulo)) {
+    try {
+      const resCondos = await fetch('/api/admin/condominios', { cache: 'no-store' });
+      const jCondos = await resCondos.json();
+      if (Array.isArray(jCondos?.filas) && jCondos.filas.length > 0) {
+        const condoCodSet = new Set(
+          jCondos.filas.map((c: any) => String(c.codigo || '').trim().toUpperCase()).filter(Boolean)
+        );
+        const nonCondoRows = rawRows.filter((r: any) => {
+          const primaryCod = String(r.cod_cont || '').split(/\s+/)[0]?.trim().toUpperCase();
+          return !(primaryCod && condoCodSet.has(primaryCod));
+        });
+        const condoMorosos = jCondos.filas
+          .filter((c: any) => Number(c.deudaBs || 0) > 0.01 && Number(c.meses || 0) > 0)
+          .map((c: any) => {
+            const meses = Math.max(1, Number(c.meses || 1));
+            const totalDeudaBs = r2(Number(c.deudaBs || 0));
+            const multaTotalBs = r2(Number(c.multaBs || 0));
+            const deudaSinMultaBs = Math.max(0, r2(totalDeudaBs - multaTotalBs));
+            const esRes = String(c.tipo || '').toUpperCase() === 'RESIDENCIAL';
+            return {
+              id: c.codigo,
+              cod_cont: c.codigo,
+              contribuyente: c.nombre || c.codigo,
+              identidad: c.identidad || '—',
+              clasificacion: 'Condominio',
+              uso: 'Condominio',
+              tipoInm: esRes ? 'Residencial' : 'Comercial',
+              actividad: c.actividad && c.actividad !== 'N/A' ? c.actividad : 'N/A',
+              direccion: c.direccion || 'NAGUANAGUA',
+              telefono: c.telefono || 'Sin Telefono',
+              agenteRetencion: Boolean(c.agente_retencion),
+              mesesPendientes: meses,
+              periodos: generarPeriodosPorMeses(meses),
+              montoMes: r2(Number(c.mensualBs || 0)),
+              deudaSinMultaBs,
+              multaTotalBs,
+              totalDeudaBs,
+              _fromCondosModulo: true,
+            };
+          });
+        rawRows = [...nonCondoRows, ...condoMorosos].sort(
+          (a, b) => b.mesesPendientes - a.mesesPendientes || b.totalDeudaBs - a.totalDeudaBs
+        );
+      }
+    } catch (_) {}
+  }
 
   // Enriquecer con datos en vivo de la tabla inmuebles y excluir los que ya estén solventes en la BD
   const codigos = [...new Set(rawRows.map((r: any) => String(r.cod_cont || '').split(/\s+/)[0]?.trim()).filter(Boolean))];
@@ -191,6 +240,7 @@ export async function generarMorososExcel(
   }
 
   const rows = rawRows.filter((r: any) => {
+    if (r._fromCondosModulo) return Number(r.totalDeudaBs || 0) > 0.01 && Number(r.mesesPendientes || 0) > 0;
     const cod = String(r.cod_cont || '').split(/\s+/)[0]?.trim();
     const inm = inmByCode.get(cod);
     if (!inm) return true;
