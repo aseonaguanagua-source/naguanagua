@@ -545,24 +545,34 @@ function ContribuyentesPageContent() {
   };
 
   const handleReactivate = async (row: any) => {
-    const rawCodes = String(row.CodCont || row.cod_cont || row.inmueble || '').trim().split(/\s+/).filter(Boolean);
-    const mainCode = rawCodes[0];
+    const isValidInmCode = (c: string) => Boolean(c && !/^(pendiente|n\/?a|sin\s*c[oó]digo|nuevo)$/i.test(c.trim()));
+    const rawCodes = String(row.CodCont || row.cod_cont || row.inmueble || '').trim().split(/\s+/).filter(isValidInmCode);
+    const mainCode = rawCodes[0] || '';
     const descItem = mainCode ? `el inmueble ${mainCode} de ${row.Contribuyente}` : `al contribuyente ${row.Contribuyente} (${row.Identidad})`;
     if (!confirm(`¿Está seguro de reactivar y pasar a 'Activo' ${descItem}?`)) return;
     try {
+      const vars = getIdentidadVariants(row.Identidad || '');
+      const idList = vars.length > 0 ? vars : [row.Identidad].filter(Boolean);
       if (mainCode) {
         // Reactivar específicamente este inmueble (y sus actividades hijas si es matriz)
         await supabase
           .from('inmuebles')
           .update({ estado: 'Activo' })
           .or(`inmueble.eq.${mainCode},padre_id.eq.${mainCode}`);
-      } else {
-        const vars = getIdentidadVariants(row.Identidad || '');
+      } else if (idList.length > 0) {
         const { error: err1 } = await supabase
           .from('inmuebles')
           .update({ estado: 'Activo' })
-          .in('identidad', vars.length > 0 ? vars : [row.Identidad]);
+          .in('identidad', idList);
         if (err1) throw err1;
+      }
+
+      if (idList.length > 0) {
+        const { data: cRows } = await supabase.from('contribuyentes').select('id, observaciones').in('identidad', idList);
+        for (const cr of (cRows || [])) {
+          const cleanedObs = String(cr.observaciones || '').replace(/\[ESTADO:(ELIMINADO|INACTIVO)\]\s*/gi, '').trim();
+          await supabase.from('contribuyentes').update({ observaciones: cleanedObs || null }).eq('id', cr.id);
+        }
       }
 
       await logAudit(
@@ -577,8 +587,18 @@ function ContribuyentesPageContent() {
         'ALTA'
       );
 
+      setServerResults((prev: any[]) => prev.map((c: any) =>
+        (mainCode ? String(c.CodCont || c.cod_cont || '').includes(mainCode) : c.Identidad === row.Identidad)
+          ? { ...c, Estado: 'Activo' }
+          : c
+      ));
+
       alert(`Registro activado exitosamente.`);
-      await refreshData();
+      if (row.Identidad && refreshUserData) {
+        await refreshUserData(row.Identidad);
+      } else {
+        await refreshData(true);
+      }
     } catch (err: any) {
       alert(`Error al activar contribuyente: ${err.message}`);
     }
@@ -598,8 +618,11 @@ function ContribuyentesPageContent() {
       const { type, row } = statusModal;
       const nuevoEstado = type === 'Eliminar' ? 'Eliminado' : 'Inactivo';
       
-      const rawCodes = String(row.CodCont || row.cod_cont || row.inmueble || '').trim().split(/\s+/).filter(Boolean);
-      const mainCode = rawCodes[0];
+      const isValidInmCode = (c: string) => Boolean(c && !/^(pendiente|n\/?a|sin\s*c[oó]digo|nuevo)$/i.test(c.trim()));
+      const rawCodes = String(row.CodCont || row.cod_cont || row.inmueble || '').trim().split(/\s+/).filter(isValidInmCode);
+      const mainCode = rawCodes[0] || '';
+      const vars = getIdentidadVariants(row.Identidad || '');
+      const idList = vars.length > 0 ? vars : [row.Identidad].filter(Boolean);
 
       if (mainCode) {
         // Operación quirúrgica: sólo se elimina/desactiva este inmueble específico
@@ -609,11 +632,21 @@ function ContribuyentesPageContent() {
           .update({ estado: nuevoEstado })
           .or(`inmueble.eq.${mainCode},padre_id.eq.${mainCode}`);
         if (error) throw error;
-      } else {
-        // Si no tiene código de inmueble, se aplica a la identidad
-        const vars = getIdentidadVariants(row.Identidad || '');
-        const { error } = await supabase.from('inmuebles').update({ estado: nuevoEstado }).in('identidad', vars.length > 0 ? vars : [row.Identidad]);
+      } else if (idList.length > 0) {
+        // Si no tiene código de inmueble (ej. "Pendiente" / "Sin Inmueble"), se aplica a la identidad en inmuebles y contribuyentes
+        const { error } = await supabase.from('inmuebles').update({ estado: nuevoEstado }).in('identidad', idList);
         if (error) throw error;
+
+        const tagEstado = `[ESTADO:${nuevoEstado.toUpperCase()}]`;
+        const { data: cRows } = await supabase.from('contribuyentes').select('id, observaciones').in('identidad', idList);
+        for (const cr of (cRows || [])) {
+          const baseObs = String(cr.observaciones || '').replace(/\[ESTADO:(ELIMINADO|INACTIVO)\]\s*/gi, '').trim();
+          const newObs = `${tagEstado} ${baseObs ? `${baseObs} | ` : ''}Motivo: ${statusNota.trim()}`;
+          await supabase.from('contribuyentes').update({
+            observaciones: newObs,
+            ...(type === 'Eliminar' ? { clave_portal: null } : {})
+          }).eq('id', cr.id);
+        }
       }
       
       await addAuditLog(
@@ -625,9 +658,23 @@ function ContribuyentesPageContent() {
           motivo: statusNota.trim()
         })
       );
+
+      // Actualizar de inmediato los resultados de búsqueda en BD y refrescar en el estado global
+      const matchRow = (c: any) => mainCode
+        ? String(c.CodCont || c.cod_cont || '').split(/\s+/).includes(mainCode)
+        : (c.Identidad === row.Identidad || idList.includes(c.Identidad));
+
+      setServerResults((prev: any[]) => prev.map((c: any) => matchRow(c) ? { ...c, Estado: nuevoEstado } : c));
       
-      alert(`${mainCode ? `Inmueble ${mainCode}` : `Contribuyente`} ${type === 'Eliminar' ? 'eliminado' : 'desactivado'} exitosamente.`);
-      await refreshData();
+      const motivoClean = statusNota.trim();
+      setStatusModal(null);
+      setStatusNota('');
+      alert(`${mainCode ? `Inmueble ${mainCode}` : `Contribuyente ${row.Contribuyente}`} ${type === 'Eliminar' ? 'eliminado' : 'desactivado'} exitosamente (${motivoClean}).`);
+      if (row.Identidad && refreshUserData) {
+        await refreshUserData(row.Identidad);
+      } else {
+        await refreshData(true);
+      }
     } catch (err: any) {
       alert(`Error procesando acción: ${err.message}`);
     } finally {
@@ -2392,6 +2439,11 @@ function ContribuyentesPageContent() {
           const actReal = matchedInm?.actividad_principal || (c.actividad && c.actividad !== 'No aplica' ? c.actividad : 'Sin Inmueble');
           const claseReal = matchedInm?.clasificacion || matchedInm?.tipo || c.clasificacion || 'Individual';
 
+          const obsLower = String(c.observaciones || '').toLowerCase();
+          const estFromObs = obsLower.includes('[estado:eliminado]') ? 'Eliminado' : (obsLower.includes('[estado:inactivo]') ? 'Inactivo' : null);
+          const estReal = matchedInm?.estado || c.estado || estFromObs || 'Activo';
+          const cleanObs = String(c.observaciones || '').replace(/\[ESTADO:(ELIMINADO|INACTIVO)\]\s*/gi, '').trim();
+
           mapResults.set(c.identidad, {
             Identidad: c.identidad,
             Contribuyente: c.nombre || 'Sin Nombre',
@@ -2400,7 +2452,7 @@ function ContribuyentesPageContent() {
             CodCont: codigoReal || 'Pendiente',
             cod_cont: codigoReal || 'Pendiente',
             Direccion: c.direccion || matchedInm?.direccion || '',
-            Observaciones: c.observaciones || '',
+            Observaciones: cleanObs,
             Actividad: actReal,
             Clasificacion: claseReal,
             SaldoFavor: parseFloat(matchedInm?.saldo_favor_bs || '0'),
@@ -2408,7 +2460,7 @@ function ContribuyentesPageContent() {
             DeudaCongelada: parseFloat(matchedInm?.deuda_congelada_bs || '0'),
             DeudaBs: 0,
             MesesDeuda: parseInt(matchedInm?.meses_deuda || '0'),
-            Estado: matchedInm?.estado || c.estado || 'Activo',
+            Estado: estReal,
             FechaRegistro: c.created_at || null
           });
         }
@@ -4201,12 +4253,22 @@ function ContribuyentesPageContent() {
                       return;
                     }
                     try {
+                      const vars = getIdentidadVariants(ident || '');
+                      const idList = vars.length > 0 ? vars : [ident].filter(Boolean);
                       const { error } = await supabase
                         .from('inmuebles')
                         .update({ estado: 'Inactivo' })
-                        .eq('identidad', ident);
+                        .in('identidad', idList);
 
                       if (error) throw error;
+
+                      const { data: cRows } = await supabase.from('contribuyentes').select('id, observaciones').in('identidad', idList);
+                      for (const cr of (cRows || [])) {
+                        const baseObs = String(cr.observaciones || '').replace(/\[ESTADO:(ELIMINADO|INACTIVO)\]\s*/gi, '').trim();
+                        await supabase.from('contribuyentes').update({
+                          observaciones: `[ESTADO:INACTIVO] ${baseObs}`
+                        }).eq('id', cr.id);
+                      }
 
                       await addAuditLog(
                         'DESACTIVAR_CONTRIBUYENTE',
@@ -4217,9 +4279,15 @@ function ContribuyentesPageContent() {
                         })
                       );
 
+                      setServerResults((prev: any[]) => prev.map((c: any) => idList.includes(c.Identidad) ? { ...c, Estado: 'Inactivo' } : c));
+
                       alert(`Acceso desactivado exitosamente para ${nombre}.`);
                       setEditingId(null);
-                      await refreshData();
+                      if (ident && refreshUserData) {
+                        await refreshUserData(ident);
+                      } else {
+                        await refreshData(true);
+                      }
                     } catch (err: any) {
                       alert(`Error al desactivar contribuyente: ${err.message}`);
                     }
@@ -4237,12 +4305,23 @@ function ContribuyentesPageContent() {
                       return;
                     }
                     try {
+                      const vars = getIdentidadVariants(ident || '');
+                      const idList = vars.length > 0 ? vars : [ident].filter(Boolean);
                       const { error } = await supabase
                         .from('inmuebles')
                         .update({ estado: 'Eliminado', clave_portal: null })
-                        .eq('identidad', ident);
+                        .in('identidad', idList);
 
                       if (error) throw error;
+
+                      const { data: cRows } = await supabase.from('contribuyentes').select('id, observaciones').in('identidad', idList);
+                      for (const cr of (cRows || [])) {
+                        const baseObs = String(cr.observaciones || '').replace(/\[ESTADO:(ELIMINADO|INACTIVO)\]\s*/gi, '').trim();
+                        await supabase.from('contribuyentes').update({
+                          observaciones: `[ESTADO:ELIMINADO] ${baseObs}`,
+                          clave_portal: null
+                        }).eq('id', cr.id);
+                      }
 
                       await addAuditLog(
                         'ELIMINAR_CONTRIBUYENTE',
@@ -4253,9 +4332,15 @@ function ContribuyentesPageContent() {
                         })
                       );
 
+                      setServerResults((prev: any[]) => prev.map((c: any) => idList.includes(c.Identidad) ? { ...c, Estado: 'Eliminado' } : c));
+
                       alert(`Contribuyente ${nombre} eliminado exitosamente.`);
                       setEditingId(null);
-                      await refreshData();
+                      if (ident && refreshUserData) {
+                        await refreshUserData(ident);
+                      } else {
+                        await refreshData(true);
+                      }
                     } catch (err: any) {
                       alert(`Error al eliminar contribuyente: ${err.message}`);
                     }
@@ -5279,19 +5364,19 @@ function ContribuyentesPageContent() {
             <div className="p-6">
               <p className="text-sm text-slate-600 mb-4">
                 Está a punto de <strong>{statusModal.type.toLowerCase()}</strong>{' '}
-                {statusModal.row.CodCont || statusModal.row.cod_cont || statusModal.row.inmueble ? (
+                {(statusModal.row.CodCont || statusModal.row.cod_cont || statusModal.row.inmueble) && !/^(pendiente|n\/?a|sin\s*c[oó]digo|nuevo)$/i.test(String(statusModal.row.CodCont || statusModal.row.cod_cont || statusModal.row.inmueble).trim().split(/\s+/)[0]) ? (
                   <>el inmueble <span className="font-bold text-slate-800">{String(statusModal.row.CodCont || statusModal.row.cod_cont || statusModal.row.inmueble).trim().split(/\s+/)[0]}</span> del contribuyente </>
                 ) : (
                   <>al contribuyente </>
                 )}
                 <span className="font-bold">{statusModal.row.Contribuyente}</span>. 
-                Por favor, indique el motivo detallado de esta acción. <span className="text-red-600 font-bold">* Obligatorio</span>
+                Por favor, indique el motivo de esta acción. <span className="text-red-600 font-bold">* Obligatorio</span>
               </p>
               
               <textarea
                 value={statusNota}
                 onChange={e => setStatusNota(e.target.value)}
-                placeholder="Ej. Cese de actividades, orden de Alcaldía..."
+                placeholder="Ej. Cese de actividades, registro duplicado, orden de Alcaldía..."
                 className="w-full border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-slate-500 min-h-[100px] outline-none"
               ></textarea>
               
@@ -5304,7 +5389,7 @@ function ContribuyentesPageContent() {
                 </button>
                 <button 
                   onClick={handleStatusSubmit}
-                  disabled={isProcessingStatus || statusNota.trim().length < 10}
+                  disabled={isProcessingStatus || statusNota.trim().length < 3}
                   className={`px-6 py-2 text-white rounded-lg font-medium text-sm transition-colors disabled:opacity-50 ${statusModal.type === 'Eliminar' ? 'bg-red-600 hover:bg-red-700' : 'bg-amber-600 hover:bg-amber-700'}`}
                 >
                   {isProcessingStatus ? 'Procesando...' : `Confirmar`}

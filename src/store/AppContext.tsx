@@ -729,6 +729,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
           const actReal = matchedInm?.actividad_principal || (c.actividad && c.actividad !== 'No aplica' ? c.actividad : 'Sin Inmueble');
           const claseReal = matchedInm?.clasificacion || matchedInm?.tipo || c.clasificacion || 'Individual';
 
+          const obsLower = String(c.observaciones || '').toLowerCase();
+          const estFromObs = obsLower.includes('[estado:eliminado]') ? 'Eliminado' : (obsLower.includes('[estado:inactivo]') ? 'Inactivo' : null);
+          const estReal = matchedInm?.estado || c.estado || estFromObs || 'Activo';
+          const cleanObs = String(c.observaciones || '').replace(/\[ESTADO:(ELIMINADO|INACTIVO)\]\s*/gi, '').trim();
+
           const rawEmail = c.email || c.correo_electronico || c.correo;
           const cleanEmail = isFictitiousEmail(rawEmail) ? '' : (rawEmail || '').trim();
           map.set(c.identidad, {
@@ -739,7 +744,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             CodCont: codigoReal || 'Pendiente',
             cod_cont: codigoReal || 'Pendiente',
             Direccion: c.direccion || matchedInm?.direccion || '',
-            Observaciones: c.observaciones || '',
+            Observaciones: cleanObs,
             Actividad: actReal,
             ActividadComercial: '',
             TipoResidencia: '',
@@ -749,7 +754,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             DeudaCongelada: parseFloat(matchedInm?.deuda_congelada_bs || '0'),
             DeudaBs: 0,
             MesesDeuda: parseInt(matchedInm?.meses_deuda || '0'),
-            Estado: matchedInm?.estado || c.estado || 'Activo',
+            Estado: estReal,
             FechaRegistro: c.created_at || null
           });
         }
@@ -943,7 +948,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const freshInmCodesSet = new Set((freshInms || []).map((i: any) => String(i.inmueble || '').toUpperCase()).filter(Boolean));
         setContribuyentes(prev => {
           const sameIdRows = prev.filter(c => (c.Identidad || '').replace(/-/g, '').toUpperCase() === idClean);
-          return prev.map(c => {
+          const next = prev.map(c => {
             const cId = (c.Identidad || '').replace(/-/g, '').toUpperCase();
             const cCodes = String(c.CodCont || c.cod_cont || '').trim().split(/\s+/).map(s => s.toUpperCase()).filter(Boolean);
             const matchesByCode = cCodes.length > 0 && cCodes.some(code => freshInmCodesSet.has(code));
@@ -974,8 +979,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
               const matchedPrimaryInm = targetInms.find((i: any) => i.es_condominio === true || i.clasificacion === 'Condominio') || targetInms[0];
               const isParentCondoNow = targetInms.some((i: any) => i.es_condominio === true || i.clasificacion === 'Condominio');
               const condoChildrenCount = (freshInms || []).filter((i: any) => i.condominio_padre_id).length;
+              const obsLower = String(freshContrib?.observaciones || '').toLowerCase();
+              const estFromObs = obsLower.includes('[estado:eliminado]') ? 'Eliminado' : (obsLower.includes('[estado:inactivo]') ? 'Inactivo' : null);
+              const allTargetElim = targetInms.length > 0 && targetInms.every((i: any) => String(i.estado || '').trim().toLowerCase() === 'eliminado');
+              const allTargetInact = targetInms.length > 0 && targetInms.every((i: any) => ['eliminado', 'inactivo', 'desactivado'].includes(String(i.estado || '').trim().toLowerCase()));
+              const hasActiveTarget = targetInms.some((i: any) => !['eliminado', 'inactivo', 'desactivado'].includes(String(i.estado || '').trim().toLowerCase()));
+              const nextEstado = hasActiveTarget
+                ? 'Activo'
+                : (allTargetElim ? 'Eliminado' : (allTargetInact ? 'Inactivo' : (estFromObs || 'Activo')));
               return {
                 ...c,
+                Estado: nextEstado,
                 Identidad: matchedPrimaryInm?.identidad || freshContrib?.identidad || c.Identidad,
                 Correo: freshContrib?.email || freshContrib?.correo_electronico || matchedPrimaryInm?.correo_electronico || c.Correo,
                 Telefono: freshContrib?.telefono || matchedPrimaryInm?.telefono || c.Telefono,
@@ -1000,6 +1014,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
             }
             return c;
           });
+          try {
+            getFromIndexedDB<any>('naguanagua_full_cache').then(cached => {
+              if (cached) {
+                cached.contribuyentes = next;
+                saveToIndexedDB('naguanagua_full_cache', cached).catch(() => {});
+              }
+            }).catch(() => {});
+          } catch (_) {}
+          return next;
         });
       }
 

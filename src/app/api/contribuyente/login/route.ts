@@ -61,7 +61,7 @@ export async function POST(request: Request) {
     // También buscar en contribuyentes
     const { data: contribRecs } = await supabase
       .from("contribuyentes")
-      .select("nombre, identidad, email, telefono, clave_portal")
+      .select("nombre, identidad, email, telefono, clave_portal, observaciones")
       .or(orFilter)
       .limit(1);
 
@@ -147,7 +147,9 @@ export async function POST(request: Request) {
       identidad: (usarDatosCondoMatriz ? (condoMatrizRow?.identidad || contribRec?.identidad) : contribRec?.identidad),
       correo_electronico: (usarDatosCondoMatriz ? condoMatrizRow?.correo : null) || contribRec?.email,
       telefono: (usarDatosCondoMatriz ? condoMatrizRow?.telefono : null) || contribRec?.telefono,
-      estado: 'Activo'
+      estado: String((contribRec as any)?.observaciones || '').toLowerCase().includes('[estado:eliminado]')
+        ? 'Eliminado'
+        : (String((contribRec as any)?.observaciones || '').toLowerCase().includes('[estado:inactivo]') ? 'Inactivo' : 'Activo')
     } : {
       contribuyente: cleanNombre,
       cod_cont: condoRec?.inmueble || condoRec?.identidad,
