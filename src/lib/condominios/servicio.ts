@@ -579,9 +579,9 @@ export async function cargarCondominio(codigo: string) {
   }
 
   if (!condo) {
-    // 2. Buscar si en inmuebles tiene condominio_padre_id
+    // 2. Buscar si en inmuebles tiene condominio_padre_id o es copia de un condominio registrado
     const { data: inmHijo } = await sb.from('inmuebles')
-      .select('condominio_padre_id')
+      .select('condominio_padre_id, identidad, contribuyente, es_condominio, clasificacion')
       .ilike('inmueble', codigo.trim())
       .neq('estado', 'Eliminado')
       .limit(1)
@@ -590,6 +590,17 @@ export async function cargarCondominio(codigo: string) {
     if (inmHijo?.condominio_padre_id) {
       const { data: condoByPadre } = await sb.from('condominios').select('*').eq('codigo', inmHijo.condominio_padre_id.toUpperCase()).neq('estado', 'Eliminado').limit(1).maybeSingle();
       condo = condoByPadre;
+    }
+
+    if (!condo && inmHijo && (inmHijo.es_condominio || /condominio/i.test(String(inmHijo.clasificacion || '')))) {
+      if (inmHijo.identidad) {
+        const { data: condoByRif } = await sb.from('condominios').select('*').eq('identidad', inmHijo.identidad).neq('estado', 'Eliminado').limit(1).maybeSingle();
+        condo = condoByRif;
+      }
+      if (!condo && inmHijo.contribuyente) {
+        const { data: condoByNombre } = await sb.from('condominios').select('*').ilike('nombre', inmHijo.contribuyente.trim()).neq('estado', 'Eliminado').limit(1).maybeSingle();
+        condo = condoByNombre;
+      }
     }
   }
 

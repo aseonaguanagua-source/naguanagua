@@ -26,6 +26,7 @@ export async function POST(req: Request) {
       soloMultas: !!b.soloMultas,
       incluirMultas: b.incluirMultas !== undefined ? !!b.incluirMultas : true,
       omitirMultaSeptiembre: !!b.omitirMultaSeptiembre,
+      retencionPorcentajeOverride: typeof b.retencionPorcentajeOverride === 'number' ? Number(b.retencionPorcentajeOverride) : undefined,
       tasaOverride: b.tasaOverride ? Number(b.tasaOverride) : undefined,
       fechaOverride: b.fechaOverride ? String(b.fechaOverride) : undefined,
     };
@@ -220,6 +221,11 @@ export async function POST(req: Request) {
       montoRecibido: recibidoTotal, cajero: String(p.cajero || trab.usuario), usuario: `${trab.nombre || trab.usuario} (${trab.usuario})`,
       pagosAgregados: p.pagosAgregados,
       saldoFavorGenerado: excedenteFinal >= 1.00 ? excedenteFinal : 0,
+      comprobanteRetencion: p.comprobanteRetencion ? String(p.comprobanteRetencion).trim() : undefined,
+      fechaComprobanteRetencion: p.fechaComprobanteRetencion ? String(p.fechaComprobanteRetencion).trim() : undefined,
+      comprobanteRetencionUrl: p.comprobanteRetencionUrl ? String(p.comprobanteRetencionUrl).trim() : undefined,
+      comprobanteRetencionNombre: p.comprobanteRetencionNombre ? String(p.comprobanteRetencionNombre).trim() : undefined,
+      porcentajeRetencionIva: typeof p.porcentajeRetencionIva === 'number' ? p.porcentajeRetencionIva : undefined,
     });
     const { _datos, ...cobro } = r.cobro as any;
     return NextResponse.json({ ...r, cobro });

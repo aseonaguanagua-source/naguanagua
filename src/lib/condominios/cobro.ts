@@ -52,6 +52,8 @@ export interface SolicitudCobro {
     incluirMultas?: boolean;
     /** Si es true, omite la multa correspondiente al período 2026-09 (Septiembre 2026) */
     omitirMultaSeptiembre?: boolean;
+    /** Porcentaje de retención de IVA override (75, 100 o 0) */
+    retencionPorcentajeOverride?: number;
     tasaOverride?: number;
     fechaOverride?: string;
 }
@@ -228,12 +230,19 @@ export async function prepararCobro(sol: SolicitudCobro): Promise<Cobro & { _dat
         const incluirAparte = permitirMultas;
         const aparte = incluirAparte ? r2((nMeses === r.deuda.meses ? r.multaExtraBs : 0) + r.multasManualesBs) : 0;
         const base = s('baseBs'), iva = s('ivaBs');
-        const ret = modo === 'CONDOMINIO'
-            ? (datos.condo.agente_retencion ? (r.agenteRetencion ? s('retencionBs') : r2(iva * 0.75)) : 0)
-            : s('retencionBs');
+        const tieneOverridePct = typeof sol.retencionPorcentajeOverride === 'number' && !isNaN(sol.retencionPorcentajeOverride);
+        const pctOverride = tieneOverridePct ? Math.max(0, Math.min(100, sol.retencionPorcentajeOverride!)) / 100 : null;
+        const esAgenteEfectivo = modo === 'CONDOMINIO' ? Boolean(datos.condo.agente_retencion) : Boolean(r.agenteRetencion);
+        const ret = !esAgenteEfectivo
+            ? 0
+            : pctOverride !== null
+                ? r2(iva * pctOverride)
+                : (modo === 'CONDOMINIO'
+                    ? (r.agenteRetencion ? s('retencionBs') : r2(iva * 0.75))
+                    : s('retencionBs'));
         return {
             clave: r.clave, inmueble: r.inmueble, padreId: r.padreId, padreInmueble: r.padreInmueble, numero: r.numero, propietario: r.propietario, identidad: r.identidad, actividad: r.actividad, residencial: r.residencial,
-            agenteRetencion: modo === 'CONDOMINIO' ? Boolean(datos.condo.agente_retencion) : r.agenteRetencion,
+            agenteRetencion: esAgenteEfectivo,
             meses: nMeses, mesesDeuda: r.deuda.meses, periodos: r.periodos.slice(0, nMeses),
             baseBs: base, multaBs: multaMora, multasAparteBs: aparte, multasManualesIds: incluirAparte ? r.multasManuales.map(m => m.id) : [],
             ivaBs: iva, retencionBs: ret, totalBs: r2(base + multaMora + iva - ret + aparte), multaMesesQueQuedan,
@@ -337,6 +346,11 @@ export interface DatosPago {
     usuario: string;
     pagosAgregados?: any[];
     saldoFavorGenerado?: number;
+    comprobanteRetencion?: string;
+    fechaComprobanteRetencion?: string;
+    comprobanteRetencionUrl?: string;
+    comprobanteRetencionNombre?: string;
+    porcentajeRetencionIva?: number;
 }
 
 const formaPagoCodigo = (m: string) => m === 'Debito' ? '03' : ['Credito', 'TMD', 'TVD'].includes(m) ? '02' : m === 'Efectivo' ? '01' : '05';
@@ -811,6 +825,12 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
             banco_destino: (pagoAgregadoCoincidente || primerReal)?.bancoDestino || pago.bancoDestino || (pago.pagosAgregados || []).find((p: any) => p.bancoDestino)?.bancoDestino || undefined,
             comprobante_url: (pagoAgregadoCoincidente || primerReal)?.comprobante_url || (pago.pagosAgregados || []).find((p: any) => p.comprobante_url)?.comprobante_url || undefined,
             comprobante_nombre: (pagoAgregadoCoincidente || primerReal)?.comprobante_nombre || (pago.pagosAgregados || []).find((p: any) => p.comprobante_nombre)?.comprobante_nombre || undefined,
+            comprobante_retencion: pago.comprobanteRetencion || undefined,
+            numero_comprobante_retencion: pago.comprobanteRetencion || undefined,
+            fecha_comprobante_retencion: pago.fechaComprobanteRetencion || undefined,
+            comprobante_retencion_url: pago.comprobanteRetencionUrl || undefined,
+            comprobante_retencion_nombre: pago.comprobanteRetencionNombre || undefined,
+            porcentaje_retencion_iva: pago.porcentajeRetencionIva ?? (fRet > 0 ? 75 : 0),
             fecha_transaccion: fechaTransaccion,
             fecha_banco: fechaTransaccion,
             fecha_ingreso_caja: new Date().toISOString().slice(0, 10),
@@ -901,12 +921,13 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
 
         // Si hubo retención de IVA, registrar fila correspondiente de Retención
         if (ret > 0) {
+            const compRetClean = String(pago.comprobanteRetencion || '').trim();
             await sb.from('pagos_reportados').insert({
                 id: crypto.randomUUID(),
                 identidad: f.identidad,
                 monto: ret,
                 banco: 'N/A',
-                referencia: `RET-${c.codigo || 'CONDO'}-${Date.now().toString().slice(-6)}`,
+                referencia: compRetClean || `RET-${c.codigo || 'CONDO'}-${Date.now().toString().slice(-6)}`,
                 tipo: 'Retencion de IVA',
                 estado: 'Aprobado',
                 modulo: 'condominios',
@@ -917,12 +938,17 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
                     cajero: pago.cajero,
                     es_retencion: true,
                     pago_vinculado: id,
+                    comprobante_retencion: compRetClean || undefined,
+                    numero_comprobante_retencion: compRetClean || undefined,
+                    fecha_comprobante_retencion: pago.fechaComprobanteRetencion || undefined,
+                    comprobante_retencion_url: pago.comprobanteRetencionUrl || undefined,
+                    comprobante_retencion_nombre: pago.comprobanteRetencionNombre || undefined,
                     saldo_favor: 0,
                     saldo_favor_generado: 0,
                     saldo_usado: 0,
                     saldo_favor_usado: 0,
                     descuento_saldo_favor: 0,
-                    nota: 'Comprobante de retención de IVA 75% deducido en Caja.',
+                    nota: `Comprobante de retención de IVA (${pago.porcentajeRetencionIva ?? 75}%) deducido en Caja de Condominios.`,
                     factura_digital: { emitida: false, pendiente: false, es_retencion: true }
                 }
             });

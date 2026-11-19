@@ -222,19 +222,43 @@ function ContribuyentesPageContent() {
             condoById.set(c.id, obj);
             if (obj.codigo) condoByCode.set(obj.codigo, obj);
           });
-          // Fallback desde tabla inmuebles si algún condominio padre no estaba en tabla condominios
+          // Si algún código de inmueble marcado como condominio no está directamente en `condominios`,
+          // resolverlo hacia el condominio registrado en `condominios` por su RIF o nombre exacto
+          // (evitando mostrar avisos hacia códigos que no existen en el Módulo de Condominios).
           const stillMissing = missingCodes.filter(c => !condoByCode.has(c));
           if (stillMissing.length > 0) {
             const { data: inmPadres } = await supabase
               .from('inmuebles')
               .select('id, inmueble, contribuyente, identidad')
               .in('inmueble', stillMissing);
-            (inmPadres || []).forEach((ip: any) => {
-              const code = String(ip.inmueble || '').toUpperCase();
-              if (code && !condoByCode.has(code)) {
-                condoByCode.set(code, { id: ip.id, codigo: code, nombre: ip.contribuyente || code, identidad: ip.identidad });
-              }
+            const rifsMissing = Array.from(new Set((inmPadres || []).map((ip: any) => String(ip.identidad || '').trim()).filter(Boolean)));
+            const { data: condosByRif } = rifsMissing.length > 0
+              ? await supabase.from('condominios').select('id, codigo, nombre, identidad').neq('estado', 'Eliminado').in('identidad', rifsMissing)
+              : { data: [] as any[] };
+            const rMap = new Map<string, any>();
+            (condosByRif || []).forEach((c: any) => {
+              if (c.identidad && !rMap.has(c.identidad)) rMap.set(c.identidad, c);
             });
+            for (const ip of (inmPadres || [])) {
+              const code = String(ip.inmueble || '').toUpperCase();
+              let matched = ip.identidad ? rMap.get(ip.identidad) : null;
+              if (!matched && ip.contribuyente) {
+                const { data: cByName } = await supabase
+                  .from('condominios')
+                  .select('id, codigo, nombre, identidad')
+                  .neq('estado', 'Eliminado')
+                  .ilike('nombre', String(ip.contribuyente).trim())
+                  .limit(1)
+                  .maybeSingle();
+                matched = cByName;
+              }
+              if (code && matched) {
+                const obj = { id: matched.id, codigo: String(matched.codigo || '').toUpperCase(), nombre: matched.nombre || matched.codigo, identidad: matched.identidad };
+                condoById.set(matched.id, obj);
+                condoByCode.set(code, obj);
+                if (obj.codigo) condoByCode.set(obj.codigo, obj);
+              }
+            }
           }
         }
       }
@@ -288,19 +312,23 @@ function ContribuyentesPageContent() {
         const codInm = String(i.inmueble || '').trim().toUpperCase();
         if (i.es_condominio && codInm) {
           const cInfo = condoByCode.get(codInm);
-          ensureCondo(codInm, cInfo?.nombre || i.contribuyente || codInm, cInfo?.identidad || i.identidad, true);
+          if (cInfo) {
+            ensureCondo(cInfo.codigo, cInfo.nombre, cInfo.identidad || i.identidad, cInfo.codigo === codInm);
+          }
         }
         if (i.condominio_padre_id) {
           const pCod = String(i.condominio_padre_id).trim().toUpperCase();
           const cInfo = condoByCode.get(pCod);
-          const entry = ensureCondo(pCod, cInfo?.nombre || pCod, cInfo?.identidad, false);
-          if (entry && codInm && codInm !== pCod && !entry.localesMap.has(codInm)) {
-            entry.localesMap.set(codInm, {
-              codigo: codInm,
-              numero: i.numero_local || undefined,
-              propietario: i.contribuyente || undefined,
-              identidad: i.identidad || undefined
-            });
+          if (cInfo) {
+            const entry = ensureCondo(cInfo.codigo, cInfo.nombre, cInfo.identidad, false);
+            if (entry && codInm && codInm !== cInfo.codigo && !entry.localesMap.has(codInm)) {
+              entry.localesMap.set(codInm, {
+                codigo: codInm,
+                numero: i.numero_local || undefined,
+                propietario: i.contribuyente || undefined,
+                identidad: i.identidad || undefined
+              });
+            }
           }
         }
       });

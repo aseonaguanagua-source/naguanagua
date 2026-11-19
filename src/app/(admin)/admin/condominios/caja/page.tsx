@@ -109,6 +109,12 @@ function Caja() {
   const [fechaAct, setFechaAct] = useState(hoyCaracas);
   const [fechaTransaccionAct, setFechaTransaccionAct] = useState(hoyCaracas);
   const [fechaIngresoCajaAct, setFechaIngresoCajaAct] = useState(hoyCaracas);
+  // Retención de IVA (Agentes de Retención)
+  const [retencionIVA, setRetencionIVA] = useState<number>(75);
+  const [comprobanteRetencion, setComprobanteRetencion] = useState<string>('');
+  const [fechaComprobanteRetencion, setFechaComprobanteRetencion] = useState<string>(hoyCaracas);
+  const [comprobanteRetencionFile, setComprobanteRetencionFile] = useState<File | null>(null);
+  const [actualizandoAgente, setActualizandoAgente] = useState<boolean>(false);
   // interruptor
   const [modalInt, setModalInt] = useState(false);
   const [motivoInt, setMotivoInt] = useState('');
@@ -466,6 +472,7 @@ function Caja() {
           soloMultas,
           incluirMultas,
           omitirMultaSeptiembre,
+          retencionPorcentajeOverride: retencionIVA,
           tasaOverride: tasaParsed > 0 ? tasaParsed : undefined,
           fechaOverride: fechaOverrideStr || undefined,
         }) });
@@ -495,7 +502,7 @@ function Caja() {
       } catch (e: any) { setError(e.message); setCobro(null); setSaldoFavorActivo(0); } finally { setCalculando(false); }
     }, 300);
     return () => clearTimeout(h);
-  }, [codigo, modo, claves, abonoLocales, identidad, meses, mesesPorUnidad, soloMultas, incluirMultas, omitirMultaSeptiembre, tasaOverrideStr, fechaOverrideStr, calcTrigger]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [codigo, modo, claves, abonoLocales, identidad, meses, mesesPorUnidad, soloMultas, incluirMultas, omitirMultaSeptiembre, retencionIVA, tasaOverrideStr, fechaOverrideStr, calcTrigger]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const c = cobro?.condo;
   const base = cobro?.estado;
@@ -773,6 +780,20 @@ function Caja() {
         pagosSubidos.push({ ...p, comprobante_url: url, comprobante_nombre: p.comprobante?.name });
       }
 
+      // Subir comprobante de retención SENIAT si existe
+      let compRetUrl = '';
+      if (comprobanteRetencionFile && (cobro?.totales?.retencionBs || 0) > 0) {
+        const extRet = comprobanteRetencionFile.name.split('.').pop() || 'pdf';
+        const fileNameRet = `retenciones/condominio_${codigo}_${Date.now()}_${Math.random().toString(36).substring(7)}.${extRet}`;
+        const fdRet = new FormData();
+        fdRet.append('file', comprobanteRetencionFile);
+        fdRet.append('bucket', 'comprobantes');
+        fdRet.append('path', fileNameRet);
+        const rUpRet = await fetch('/api/upload', { method: 'POST', body: fdRet });
+        const jUpRet = await rUpRet.json();
+        if (rUpRet.ok && jUpRet.publicUrl) compRetUrl = jUpRet.publicUrl;
+      }
+
       let tasaParsed = parseLocalFloat(tasaOverrideStr);
       if (isNaN(tasaParsed)) tasaParsed = 0;
 
@@ -816,6 +837,7 @@ function Caja() {
           soloMultas,
           incluirMultas,
           omitirMultaSeptiembre,
+          retencionPorcentajeOverride: retencionIVA,
           usuario: u.usuario,
           tasaOverride: tasaParsed > 0 ? tasaParsed : (cobro?.estado?.tasa ? Number(cobro.estado.tasa) : undefined),
           fechaOverride: fechaOverrideStr || undefined,
@@ -828,7 +850,12 @@ function Caja() {
             cajero: getCajeroId(),
             bancoDestino: (primerPagoReal?.metodo === 'Transferencia' || primerPagoReal?.metodo === 'Depósito') ? (primerPagoReal?.bancoDestino || '') : '',
             pagosAgregados: realPagosSubidos,
-            saldoFavorGenerado: excedenteGenerado
+            saldoFavorGenerado: excedenteGenerado,
+            comprobanteRetencion: (cobro?.totales?.retencionBs || 0) > 0 && comprobanteRetencion.trim() ? comprobanteRetencion.trim() : undefined,
+            fechaComprobanteRetencion: (cobro?.totales?.retencionBs || 0) > 0 && fechaComprobanteRetencion ? fechaComprobanteRetencion : undefined,
+            comprobanteRetencionUrl: compRetUrl || undefined,
+            comprobanteRetencionNombre: comprobanteRetencionFile?.name || undefined,
+            porcentajeRetencionIva: (cobro?.totales?.retencionBs || 0) > 0 ? retencionIVA : 0,
           },
         }),
       });
@@ -861,6 +888,7 @@ function Caja() {
         });
       }
       setReferencia(''); setClaves([]); setAbonoLocales(false); setMeses(''); setSoloMultas(false); setPagosAgregados([]);
+      setComprobanteRetencion(''); setComprobanteRetencionFile(null);
     } catch (e: any) { alert(e.message); } finally { setCobrando(false); }
   };
 
@@ -2276,7 +2304,215 @@ function Caja() {
                   )}
                 </label>
                 {cobro.totales.ivaBs > 0 && <div className="flex justify-between"><span className="text-white/70">IVA 16%</span><b className="tabular-nums">Bs {fmtBs(cobro.totales.ivaBs)}</b></div>}
-                {cobro.totales.retencionBs > 0 && <div className="flex justify-between text-violet-300"><span>Retención IVA (75%)</span><b className="tabular-nums">− Bs {fmtBs(cobro.totales.retencionBs)}</b></div>}
+                {cobro.totales.retencionBs > 0 && <div className="flex justify-between text-violet-300"><span>Retención IVA ({retencionIVA}%)</span><b className="tabular-nums">− Bs {fmtBs(cobro.totales.retencionBs)}</b></div>}
+
+                {/* Bloque de Agente de Retención idéntico a Caja de Contribuyentes */}
+                {cobro.totales.ivaBs > 0 && !soloMultas && (() => {
+                  const lineasActivas: any[] = cobro.lineas || [];
+                  const esAgenteActivo = modo === 'CONDOMINIO'
+                    ? Boolean(c?.agente_retencion)
+                    : lineasActivas.some((l: any) => l.agenteRetencion && !l.residencial);
+                  const ivaRetencionableBs = modo === 'CONDOMINIO'
+                    ? (c?.agente_retencion ? Number(cobro.totales.ivaBs || 0) : 0)
+                    : lineasActivas.filter((l: any) => l.agenteRetencion && !l.residencial).reduce((acc: number, l: any) => acc + Number(l.ivaBs || 0), 0);
+                  const unidadTarget = porContrib && lineasActivas.length > 0 ? lineasActivas[0] : null;
+                  const targetLabel = modo === 'CONDOMINIO'
+                    ? `${c?.nombre || c?.codigo}`
+                    : (unidadTarget ? `${unidadTarget.propietario || unidadTarget.inmueble} (${unidadTarget.inmueble || ''})` : 'este local');
+
+                  const handleToggleAgenteRetencion = async (nuevoEstado: boolean) => {
+                    if (actualizandoAgente) return;
+                    setActualizandoAgente(true);
+                    try {
+                      if (modo === 'CONDOMINIO') {
+                        const r = await fetch('/api/admin/condominios', {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            codigo: c.codigo,
+                            cambios: { agente_retencion: nuevoEstado },
+                            motivo: nuevoEstado ? 'Activación de Agente de Retención desde Caja de Condominios' : 'Desactivación de Agente de Retención desde Caja de Condominios',
+                            usuario: usuario()?.usuario || 'Operador',
+                          }),
+                        });
+                        const j = await r.json();
+                        if (!r.ok) throw new Error(j.error || 'No se pudo actualizar Agente de Retención');
+                      } else {
+                        const idsActualizar = Array.from(new Set(
+                          lineasActivas
+                            .flatMap((l: any) => [l.clave, l.padreId])
+                            .filter((id: any) => id && !String(id).startsWith('__'))
+                        ));
+                        if (idsActualizar.length === 0) {
+                          alert('Seleccione primero el local comercial al que desea activar Agente de Retención.');
+                          setActualizandoAgente(false);
+                          return;
+                        }
+                        for (const uid of idsActualizar) {
+                          const r = await fetch('/api/admin/condominios/unidades', {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              id: uid,
+                              cambios: { agente_retencion: nuevoEstado },
+                              motivo: nuevoEstado ? 'Activación de Agente de Retención desde Caja de Condominios' : 'Desactivación de Agente de Retención desde Caja de Condominios',
+                              usuario: usuario()?.usuario || 'Operador',
+                            }),
+                          });
+                          const j = await r.json();
+                          if (!r.ok) throw new Error(j.error || 'No se pudo actualizar Agente de Retención en la unidad');
+                        }
+                      }
+                      if (nuevoEstado && retencionIVA === 0) setRetencionIVA(75);
+                      setCalcTrigger(prev => prev + 1);
+                    } catch (err: any) {
+                      alert(err.message || 'Error actualizando Agente de Retención');
+                    } finally {
+                      setActualizandoAgente(false);
+                    }
+                  };
+
+                  return (
+                    <div className="mt-2 pt-2 border-t border-white/10 space-y-2">
+                      {/* Switch rápido para habilitar/deshabilitar Agente de Retención en el local o condominio seleccionado */}
+                      <div className="flex items-center justify-between gap-2 bg-white/5 border border-white/15 rounded-lg px-2.5 py-1.5">
+                        <label className="flex items-center gap-2 cursor-pointer select-none flex-1 min-w-0">
+                          <input
+                            type="checkbox"
+                            checked={esAgenteActivo}
+                            disabled={actualizandoAgente}
+                            onChange={e => handleToggleAgenteRetencion(e.target.checked)}
+                            className="w-3.5 h-3.5 accent-violet-500 rounded cursor-pointer shrink-0"
+                          />
+                          <span className="text-[11px] font-bold text-violet-200 truncate" title={`Calificar a ${targetLabel} como Agente de Retención de IVA`}>
+                            🛡️ Agente de Retención ({modo === 'CONDOMINIO' ? 'Condominio' : (unidadTarget?.inmueble || 'Local')})
+                          </span>
+                        </label>
+                        {actualizandoAgente && <RefreshCw className="w-3.5 h-3.5 animate-spin text-violet-300 shrink-0" />}
+                      </div>
+
+                      {esAgenteActivo && ivaRetencionableBs > 0 ? (
+                        <>
+                          <div className="bg-amber-100 text-amber-950 text-[11px] font-bold px-2.5 py-1.5 rounded-lg border border-amber-300 leading-snug">
+                            ⚠️ Agente de Retención — Aplica retención sobre comercios autorizados (Bs. {formatBs(ivaRetencionableBs)} de IVA)
+                          </div>
+                          <div className="bg-slate-100 text-slate-800 p-3 rounded-xl border border-slate-200 space-y-2">
+                            <div className="flex justify-between items-center gap-2">
+                              <span className="font-bold text-slate-700 text-[11px] leading-tight">
+                                Retención de IVA (Comercios Autorizados):
+                              </span>
+                              <select
+                                value={retencionIVA}
+                                onChange={e => {
+                                  const val = parseInt(e.target.value, 10);
+                                  setRetencionIVA(val);
+                                  if (val === 0) {
+                                    setComprobanteRetencion('');
+                                    setComprobanteRetencionFile(null);
+                                  }
+                                }}
+                                className="border border-slate-300 rounded-lg px-2 py-1 text-xs font-bold outline-none focus:border-emerald-500 bg-white text-slate-800 cursor-pointer"
+                              >
+                                <option value={75}>75% (Providencia SENIAT)</option>
+                                <option value={100}>100% (Exención Total)</option>
+                                <option value={0}>0% (Sin Retención)</option>
+                              </select>
+                            </div>
+
+                            {retencionIVA > 0 && (
+                              <>
+                                <div className="flex justify-between items-center text-xs pt-0.5">
+                                  <span className="font-bold text-slate-700">Monto Retenido:</span>
+                                  <span className="text-red-600 font-black">- Bs. {formatBs(cobro.totales.retencionBs)}</span>
+                                </div>
+
+                                <div className="space-y-2 pt-1 border-t border-slate-200">
+                                  <div>
+                                    <div className="flex justify-between items-center mb-1">
+                                      <label className="text-[11px] font-bold text-slate-700">
+                                        N° Comprobante SENIAT (14 dígitos): <span className="text-slate-400 font-normal">(Opcional en taquilla)</span>
+                                      </label>
+                                      <span className={`text-[10px] font-mono ${comprobanteRetencion.trim().replace(/[^0-9]/g, '').length === 14 ? 'text-emerald-600 font-bold' : 'text-slate-400'}`}>
+                                        {comprobanteRetencion.trim().replace(/[^0-9]/g, '').length} / 14 caracteres
+                                      </span>
+                                    </div>
+                                    <input
+                                      type="text"
+                                      maxLength={14}
+                                      placeholder="Ej: 20261000000001 (o dejar vacío para cargar después)"
+                                      value={comprobanteRetencion}
+                                      onChange={e => setComprobanteRetencion(e.target.value.replace(/[^0-9]/g, '').slice(0, 14))}
+                                      className="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs outline-none focus:border-emerald-500 font-mono bg-white font-semibold text-slate-800"
+                                    />
+                                    <p className="text-[10px] text-slate-500 mt-0.5 leading-snug">
+                                      Si el contribuyente no lo trajo, puede pagar con el {retencionIVA}% retenido y cargar su planilla posteriormente con los datos de la factura.
+                                    </p>
+                                  </div>
+
+                                  <div>
+                                    <label className="text-[11px] font-bold text-slate-700 mb-1 block">
+                                      Fecha del Comprobante: <span className="text-slate-400 font-normal">(Opcional)</span>
+                                    </label>
+                                    <input
+                                      type="date"
+                                      value={fechaComprobanteRetencion}
+                                      onChange={e => setFechaComprobanteRetencion(e.target.value)}
+                                      className="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs outline-none focus:border-emerald-500 bg-white text-slate-800"
+                                    />
+                                  </div>
+
+                                  <div>
+                                    <label className="text-[11px] font-bold text-slate-700 mb-1 block">
+                                      Adjuntar Comprobante Retención SENIAT (PDF o Imagen):
+                                    </label>
+                                    <div className="border border-dashed border-slate-300 bg-white rounded-lg p-2 flex items-center justify-between text-xs relative hover:bg-slate-50 transition-colors">
+                                      <input
+                                        type="file"
+                                        accept="image/*,.pdf"
+                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                        onChange={e => {
+                                          if (e.target.files && e.target.files[0]) {
+                                            setComprobanteRetencionFile(e.target.files[0]);
+                                          }
+                                        }}
+                                      />
+                                      {comprobanteRetencionFile ? (
+                                        <span className="font-semibold text-emerald-700 truncate max-w-[210px]">
+                                          📎 {comprobanteRetencionFile.name}
+                                        </span>
+                                      ) : (
+                                        <span className="text-slate-500 text-[11px]">
+                                          📁 Clic para adjuntar comprobante SENIAT (.pdf, .jpg, .png)
+                                        </span>
+                                      )}
+                                      {comprobanteRetencionFile && (
+                                        <button
+                                          type="button"
+                                          onClick={e => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            setComprobanteRetencionFile(null);
+                                          }}
+                                          className="text-[10px] text-red-600 hover:text-red-800 font-bold ml-2 relative z-10 cursor-pointer"
+                                        >
+                                          Quitar
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-white/60 text-[11px] bg-white/5 border border-white/10 rounded-lg px-2.5 py-1.5 leading-snug">
+                          Retención de IVA no aplicable (Active la casilla <b>Agente de Retención</b> arriba si este comercio está calificado por el SENIAT).
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
 
               <div className="border-t border-white/10 pt-3 space-y-2">
