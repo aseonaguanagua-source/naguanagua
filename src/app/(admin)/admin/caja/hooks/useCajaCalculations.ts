@@ -114,42 +114,14 @@ export function useCajaCalculations({
         const tieneMora = (!isUltimoMes && monthsDiff > 1 && !esMesExon);
 
         let totalMes = 0;
+        const baseMonto = Math.round(bMes * 100) / 100;
+        const montoIVA = esRes ? 0 : Math.round((baseMonto * 0.16) * 100) / 100;
         if (!tieneMora) {
           // Último mes o mes exonerado: sin multa
-          const baseMonto = Math.round(bMes * 100) / 100;
-          const montoIVA = esRes ? 0 : Math.round((baseMonto * 0.16) * 100) / 100;
-          totalMes = baseMonto + montoIVA;
-        } else if (totalMesesInm > 1) {
-          // Período con mora: si se omitió septiembre o hay meses exonerados, calcular la cuota exacta con mora
-          if (omitirMultaSeptiembre) {
-            const baseMonto = Math.round(bMes * 100) / 100;
-            const montoIVA = esRes ? 0 : Math.round((baseMonto * 0.16) * 100) / 100;
-            const montoMulta = Math.round((baseMonto * (esRes ? 0.10 : 0.12)) * 100) / 100;
-            totalMes = parseFloat((baseMonto + montoIVA + montoMulta).toFixed(2));
-          } else {
-            const mesesConMora = Math.max(1, totalMesesInm - 1);
-            const tasaMora = esRes ? 0.10 : 0.12;
-
-            const baseTotalLocal = Math.round((bMes * totalMesesInm) * 100) / 100;
-            const ultMesBase = Math.round(bMes * 100) / 100;
-            const baseTotalMora = baseTotalLocal - ultMesBase;
-
-            const multaTotal = Math.round(((bMes * tasaMora) * mesesConMora) * 100) / 100;
-            const ivaTotal = esRes ? 0 : (Math.round(((bMes * 0.16) * totalMesesInm) * 100) / 100 - Math.round((bMes * 0.16) * 100) / 100);
-
-            const totalPeriodoMora = baseTotalMora + multaTotal + ivaTotal;
-            const baseCuota = Math.floor((totalPeriodoMora / mesesConMora) * 100) / 100;
-            const restoCentavos = Math.round((totalPeriodoMora - (baseCuota * mesesConMora)) * 100);
-
-            // Repartir los centavos sobrantes equitativamente entre los primeros meses
-            const cuotaMonto = (mNum <= restoCentavos) ? baseCuota + 0.01 : baseCuota;
-            totalMes = parseFloat(cuotaMonto.toFixed(2));
-          }
+          totalMes = Math.round((baseMonto + montoIVA) * 100) / 100;
         } else {
-          const baseMonto = Math.round(bMes * 100) / 100;
-          const montoIVA = esRes ? 0 : Math.round((baseMonto * 0.16) * 100) / 100;
           const montoMulta = Math.round((baseMonto * (esRes ? 0.10 : 0.12)) * 100) / 100;
-          totalMes = baseMonto + montoIVA + montoMulta;
+          totalMes = Math.round((baseMonto + montoIVA + montoMulta) * 100) / 100;
         }
 
         const montoFinal = Math.max(0, totalMes);
