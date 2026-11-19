@@ -527,8 +527,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         // Inmuebles "Eliminado", "Inactivo" o con actividad TERRENO no suman deuda ni multas (ellos no pagan).
         const esEliminado = ['eliminado', 'inactivo', 'desactivado'].includes(String(row.estado || '').trim().toLowerCase());
         const esTerreno = isTerrenoInm(row);
-        // Si es un contenedor matriz N/A cuyos hijos activos ya tienen su deuda desglosada, no sumar el contenedor para evitar duplicar la deuda
-        const isNAContainerWithChildDebt = isParentNormal && /^(N\/?A|NA)$/i.test(String(row.actividad_principal || '').trim()) && padresConDeudaEnHijos.has(cod);
+        // Si es un contenedor matriz N/A cuyos hijos activos ya tienen su deuda desglosada (o es contenedor local de condominio), no sumar el contenedor para evitar duplicar o cobrar deuda fantasma
+        const isNAContainerWithChildDebt = isParentNormal && /^(N\/?A|NA|SIN ACTIVIDAD.*)$/i.test(String(row.actividad_principal || '').trim()) && (padresConDeudaEnHijos.has(cod) || isCondoChild);
         const rowDeudaMMV = (isCommercialChild || esEliminado || esTerreno || isNAContainerWithChildDebt) ? 0 : parseFloat(row.deuda_mmv || 0);
         const rowMultaBs = (isParentCondo || esEliminado || esTerreno || isNAContainerWithChildDebt) ? 0 : parseFloat(row.multa_bs || 0);
         const rowCongelada = (esEliminado || esTerreno || isNAContainerWithChildDebt) ? 0 : parseFloat(row.deuda_congelada_bs || 0);
@@ -630,7 +630,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             MultaBs: rowMultaBs,
             DeudaCongelada: rowCongelada,
             DeudaBs: rowDeudaBs,
-            MesesDeuda: parseInt(row.meses_deuda || '0'),
+            MesesDeuda: isNAContainerWithChildDebt ? 0 : parseInt(row.meses_deuda || '0'),
             Estado: row.estado || 'Activo',
             FechaRegistro: row.created_at || null,
             isCondominio: isParentCondo,
@@ -682,10 +682,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
           if (rowEstado === 'Activo') {
             const eraInactivo = existing.Estado !== 'Activo';
             existing.Estado = 'Activo';
-            if (eraInactivo || !existing.Actividad || existing.Actividad === 'No aplica') {
-              existing.Actividad = row.actividad_principal || existing.Actividad;
-              existing.ActividadComercial = row.actividad_principal || existing.ActividadComercial;
-              if (row.inmueble) existing.CodCont = row.inmueble;
+            if (eraInactivo || !existing.Actividad || /^(No aplica|N\/?A|NA|Sin Actividad.*)$/i.test(String(existing.Actividad).trim())) {
+              if (row.actividad_principal && !/^(N\/?A|NA|Sin Actividad.*)$/i.test(String(row.actividad_principal).trim())) {
+                existing.Actividad = row.actividad_principal;
+                existing.ActividadComercial = row.actividad_principal;
+              } else if (eraInactivo || !existing.Actividad || existing.Actividad === 'No aplica') {
+                existing.Actividad = row.actividad_principal || existing.Actividad;
+                existing.ActividadComercial = row.actividad_principal || existing.ActividadComercial;
+                if (row.inmueble) existing.CodCont = row.inmueble;
+              }
             }
             if (row.direccion && (!existing.Direccion || existing.Direccion === '0 0')) {
               existing.Direccion = row.direccion;
@@ -697,7 +702,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
               existing.Estado = 'Inactivo';
             }
           }
-          existing.MesesDeuda = Math.max(existing.MesesDeuda || 0, parseInt(row.meses_deuda || '0'));
+          if (!isNAContainerWithChildDebt) {
+            existing.MesesDeuda = Math.max(existing.MesesDeuda || 0, parseInt(row.meses_deuda || '0'));
+          }
           const rowIsEliminado = ['eliminado', 'inactivo', 'desactivado', 'baja'].includes(String(row.estado || '').trim().toLowerCase());
           if (cod && !rowIsEliminado && !existing.CodCont.includes(cod)) {
             existing.CodCont += " " + cod;

@@ -1154,7 +1154,7 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
         const hijosAct = (hijosDb || []).filter((h: any) => h.estado === 'Activa');
         if (hijosAct.length > 0) {
             const fechas = hijosAct.map((h: any) => h.aseo_pendiente_desde).filter(Boolean).sort();
-            const minDesde = fechas[0] || padreU.aseo_pendiente_desde || c.aseo_pendiente_desde;
+            const minDesde = fechas.length > 0 ? fechas[0] : null;
             const maxMultas = Math.max(0, ...hijosAct.map((h: any) => Number(h.multa_meses || 0)));
             await sb.from('condominio_unidades').update({
                 aseo_pendiente_desde: minDesde,
@@ -1165,6 +1165,7 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
                 const updPadreInm: any = {
                     meses_deuda: mesesRealesPadre,
                     deuda_mmv: mesesRealesPadre === 0 ? 0 : undefined,
+                    deuda_congelada_bs: mesesRealesPadre === 0 ? 0 : undefined,
                     multa_bs: maxMultas === 0 ? 0 : undefined,
                 };
                 await sb.from('inmuebles').update(updPadreInm).ilike('inmueble', padreU.inmueble);
@@ -1191,12 +1192,19 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
     // Sincronizar unidades contenedor / es_grupo / N/A con la fecha pendiente del condominio matriz
     if (cobro.modo === 'CONDOMINIO' && !sol.soloMultas) {
         const { data: condoActualizado } = await sb.from('condominios').select('aseo_pendiente_desde').eq('id', c.id).maybeSingle();
-        const nuevoDesdeCondo = condoActualizado?.aseo_pendiente_desde ?? c.aseo_pendiente_desde;
-        if (nuevoDesdeCondo) {
-            await sb.from('condominio_unidades')
-                .update({ aseo_pendiente_desde: nuevoDesdeCondo })
-                .eq('condominio_id', c.id)
-                .or('es_grupo.eq.true,actividad.eq.N/A,actividad.is.null');
+        const nuevoDesdeCondo = condoActualizado ? condoActualizado.aseo_pendiente_desde : c.aseo_pendiente_desde;
+        const { data: gruposCondo } = await sb.from('condominio_unidades')
+            .update({ aseo_pendiente_desde: nuevoDesdeCondo })
+            .eq('condominio_id', c.id)
+            .or('es_grupo.eq.true,actividad.eq.N/A,actividad.is.null')
+            .select('inmueble');
+        if (!nuevoDesdeCondo && gruposCondo && gruposCondo.length > 0) {
+            const codsGrupo = gruposCondo.map((g: any) => g.inmueble).filter(Boolean);
+            if (codsGrupo.length > 0) {
+                await sb.from('inmuebles')
+                    .update({ meses_deuda: 0, deuda_mmv: 0, multa_bs: 0, deuda_congelada_bs: 0 })
+                    .in('inmueble', codsGrupo);
+            }
         }
     }
 

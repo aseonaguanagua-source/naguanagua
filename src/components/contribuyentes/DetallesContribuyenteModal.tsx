@@ -270,7 +270,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
       .split(/\s+/)
       .map(c => c.trim().toUpperCase())
       .filter(Boolean);
-    setFiltroInmueblePago(codes[0] || 'todos');
+    setFiltroInmueblePago('todos');
 
     // Cargar datos oficiales del contribuyente en tiempo real desde Supabase
     if (idVariants.length > 0) {
@@ -432,7 +432,12 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
               const activeFichaCodes = new Set(allInms.map((i: any) => String(i.inmueble || '').trim().toUpperCase()).filter(Boolean));
               const otrosFiltrados = todosRif.filter((o: any) => !activeFichaCodes.has(String(o.inmueble || '').trim().toUpperCase()) && !o.padre_id);
               setOtrosInmuebles(otrosFiltrados);
-              if (otrosFiltrados.length > 0 && primaryCode) {
+              const distinctOwnersOnRif = new Set(
+                todosRif.map((o: any) => String(o.contribuyente || '').trim().toUpperCase()).filter(Boolean)
+              );
+              // Si varios propietarios distintos comparten el RIF de un condominio, filtrar por el inmueble abierto;
+              // si todos los inmuebles pertenecen al mismo contribuyente, mostrar todos sus pagos por defecto.
+              if (otrosFiltrados.length > 0 && primaryCode && (distinctOwnersOnRif.size > 1 || viewData?.condominio_padre_id)) {
                 setFiltroInmueblePago(primaryCode);
               } else {
                 setFiltroInmueblePago('todos');
@@ -1473,7 +1478,15 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
               if (filtroInmueblePago === 'todos') return true;
               let det: any = {};
               try { det = typeof p.detalles === 'string' ? JSON.parse(p.detalles) : (p.detalles || {}); } catch {}
-              const cods = codigosDePago(det, p);
+              let cods = codigosDePago(det, p);
+              if (cods.length === 0 && det?.pago_vinculado) {
+                const parentPago = pagosDb.find((x: any) => x.id === det.pago_vinculado);
+                if (parentPago) {
+                  let pDet: any = {};
+                  try { pDet = typeof parentPago.detalles === 'string' ? JSON.parse(parentPago.detalles) : (parentPago.detalles || {}); } catch {}
+                  cods = codigosDePago(pDet, parentPago);
+                }
+              }
               if (cods.length === 0) return true;
               const targetUpper = filtroInmueblePago.toUpperCase();
               const fichaCodes = new Set(inmueblesList.map((i: any) => String(i.inmueble || '').trim().toUpperCase()).filter(Boolean));
@@ -2528,11 +2541,25 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                   viewData.CodCont || viewData.cod_cont
                 ].filter(Boolean))).sort();
 
+                const resolverCodsPago = (detObj: any, pObj: any): string[] => {
+                  const direct = codigosDePago(detObj, pObj);
+                  if (direct.length > 0) return direct;
+                  if (detObj?.pago_vinculado) {
+                    const parentPago = pagosDb.find((x: any) => x.id === detObj.pago_vinculado);
+                    if (parentPago) {
+                      let pDet: any = {};
+                      try { pDet = typeof parentPago.detalles === 'string' ? JSON.parse(parentPago.detalles) : (parentPago.detalles || {}); } catch {}
+                      return codigosDePago(pDet, parentPago);
+                    }
+                  }
+                  return [];
+                };
+
                 const pagosFiltrados = pagosDb.filter((p: any) => {
                   if (filtroInmueblePago === 'todos') return true;
                   let det: any = {};
                   try { det = typeof p.detalles === 'string' ? JSON.parse(p.detalles) : (p.detalles || {}); } catch {}
-                  const cods = codigosDePago(det, p);
+                  const cods = resolverCodsPago(det, p);
                   if (cods.length === 0) return true; // Mostrar si es un pago general
                   const targetUpper = filtroInmueblePago.toUpperCase();
                   const fichaCodes = new Set(inmueblesList.map((i: any) => String(i.inmueble || '').trim().toUpperCase()).filter(Boolean));
@@ -2599,7 +2626,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                                 try { det = typeof p.detalles === 'string' ? JSON.parse(p.detalles) : (p.detalles || {}); } catch {}
                                 const facturaDigital = det.factura_digital;
                                 const periodoTexto = formatPeriodosPagados(det, p, serviciosEspDb);
-                                const codsPago = codigosDePago(det, p);
+                                const codsPago = resolverCodsPago(det, p);
                                 const codsTexto = codsPago.length > 0 ? codsPago.join(', ') : (p.inmueble || '---');
                                 const desglosePorInm: Record<string, number> = {};
                                 if (det.montos && typeof det.montos === 'object') {

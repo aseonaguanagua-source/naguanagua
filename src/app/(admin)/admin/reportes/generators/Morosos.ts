@@ -148,25 +148,64 @@ export async function generarMorososExcel(
   contribuyentes: any[],
   tcmmv: number
 ): Promise<void> {
-  const rows = construirListaMorosos(facturasPendientesOrMorosos, contribuyentes, tcmmv);
+  const rawRows = construirListaMorosos(facturasPendientesOrMorosos, contribuyentes, tcmmv);
   const tasa = tcmmv > 0 ? tcmmv : 1;
 
-  // Enriquecer con datos de la tabla inmuebles si faltan columnas del formato "Record de deudas"
-  const codigos = [...new Set(rows.map((r: any) => String(r.cod_cont || '').trim()).filter(Boolean))];
+  // Enriquecer con datos en vivo de la tabla inmuebles y excluir los que ya estén solventes en la BD
+  const codigos = [...new Set(rawRows.map((r: any) => String(r.cod_cont || '').split(/\s+/)[0]?.trim()).filter(Boolean))];
   const inmByCode = new Map<string, any>();
+  const childActByParent = new Map<string, { act: string; maxMeses: number }>();
   if (codigos.length > 0) {
     for (let i = 0; i < codigos.length; i += 250) {
-      const { data: chunk } = await supabase
-        .from('inmuebles')
-        .select(
-          'id,inmueble,identidad,contribuyente,direccion,telefono,actividad_principal,clasificacion,tipo,agente_retencion,meses_deuda,mmv_mes,cant_inmuebles,deuda_mmv,deuda_congelada_bs,multa_bs,saldo_favor_bs,es_condominio,notas'
-        )
-        .in('inmueble', codigos.slice(i, i + 250));
+      const slice = codigos.slice(i, i + 250);
+      const [{ data: chunk }, { data: childrenChunk }] = await Promise.all([
+        supabase
+          .from('inmuebles')
+          .select(
+            'id,inmueble,identidad,contribuyente,direccion,telefono,actividad_principal,clasificacion,tipo,agente_retencion,meses_deuda,mmv_mes,cant_inmuebles,deuda_mmv,deuda_congelada_bs,multa_bs,saldo_favor_bs,es_condominio,condominio_padre_id,padre_id,estado,notas'
+          )
+          .in('inmueble', slice),
+        supabase
+          .from('inmuebles')
+          .select('padre_id,actividad_principal,meses_deuda,deuda_mmv,multa_bs,estado')
+          .neq('estado', 'Eliminado')
+          .neq('estado', 'Inactivo')
+          .in('padre_id', slice),
+      ]);
       (chunk || []).forEach((inm: any) => {
         if (inm.inmueble) inmByCode.set(String(inm.inmueble).trim(), inm);
       });
+      (childrenChunk || []).forEach((ch: any) => {
+        const p = String(ch.padre_id || '').trim();
+        if (!p) return;
+        const m = Math.max(0, parseInt(String(ch.meses_deuda || 0), 10) || 0, (parseFloat(String(ch.deuda_mmv || 0)) || 0) > 0 ? 1 : 0);
+        const actCh = String(ch.actividad_principal || '').trim();
+        const validAct = actCh && !/^(N\/?A|NA|Sin Actividad.*)$/i.test(actCh) ? actCh : '';
+        const prev = childActByParent.get(p);
+        childActByParent.set(p, {
+          act: prev?.act || validAct,
+          maxMeses: Math.max(prev?.maxMeses || 0, m),
+        });
+      });
     }
   }
+
+  const rows = rawRows.filter((r: any) => {
+    const cod = String(r.cod_cont || '').split(/\s+/)[0]?.trim();
+    const inm = inmByCode.get(cod);
+    if (!inm) return true;
+    const st = String(inm.estado || '').trim().toLowerCase();
+    if (['eliminado', 'inactivo', 'desactivado'].includes(st)) return false;
+    const chInfo = childActByParent.get(cod);
+    const inmMeses = parseInt(String(inm.meses_deuda || 0), 10) || 0;
+    const inmDeudaMmv = parseFloat(String(inm.deuda_mmv || 0)) || 0;
+    const inmMulta = parseFloat(String(inm.multa_bs || 0)) || 0;
+    const inmCong = parseFloat(String(inm.deuda_congelada_bs || 0)) || 0;
+    const hasOwnDebt = inmMeses > 0 || inmDeudaMmv > 0 || inmMulta > 0 || inmCong > 0;
+    const hasChildDebt = (chInfo?.maxMeses || 0) > 0;
+    if (!hasOwnDebt && !hasChildDebt) return false;
+    return true;
+  });
 
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('Record de deudas');
@@ -242,7 +281,7 @@ export async function generarMorososExcel(
   let sumTotal = 0;
 
   rows.forEach((r: any, idx: number) => {
-    const cod = String(r.cod_cont || '').trim();
+    const cod = String(r.cod_cont || '').split(/\s+/)[0]?.trim() || '';
     const inm = inmByCode.get(cod) || r._rawInm || {};
     const esRes = inm.inmueble ? isResidencialInm(inm) : String(r.clasificacion || '').toLowerCase() !== 'comercial';
     const meses = Math.max(1, parseInt(String(r.mesesPendientes || inm.meses_deuda || 1), 10) || 1);
@@ -281,7 +320,10 @@ export async function generarMorososExcel(
       inm.tipo ||
       (esRes ? 'Unifamiliar' : 'Comercial');
     const dirFiscal = r.direccion || inm.direccion || 'NAGUANAGUA';
-    const actividad = r.actividad || inm.actividad_principal || (esRes ? 'VIVIENDA UNIFAMILIAR' : 'COMERCIAL');
+    const rawAct = String(r.actividad || inm.actividad_principal || '').trim();
+    const actividad = (!rawAct || /^(N\/?A|NA|Sin Actividad.*)$/i.test(rawAct))
+      ? (childActByParent.get(cod)?.act || (esRes ? 'VIVIENDA UNIFAMILIAR' : 'COMERCIAL'))
+      : rawAct;
     const agenteRet = Boolean(r.agenteRetencion ?? inm.agente_retencion ?? false);
     const idNum = typeof inm.id === 'number' ? inm.id : typeof r.id === 'number' ? r.id : idx + 1;
     const cleanNombre = String(r.contribuyente || inm.contribuyente || '—')
