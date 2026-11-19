@@ -27,9 +27,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: MENSAJE_CONDOMINIO_BLOQUEADO }, { status: 403 });
     }
 
-    // Coincidencia exacta de prefijo (V con V, J con J, G con G) para evitar mezclas
+    // Coincidencia exacta de prefijo (V con V, J con J, G con G) o por código directo (URB.../AURI...)
+    const rawIdentUpper = String(identidad).trim().toUpperCase();
+    const isCodeSearch = /^(URB|AURI)\d+$/i.test(rawIdentUpper);
     const variantes = getIdentidadVariantsExact(identidad);
-    const orFilter = variantes.map(v => `identidad.eq.${v}`).join(',');
+    const orFilter = isCodeSearch
+      ? `inmueble.eq.${rawIdentUpper},cod_cont.eq.${rawIdentUpper}`
+      : variantes.map(v => `identidad.eq.${v}`).join(',');
 
     // Buscar en inmuebles activos primero
     let { data: records, error } = await supabase
@@ -120,7 +124,9 @@ export async function POST(request: Request) {
     const tieneInmIndependiente = Boolean(
       records && records.some((r: any) => !r.condominio_padre_id && !r.padre_id && !r.es_condominio)
     );
-    const usarDatosCondoMatriz = Boolean(condoMatrizRow && !tieneInmIndependiente);
+    // Si ingresó con la clave maestra de condominio "Sehile18-" o buscó por código de condominio, priorizar el Condominio Matriz.
+    // Si es un contribuyente normal entrando con su propia clave y tiene un local/casa aparte, priorizar su local/casa.
+    const usarDatosCondoMatriz = Boolean(condoMatrizRow && (isSehileExact || isCodeSearch || !tieneInmIndependiente));
 
     const user = (records && records.length > 0) ? {
       ...records[0],

@@ -128,14 +128,18 @@ export default function PortalLogin() {
     setError('');
     setIsLoading(true);
 
-    const cleanNum = docNum.trim().replace(/^[VEJPGvejpg][-_]?/, '').replace(/[.\s]/g, '');
+    const rawInput = docNum.trim().toUpperCase();
+    const isCodeInput = /^(URB|AURI)\d+$/i.test(rawInput);
+    const cleanNum = isCodeInput
+      ? rawInput
+      : rawInput.replace(/^[VEJPGvejpg][-_]?/, '').replace(/[.\s]/g, '');
     if (cleanNum.length < 4) {
-      setError('Por favor ingrese un número de documento válido.');
+      setError('Por favor ingrese un número de documento o código válido.');
       setIsLoading(false);
       return;
     }
 
-    const fullDoc = `${docType}${cleanNum}`;
+    const fullDoc = isCodeInput ? cleanNum : `${docType}${cleanNum}`;
 
     if (!clave) {
       // Si no ingresó contraseña, verificar si califica para primer ingreso
@@ -185,7 +189,7 @@ export default function PortalLogin() {
           return;
         }
         localStorage.setItem('portal_user', data.nombre);
-        localStorage.setItem('portal_doc', fullDoc);
+        localStorage.setItem('portal_doc', data.identidad || fullDoc);
         localStorage.setItem('portal_codigo', data.codigo);
         if (clave.trim() === 'Sehile18-') {
           sessionStorage.setItem('portal_condo_key', 'Sehile18-');
@@ -245,7 +249,7 @@ export default function PortalLogin() {
       
       if (res.ok) {
         localStorage.setItem('portal_user', data.nombre);
-        localStorage.setItem('portal_doc', fullDoc);
+        localStorage.setItem('portal_doc', data.identidad || fullDoc);
         localStorage.setItem('portal_codigo', data.codigo);
         if (clave.trim() === 'Sehile18-') {
           sessionStorage.setItem('portal_condo_key', 'Sehile18-');
@@ -345,13 +349,16 @@ export default function PortalLogin() {
                       </select>
                       <input
                         type="text"
-                        inputMode="numeric"
                         required
-                        placeholder="Número de documento"
+                        placeholder="Número de documento o código (URB...)"
                         value={docNum}
                         onChange={(e) => {
-                          const val = e.target.value.replace(/\D/g, '');
-                          setDocNum(val);
+                          const raw = e.target.value.toUpperCase().trim();
+                          if (/^[UA]/i.test(raw)) {
+                            setDocNum(raw.replace(/[^A-Z0-9]/g, ''));
+                          } else {
+                            setDocNum(raw.replace(/\D/g, ''));
+                          }
                         }}
                         className="flex-1 border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-slate-400 placeholder:font-normal placeholder:text-slate-400"
                       />

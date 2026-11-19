@@ -57,8 +57,11 @@ export default function DatosContribuyentePage() {
 
         setInmueblesList(inmsData as InmuebleBasic[]);
 
+        const isCondoMasterSession = typeof window !== 'undefined' && sessionStorage.getItem('portal_condo_key') === 'Sehile18-';
         const rInm = inmsData && inmsData.length > 0
           ? (
+              (isCondoMasterSession ? inmsData.find(i => i.es_condominio === true && !i.condominio_padre_id) : null) ||
+              (codigo ? inmsData.find(i => i.inmueble === codigo) : null) ||
               inmsData.find(i => !i.condominio_padre_id && !i.padre_id && !i.es_condominio && (i.actividad_principal || '').trim().toUpperCase() !== 'N/A') ||
               inmsData.find(i => !i.condominio_padre_id && !i.es_condominio) ||
               inmsData.find(i => i.es_condominio === true && !i.condominio_padre_id) ||
@@ -70,7 +73,7 @@ export default function DatosContribuyentePage() {
 
         let condoMatriz: any = null;
         const soloEsCondominio = !inmsData || inmsData.length === 0 || inmsData.every(i => i.es_condominio || i.condominio_padre_id);
-        if (rInm?.es_condominio || soloEsCondominio) {
+        if (isCondoMasterSession || rInm?.es_condominio || soloEsCondominio) {
           const { data: cMat } = await supabase
             .from('condominios')
             .select('codigo, nombre, identidad, correo, telefono, direccion')
