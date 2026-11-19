@@ -10,7 +10,11 @@ export default function DatosContribuyentePage() {
   const [userData, setUserData] = useState({
     nombre: '', codigo: '', docType: 'V', docNum: '',
     email: '', telefonoMovil: '', telefonoFijo: '', direccion: '',
-    nombreComercial: '', esCondominio: false
+    nombreComercial: '', esCondominio: false,
+    condoTipo: '' as '' | 'RESIDENCIAL' | 'COMERCIAL' | 'MIXTO',
+    condoUnidadesTotal: 0,
+    condoResCount: 0,
+    condoComCount: 0,
   });
   const [inmueblesList, setInmueblesList] = useState<InmuebleBasic[]>([]);
   const [filtroCat, setFiltroCat] = useState<'TODOS' | 'RESIDENCIAL' | 'COMERCIAL'>('TODOS');
@@ -27,10 +31,13 @@ export default function DatosContribuyentePage() {
 
   useEffect(() => {
     const fetchUserData = async () => {
-      const nombre = localStorage.getItem('portal_user') || '';
+      const nombre = (localStorage.getItem('portal_user') || '').replace(/^\d+\s*-\s*(?=[A-Za-z])/, '').trim();
       const codigo = localStorage.getItem('portal_codigo') || '';
       const fullDoc = localStorage.getItem('portal_doc') || '';
-      setUserData(prev => ({ ...prev, nombre, codigo, docType: fullDoc ? fullDoc.charAt(0) : 'V', docNum: fullDoc ? fullDoc.substring(1) : '' }));
+      const docClean = fullDoc.replace(/^([A-Za-z])-+/, '$1-');
+      const dType = docClean ? docClean.charAt(0).toUpperCase() : 'V';
+      const dNum = docClean ? docClean.slice(1).replace(/^-+/, '') : '';
+      setUserData(prev => ({ ...prev, nombre, codigo, docType: dType, docNum: dNum }));
       if (fullDoc) {
         const variants = getIdentidadVariantsExact(fullDoc);
         const orFilter = variants.map(v => `identidad.eq.${v}`).join(',');
@@ -72,16 +79,48 @@ export default function DatosContribuyentePage() {
           : null;
 
         let condoMatriz: any = null;
-        const soloEsCondominio = !inmsData || inmsData.length === 0 || inmsData.every(i => i.es_condominio || i.condominio_padre_id);
+        let condoUnitsTotal = 0;
+        let condoResCnt = 0;
+        let condoComCnt = 0;
+        const tieneInmIndep = inmsData.some(i => !i.condominio_padre_id && !i.padre_id && !i.es_condominio);
+        const soloEsCondominio = !inmsData || inmsData.length === 0 || !tieneInmIndep || inmsData.every(i => i.es_condominio || i.condominio_padre_id);
         if (isCondoMasterSession || rInm?.es_condominio || soloEsCondominio) {
+          const orCondoFilter = [orFilter, ...(codigo ? [`codigo.eq.${codigo}`] : [])].filter(Boolean).join(',');
           const { data: cMat } = await supabase
             .from('condominios')
-            .select('codigo, nombre, identidad, correo, telefono, direccion')
+            .select('id, codigo, nombre, identidad, tipo, modalidad, cant_declarada, correo, telefono, direccion')
             .neq('estado', 'Eliminado')
-            .or(orFilter)
+            .or(orCondoFilter)
             .limit(1)
             .maybeSingle();
           condoMatriz = cMat;
+
+          if (condoMatriz?.id) {
+            try {
+              const rFicha = await fetch(`/api/admin/condominios?codigo=${encodeURIComponent(condoMatriz.codigo)}`, { cache: 'no-store' });
+              const jFicha = await rFicha.json();
+              const usActivas = (jFicha?.unidades || []).filter((u: any) => u.estado !== 'Eliminada');
+              const padresSet = new Set(usActivas.filter((u: any) => u.padre_unidad_id).map((u: any) => u.padre_unidad_id));
+              const usEfectivas = usActivas.filter((u: any) => !padresSet.has(u.id));
+              const totalDecl = Number(condoMatriz.cant_declarada) || 0;
+              const esResCondo = String(condoMatriz.tipo || '').toUpperCase() === 'RESIDENCIAL';
+              condoUnitsTotal = esResCondo ? Math.max(totalDecl, usEfectivas.length) : (usEfectivas.length || totalDecl);
+              if (esResCondo) {
+                condoResCnt = condoUnitsTotal;
+                condoComCnt = 0;
+              } else if (String(condoMatriz.tipo || '').toUpperCase() === 'COMERCIAL') {
+                condoResCnt = 0;
+                condoComCnt = condoUnitsTotal;
+              } else {
+                condoResCnt = usEfectivas.filter((u: any) => /apartamento|casa|quinta|residencia|vivienda/i.test(String(u.actividad || ''))).length;
+                condoComCnt = Math.max(0, condoUnitsTotal - condoResCnt);
+              }
+            } catch {
+              condoUnitsTotal = Number(condoMatriz.cant_declarada) || inmsData.length;
+              if (String(condoMatriz.tipo || '').toUpperCase() === 'RESIDENCIAL') condoResCnt = condoUnitsTotal;
+              else condoComCnt = condoUnitsTotal;
+            }
+          }
         }
 
         let condoData: any = null;
@@ -96,7 +135,8 @@ export default function DatosContribuyentePage() {
           condoData = cUnit;
         }
 
-        const freshNombre = condoMatriz?.nombre || contribData?.nombre || rInm?.contribuyente || condoData?.propietario || nombre;
+        const rawFreshNombre = condoMatriz?.nombre || (!condoMatriz ? contribData?.nombre : '') || rInm?.contribuyente || condoData?.propietario || nombre;
+        const freshNombre = String(rawFreshNombre || '').replace(/^\d+\s*-\s*(?=[A-Za-z])/, '').trim();
         const freshCodigo = condoMatriz?.codigo || rInm?.inmueble || condoData?.inmueble || codigo;
 
         if (freshNombre && freshNombre !== nombre) {
@@ -105,6 +145,8 @@ export default function DatosContribuyentePage() {
         if (freshCodigo && freshCodigo !== codigo) {
           localStorage.setItem('portal_codigo', freshCodigo);
         }
+
+        const esCondoPrincipal = Boolean(condoMatriz || rInm?.es_condominio || (rInm?.actividad_principal?.toLowerCase().includes('condominio') && !rInm?.actividad_principal?.toLowerCase().includes('oficina')));
 
         setUserData(prev => ({
           ...prev,
@@ -116,7 +158,11 @@ export default function DatosContribuyentePage() {
           nombreComercial: (rInm?.actividad_principal && rInm.actividad_principal.trim().toUpperCase() !== 'N/A') 
             ? formatActividad(rInm.actividad_principal) 
             : (condoData?.actividad ? formatActividad(condoData.actividad) : freshNombre),
-          esCondominio: !!(condoMatriz || rInm?.es_condominio || (rInm?.actividad_principal?.toLowerCase().includes('condominio') && !rInm?.actividad_principal?.toLowerCase().includes('oficina')) || condoData)
+          esCondominio: esCondoPrincipal,
+          condoTipo: (condoMatriz?.tipo || '') as any,
+          condoUnidadesTotal: condoUnitsTotal,
+          condoResCount: condoResCnt,
+          condoComCount: condoComCnt,
         }));
       }
     };
@@ -129,13 +175,26 @@ export default function DatosContribuyentePage() {
   const comerciales = useMemo(() => clusters.filter(c => c.tipo === 'COMERCIAL'), [clusters]);
 
   const categoriaGlobal = useMemo(() => {
+    if (userData.esCondominio && userData.condoTipo) {
+      return userData.condoTipo;
+    }
     if (comerciales.length > 0 && residenciales.length > 0) return 'MIXTO';
     if (comerciales.length > 0) return 'COMERCIAL';
     if (residenciales.length > 0) return 'RESIDENCIAL';
     // Fallback por tipo de documento si aún no tiene clusters cargados
     if (userData.docType === 'J' || userData.docType === 'G') return 'COMERCIAL';
     return 'RESIDENCIAL';
-  }, [comerciales.length, residenciales.length, userData.docType]);
+  }, [userData.esCondominio, userData.condoTipo, comerciales.length, residenciales.length, userData.docType]);
+
+  const totalInmueblesCard = userData.esCondominio && userData.condoUnidadesTotal > 0
+    ? userData.condoUnidadesTotal
+    : clusters.length;
+  const countResCard = userData.esCondominio && userData.condoUnidadesTotal > 0
+    ? userData.condoResCount
+    : residenciales.length;
+  const countComCard = userData.esCondominio && userData.condoUnidadesTotal > 0
+    ? userData.condoComCount
+    : comerciales.length;
 
   const clustersMostrados = useMemo(() => {
     if (filtroCat === 'RESIDENCIAL') return residenciales;
@@ -245,38 +304,42 @@ export default function DatosContribuyentePage() {
                 {userData.nombre || 'Contribuyente IAMEC'}
               </h2>
               <p className="text-xs text-slate-300 mt-0.5">
-                Documento: <b>{userData.docType}-{userData.docNum}</b> · {clusters.length} {clusters.length === 1 ? 'Inmueble registrado' : 'Inmuebles registrados'}
+                Documento: <b>{userData.docType}-{userData.docNum}</b> · {totalInmueblesCard} {totalInmueblesCard === 1 ? 'Inmueble registrado' : 'Inmuebles registrados'}
               </p>
             </div>
           </div>
 
           {/* Botones de clasificación rápida Residencial / Comercial */}
           <div className="flex items-center gap-2 flex-wrap">
-            <button
-              type="button"
-              onClick={() => setFiltroCat('RESIDENCIAL')}
-              className={`px-3 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer border ${
-                filtroCat === 'RESIDENCIAL' || (filtroCat === 'TODOS' && categoriaGlobal === 'RESIDENCIAL')
-                  ? 'bg-emerald-500 text-slate-950 border-emerald-300 shadow'
-                  : 'bg-white/10 text-white border-white/15 hover:bg-white/20'
-              }`}
-            >
-              <span>🏠 Residencial</span>
-              <span className="px-1.5 py-0.5 rounded-md bg-black/20 text-[11px]">{residenciales.length}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setFiltroCat('COMERCIAL')}
-              className={`px-3 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer border ${
-                filtroCat === 'COMERCIAL' || (filtroCat === 'TODOS' && categoriaGlobal === 'COMERCIAL')
-                  ? 'bg-sky-400 text-slate-950 border-sky-200 shadow'
-                  : 'bg-white/10 text-white border-white/15 hover:bg-white/20'
-              }`}
-            >
-              <span>🏪 Comercial</span>
-              <span className="px-1.5 py-0.5 rounded-md bg-black/20 text-[11px]">{comerciales.length}</span>
-            </button>
-            {clusters.length > 1 && filtroCat !== 'TODOS' && (
+            {(!userData.esCondominio || countResCard > 0) && (
+              <button
+                type="button"
+                onClick={() => !userData.esCondominio && setFiltroCat('RESIDENCIAL')}
+                className={`px-3 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer border ${
+                  filtroCat === 'RESIDENCIAL' || (filtroCat === 'TODOS' && categoriaGlobal === 'RESIDENCIAL')
+                    ? 'bg-emerald-500 text-slate-950 border-emerald-300 shadow'
+                    : 'bg-white/10 text-white border-white/15 hover:bg-white/20'
+                }`}
+              >
+                <span>🏠 Residencial</span>
+                <span className="px-1.5 py-0.5 rounded-md bg-black/20 text-[11px]">{countResCard}</span>
+              </button>
+            )}
+            {(!userData.esCondominio || countComCard > 0) && (
+              <button
+                type="button"
+                onClick={() => !userData.esCondominio && setFiltroCat('COMERCIAL')}
+                className={`px-3 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer border ${
+                  filtroCat === 'COMERCIAL' || (filtroCat === 'TODOS' && categoriaGlobal === 'COMERCIAL')
+                    ? 'bg-sky-400 text-slate-950 border-sky-200 shadow'
+                    : 'bg-white/10 text-white border-white/15 hover:bg-white/20'
+                }`}
+              >
+                <span>🏪 Comercial</span>
+                <span className="px-1.5 py-0.5 rounded-md bg-black/20 text-[11px]">{countComCard}</span>
+              </button>
+            )}
+            {!userData.esCondominio && clusters.length > 1 && filtroCat !== 'TODOS' && (
               <button
                 type="button"
                 onClick={() => setFiltroCat('TODOS')}
@@ -288,8 +351,8 @@ export default function DatosContribuyentePage() {
           </div>
         </div>
 
-        {/* Resumen rápido de inmuebles categorizados */}
-        {clustersMostrados.length > 0 && (
+        {/* Resumen rápido de inmuebles categorizados (solo para contribuyentes individuales, oculto en condominios) */}
+        {!userData.esCondominio && clustersMostrados.length > 0 && (
           <div className="mt-4 pt-3.5 border-t border-white/15 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             {clustersMostrados.slice(0, 4).map((cl) => (
               <div

@@ -128,23 +128,28 @@ export async function POST(request: Request) {
     // Si es un contribuyente normal entrando con su propia clave y tiene un local/casa aparte, priorizar su local/casa.
     const usarDatosCondoMatriz = Boolean(condoMatrizRow && (isSehileExact || isCodeSearch || !tieneInmIndependiente));
 
+    const rawNombre = (records && records.length > 0)
+      ? ((usarDatosCondoMatriz ? condoMatrizRow?.nombre : null) || records[0].contribuyente)
+      : (contribRec ? ((usarDatosCondoMatriz ? condoMatrizRow?.nombre : null) || contribRec?.nombre) : condoRec?.propietario);
+    const cleanNombre = String(rawNombre || '').replace(/^\d+\s*-\s*(?=[A-Za-z])/, '').trim();
+
     const user = (records && records.length > 0) ? {
       ...records[0],
-      contribuyente: (usarDatosCondoMatriz ? condoMatrizRow?.nombre : null) || records[0].contribuyente,
+      contribuyente: cleanNombre,
       cod_cont: (usarDatosCondoMatriz ? condoMatrizRow?.codigo : null) || (records[0] as any).inmueble || records[0].cod_cont || records[0].identidad,
       clave_portal: records.find((r: any) => r.clave_portal)?.clave_portal || contribRec?.clave_portal || null,
       correo_electronico: (usarDatosCondoMatriz ? condoMatrizRow?.correo : null) || records.find((r: any) => r.correo_electronico)?.correo_electronico || contribRec?.email || '',
       telefono: (usarDatosCondoMatriz ? condoMatrizRow?.telefono : null) || records.find((r: any) => r.telefono)?.telefono || contribRec?.telefono || ''
     } : (contribRec ? {
-      contribuyente: contribRec?.nombre,
-      cod_cont: contribRec?.identidad,
+      contribuyente: cleanNombre,
+      cod_cont: (usarDatosCondoMatriz ? condoMatrizRow?.codigo : null) || contribRec?.identidad,
       clave_portal: contribRec?.clave_portal || null,
-      identidad: contribRec?.identidad,
-      correo_electronico: contribRec?.email,
-      telefono: contribRec?.telefono,
+      identidad: (usarDatosCondoMatriz ? (condoMatrizRow?.identidad || contribRec?.identidad) : contribRec?.identidad),
+      correo_electronico: (usarDatosCondoMatriz ? condoMatrizRow?.correo : null) || contribRec?.email,
+      telefono: (usarDatosCondoMatriz ? condoMatrizRow?.telefono : null) || contribRec?.telefono,
       estado: 'Activo'
     } : {
-      contribuyente: condoRec?.propietario,
+      contribuyente: cleanNombre,
       cod_cont: condoRec?.inmueble || condoRec?.identidad,
       clave_portal: null,
       identidad: condoRec?.identidad,

@@ -232,6 +232,18 @@ export default function DondePagarPage() {
         // Coincidencia exacta de prefijo (V con V, J con J, G con G)
         const variants = getIdentidadVariantsExact(portalDoc);
         const orFilter = variants.map(v => `identidad.eq.${v}`).join(',');
+        const portalCodigo = typeof window !== 'undefined' ? (localStorage.getItem('portal_codigo') || '') : '';
+        const isCondoMasterSession = typeof window !== 'undefined' && sessionStorage.getItem('portal_condo_key') === 'Sehile18-';
+
+        // 0. Verificar si la sesión es de un Condominio Matriz
+        const orCondoMatriz = [orFilter, ...(portalCodigo ? [`codigo.eq.${portalCodigo}`] : [])].filter(Boolean).join(',');
+        const { data: ownCondoRow } = await supabase
+          .from('condominios')
+          .select('id, codigo, nombre, identidad, tipo, modalidad, cant_declarada')
+          .neq('estado', 'Eliminado')
+          .or(orCondoMatriz)
+          .limit(1)
+          .maybeSingle();
 
         // A. Inmuebles y facturas pendientes
         const { data: inmsDB } = await supabase.from('inmuebles').select('*').or(orFilter);
@@ -269,66 +281,166 @@ export default function DondePagarPage() {
         };
         allInms = allInms.filter(isActivoInm);
 
-        const { data: dbFacturas } = await supabase
-          .from('facturas')
-          .select('*')
-          .or(orFilter)
-          .in('estado', ['Pendiente', 'Abonado', 'Por Verificar'])
-          .order('emision', { ascending: true });
+        const ownCondoCode = String(ownCondoRow?.codigo || '').trim().toUpperCase();
+        const tieneInmIndep = allInms.some((i: any) => !i.condominio_padre_id && !i.padre_id && !i.es_condominio);
+        const esSesionCondoPadre = Boolean(ownCondoRow && (isCondoMasterSession || !tieneInmIndep || allInms.some((i: any) => i.es_condominio && String(i.inmueble || '').toUpperCase() === ownCondoCode)));
 
-        // FUENTE ÚNICA (idéntica a Caja y Cobro Móvil): inmuebles cobrables, facturas y meses históricos.
-        // Las unidades de condominio se cobran por Caja Condominios (igual que en Caja).
-        const rc = construirRecibosContribuyente({ inmuebles: allInms, facturas: dbFacturas || [], identidad: portalDoc });
-        const seenMap = new Map();
-        rc.billables.forEach(b => seenMap.set(b.inmueble, b));
-        allInms.forEach(a => { if (!seenMap.has(a.inmueble)) seenMap.set(a.inmueble, a); });
-        const validInms = Array.from(seenMap.values()).filter(i => !isTerrenoInm(i) && (i.estado || 'Activo').toLowerCase() !== 'eliminado' && (i.estado || 'Activo').toLowerCase() !== 'inactivo');
-        setUserInms(validInms);
-        await fetchNotasCreditoVigentes(portalDoc, allInms);
-
-        // Cargar nombres oficiales de los condominios asociados
-        const condoPadreCodes = Array.from(new Set(
-          allInms.map((i: any) => i.condominio_padre_id).filter(Boolean)
-        ));
-        if (condoPadreCodes.length > 0) {
-          const { data: condoRows } = await supabase
-            .from('condominios')
-            .select('codigo, nombre')
-            .in('codigo', condoPadreCodes);
-          if (condoRows) {
-            const map: Record<string, string> = {};
-            condoRows.forEach((c: any) => { if (c.codigo && c.nombre) map[c.codigo] = c.nombre; });
-            setCondoNames(map);
-          }
+        let loadedCondoFicha: any = null;
+        if (esSesionCondoPadre && ownCondoCode) {
           try {
-            const rTc = await fetch(`/api/admin/condominios/congelar-tasa?codigos=${encodeURIComponent(condoPadreCodes.join(','))}`, { cache: 'no-store' });
-            const jTc = await rTc.json();
-            const firstActiva = Object.values(jTc?.tasas || {}).find((x: any) => x?.activa) as any;
-            if (firstActiva?.activa) setTasaCongeladaPortal(firstActiva.activa);
+            const rFicha = await fetch(`/api/admin/condominios?codigo=${encodeURIComponent(ownCondoCode)}`, { cache: 'no-store' });
+            const jFicha = await rFicha.json();
+            if (rFicha.ok && jFicha?.condo && jFicha?.estado) {
+              loadedCondoFicha = jFicha;
+              if (jFicha.condo.tasa_congelada_activa) {
+                setTasaCongeladaPortal(jFicha.condo.tasa_congelada_activa);
+              }
+            }
           } catch {}
         }
 
-        const reglaPorInm = new Map<string, 'completo' | 'solo_multa'>();
-        validInms.forEach((inm: any) => reglaPorInm.set(inm.inmueble, reglaCobroInmueble(inm, rc.naCodes, portalDoc)));
-        setReglasCobro(Object.fromEntries(reglaPorInm));
-        const esActCondoPortal = (i: any) => {
-          const a = (i?.actividad_principal || '').toLowerCase();
-          return (a.includes('condominio') && !a.includes('oficina')) || a.includes('padre en sigyr: urb');
-        };
-        const allCondoCodes = new Set([
-          ...(rc.condoInmCodes || []).map((c: string) => String(c).toUpperCase()),
-          ...validInms.filter((i: any) => i.es_condominio || i.condominio_padre_id || esActCondoPortal(i)).map((i: any) => String(i.inmueble || '').toUpperCase())
-        ]);
-        const isCondoRef = (ref: string): boolean => {
-          const r = String(ref || '').toUpperCase();
-          for (const code of allCondoCodes) {
-            if (code && r.includes(code)) return true;
+        if (loadedCondoFicha) {
+          const cObj = loadedCondoFicha.condo;
+          const eObj = loadedCondoFicha.estado;
+          const usAct = (loadedCondoFicha.unidades || []).filter((u: any) => u.estado !== 'Eliminada');
+          const padresSet = new Set(usAct.filter((u: any) => u.padre_unidad_id).map((u: any) => u.padre_unidad_id));
+          const usEf = usAct.filter((u: any) => !padresSet.has(u.id));
+          const esResC = String(cObj.tipo || '').toUpperCase() === 'RESIDENCIAL';
+          const totalUnidadesCondo = esResC
+            ? Math.max(Number(cObj.cant_declarada) || 0, usEf.length)
+            : (usEf.length || Number(cObj.cant_declarada) || 1);
+
+          const cleanCondoName = String(cObj.nombre || '').replace(/^\d+\s*-\s*(?=[A-Za-z])/, '').trim();
+          const parentInm = allInms.find((i: any) => String(i.inmueble || '').toUpperCase() === String(cObj.codigo || '').toUpperCase()) || {};
+          const condoMasterInm = {
+            ...parentInm,
+            id: parentInm.id || cObj.id,
+            inmueble: cObj.codigo,
+            identidad: cObj.identidad || portalDoc,
+            contribuyente: cleanCondoName,
+            tipo: cObj.tipo || 'RESIDENCIAL',
+            clasificacion: 'Condominio',
+            actividad_principal: `CONDOMINIO (${totalUnidadesCondo} UNIDADES)`,
+            mmv_mes: Number(cObj.tarifa_mmv) || Number(parentInm.mmv_mes) || 0.8,
+            cant_inmuebles: totalUnidadesCondo,
+            direccion: cObj.direccion || parentInm.direccion || 'Municipio Naguanagua',
+            estado: 'Activo',
+            es_condominio: true,
+            esSesionCondominioMatriz: true,
+            condominio_padre_id: null,
+            padre_id: null,
+            meses_deuda: Number(eObj?.totales?.mesesMax) || 0,
+            deuda_mmv: 0,
+            multa_bs: Number(eObj?.totales?.multaBs) || 0,
+          };
+
+          setUserInms([condoMasterInm]);
+          await fetchNotasCreditoVigentes(portalDoc, [condoMasterInm]);
+
+          // Construir recibos mensuales del condominio a partir de los renglones de calcularEstado
+          const periodosMap = new Map<string, { base: number; iva: number; multa: number; ret: number; total: number }>();
+          (eObj?.renglones || []).forEach((r: any) => {
+            const pList: string[] = Array.isArray(r.periodos) ? r.periodos : [];
+            const pmList: any[] = Array.isArray(r.deuda?.porMes) ? r.deuda.porMes : [];
+            pList.forEach((pKey, idx) => {
+              const pm = pmList[idx];
+              if (!pm) return;
+              const cur = periodosMap.get(pKey) || { base: 0, iva: 0, multa: 0, ret: 0, total: 0 };
+              cur.base = Math.round((cur.base + (Number(pm.baseBs) || 0)) * 100) / 100;
+              cur.iva = Math.round((cur.iva + (Number(pm.ivaBs) || 0)) * 100) / 100;
+              cur.multa = Math.round((cur.multa + (Number(pm.multaBs) || 0)) * 100) / 100;
+              cur.ret = Math.round((cur.ret + (Number(pm.retencionBs) || 0)) * 100) / 100;
+              cur.total = Math.round((cur.total + (Number(pm.totalBs) || 0)) * 100) / 100;
+              periodosMap.set(pKey, cur);
+            });
+          });
+
+          const sortedPeriodos = [...periodosMap.keys()].sort();
+          const condoRecibos = sortedPeriodos.map((pKey, idx) => {
+            const mObj = periodosMap.get(pKey)!;
+            return {
+              id: `condo-rec-${cObj.codigo}-${pKey}`,
+              referencia: `RECIB-HIST-${cObj.codigo}-M${idx + 1}`,
+              identidad: cObj.identidad || portalDoc,
+              contribuyente: cleanCondoName,
+              inmueble: cObj.codigo,
+              emision: `${pKey}-01`,
+              vencimiento: `${pKey}-01`,
+              monto: String(mObj.total.toFixed(2)),
+              base: mObj.base,
+              iva: mObj.iva,
+              multa: mObj.multa,
+              retencion: mObj.ret,
+              estado: 'Pendiente',
+              esReciboCondominioMatriz: true,
+              mesIndex: idx + 1,
+            };
+          });
+          setReglasCobro({ [cObj.codigo]: 'completo' });
+          setBloqueadoPorCondominio(false);
+          setRawRecibos(condoRecibos);
+        } else {
+          const { data: dbFacturas } = await supabase
+            .from('facturas')
+            .select('*')
+            .or(orFilter)
+            .in('estado', ['Pendiente', 'Abonado', 'Por Verificar'])
+            .order('emision', { ascending: true });
+
+          // FUENTE ÚNICA (idéntica a Caja y Cobro Móvil): inmuebles cobrables, facturas y meses históricos.
+          // Las unidades de condominio se cobran por Caja Condominios (igual que en Caja).
+          const rc = construirRecibosContribuyente({ inmuebles: allInms, facturas: dbFacturas || [], identidad: portalDoc });
+          const seenMap = new Map();
+          rc.billables.forEach(b => seenMap.set(b.inmueble, b));
+          allInms.forEach(a => { if (!seenMap.has(a.inmueble)) seenMap.set(a.inmueble, a); });
+          const validInms = Array.from(seenMap.values()).filter(i => !isTerrenoInm(i) && (i.estado || 'Activo').toLowerCase() !== 'eliminado' && (i.estado || 'Activo').toLowerCase() !== 'inactivo');
+          setUserInms(validInms);
+          await fetchNotasCreditoVigentes(portalDoc, allInms);
+
+          // Cargar nombres oficiales de los condominios asociados
+          const condoPadreCodes = Array.from(new Set(
+            allInms.map((i: any) => i.condominio_padre_id).filter(Boolean)
+          ));
+          if (condoPadreCodes.length > 0) {
+            const { data: condoRows } = await supabase
+              .from('condominios')
+              .select('codigo, nombre')
+              .in('codigo', condoPadreCodes);
+            if (condoRows) {
+              const map: Record<string, string> = {};
+              condoRows.forEach((c: any) => { if (c.codigo && c.nombre) map[c.codigo] = c.nombre; });
+              setCondoNames(map);
+            }
+            try {
+              const rTc = await fetch(`/api/admin/condominios/congelar-tasa?codigos=${encodeURIComponent(condoPadreCodes.join(','))}`, { cache: 'no-store' });
+              const jTc = await rTc.json();
+              const firstActiva = Object.values(jTc?.tasas || {}).find((x: any) => x?.activa) as any;
+              if (firstActiva?.activa) setTasaCongeladaPortal(firstActiva.activa);
+            } catch {}
           }
-          return false;
-        };
-        const safeRecibos = rc.recibos.filter((r: any) => String(r.referencia || '').toUpperCase().startsWith('MULTA-') || !isCondoRef(r.referencia));
-        setBloqueadoPorCondominio(rc.soloCondominio && safeRecibos.length === 0);
-        setRawRecibos(safeRecibos);
+
+          const reglaPorInm = new Map<string, 'completo' | 'solo_multa'>();
+          validInms.forEach((inm: any) => reglaPorInm.set(inm.inmueble, reglaCobroInmueble(inm, rc.naCodes, portalDoc)));
+          setReglasCobro(Object.fromEntries(reglaPorInm));
+          const esActCondoPortal = (i: any) => {
+            const a = (i?.actividad_principal || '').toLowerCase();
+            return (a.includes('condominio') && !a.includes('oficina')) || a.includes('padre en sigyr: urb');
+          };
+          const allCondoCodes = new Set([
+            ...(rc.condoInmCodes || []).map((c: string) => String(c).toUpperCase()),
+            ...validInms.filter((i: any) => i.es_condominio || i.condominio_padre_id || esActCondoPortal(i)).map((i: any) => String(i.inmueble || '').toUpperCase())
+          ]);
+          const isCondoRef = (ref: string): boolean => {
+            const r = String(ref || '').toUpperCase();
+            for (const code of allCondoCodes) {
+              if (code && r.includes(code)) return true;
+            }
+            return false;
+          };
+          const safeRecibos = rc.recibos.filter((r: any) => String(r.referencia || '').toUpperCase().startsWith('MULTA-') || !isCondoRef(r.referencia));
+          setBloqueadoPorCondominio(rc.soloCondominio && safeRecibos.length === 0);
+          setRawRecibos(safeRecibos);
+        }
 
         // Servicios especiales / extraordinarios pendientes del contribuyente
         try {
@@ -408,6 +520,7 @@ export default function DondePagarPage() {
   /** IVA retenido (75%) de un recibo — solo agentes de retención (misma regla de Caja). */
   const getReciboRetencion = (r: any): number => {
     if (r.estado === 'Abonado') return 0;
+    if (r.esReciboCondominioMatriz) return Number(r.retencion) || 0;
     const currentRate = effectiveTcmmv > 0 ? effectiveTcmmv : 1;
     if (r.referencia?.startsWith('RECIB-HIST-')) {
       const c = r.referencia.split('-')[2];
@@ -423,6 +536,7 @@ export default function DondePagarPage() {
 
   const getReciboMonto = (r: any): number => {
     if (r.estado === 'Abonado') return parseFloat(String(r.monto || '0').replace(/[^\d.]/g, '')) || 0;
+    if (r.esReciboCondominioMatriz) return parseFloat(String(r.monto || '0')) || 0;
     const currentRate = effectiveTcmmv > 0 ? effectiveTcmmv : 1;
 
     let baseMonto = 0;
@@ -525,6 +639,7 @@ export default function DondePagarPage() {
     return clusterOrder.map((clusterId) => {
       const c = clusterMapData[clusterId];
       const isCondoInm = (i: any) => {
+        if (i?.esSesionCondominioMatriz) return false;
         const a = (i?.actividad_principal || '').toLowerCase();
         return Boolean(
           i?.es_condominio ||

@@ -29,8 +29,22 @@ export default function InmueblesPage() {
         }
 
         // Búsqueda por coincidencia exacta de prefijo (V, J, G, etc.)
+        const rawUpper = String(portalDoc).trim().toUpperCase();
+        const isCodeSearch = /^(URB|AURI)\d+$/i.test(rawUpper);
         const variants = getIdentidadVariantsExact(portalDoc);
-        const orFilter = variants.map(v => `identidad.eq.${v}`).join(',');
+        const orFilter = isCodeSearch
+          ? `inmueble.eq.${rawUpper},cod_cont.eq.${rawUpper}`
+          : variants.map(v => `identidad.eq.${v}`).join(',');
+
+        const orCondoTbl = isCodeSearch
+          ? `codigo.eq.${rawUpper}`
+          : [...variants.map(v => `identidad.eq.${v}`), `codigo.eq.${rawUpper}`].join(',');
+        const { data: ownCondoRows } = await supabase
+          .from('condominios')
+          .select('codigo, nombre')
+          .or(orCondoTbl)
+          .neq('estado', 'Eliminado');
+        const ownCondoCodes = (ownCondoRows || []).map((c: any) => String(c.codigo || '').trim().toUpperCase()).filter(Boolean);
 
         let { data: inmsDB } = await supabase
           .from('inmuebles')
@@ -62,9 +76,9 @@ export default function InmueblesPage() {
         let inmsFinal: InmuebleBasic[] = allInmsRaw.filter(isActivo);
 
         // Si es condominio, traer las unidades filiales asociadas
-        const isCondo = inmsFinal.some(i => i.es_condominio === true || ((i.actividad_principal || '').toLowerCase().includes('condominio') && !(i.actividad_principal || '').toLowerCase().includes('oficina')));
+        const isCondo = ownCondoCodes.length > 0 || inmsFinal.some(i => i.es_condominio === true || ((i.actividad_principal || '').toLowerCase().includes('condominio') && !(i.actividad_principal || '').toLowerCase().includes('oficina')));
         if (isCondo) {
-          const condoCodes = inmsFinal.map(i => i.inmueble).filter(Boolean);
+          const condoCodes = Array.from(new Set([...ownCondoCodes, ...inmsFinal.filter(i => i.es_condominio).map(i => i.inmueble).filter(Boolean)]));
           if (condoCodes.length > 0) {
             const { data: hijos } = await supabase
               .from('inmuebles')

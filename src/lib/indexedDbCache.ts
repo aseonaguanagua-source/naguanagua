@@ -10,7 +10,7 @@ const DB_VERSION = 2;
 const STORE_NAME = 'app_cache';
 
 // Versión del caché: cambiar para invalidar y forzar refresco automático en todos los clientes
-export const CURRENT_CACHE_VERSION = 'v2026_11_19_sync_reporte_diario_morosos_v10';
+export const CURRENT_CACHE_VERSION = 'v2026_11_19_sync_portal_condominio_v11';
 
 function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {

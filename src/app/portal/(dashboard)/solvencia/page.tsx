@@ -34,65 +34,139 @@ export default function SolvenciaPage() {
     setLoading(true);
     try {
       const variants = getIdentidadVariants(doc);
-      
+      const portalCodigo = typeof window !== 'undefined' ? (localStorage.getItem('portal_codigo') || '') : '';
+      const isCondoMasterSession = typeof window !== 'undefined' && sessionStorage.getItem('portal_condo_key') === 'Sehile18-';
+
+      // 0. Verificar si la sesión corresponde a un Condominio Matriz
+      const orCondoMatriz = [...variants.map(v => `identidad.eq.${v}`), ...(portalCodigo ? [`codigo.eq.${portalCodigo}`] : [])].filter(Boolean).join(',');
+      const { data: ownCondoRow } = orCondoMatriz
+        ? await supabase
+            .from('condominios')
+            .select('id, codigo, nombre, identidad, tipo, modalidad, cant_declarada, tarifa_mmv, direccion, correo, telefono, aseo_pendiente_desde, multa_meses')
+            .neq('estado', 'Eliminado')
+            .or(orCondoMatriz)
+            .limit(1)
+            .maybeSingle()
+        : { data: null };
+
       // 1. Cargar inmuebles directamente de Supabase (garantiza datos en tiempo real)
-      const { data: inms, error: inmsErr } = await supabase
+      const { data: inms } = await supabase
         .from('inmuebles')
         .select('*')
         .in('identidad', variants);
 
-      if (inms && inms.length > 0) {
+      if ((inms && inms.length > 0) || ownCondoRow) {
         // Excluir inmuebles eliminados
-        const noEliminados = inms.filter((i: any) => i.estado !== 'Eliminado');
+        const noEliminados = (inms || []).filter((i: any) => i.estado !== 'Eliminado');
+        const ownCondoCode = String(ownCondoRow?.codigo || '').trim().toUpperCase();
+        const tieneInmIndep = noEliminados.some((i: any) => !i.condominio_padre_id && !i.padre_id && !i.es_condominio);
+        const esSesionCondoPadre = Boolean(ownCondoRow && (isCondoMasterSession || !tieneInmIndep || noEliminados.some((i: any) => i.es_condominio && String(i.inmueble).toUpperCase() === ownCondoCode)));
 
-        // Mapear hijos asociados por padre_id
-        const hijosPorPadre = new Map<string, any[]>();
-        const codigosHijos = new Set<string>();
+        if (esSesionCondoPadre && ownCondoRow) {
+          let parentInm = noEliminados.find((i: any) => String(i.inmueble || '').trim().toUpperCase() === ownCondoCode);
+          let mesesCondo = parentInm ? (parseInt(String(parentInm.meses_deuda || 0), 10) || 0) : 0;
+          let cantUnidades = Number(ownCondoRow.cant_declarada) || (parentInm ? Number(parentInm.cant_inmuebles) || 1 : 1);
+          try {
+            const rFicha = await fetch(`/api/admin/condominios?codigo=${encodeURIComponent(ownCondoCode)}`, { cache: 'no-store' });
+            const jFicha = await rFicha.json();
+            if (jFicha?.estado?.totales) {
+              mesesCondo = jFicha.estado.totales.totalBs > 0.01 ? Math.max(1, Number(jFicha.estado.totales.mesesMax) || 1) : 0;
+            }
+            const usAct = (jFicha?.unidades || []).filter((u: any) => u.estado !== 'Eliminada');
+            const padresSet = new Set(usAct.filter((u: any) => u.padre_unidad_id).map((u: any) => u.padre_unidad_id));
+            const usEf = usAct.filter((u: any) => !padresSet.has(u.id));
+            if (String(ownCondoRow.tipo || '').toUpperCase() === 'RESIDENCIAL') {
+              cantUnidades = Math.max(Number(ownCondoRow.cant_declarada) || 0, usEf.length);
+            } else {
+              cantUnidades = usEf.length || Number(ownCondoRow.cant_declarada) || 1;
+            }
+          } catch {}
 
-        noEliminados.forEach((i: any) => {
-          if (i.padre_id && i.estado !== 'Eliminado') {
-            const list = hijosPorPadre.get(i.padre_id) || [];
-            list.push(i);
-            hijosPorPadre.set(i.padre_id, list);
-            codigosHijos.add(i.inmueble);
-          }
-        });
+          const cleanCondoName = String(ownCondoRow.nombre || parentInm?.contribuyente || currentName || '').replace(/^\d+\s*-\s*(?=[A-Za-z])/, '').trim();
+          const condoPrincipalObj = {
+            ...(parentInm || {}),
+            id: parentInm?.id || ownCondoRow.id,
+            inmueble: ownCondoCode,
+            identidad: ownCondoRow.identidad || doc,
+            contribuyente: cleanCondoName,
+            tipo: ownCondoRow.tipo || parentInm?.tipo || 'RESIDENCIAL',
+            actividad_principal: `CONDOMINIO (${cantUnidades} UNIDADES)`,
+            mmv_mes: Number(ownCondoRow.tarifa_mmv) || Number(parentInm?.mmv_mes) || 0.8,
+            cant_inmuebles: cantUnidades,
+            direccion: ownCondoRow.direccion || parentInm?.direccion || 'Municipio Naguanagua',
+            correo_electronico: ownCondoRow.correo || parentInm?.correo_electronico || '',
+            telefono: ownCondoRow.telefono || parentInm?.telefono || '',
+            estado: 'Activo',
+            es_condominio: true,
+            esSesionCondominioMatriz: true,
+            condominio_padre_id: null,
+            padre_id: null,
+            meses_deuda: mesesCondo,
+            deuda_mmv: mesesCondo > 0 ? (Number(parentInm?.deuda_mmv) || mesesCondo) : 0,
+            deuda_congelada_bs: 0,
+            multa_bs: 0,
+          };
 
-        // Construir inmuebles procesados: agrupar los N/A con sus actividades hijas
-        const procesados = noEliminados
-          .filter((i: any) => !codigosHijos.has(i.inmueble))
-          .map((padre: any) => {
-            const actividadesHijas = hijosPorPadre.get(padre.inmueble) || [];
-            if (actividadesHijas.length === 0) return padre;
+          const otrosIndep = noEliminados.filter((i: any) =>
+            String(i.inmueble || '').trim().toUpperCase() !== ownCondoCode &&
+            String(i.condominio_padre_id || '').trim().toUpperCase() !== ownCondoCode &&
+            !i.condominio_padre_id
+          );
 
-            // Regla oficial N/A: su pago y deuda es la sumatoria de sus actividades
-            const sumMMV = Math.round(actividadesHijas.reduce((acc: number, c: any) => acc + (parseFloat(c.mmv_mes) || 0), 0) * 100) / 100;
-            const maxMeses = actividadesHijas.reduce((acc: number, c: any) => {
-              const m = parseInt(c.meses_deuda || 0);
-              const d = parseFloat(c.deuda_mmv || 0);
-              return Math.max(acc, m > 0 ? m : (d > 0 ? 1 : 0));
-            }, parseInt(padre.meses_deuda || 0));
-            const sumDeudaMMV = Math.round(actividadesHijas.reduce((acc: number, c: any) => acc + (parseFloat(c.deuda_mmv) || 0), parseFloat(padre.deuda_mmv || 0)) * 10000) / 10000;
-            const sumCongelada = Math.round(actividadesHijas.reduce((acc: number, c: any) => acc + (parseFloat(c.deuda_congelada_bs) || 0), parseFloat(padre.deuda_congelada_bs || 0)) * 100) / 100;
-            const sumMulta = Math.round(actividadesHijas.reduce((acc: number, c: any) => acc + (parseFloat(c.multa_bs) || 0), parseFloat(padre.multa_bs || 0)) * 100) / 100;
+          const listaFinalCondo = [condoPrincipalObj, ...otrosIndep];
+          setInmueblesList(listaFinalCondo);
+          setSelectedInmId(ownCondoCode);
+          if (cleanCondoName) setContribuyenteNombre(cleanCondoName);
+        } else {
+          // Mapear hijos asociados por padre_id
+          const hijosPorPadre = new Map<string, any[]>();
+          const codigosHijos = new Set<string>();
 
-            return {
-              ...padre,
-              mmv_mes: sumMMV > 0 ? sumMMV : padre.mmv_mes,
-              meses_deuda: maxMeses,
-              deuda_mmv: sumDeudaMMV,
-              deuda_congelada_bs: sumCongelada,
-              multa_bs: sumMulta,
-              cant_inmuebles: actividadesHijas.length,
-              actividadesHijas,
-              esGrupoNA: true
-            };
+          noEliminados.forEach((i: any) => {
+            if (i.padre_id && i.estado !== 'Eliminado') {
+              const list = hijosPorPadre.get(i.padre_id) || [];
+              list.push(i);
+              hijosPorPadre.set(i.padre_id, list);
+              codigosHijos.add(i.inmueble);
+            }
           });
 
-        setInmueblesList(procesados);
-        setSelectedInmId(procesados[0]?.inmueble || procesados[0]?.id || '');
-        if (!currentName && procesados[0]?.contribuyente) {
-          setContribuyenteNombre(procesados[0].contribuyente);
+          // Construir inmuebles procesados: agrupar los N/A con sus actividades hijas
+          const procesados = noEliminados
+            .filter((i: any) => !codigosHijos.has(i.inmueble))
+            .map((padre: any) => {
+              const actividadesHijas = hijosPorPadre.get(padre.inmueble) || [];
+              if (actividadesHijas.length === 0) return padre;
+
+              // Regla oficial N/A: su pago y deuda es la sumatoria de sus actividades
+              const sumMMV = Math.round(actividadesHijas.reduce((acc: number, c: any) => acc + (parseFloat(c.mmv_mes) || 0), 0) * 100) / 100;
+              const maxMeses = actividadesHijas.reduce((acc: number, c: any) => {
+                const m = parseInt(c.meses_deuda || 0);
+                const d = parseFloat(c.deuda_mmv || 0);
+                return Math.max(acc, m > 0 ? m : (d > 0 ? 1 : 0));
+              }, parseInt(padre.meses_deuda || 0));
+              const sumDeudaMMV = Math.round(actividadesHijas.reduce((acc: number, c: any) => acc + (parseFloat(c.deuda_mmv) || 0), parseFloat(padre.deuda_mmv || 0)) * 10000) / 10000;
+              const sumCongelada = Math.round(actividadesHijas.reduce((acc: number, c: any) => acc + (parseFloat(c.deuda_congelada_bs) || 0), parseFloat(padre.deuda_congelada_bs || 0)) * 100) / 100;
+              const sumMulta = Math.round(actividadesHijas.reduce((acc: number, c: any) => acc + (parseFloat(c.multa_bs) || 0), parseFloat(padre.multa_bs || 0)) * 100) / 100;
+
+              return {
+                ...padre,
+                mmv_mes: sumMMV > 0 ? sumMMV : padre.mmv_mes,
+                meses_deuda: maxMeses,
+                deuda_mmv: sumDeudaMMV,
+                deuda_congelada_bs: sumCongelada,
+                multa_bs: sumMulta,
+                cant_inmuebles: actividadesHijas.length,
+                actividadesHijas,
+                esGrupoNA: true
+              };
+            });
+
+          setInmueblesList(procesados);
+          setSelectedInmId(procesados[0]?.inmueble || procesados[0]?.id || '');
+          if (!currentName && procesados[0]?.contribuyente) {
+            setContribuyenteNombre(procesados[0].contribuyente);
+          }
         }
       }
 
@@ -117,7 +191,7 @@ export default function SolvenciaPage() {
     return inmueblesList.find(i => (i.inmueble === selectedInmId || i.id === selectedInmId)) || inmueblesList[0];
   }, [inmueblesList, selectedInmId]);
 
-  const isCondoUnit = activeInm && (!!activeInm.condominio_padre_id || (activeInm.actividad_principal || '').includes('HIJO_DE:'));
+  const isCondoUnit = activeInm && !activeInm.esSesionCondominioMatriz && !activeInm.es_condominio && (!!activeInm.condominio_padre_id || (activeInm.actividad_principal || '').includes('HIJO_DE:'));
   const esPagoIndividual = activeInm && ((activeInm.actividad_principal || '').includes('PAGOS INDIVIDUALES') || isCondominioPagoIndividual(activeInm));
   const isBlockedByCondo = isCondoUnit && !esPagoIndividual;
 

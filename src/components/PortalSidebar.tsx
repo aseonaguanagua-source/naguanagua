@@ -79,7 +79,7 @@ export default function PortalSidebar({ isOpen = false, setIsOpen }: PortalSideb
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState<string>('Contribuyente');
-  const [categoriaUso, setCategoriaUso] = useState<'RESIDENCIAL' | 'COMERCIAL' | 'MIXTO'>('RESIDENCIAL');
+  const [categoriaUso, setCategoriaUso] = useState<'RESIDENCIAL' | 'COMERCIAL' | 'MIXTO' | 'CONDOMINIO'>('RESIDENCIAL');
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [isAgente, setIsAgente] = useState(false);
 
@@ -135,47 +135,67 @@ export default function PortalSidebar({ isOpen = false, setIsOpen }: PortalSideb
   }, []);
 
   useEffect(() => {
+    const cleanCondoName = (s: string) => String(s || '').replace(/^\d+\s*-\s*(?=[A-Za-z])/, '').trim();
     const portalUser = localStorage.getItem('portal_user');
-    if (portalUser) setUser(portalUser);
+    if (portalUser) setUser(cleanCondoName(portalUser));
     const doc = localStorage.getItem('portal_doc') || localStorage.getItem('portal_codigo') || '';
+    const codigo = localStorage.getItem('portal_codigo') || '';
+    const isCondoMasterSession = typeof window !== 'undefined' && sessionStorage.getItem('portal_condo_key') === 'Sehile18-';
     if (doc) {
-      if (doc.startsWith('J') || doc.startsWith('G')) {
+      if (isCondoMasterSession) {
+        setCategoriaUso('CONDOMINIO');
+      } else if (doc.startsWith('J') || doc.startsWith('G')) {
         setCategoriaUso('COMERCIAL');
       }
       const docClean = doc.replace(/-/g,'');
-      supabase.from('contribuyentes').select('nombre')
-        .or(`identidad.eq.${doc},identidad.eq.${docClean}`)
-        .limit(1)
-        .maybeSingle()
-        .then(({ data }) => {
-          if (data?.nombre) {
-            setUser(data.nombre);
-            localStorage.setItem('portal_user', data.nombre);
-          }
-        });
+      const orCondo = [`identidad.eq.${doc}`, `identidad.eq.${docClean}`, ...(codigo ? [`codigo.eq.${codigo}`] : [])].join(',');
 
-      supabase.from('inmuebles').select('agente_retencion, tipo, clasificacion, actividad_principal, estado')
-        .or(`identidad.eq.${doc},identidad.eq.${docClean}`)
-        .then(({ data }) => {
-          if (data && data.length > 0) {
-            const activos = data.filter((i: any) => {
-              const est = (i.estado || 'Activo').trim().toLowerCase();
-              return est !== 'eliminado' && est !== 'inactivo' && est !== 'desactivado';
-            });
-            if (activos.some((i: any) => i.agente_retencion)) setIsAgente(true);
-            let hasRes = false;
-            let hasCom = false;
-            activos.forEach((i: any) => {
-              if (isResidencialInm(i)) hasRes = true;
-              else hasCom = true;
-            });
-            if (hasRes && hasCom) setCategoriaUso('MIXTO');
-            else if (hasCom) setCategoriaUso('COMERCIAL');
-            else if (hasRes) setCategoriaUso('RESIDENCIAL');
-          }
+      Promise.all([
+        supabase.from('condominios').select('codigo, nombre, tipo').neq('estado', 'Eliminado').or(orCondo).limit(1).maybeSingle(),
+        supabase.from('contribuyentes').select('nombre').or(`identidad.eq.${doc},identidad.eq.${docClean}`).limit(1).maybeSingle(),
+        supabase.from('inmuebles').select('inmueble, contribuyente, agente_retencion, tipo, clasificacion, actividad_principal, es_condominio, condominio_padre_id, padre_id, estado').or(`identidad.eq.${doc},identidad.eq.${docClean}`),
+      ]).then(([{ data: condoRow }, { data: contribRow }, { data: inmsRows }]) => {
+        const activos = (inmsRows || []).filter((i: any) => {
+          const est = (i.estado || 'Activo').trim().toLowerCase();
+          return est !== 'eliminado' && est !== 'inactivo' && est !== 'desactivado';
         });
+        if (activos.some((i: any) => i.agente_retencion)) setIsAgente(true);
+
+        const tieneInmIndep = activos.some((i: any) => !i.condominio_padre_id && !i.padre_id && !i.es_condominio);
+        const esSesionCondominioMatriz = Boolean(condoRow && (isCondoMasterSession || !tieneInmIndep || activos.some((i: any) => i.es_condominio && i.inmueble === condoRow.codigo)));
+
+        if (esSesionCondominioMatriz && condoRow?.nombre) {
+          const nomLimpio = cleanCondoName(condoRow.nombre);
+          setUser(nomLimpio);
+          localStorage.setItem('portal_user', nomLimpio);
+          setCategoriaUso('CONDOMINIO');
+          return;
+        }
+
+        const inmPrincipal = activos.find((i: any) => !i.condominio_padre_id && !i.padre_id) || activos[0];
+        const rawNombre = contribRow?.nombre || inmPrincipal?.contribuyente || portalUser || 'Contribuyente';
+        const finalNombre = cleanCondoName(rawNombre);
+        if (finalNombre) {
+          setUser(finalNombre);
+          localStorage.setItem('portal_user', finalNombre);
+        }
+
+        if (activos.some((i: any) => i.es_condominio || String(i.clasificacion || '').toLowerCase() === 'condominio')) {
+          setCategoriaUso('CONDOMINIO');
+        } else if (activos.length > 0) {
+          let hasRes = false;
+          let hasCom = false;
+          activos.forEach((i: any) => {
+            if (isResidencialInm(i)) hasRes = true;
+            else hasCom = true;
+          });
+          if (hasRes && hasCom) setCategoriaUso('MIXTO');
+          else if (hasCom) setCategoriaUso('COMERCIAL');
+          else if (hasRes) setCategoriaUso('RESIDENCIAL');
+        }
+      });
     }
-  }, []);
+  }, [pathname]);
 
   const handleLogout = () => {
     localStorage.removeItem('portal_user');
@@ -206,13 +226,17 @@ export default function PortalSidebar({ isOpen = false, setIsOpen }: PortalSideb
             {user}
           </h3>
           <span className={`mt-1.5 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black tracking-wide ${
-            categoriaUso === 'COMERCIAL'
+            categoriaUso === 'CONDOMINIO'
+              ? 'bg-purple-500/20 text-purple-300 border border-purple-400/40'
+              : categoriaUso === 'COMERCIAL'
               ? 'bg-sky-500/20 text-sky-300 border border-sky-400/40'
               : categoriaUso === 'MIXTO'
               ? 'bg-amber-500/20 text-amber-300 border border-amber-400/40'
               : 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/40'
           }`}>
-            {categoriaUso === 'COMERCIAL'
+            {categoriaUso === 'CONDOMINIO'
+              ? '🏢 CONDOMINIO'
+              : categoriaUso === 'COMERCIAL'
               ? '🏪 COMERCIAL'
               : categoriaUso === 'MIXTO'
               ? '🏠 RES. / 🏪 COM.'

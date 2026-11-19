@@ -40,6 +40,24 @@ export default function DeudaCondominiosPortal({ identidad }: { identidad: strin
       try {
         const variants = getIdentidadVariantsExact(identidad);
         const orFilter = variants.map(v => `identidad.eq.${v}`).join(',');
+        const portalCodigo = typeof window !== 'undefined' ? (localStorage.getItem('portal_codigo') || '') : '';
+        const isCondoMasterSession = typeof window !== 'undefined' && sessionStorage.getItem('portal_condo_key') === 'Sehile18-';
+
+        // 0. Verificar si la sesión actual es el propio Condominio Padre Matriz
+        const orCondoMatriz = [orFilter, ...(portalCodigo ? [`codigo.eq.${portalCodigo}`] : [])].filter(Boolean).join(',');
+        const { data: ownCondoRows } = await supabase
+          .from('condominios')
+          .select('codigo')
+          .neq('estado', 'Eliminado')
+          .or(orCondoMatriz);
+        const ownCondoCodesSet = new Set(
+          (ownCondoRows || []).map((c: any) => String(c?.codigo || '').trim().toUpperCase()).filter(Boolean)
+        );
+        if (isCondoMasterSession && ownCondoCodesSet.size > 0) {
+          setCondoUnits([]);
+          setLoading(false);
+          return;
+        }
 
         // 1. Inmuebles con condominio_padre_id
         const { data: inms } = await supabase
@@ -61,7 +79,9 @@ export default function DeudaCondominiosPortal({ identidad }: { identidad: strin
 
         (inms || []).forEach((i: any) => {
           if (i.condominio_padre_id) {
-            condoCodesToFetch.add(i.condominio_padre_id.toUpperCase());
+            const pCodUpper = String(i.condominio_padre_id).trim().toUpperCase();
+            if (ownCondoCodesSet.has(pCodUpper)) return;
+            condoCodesToFetch.add(pCodUpper);
             items.push({
               inmueble: i.inmueble,
               condominioCodigo: i.condominio_padre_id,
@@ -77,6 +97,7 @@ export default function DeudaCondominiosPortal({ identidad }: { identidad: strin
 
         (cUnits || []).forEach((u: any) => {
           const cCod = u.condominios?.codigo || '';
+          if (cCod && ownCondoCodesSet.has(String(cCod).trim().toUpperCase())) return;
           const cNom = u.condominios?.nombre || cCod;
           const exist = items.find(it => it.inmueble === u.inmueble);
           if (!exist) {
