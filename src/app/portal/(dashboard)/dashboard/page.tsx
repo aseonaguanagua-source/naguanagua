@@ -59,9 +59,9 @@ export default function DatosContribuyentePage() {
 
         const rInm = inmsData && inmsData.length > 0
           ? (
-              inmsData.find(i => i.es_condominio === true && !i.condominio_padre_id) ||
               inmsData.find(i => !i.condominio_padre_id && !i.padre_id && !i.es_condominio && (i.actividad_principal || '').trim().toUpperCase() !== 'N/A') ||
               inmsData.find(i => !i.condominio_padre_id && !i.es_condominio) ||
+              inmsData.find(i => i.es_condominio === true && !i.condominio_padre_id) ||
               inmsData.find(i => !i.condominio_padre_id) ||
               inmsData.find(i => (i.actividad_principal || '').trim().toUpperCase() !== 'N/A') ||
               inmsData[0]
@@ -69,7 +69,8 @@ export default function DatosContribuyentePage() {
           : null;
 
         let condoMatriz: any = null;
-        if (rInm?.es_condominio || !inmsData || inmsData.length === 0 || inmsData.every(i => i.es_condominio || i.condominio_padre_id)) {
+        const soloEsCondominio = !inmsData || inmsData.length === 0 || inmsData.every(i => i.es_condominio || i.condominio_padre_id);
+        if (rInm?.es_condominio || soloEsCondominio) {
           const { data: cMat } = await supabase
             .from('condominios')
             .select('codigo, nombre, identidad, correo, telefono, direccion')

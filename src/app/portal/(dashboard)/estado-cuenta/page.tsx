@@ -563,7 +563,8 @@ export default function EstadoCuentaPage() {
     const docNorm = portalDoc.replace(/-/g, '').toUpperCase();
     const myContribuyente = contribuyentes?.find((c: any) => (c.Identidad || '').replace(/-/g, '').toUpperCase() === docNorm);
 
-    const mainInm = misInmuebles.find((i: any) => i.es_condominio && !i.condominio_padre_id)
+    const mainInm = misInmuebles.find((i: any) => !i.condominio_padre_id && !i.padre_id && !i.es_condominio)
+      || misInmuebles.find((i: any) => i.es_condominio && !i.condominio_padre_id)
       || misInmuebles.find((i: any) => !i.condominio_padre_id)
       || misInmuebles[0];
     const viewData = {
@@ -767,7 +768,8 @@ export default function EstadoCuentaPage() {
       doc.setFont('helvetica', 'normal');
       doc.text('Contribuyente:', 14, y);
       doc.setFont('helvetica', 'bold');
-      const splitContrib = doc.splitTextToSize(String(viewData.Contribuyente || ''), 102);
+      const clusterOwnerName = cluster.parentInm?.contribuyente || cluster.inms?.[0]?.contribuyente || viewData.Contribuyente || '';
+      const splitContrib = doc.splitTextToSize(String(clusterOwnerName), 102);
       doc.text(splitContrib, 38, y);
 
       doc.setFont('helvetica', 'normal');

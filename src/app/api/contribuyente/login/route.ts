@@ -43,8 +43,8 @@ export async function POST(request: Request) {
 
     if (records && records.length > 1) {
       records = [...records].sort((a: any, b: any) => {
-        const aRank = a.es_condominio ? 0 : (!a.condominio_padre_id && !a.padre_id ? 1 : 2);
-        const bRank = b.es_condominio ? 0 : (!b.condominio_padre_id && !b.padre_id ? 1 : 2);
+        const aRank = (!a.condominio_padre_id && !a.padre_id && !a.es_condominio) ? 0 : (a.es_condominio ? 1 : 2);
+        const bRank = (!b.condominio_padre_id && !b.padre_id && !b.es_condominio) ? 0 : (b.es_condominio ? 1 : 2);
         return aRank - bRank;
       });
     }
@@ -117,13 +117,18 @@ export async function POST(request: Request) {
       );
     }
 
+    const tieneInmIndependiente = Boolean(
+      records && records.some((r: any) => !r.condominio_padre_id && !r.padre_id && !r.es_condominio)
+    );
+    const usarDatosCondoMatriz = Boolean(condoMatrizRow && !tieneInmIndependiente);
+
     const user = (records && records.length > 0) ? {
       ...records[0],
-      contribuyente: condoMatrizRow?.nombre || records[0].contribuyente,
-      cod_cont: condoMatrizRow?.codigo || (records[0] as any).inmueble || records[0].cod_cont || records[0].identidad,
+      contribuyente: (usarDatosCondoMatriz ? condoMatrizRow?.nombre : null) || records[0].contribuyente,
+      cod_cont: (usarDatosCondoMatriz ? condoMatrizRow?.codigo : null) || (records[0] as any).inmueble || records[0].cod_cont || records[0].identidad,
       clave_portal: records.find((r: any) => r.clave_portal)?.clave_portal || contribRec?.clave_portal || null,
-      correo_electronico: condoMatrizRow?.correo || records.find((r: any) => r.correo_electronico)?.correo_electronico || contribRec?.email || '',
-      telefono: condoMatrizRow?.telefono || records.find((r: any) => r.telefono)?.telefono || contribRec?.telefono || ''
+      correo_electronico: (usarDatosCondoMatriz ? condoMatrizRow?.correo : null) || records.find((r: any) => r.correo_electronico)?.correo_electronico || contribRec?.email || '',
+      telefono: (usarDatosCondoMatriz ? condoMatrizRow?.telefono : null) || records.find((r: any) => r.telefono)?.telefono || contribRec?.telefono || ''
     } : (contribRec ? {
       contribuyente: contribRec?.nombre,
       cod_cont: contribRec?.identidad,
