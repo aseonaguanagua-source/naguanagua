@@ -172,6 +172,11 @@ export async function POST(req: Request) {
       const isoCaracas = `${fechaEmisionClean}T12:00:00-04:00`;
 
       nuevosDetalles.fecha_emision_override = fechaEmisionClean;
+      if (Array.isArray(nuevosDetalles.recibo_caja)) {
+        nuevosDetalles.recibo_caja = nuevosDetalles.recibo_caja.map((rc: any) =>
+          rc ? { ...rc, fechaEmision: fechaEmisionClean } : rc
+        );
+      }
       // Preservar siempre la fecha original del movimiento bancario / pago para que no se sobreescriba con la fecha de emisión
       if (!nuevosDetalles.fecha_transaccion && pago.created_at) {
         nuevosDetalles.fecha_transaccion = String(pago.created_at).slice(0, 10);

@@ -62,6 +62,7 @@ export function construirReciboPdf(d: DatosRecibo): Buffer {
 
   const formaPago = [d.pago.tipo, d.pago.banco && d.pago.banco !== d.pago.tipo ? d.pago.banco : ''].filter(Boolean).join(' · ');
   const datos: [string, string][] = [
+    ['Fecha de emisión', d.fechaEmision || d.fechaPago],
     ['Fecha de pago', d.fechaPago],
     ['Forma de pago', formaPago || '-'],
     ['Referencia', String(d.referenciaTexto || d.pago.referencia || '-')],

@@ -80,6 +80,7 @@ export async function GET(request: Request) {
           ...rc,
           reciboNo: rNo,
           controlWeb: ctrlWeb,
+          ...(det.fecha_emision_override ? { fechaEmision: String(det.fecha_emision_override).slice(0, 10) } : {}),
         };
         const generico = Array.isArray(rc?.conceptos) && rc.conceptos.length === 1 && /Servicio de Aseo Urbano y Domiciliario|Abono/i.test(rc.conceptos[0]?.descripcion || '');
         if (det.recibo_caja.length === 1 && generico && desglose.cuadra) {
@@ -217,7 +218,7 @@ export async function GET(request: Request) {
         return {
           reciboNo: `${refNum}-${idx + 1}`,
           controlWeb: generarCodigoControlWeb(`${refNum}-${idx + 1}`, String(pago.id || cod || '')),
-          fechaEmision: String(det.fecha_transaccion || pago.created_at || '').slice(0, 10),
+          fechaEmision: String(det.fecha_emision_override || det.fecha_transaccion || pago.created_at || '').slice(0, 10),
           codContribuyente: cod,
           razonSocial: inm?.contribuyente || det.contribuyente || cont?.nombre || '',
           domicilioFiscal: String(inm?.direccion || cont?.direccion || 'NAGUANAGUA, CARABOBO').toUpperCase(),
@@ -249,7 +250,7 @@ export async function GET(request: Request) {
     const recibo = {
       reciboNo: refNum,
       controlWeb: generarCodigoControlWeb(refNum, String(pago.id || codigos[0] || '')),
-      fechaEmision: String(det.fecha_transaccion || pago.created_at || '').slice(0, 10),
+      fechaEmision: String(det.fecha_emision_override || det.fecha_transaccion || pago.created_at || '').slice(0, 10),
       codContribuyente: codigos[0] || pago.identidad,
       razonSocial: inmPrincipal?.contribuyente || det.contribuyente || cont?.nombre || '',
       domicilioFiscal: String(inmPrincipal?.direccion || cont?.direccion || 'NAGUANAGUA, CARABOBO').toUpperCase(),

@@ -21,6 +21,7 @@ export interface DatosRecibo {
   clasif: ClasificacionPago;
   lineas: { codigo: string; direccion: string; uso: string; meses: number; multa: boolean }[];
   numeroRecibo: string;
+  fechaEmision: string;
   fechaPago: string;
   desglose: DesglosePago;
   montoTotal: number;
@@ -185,10 +186,22 @@ export async function cargarDatosRecibo(pagoId: string): Promise<DatosRecibo> {
   const corrNum = await obtenerCorrelativoReciboPago(pago);
   const numeroReciboUnificado = `WEB-${corrNum}`;
 
+  const rawFechaEmision =
+    det.fecha_emision_override ||
+    (Array.isArray(det.recibo_caja) && det.recibo_caja[0]?.fechaEmision ? det.recibo_caja[0].fechaEmision : '') ||
+    det.fecha_transaccion ||
+    pago.created_at;
+  const rawFechaPago =
+    det.fecha_transaccion ||
+    det.fecha_pago_override ||
+    det.fecha_banco ||
+    pago.created_at;
+
   return {
     pago, det, contribuyente, identidad: pago.identidad, correoCliente, clasif, lineas,
     numeroRecibo: numeroReciboUnificado,
-    fechaPago: fechaCaracas(det.fecha_transaccion || pago.created_at),
+    fechaEmision: fechaCaracas(rawFechaEmision),
+    fechaPago: fechaCaracas(rawFechaPago),
     desglose,
     montoTotal,
     referenciaTexto,
@@ -242,6 +255,7 @@ export function construirReciboHtml(d: DatosRecibo, opts: { esCopiaInterna?: boo
         <p style="margin:0 0 20px;font-size:14px;color:#475569;line-height:1.6;">Hemos recibido su pago. Este es su comprobante:</p>
         <table width="100%" cellpadding="8" cellspacing="0" style="background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;margin-bottom:20px;font-size:13px;">
           <tr><td style="color:#64748b;">N° de Recibo:</td><td style="text-align:right;font-family:monospace;font-weight:bold;color:#0f172a;">${d.numeroRecibo}</td></tr>
+          <tr><td style="color:#64748b;">Fecha de emisión:</td><td style="text-align:right;font-weight:bold;color:#0f172a;">${esc(d.fechaEmision || d.fechaPago)}</td></tr>
           <tr><td style="color:#64748b;">Fecha de pago:</td><td style="text-align:right;color:#0f172a;">${esc(d.fechaPago)}</td></tr>
           <tr><td style="color:#64748b;">Forma de pago:</td><td style="text-align:right;color:#0f172a;">${esc(formaPago)}</td></tr>
           <tr><td style="color:#64748b;">Referencia:</td><td style="text-align:right;font-family:monospace;color:#0f172a;">${esc(d.referenciaTexto || d.pago.referencia)}</td></tr>

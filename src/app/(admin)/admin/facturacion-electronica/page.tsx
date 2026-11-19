@@ -1941,10 +1941,62 @@ export default function FacturacionElectronicaPage() {
                       </td>
                       <td className="py-3.5 px-4 text-slate-500 font-mono text-[11px]">
                         {(() => {
-                          const rawF = pago.fechaEmisionOverride || pago.detalles?.fecha_emision_override || pago.fechaEmision || pago.detalles?.fecha_transaccion || pago.created_at;
+                          const rawF = pago.fechaEmisionOverride || pago.detalles?.fecha_emision_override || (Array.isArray(pago.detalles?.recibo_caja) && pago.detalles.recibo_caja[0]?.fechaEmision ? pago.detalles.recibo_caja[0].fechaEmision : '') || pago.fechaEmision || pago.detalles?.fecha_transaccion || pago.created_at;
                           const s = String(rawF || '').trim();
-                          if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
-                            const [y, m, d] = s.split('-');
+                          let ymdVal = '';
+                          if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+                            ymdVal = s.slice(0, 10);
+                          } else {
+                            try {
+                              ymdVal = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' }).format(new Date(s || pago.created_at));
+                            } catch {
+                              ymdVal = String(pago.created_at || '').slice(0, 10);
+                            }
+                          }
+                          if (pago.documento === 'recibo') {
+                            return (
+                              <div className="flex flex-col gap-0.5">
+                                <input
+                                  type="date"
+                                  value={ymdVal}
+                                  min="2020-01-01"
+                                  max="2030-12-31"
+                                  title="Cambiar Fecha de Emisión del recibo"
+                                  onChange={e => {
+                                    const val = e.target.value;
+                                    const pId = pago.pagoId || pago.id;
+                                    if (!pId || !/^\d{4}-\d{2}-\d{2}$/.test(val)) return;
+                                    const yr = parseInt(val.slice(0, 4), 10);
+                                    if (yr < 2020 || yr > 2035) return;
+                                    fetch('/api/admin/factura-digital/editar-pago', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({
+                                        pagoId: pId,
+                                        fechaEmision: val,
+                                        usuario: adminUser?.usuario || 'Administrador',
+                                      }),
+                                    }).catch(() => {});
+                                    setPagosList(prev => prev.map(it => (it.id === pId || it.pagoId === pId) ? {
+                                      ...it,
+                                      fechaEmisionOverride: val,
+                                      detalles: {
+                                        ...(it.detalles || {}),
+                                        fecha_emision_override: val,
+                                        ...(Array.isArray(it.detalles?.recibo_caja) ? {
+                                          recibo_caja: it.detalles.recibo_caja.map((rc: any) => rc ? { ...rc, fechaEmision: val } : rc)
+                                        } : {})
+                                      }
+                                    } : it));
+                                  }}
+                                  className="border border-violet-300 bg-violet-50/50 hover:bg-violet-50 rounded-md px-1.5 py-1 text-[11px] font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500 cursor-pointer w-[122px]"
+                                />
+                                <span className="text-[9px] text-violet-700 font-sans font-semibold">Fecha emisión</span>
+                              </div>
+                            );
+                          }
+                          if (/^\d{4}-\d{2}-\d{2}$/.test(ymdVal)) {
+                            const [y, m, d] = ymdVal.split('-');
                             return `${d}/${m}/${y}`;
                           }
                           return new Date(s || pago.created_at).toLocaleDateString('es-VE', { timeZone: 'America/Caracas' });
@@ -3940,7 +3992,53 @@ export default function FacturacionElectronicaPage() {
                     : 'Reconstruido con los datos del pago (cobro anterior a que Caja guardara el recibo)'}
                 </span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5 bg-white border border-emerald-300 rounded-lg px-2.5 py-1">
+                  <span className="text-[11px] font-bold text-emerald-800">Fecha de Emisión:</span>
+                  <input
+                    type="date"
+                    min="2020-01-01"
+                    max="2030-12-31"
+                    value={String(reciboCaja.recibos?.[0]?.fechaEmision || reciboCaja.pago?.fechaEmisionOverride || reciboCaja.pago?.detalles?.fecha_emision_override || '').slice(0, 10)}
+                    onChange={e => {
+                      const val = e.target.value;
+                      if (!/^\d{4}-\d{2}-\d{2}$/.test(val)) return;
+                      const pId = reciboCaja.pago?.pagoId || reciboCaja.pago?.id;
+                      setReciboCaja(prev => prev ? {
+                        ...prev,
+                        recibos: prev.recibos.map(r => ({ ...r, fechaEmision: val })),
+                        pago: {
+                          ...prev.pago,
+                          fechaEmisionOverride: val,
+                          detalles: { ...(prev.pago?.detalles || {}), fecha_emision_override: val }
+                        }
+                      } : prev);
+                      if (pId) {
+                        fetch('/api/admin/factura-digital/editar-pago', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            pagoId: pId,
+                            fechaEmision: val,
+                            usuario: adminUser?.usuario || 'Administrador',
+                          }),
+                        }).catch(() => {});
+                        setPagosList(prev => prev.map(it => (it.id === pId || it.pagoId === pId) ? {
+                          ...it,
+                          fechaEmisionOverride: val,
+                          detalles: {
+                            ...(it.detalles || {}),
+                            fecha_emision_override: val,
+                            ...(Array.isArray(it.detalles?.recibo_caja) ? {
+                              recibo_caja: it.detalles.recibo_caja.map((rc: any) => rc ? { ...rc, fechaEmision: val } : rc)
+                            } : {})
+                          }
+                        } : it));
+                      }
+                    }}
+                    className="text-xs font-bold text-slate-800 focus:outline-none cursor-pointer"
+                  />
+                </div>
                 <button
                   onClick={descargarReciboCaja}
                   className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2 rounded-lg text-sm transition-colors"
@@ -3974,36 +4072,76 @@ export default function FacturacionElectronicaPage() {
       )}
 
       {/* ══ VISTA PREVIA DEL RECIBO ══ */}
-      {previewPagoId && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-[60] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden border border-slate-200 flex flex-col h-[90vh]">
-            <div className="px-6 py-3 bg-slate-900 text-white flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Eye className="w-5 h-5 text-violet-300" />
-                <h3 className="font-bold text-sm">Vista previa del recibo (así lo recibirá el contribuyente)</h3>
+      {previewPagoId && (() => {
+        const pagoPrev = pagosList.find(p => p.id === previewPagoId || p.pagoId === previewPagoId);
+        const rawFPrev = pagoPrev?.fechaEmisionOverride || pagoPrev?.detalles?.fecha_emision_override || (Array.isArray(pagoPrev?.detalles?.recibo_caja) && pagoPrev.detalles.recibo_caja[0]?.fechaEmision ? pagoPrev.detalles.recibo_caja[0].fechaEmision : '') || pagoPrev?.detalles?.fecha_transaccion || pagoPrev?.created_at || '';
+        const ymdPrev = /^\d{4}-\d{2}-\d{2}/.test(String(rawFPrev)) ? String(rawFPrev).slice(0, 10) : '';
+        return (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-[60] flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden border border-slate-200 flex flex-col h-[90vh]">
+              <div className="px-6 py-3 bg-slate-900 text-white flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <Eye className="w-5 h-5 text-violet-300" />
+                  <h3 className="font-bold text-sm">Vista previa del recibo</h3>
+                </div>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div className="flex items-center gap-1.5 bg-slate-800 border border-violet-400/50 rounded-lg px-2.5 py-1">
+                    <span className="text-[11px] font-bold text-violet-200">Fecha de Emisión:</span>
+                    <input
+                      type="date"
+                      min="2020-01-01"
+                      max="2030-12-31"
+                      value={ymdPrev}
+                      onChange={async (e) => {
+                        const val = e.target.value;
+                        if (!/^\d{4}-\d{2}-\d{2}$/.test(val)) return;
+                        setPagosList(prev => prev.map(it => (it.id === previewPagoId || it.pagoId === previewPagoId) ? {
+                          ...it,
+                          fechaEmisionOverride: val,
+                          detalles: {
+                            ...(it.detalles || {}),
+                            fecha_emision_override: val,
+                            ...(Array.isArray(it.detalles?.recibo_caja) ? {
+                              recibo_caja: it.detalles.recibo_caja.map((rc: any) => rc ? { ...rc, fechaEmision: val } : rc)
+                            } : {})
+                          }
+                        } : it));
+                        await fetch('/api/admin/factura-digital/editar-pago', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            pagoId: previewPagoId,
+                            fechaEmision: val,
+                            usuario: adminUser?.usuario || 'Administrador',
+                          }),
+                        }).catch(() => {});
+                      }}
+                      className="text-xs font-bold text-white bg-transparent focus:outline-none cursor-pointer [color-scheme:dark]"
+                    />
+                  </div>
+                  <a
+                    href={`/api/admin/recibos-digitales/pdf?pagoId=${previewPagoId}&t=${encodeURIComponent(ymdPrev)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold"
+                  >
+                    Ver PDF adjunto
+                  </a>
+                  <button onClick={() => setPreviewPagoId(null)} className="text-slate-400 hover:text-white cursor-pointer">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-3">
-                <a
-                  href={`/api/admin/recibos-digitales/pdf?pagoId=${previewPagoId}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold"
-                >
-                  Ver PDF adjunto
-                </a>
-                <button onClick={() => setPreviewPagoId(null)} className="text-slate-400 hover:text-white cursor-pointer">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
+              <iframe
+                key={`${previewPagoId}-${ymdPrev}`}
+                title="Vista previa del recibo"
+                src={`/api/admin/recibos-digitales/preview?pagoId=${previewPagoId}&t=${encodeURIComponent(ymdPrev)}`}
+                className="flex-1 w-full border-0 bg-slate-50"
+              />
             </div>
-            <iframe
-              title="Vista previa del recibo"
-              src={`/api/admin/recibos-digitales/preview?pagoId=${previewPagoId}`}
-              className="flex-1 w-full border-0 bg-slate-50"
-            />
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ══ MODAL ELIMINAR PAGO ══ */}
       {eliminar && (
