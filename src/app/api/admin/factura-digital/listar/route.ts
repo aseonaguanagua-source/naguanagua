@@ -1050,7 +1050,13 @@ export async function GET(request: Request) {
         delete det.saldo_favor_generado;
       }
 
-      const porcRet = Number(det.porcentaje_retencion) === 100 ? 100 : 75;
+      const mIvaRef = parseFloat(String(det.iva_monto || det.recibo_caja?.[0]?.iva || 0)) || 0;
+      const porcRet = (
+        Number(det.porcentaje_retencion_iva) === 100 ||
+        Number(det.porcentaje_retencion) === 100 ||
+        Number(det.factura_digital?.retencion?.porcentaje_retencion) === 100 ||
+        (montoRetNum > 0 && mIvaRef > 0 && Math.abs(montoRetNum - mIvaRef) <= 1.0)
+      ) ? 100 : 75;
       if (tieneRetencion) {
         det.conRetencion = true;
         det.es_retencion = true;
@@ -1058,6 +1064,7 @@ export async function GET(request: Request) {
         det.monto_retencion_iva = montoRetNum;
         det.retencion_iva = montoRetNum;
         det.porcentaje_retencion = porcRet;
+        det.porcentaje_retencion_iva = porcRet;
       }
 
       // Detección de Nota de Crédito (Saldo a Favor) aplicada en el pago

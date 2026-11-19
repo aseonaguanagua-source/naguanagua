@@ -1250,7 +1250,7 @@ export async function POST(request: Request) {
               const forma = casilla(hit ? hit[1] : tipoPago, 40);
               const ref = casilla(refPago, 25);
               const banco = casilla(bancoPago, Math.max(0, 100 - 2 - forma.length - ref.length));
-              const porcRet = Number(detPago?.porcentaje_retencion) === 100 ? 100 : 75;
+              const porcRet = (Number(detPago?.porcentaje_retencion_iva) === 100 || Number(detPago?.porcentaje_retencion) === 100) ? 100 : 75;
               const retCalculada = r2(totalIVA * (porcRet / 100));
               const montoRetNum = conRetencion
                 ? (retCalculada > 0 ? retCalculada : (parseFloat(String(detPago.monto_retencion_iva || detPago.retencion_iva || 0)) || 0))
@@ -1339,7 +1339,7 @@ export async function POST(request: Request) {
           {
             Campo: 'Observaciones',
             Valor: (() => {
-              const porcRet = Number(detPago?.porcentaje_retencion) === 100 ? 100 : 75;
+              const porcRet = (Number(detPago?.porcentaje_retencion_iva) === 100 || Number(detPago?.porcentaje_retencion) === 100) ? 100 : 75;
               const retCalculada = r2(totalIVA * (porcRet / 100));
               const montoRetNum = conRetencion
                 ? (retCalculada > 0 ? retCalculada : (parseFloat(String(detPago.monto_retencion_iva || detPago.retencion_iva || 0)) || 0))
@@ -1378,7 +1378,7 @@ export async function POST(request: Request) {
       if (Math.abs(totalAPagar - totalManualNum) > tol)
         erroresFiscales.push(`Total factura (${totalAPagar.toFixed(2)}) no coincide con el monto editado (${totalManualNum.toFixed(2)}).`);
     } else {
-      const porcRet = Number(detPago?.porcentaje_retencion) === 100 ? 100 : 75;
+      const porcRet = (Number(detPago?.porcentaje_retencion_iva) === 100 || Number(detPago?.porcentaje_retencion) === 100) ? 100 : 75;
       const retCalculada = r2(totalIVA * (porcRet / 100));
       const montoRet = conRetencion ? (retCalculada || parseFloat(String(detPago?.monto_retencion_iva || detPago?.retencion_iva || 0))) : 0;
       const efectivoTotal = (() => {

@@ -257,8 +257,15 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
     iva = parseFloat((totalFactura - exento - baseImponible).toFixed(2));
   }
 
+  const porcRetDemo = (
+    Number(det.porcentaje_retencion_iva) === 100 ||
+    Number(det.porcentaje_retencion) === 100 ||
+    Number(det.factura_digital?.retencion?.porcentaje_retencion) === 100 ||
+    (retGuardada > 0 && iva > 0 && Math.abs(retGuardada - iva) <= 1.0)
+  ) ? 100 : 75;
+
   if (esRetencion) {
-    retencionIva = retGuardada > 0 ? retGuardada : parseFloat((iva * 0.75).toFixed(2));
+    retencionIva = retGuardada > 0 ? retGuardada : parseFloat((iva * (porcRetDemo / 100)).toFixed(2));
   } else {
     retencionIva = 0;
   }
@@ -935,7 +942,7 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
                     )}
                     {esRetencion && retencionIva > 0 && (
                       <p className="text-amber-800 font-medium">
-                        • <strong>Retención 75% IVA (SENIAT):</strong> Bs. {formatBs(retencionIva)}
+                        • <strong>Retención {porcRetDemo}% IVA (SENIAT):</strong> Bs. {formatBs(retencionIva)}
                       </p>
                     )}
                     <p className="font-mono text-[9px] text-slate-400 pt-0.5">
@@ -944,7 +951,7 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
                   </div>
                   {esRetencion && (
                     <span className="inline-block mt-1 text-[9px] font-black uppercase px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300">
-                      ★ Contribuyente Especial / Agente de Retención (75% IVA)
+                      ★ Contribuyente Especial / Agente de Retención ({porcRetDemo}% IVA)
                     </span>
                   )}
                 </div>
@@ -1033,7 +1040,7 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
                     )}
                     {esRetencion && retencionIva > 0 && (
                       <div className="text-amber-800 font-bold pt-1 border-t border-slate-200">
-                        <strong>Retención 75% IVA:</strong> Bs. {formatBs(retencionIva)}
+                        <strong>Retención {porcRetDemo}% IVA:</strong> Bs. {formatBs(retencionIva)}
                       </div>
                     )}
                     <div className="pt-1 border-t border-slate-300 font-bold text-slate-900 flex justify-between">
@@ -1125,7 +1132,7 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
                 {esRetencion && (
                   <div className="mt-2 p-2 bg-amber-50/90 border border-amber-300 rounded text-[9.5px] text-right font-sans space-y-1">
                     <div className="flex justify-between text-amber-900 font-semibold">
-                      <span>(-) Retención 75% IVA (SENIAT):</span>
+                      <span>(-) Retención {porcRetDemo}% IVA (SENIAT):</span>
                       <strong className="font-mono text-amber-950">- Bs. {formatBs(retencionIva)}</strong>
                     </div>
                     <div className="flex justify-between text-emerald-950 font-black text-xs border-t border-amber-200/80 pt-1">

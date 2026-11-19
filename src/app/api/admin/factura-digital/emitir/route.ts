@@ -1227,10 +1227,22 @@ export async function POST(request: Request) {
       }
     }
 
+    const resolverPorcRetencion = (detObj: any, ivaTotal = totalIVA): 75 | 100 => {
+      if (Number(detObj?.porcentaje_retencion_iva) === 100 || Number(detObj?.porcentaje_retencion) === 100 || Number(detObj?.factura_digital?.retencion?.porcentaje_retencion) === 100) {
+        return 100;
+      }
+      const mRetG = parseFloat(String(detObj?.monto_retencion_iva || detObj?.retencion_iva || detObj?.recibo_caja?.[0]?.retencion || 0)) || 0;
+      const mIvaG = ivaTotal > 0 ? ivaTotal : (parseFloat(String(detObj?.iva_monto || detObj?.recibo_caja?.[0]?.iva || 0)) || 0);
+      if (mRetG > 0 && mIvaG > 0 && Math.abs(mRetG - mIvaG) <= 1.0) {
+        return 100;
+      }
+      return 75;
+    };
+
     // Cuadre exacto SENIAT/TFHKA para condominios comerciales con retención de IVA (75% o 100%) sin saldo a favor:
     // garantiza que Base * 16% = IVA, Ret = IVA * porcRet, y (Base + IVA + Exento - Ret) === totalEfectivoPagado
     if (conRetencion && sfReal === 0 && saldoFavorUsado === 0 && totalEfectivoPagado > 0 && detallesItems.length === 1 && detallesItems[0].CodigoImpuesto === 'G' && totalExento === 0) {
-      const porcRetCuadre = Number((detPago as any)?.porcentaje_retencion) === 100 ? 100 : 75;
+      const porcRetCuadre = resolverPorcRetencion(detPago, totalIVA);
       const factorNeto = 1 + 0.16 * (1 - porcRetCuadre / 100);
       const netoActual = r2(totalGravado + totalIVA - r2(totalIVA * (porcRetCuadre / 100)));
       if (Math.abs(netoActual - totalEfectivoPagado) > 0 && Math.abs(netoActual - totalEfectivoPagado) <= 1000) {
@@ -1744,7 +1756,7 @@ export async function POST(request: Request) {
               const ref = casilla(refPago, 25);
               const banco = casilla(bancoPago, Math.max(0, 100 - 2 - forma.length - ref.length));
 
-              const porcRet = Number((detPago as any)?.porcentaje_retencion) === 100 ? 100 : 75;
+              const porcRet = resolverPorcRetencion(detPago, totalIVA);
               const retCalculada = r2(totalIVA * (porcRet / 100));
               const montoRetNum = conRetencion
                 ? (retCalculada > 0 ? retCalculada : (parseFloat(String(detPago.monto_retencion_iva || detPago.retencion_iva || 0)) || 0))
@@ -1950,7 +1962,7 @@ export async function POST(request: Request) {
           {
             Campo: 'Observaciones',
             Valor: (() => {
-              const porcRet = Number((detPago as any)?.porcentaje_retencion) === 100 ? 100 : 75;
+              const porcRet = resolverPorcRetencion(detPago, totalIVA);
               const retCalculada = r2(totalIVA * (porcRet / 100));
               const montoRetNum = conRetencion
                 ? (retCalculada > 0 ? retCalculada : (parseFloat(String(detPago.monto_retencion_iva || detPago.retencion_iva || 0)) || 0))
@@ -2048,7 +2060,7 @@ export async function POST(request: Request) {
       if (Math.abs(totalAPagar - totalManualNum) > tol)
         erroresFiscales.push(`Total factura (${totalAPagar.toFixed(2)}) no coincide con el monto editado (${totalManualNum.toFixed(2)}).`);
     } else {
-      const porcRet = Number((detPago as any)?.porcentaje_retencion) === 100 ? 100 : 75;
+      const porcRet = resolverPorcRetencion(detPago, totalIVA);
       const retCalculada = r2(totalIVA * (porcRet / 100));
       const montoRet = conRetencion ? (retCalculada || parseFloat(String(detPago?.monto_retencion_iva || detPago?.retencion_iva || 0))) : 0;
       const efectivoTotal = (() => {
@@ -2271,8 +2283,9 @@ export async function POST(request: Request) {
 
     // ── Agente de retención: estado del flujo (la factura queda retenida hasta aprobar la planilla, salvo si fue liberada sin planilla) ──
     if (conRetencion && nuevosDetalles.factura_digital?.emitida) {
-      const porcRet = Number((pagoRow?.detalles as any)?.porcentaje_retencion || (detPago as any)?.porcentaje_retencion) === 100 ? 100 : 75;
+      const porcRet = resolverPorcRetencion(detPago, totalIVA);
       nuevosDetalles.porcentaje_retencion = porcRet;
+      nuevosDetalles.porcentaje_retencion_iva = porcRet;
       nuevosDetalles.factura_digital.retencion = {
         ...(nuevosDetalles.factura_digital.retencion || {}),
         estado: esLiberadoSinPlanilla ? 'aprobada' : (nuevosDetalles.factura_digital.retencion?.estado || 'esperando_planilla'),
@@ -2368,7 +2381,7 @@ export async function POST(request: Request) {
     // Si existe excedente real (p. ej. tras aplicar Retención 75% IVA o al re-emitir una factura que había sido anulada)
     // y no existe aún la Nota de Crédito activa en `documentos`, acreditarla y registrarla automáticamente.
     try {
-      const porcRetFinal = Number((nuevosDetalles as any)?.porcentaje_retencion || (detPago as any)?.porcentaje_retencion) === 100 ? 100 : 75;
+      const porcRetFinal = resolverPorcRetencion(nuevosDetalles, totalIVA);
       const retCalcFinal = conRetencion ? r2(totalIVA * (porcRetFinal / 100)) : 0;
       const retGuardadaFinal = parseFloat(String(nuevosDetalles.monto_retencion_iva || detPago?.monto_retencion_iva || detPago?.retencion_iva || 0)) || 0;
       const retEfectiva = conRetencion

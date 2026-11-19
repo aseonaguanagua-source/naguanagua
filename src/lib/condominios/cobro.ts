@@ -830,6 +830,7 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
             fecha_comprobante_retencion: pago.fechaComprobanteRetencion || undefined,
             comprobante_retencion_url: pago.comprobanteRetencionUrl || undefined,
             comprobante_retencion_nombre: pago.comprobanteRetencionNombre || undefined,
+            porcentaje_retencion: pago.porcentajeRetencionIva ?? (fRet > 0 ? 75 : 0),
             porcentaje_retencion_iva: pago.porcentajeRetencionIva ?? (fRet > 0 ? 75 : 0),
             fecha_transaccion: fechaTransaccion,
             fecha_banco: fechaTransaccion,

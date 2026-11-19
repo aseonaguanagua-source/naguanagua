@@ -2455,7 +2455,9 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
                     <span>{fmt(ivaTotalDoc)}</span>
                   </div>
                   <div className="flex justify-between text-sm ml-4">
-                    <span className="text-amber-600 font-semibold">Retención IVA (75%)</span>
+                    <span className="text-amber-600 font-semibold">
+                      Retención IVA ({Number(det.porcentaje_retencion_iva || det.porcentaje_retencion) === 100 ? '100%' : '75%'})
+                    </span>
                     <span className="text-amber-600 font-bold">- {fmt(montoRetencionDoc)}</span>
                   </div>
                 </>

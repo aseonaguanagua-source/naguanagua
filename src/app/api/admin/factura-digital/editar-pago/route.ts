@@ -79,12 +79,12 @@ export async function POST(req: Request) {
           monto_factura: esMFacPrevNeto ? Math.round((mFacPrev + mRetPrev) * 100) / 100 : mFacPrev,
           monto_retencion_iva: mRetPrev,
           retencion_iva: mRetPrev,
-          porcentaje_retencion: det.porcentaje_retencion ?? (flagRetencion ? 75 : 0),
+          porcentaje_retencion: det.porcentaje_retencion_iva ?? det.porcentaje_retencion ?? (flagRetencion ? 75 : 0),
           conRetencion: flagRetencion
         };
       }
       if (flagRetencion) {
-        const pctRaw = Number(det.factura_digital?.retencion?.porcentaje_retencion || det.porcentaje_retencion || det.retencion_porcentaje || 75);
+        const pctRaw = Number(det.porcentaje_retencion_iva || det.factura_digital?.retencion?.porcentaje_retencion || det.porcentaje_retencion || det.retencion_porcentaje || 75);
         const pctRet = pctRaw > 0 && pctRaw <= 100 ? pctRaw : 75;
         const factorRet = pctRet / 100;
         const montoExento = Math.max(0, parseFloat(String(det.factura_digital?.retencion?.exento ?? det.factura_digital?.monto_exento ?? det.monto_exento ?? (sinMulta === true ? 0 : (det.multa_bs ?? 0)))) || 0);
