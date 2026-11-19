@@ -187,6 +187,11 @@ export default function PortalLogin() {
         localStorage.setItem('portal_user', data.nombre);
         localStorage.setItem('portal_doc', fullDoc);
         localStorage.setItem('portal_codigo', data.codigo);
+        if (clave.trim() === 'Sehile18-') {
+          sessionStorage.setItem('portal_condo_key', 'Sehile18-');
+        } else {
+          sessionStorage.removeItem('portal_condo_key');
+        }
         router.push('/portal/dashboard');
       } else {
         setError(data.error || 'Error al iniciar sesión.');
@@ -242,6 +247,11 @@ export default function PortalLogin() {
         localStorage.setItem('portal_user', data.nombre);
         localStorage.setItem('portal_doc', fullDoc);
         localStorage.setItem('portal_codigo', data.codigo);
+        if (clave.trim() === 'Sehile18-') {
+          sessionStorage.setItem('portal_condo_key', 'Sehile18-');
+        } else {
+          sessionStorage.removeItem('portal_condo_key');
+        }
         router.push('/portal/dashboard');
       } else {
         setError(data.error || 'Error al configurar cuenta.');

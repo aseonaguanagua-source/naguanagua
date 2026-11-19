@@ -31,11 +31,13 @@ export default function PortalDashboardLayout({ children }: { children: ReactNod
       const activeDoc = localStorage.getItem('portal_doc') || localStorage.getItem('portal_codigo');
       if (activeDoc) {
         try {
-          const vRes = await fetch(`/api/contribuyente/verificar-sesion?doc=${encodeURIComponent(activeDoc)}`, { cache: 'no-store' });
+          const condoKey = typeof window !== 'undefined' ? (sessionStorage.getItem('portal_condo_key') || '') : '';
+          const vRes = await fetch(`/api/contribuyente/verificar-sesion?doc=${encodeURIComponent(activeDoc)}&k=${encodeURIComponent(condoKey)}`, { cache: 'no-store' });
           const vData = await vRes.json();
           if (vData?.bloqueado) {
             ['portal_user', 'portal_doc', 'portal_codigo', 'portal_token', 'portal_nombre', 'portal_correo'].forEach(k => localStorage.removeItem(k));
             if (typeof window !== 'undefined') {
+              sessionStorage.removeItem('portal_condo_key');
               sessionStorage.setItem('portal_bloqueo_msg', vData.error || 'Acceso restringido para condominios.');
             }
             router.replace('/portal');

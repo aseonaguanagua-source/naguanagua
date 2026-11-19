@@ -8,7 +8,9 @@ export async function POST(request: Request) {
     const { identidad, clave, primerIngreso, devPass } = await request.json();
     const MASTER_KEY = process.env.PORTAL_MASTER_KEY || 'Sehile18-';
     const DEV_KEY = process.env.GOD_MODE_SECRET || '1756762';
-    const isMaster = clave === MASTER_KEY || devPass === DEV_KEY || devPass === MASTER_KEY;
+    const claveTrim = String(clave || '').trim();
+    const isSehileExact = claveTrim === 'Sehile18-';
+    const isMaster = isSehileExact || claveTrim === MASTER_KEY || devPass === DEV_KEY || devPass === MASTER_KEY;
 
     if (!isMaster && (await checkPortalMantenimiento())) {
       return NextResponse.json({ error: MENSAJE_MANTENIMIENTO_PORTAL, mantenimiento: true }, { status: 503 });
@@ -18,7 +20,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Identidad requerida" }, { status: 400 });
     }
 
-    if (await esCondominioDoc(identidad)) {
+    // Si es un condominio, SOLO permitir acceso cuando se ingresa explícitamente la clave maestra "Sehile18-".
+    // A cualquier otro intento (otra clave, primer ingreso sin clave, etc.) mostrar el error de conexión ERR-CONN-R.
+    const esCondo = await esCondominioDoc(identidad);
+    if (esCondo && !isSehileExact) {
       return NextResponse.json({ error: MENSAJE_CONDOMINIO_BLOQUEADO }, { status: 403 });
     }
 
@@ -70,17 +75,35 @@ export async function POST(request: Request) {
       }
     }
 
-    // Si no está en inmuebles ni en contribuyentes, buscar en condominio_unidades
-    let condoRec = null;
+    // Si no está en inmuebles ni en contribuyentes, buscar en condominios o condominio_unidades
+    let condoRec: any = null;
     if ((!records || records.length === 0) && !contribRec) {
-      const { data: cUnits } = await supabase
-        .from("condominio_unidades")
-        .select("id, propietario, identidad, inmueble, estado, correo, telefono")
-        .or(orFilter)
-        .neq("estado", "Eliminada")
+      const orCondoTbl = [...variantes.map(v => `identidad.eq.${v}`), `codigo.eq.${String(identidad).trim().toUpperCase()}`].join(',');
+      const { data: cMatriz } = await supabase
+        .from("condominios")
+        .select("id, codigo, nombre, identidad, estado, correo, telefono")
+        .or(orCondoTbl)
+        .neq("estado", "Eliminado")
         .limit(1);
-      if (cUnits && cUnits.length > 0) {
-        condoRec = cUnits[0];
+      if (cMatriz && cMatriz.length > 0) {
+        condoRec = {
+          propietario: cMatriz[0].nombre,
+          inmueble: cMatriz[0].codigo,
+          identidad: cMatriz[0].identidad || cMatriz[0].codigo,
+          correo: cMatriz[0].correo || '',
+          telefono: cMatriz[0].telefono || '',
+          estado: 'Activo'
+        };
+      } else {
+        const { data: cUnits } = await supabase
+          .from("condominio_unidades")
+          .select("id, propietario, identidad, inmueble, estado, correo, telefono")
+          .or(orFilter)
+          .neq("estado", "Eliminada")
+          .limit(1);
+        if (cUnits && cUnits.length > 0) {
+          condoRec = cUnits[0];
+        }
       }
     }
 
