@@ -947,7 +947,7 @@ export const resolverPeriodosPendientesInmueble = (
       }
     } catch {}
     let step = 1;
-    while (setVig.size < numMeses && step <= 60) {
+    while (setVig.size < numMeses && step <= 240) {
       const d = new Date(y, m0 - step, 1, 12, 0, 0);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       if (!excluidos.has(key) && !setVig.has(key)) {
@@ -977,7 +977,8 @@ export const resolverPeriodosPendientesInmueble = (
 
   const result: string[] = [];
   let step = 1;
-  while (result.length < numMeses && step <= 72) {
+  const maxStep = Math.max(240, numMeses + excluidos.size + 24);
+  while (result.length < numMeses && step <= maxStep) {
     const d = new Date(y, m0 - step, 1, 12, 0, 0);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     if (!excluidos.has(key)) {

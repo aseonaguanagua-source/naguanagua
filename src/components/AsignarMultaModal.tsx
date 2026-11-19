@@ -159,7 +159,13 @@ export function AsignarMultaModal({ row, inmuebles, tcmmv, onClose, onSuccess }:
     };
   }, [activeInm?.inmueble, selectedInmCode, row?.inmueble, identProp]);
 
-  const pagoPeriodoSeleccionado = periodoFinal ? pagosPorPeriodo[periodoFinal] : null;
+  const tieneMultaPagadaEnPeriodo = (info: any) =>
+    Boolean(info && (info.tipo === 'MULTA' || info.tipo === 'MES_CON_MULTA'));
+
+  const pagoPeriodoSeleccionado =
+    periodoFinal && tieneMultaPagadaEnPeriodo(pagosPorPeriodo[periodoFinal])
+      ? pagosPorPeriodo[periodoFinal]
+      : null;
 
   // Estimación de 1 mes de multa
   const esRes = activeInm ? isResidencialInm(activeInm) : false;
@@ -216,7 +222,7 @@ export function AsignarMultaModal({ row, inmuebles, tcmmv, onClose, onSuccess }:
       return;
     }
 
-    if (pagosPorPeriodo[periodoFinal]) {
+    if (tieneMultaPagadaEnPeriodo(pagosPorPeriodo[periodoFinal])) {
       const infoPago = pagosPorPeriodo[periodoFinal];
       setErrorMsg(
         `No se puede asignar multa al período ${periodoTexto} (${periodoFinal}): ya figura como "${infoPago.etiqueta}" con la Referencia: ${infoPago.referencia}.`
@@ -242,7 +248,7 @@ export function AsignarMultaModal({ row, inmuebles, tcmmv, onClose, onSuccess }:
 
     setIsProcessing(true);
     try {
-      // Verificación en servidor antes de guardar para evitar duplicar multas ya canceladas o meses pagados
+      // Verificación en servidor antes de guardar para evitar duplicar multas ya canceladas
       const qsCheck = new URLSearchParams();
       if (activeInm?.inmueble) qsCheck.set('inmueble', String(activeInm.inmueble));
       if (identProp) qsCheck.set('identidad', String(identProp));
@@ -250,7 +256,7 @@ export function AsignarMultaModal({ row, inmuebles, tcmmv, onClose, onSuccess }:
       if (resCheck.ok) {
         const jsonCheck = await resCheck.json();
         const pExistente = jsonCheck?.porPeriodo?.[periodoFinal];
-        if (pExistente) {
+        if (tieneMultaPagadaEnPeriodo(pExistente)) {
           setPagosPorPeriodo(jsonCheck.porPeriodo || {});
           setListaPagosPeriodo(jsonCheck.lista || []);
           throw new Error(

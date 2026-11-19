@@ -107,6 +107,9 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
   const [pagosPorPeriodo, setPagosPorPeriodo] = useState<Record<string, any>>({});
   const [listaPagosPeriodo, setListaPagosPeriodo] = useState<any[]>([]);
 
+  const tieneMultaPagadaEnPeriodo = (info: any) =>
+    Boolean(info && (info.tipo === 'MULTA' || info.tipo === 'MES_CON_MULTA'));
+
   React.useEffect(() => {
     if (!unidad) {
       setPagosPorPeriodo({});
@@ -128,7 +131,7 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
           const mapa = data.porPeriodo || {};
           setPagosPorPeriodo(mapa);
           setListaPagosPeriodo(Array.isArray(data.lista) ? data.lista : Object.values(mapa));
-          setMultaPeriodosSeleccionados(prev => prev.filter(p => !mapa[p]));
+          setMultaPeriodosSeleccionados(prev => prev.filter(p => !tieneMultaPagadaEnPeriodo(mapa[p])));
         }
       })
       .catch(() => {});
@@ -140,7 +143,7 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
 
   const togglePeriodoSeleccionado = (key: string) => {
     const pagoInfo = pagosPorPeriodo[key];
-    if (pagoInfo) {
+    if (tieneMultaPagadaEnPeriodo(pagoInfo)) {
       alert(
         `No se puede asignar multa al período ${fmtPeriodo(key)} (${key}):\n\nEstado: ${pagoInfo.etiqueta}\nReferencia de pago: ${pagoInfo.referencia}`
       );
@@ -166,7 +169,7 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
       alert('Seleccione al menos un período para asignar la multa.');
       return;
     }
-    const periodoYaPagado = multaPeriodosSeleccionados.find(p => Boolean(pagosPorPeriodo[p]));
+    const periodoYaPagado = multaPeriodosSeleccionados.find(p => tieneMultaPagadaEnPeriodo(pagosPorPeriodo[p]));
     if (periodoYaPagado) {
       const pInfo = pagosPorPeriodo[periodoYaPagado];
       alert(
@@ -298,7 +301,7 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
     // Si el usuario dejó abierto el panel de "Asignar Multa a un Período Específico" con períodos seleccionados y pulsó "Guardar cambios", guardar primero esa multa
     let seGuardoMultaEspecifica = false;
     if (!nueva && unidad?.id && mostrarAgregarMulta && multaPeriodosSeleccionados.length > 0 && parseLocalFloat(multaMontoBs) > 0) {
-      const periodoYaPagado = multaPeriodosSeleccionados.find(p => Boolean(pagosPorPeriodo[p]));
+      const periodoYaPagado = multaPeriodosSeleccionados.find(p => tieneMultaPagadaEnPeriodo(pagosPorPeriodo[p]));
       if (periodoYaPagado) {
         const pInfo = pagosPorPeriodo[periodoYaPagado];
         const msg = `No se puede asignar multa al período ${fmtPeriodo(periodoYaPagado)} (${periodoYaPagado}): ya figura como "${pInfo.etiqueta}" con la Referencia: ${pInfo.referencia}.`;
@@ -859,15 +862,15 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
                     onClick={() => {
                       setMostrarAgregarMulta(true);
                       if (multaPorMesBs > 0) setMultaMontoBs(fmtBs(multaPorMesBs));
-                      // Por defecto seleccionar los periodos que tienen deuda si existen (excluyendo los ya pagados)
+                      // Por defecto seleccionar los periodos que tienen deuda si existen (excluyendo los que ya tienen multa pagada)
                       const periodosRenglon: string[] = ((renglon?.periodos || []).slice(0, -1) as string[]).filter(
-                        p => !pagosPorPeriodo[p]
+                        p => !tieneMultaPagadaEnPeriodo(pagosPorPeriodo[p])
                       );
                       if (periodosRenglon.length > 0) {
                         setMultaPeriodosSeleccionados(periodosRenglon);
                         setMultaConcepto(`Multa por mora (${periodosRenglon.length} meses: ${periodosRenglon.map(fmtPeriodo).join(', ')})`);
                       } else if (listaMesesCondo.length > 0) {
-                        const candidato = listaMesesCondo.slice(1).find(m => !pagosPorPeriodo[m.key])?.key || '';
+                        const candidato = listaMesesCondo.slice(1).find(m => !tieneMultaPagadaEnPeriodo(pagosPorPeriodo[m.key]))?.key || '';
                         if (candidato) {
                           setMultaPeriodosSeleccionados([candidato]);
                           setMultaConcepto(`Multa por mora ${fmtPeriodo(candidato)}`);
@@ -899,7 +902,7 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
                                 type="button"
                                 onClick={() => {
                                   const periodosDeuda = ((renglon.periodos as string[]).slice(0, -1)).filter(
-                                    p => !pagosPorPeriodo[p]
+                                    p => !tieneMultaPagadaEnPeriodo(pagosPorPeriodo[p])
                                   );
                                   setMultaPeriodosSeleccionados(periodosDeuda);
                                   if (periodosDeuda.length > 0) {
@@ -932,7 +935,8 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
                         <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl max-h-56 overflow-y-auto flex flex-wrap gap-1.5">
                           {listaMesesCondo.map(m => {
                             const pagoInfo = pagosPorPeriodo[m.key];
-                            const sel = !pagoInfo && multaPeriodosSeleccionados.includes(m.key);
+                            const multaYaPagada = tieneMultaPagadaEnPeriodo(pagoInfo);
+                            const sel = !multaYaPagada && multaPeriodosSeleccionados.includes(m.key);
                             const esDeuda = (renglon?.periodos || []).includes(m.key);
                             return (
                               <button
@@ -941,14 +945,16 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
                                 onClick={() => togglePeriodoSeleccionado(m.key)}
                                 title={
                                   pagoInfo
-                                    ? `${pagoInfo.etiqueta} · Ref: ${pagoInfo.referencia}`
+                                    ? `${pagoInfo.etiqueta} · Ref: ${pagoInfo.referencia}${!multaYaPagada ? ' (Clic para asignar multa pendiente)' : ''}`
                                     : m.label
                                 }
                                 className={`px-2 py-1 rounded-lg text-xs font-bold border transition-all flex items-center gap-1 ${
-                                  pagoInfo
+                                  multaYaPagada
                                     ? 'bg-emerald-50 border-emerald-300 text-emerald-800 cursor-not-allowed opacity-90'
                                     : sel
                                     ? 'bg-amber-600 border-amber-700 text-white shadow-xs cursor-pointer'
+                                    : pagoInfo
+                                    ? 'bg-emerald-50/70 border-emerald-300 text-emerald-900 hover:bg-amber-100 hover:border-amber-400 cursor-pointer'
                                     : esDeuda
                                     ? 'bg-amber-50 border-amber-300 text-amber-900 hover:bg-amber-100 cursor-pointer'
                                     : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100 cursor-pointer'
@@ -957,7 +963,7 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
                                 {pagoInfo ? (
                                   <>
                                     <span>✓ {m.label}</span>
-                                    <span className="text-[10px] font-mono bg-white px-1 py-0.2 rounded border border-emerald-200 text-emerald-900">
+                                    <span className={`text-[10px] font-mono px-1 py-0.2 rounded border ${sel ? 'bg-amber-700 border-amber-500 text-white' : 'bg-white border-emerald-200 text-emerald-900'}`}>
                                       Ref: {pagoInfo.referencia}
                                     </span>
                                   </>

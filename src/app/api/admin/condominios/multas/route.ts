@@ -71,7 +71,7 @@ export async function POST(req: Request) {
       });
 
       const pagoExistente = historial.porPeriodo[periodoYm];
-      if (pagoExistente) {
+      if (pagoExistente && (pagoExistente.tipo === 'MULTA' || pagoExistente.tipo === 'MES_CON_MULTA')) {
         return NextResponse.json(
           {
             error: `No se puede cargar la multa para el período ${periodoYm}: ya figura como "${pagoExistente.etiqueta}" (Ref: ${pagoExistente.referencia}).`,
