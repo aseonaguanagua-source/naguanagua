@@ -2587,7 +2587,7 @@ function Caja() {
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <span className="text-[10px] font-semibold text-white/60 mb-0.5 block">F. Transacción (Banco)</span>
-                          <input type="date" value={fechaTransaccionAct} max={hoyCaracas()} onChange={e => { setFechaTransaccionAct(e.target.value); setFechaAct(e.target.value); setFechaOverrideStr(e.target.value); aplicarTasaDeFecha(e.target.value); }} className="w-full rounded-lg bg-slate-800 border border-white/20 px-2 py-1.5 text-xs outline-none text-white [color-scheme:dark]" />
+                          <input type="date" value={fechaTransaccionAct} max={hoyCaracas()} onChange={e => { setFechaTransaccionAct(e.target.value); setFechaAct(e.target.value); }} className="w-full rounded-lg bg-slate-800 border border-white/20 px-2 py-1.5 text-xs outline-none text-white [color-scheme:dark]" />
                         </div>
                         <div>
                           <span className="text-[10px] font-semibold text-white/60 mb-0.5 block">F. Ingreso a Caja</span>
