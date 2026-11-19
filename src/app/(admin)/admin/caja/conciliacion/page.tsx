@@ -2,12 +2,13 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   CheckCheck, RefreshCw, Filter, Landmark, Eye, Download, X,
-  Pencil, Mail, Building2, Receipt, FileText
+  Pencil, Mail, Building2, Receipt, FileText, CreditCard, BarChart3
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAppContext } from '@/store/AppContext';
 import { logAudit } from '@/lib/audit';
 import AdminRetenciones from '@/components/AdminRetenciones';
+import ConciliacionDiariaPanel from '@/components/ConciliacionDiariaPanel';
 import { LISTA_BANCOS } from '@/lib/bancos';
 import { calcularMensualidad, isResidencialInm, cleanClasificacionActividad } from '@/lib/calculos';
 import { desglosarPago } from '@/lib/desglosePago';
@@ -2575,7 +2576,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
 // ─── PAGINA PRINCIPAL ────────────────────────────────────
 export default function ConciliacionPage() {
   const { inmuebles, refreshUserData } = useAppContext();
-  const [activeTab, setActiveTab] = useState<'pagos' | 'retenciones'>('pagos');
+  const [activeTab, setActiveTab] = useState<'pagos' | 'retenciones' | 'puntos_venta' | 'consolidado_diario'>('pagos');
   const [pagos, setPagos] = useState<Pago[]>([]);
   const [loading, setLoading] = useState(false);
   const condos = useCondominiosLigero();
@@ -3174,15 +3175,27 @@ export default function ConciliacionPage() {
       </div>
 
       {/* TABS */}
-      <div className="flex gap-1 border-b border-slate-200 mb-4">
+      <div className="flex flex-wrap gap-1 border-b border-slate-200 mb-4">
         <button onClick={() => setActiveTab('pagos')}
-          className={`px-5 py-2.5 text-sm font-bold transition-all border-b-2 -mb-px ${
+          className={`px-5 py-2.5 text-sm font-bold transition-all border-b-2 -mb-px cursor-pointer ${
             activeTab === 'pagos' ? 'border-cyan-500 text-cyan-700' : 'border-transparent text-slate-500 hover:text-slate-700'
           }`}>
           <span className="flex items-center gap-2"><Landmark size={15}/> Pagos Reportados</span>
         </button>
+        <button onClick={() => setActiveTab('puntos_venta')}
+          className={`px-5 py-2.5 text-sm font-bold transition-all border-b-2 -mb-px cursor-pointer ${
+            activeTab === 'puntos_venta' ? 'border-blue-600 text-blue-700 bg-blue-50/40' : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}>
+          <span className="flex items-center gap-2"><CreditCard size={15}/> Cierre de Puntos de Venta</span>
+        </button>
+        <button onClick={() => setActiveTab('consolidado_diario')}
+          className={`px-5 py-2.5 text-sm font-bold transition-all border-b-2 -mb-px cursor-pointer ${
+            activeTab === 'consolidado_diario' ? 'border-emerald-600 text-emerald-700 bg-emerald-50/40' : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}>
+          <span className="flex items-center gap-2"><BarChart3 size={15}/> Consolidado Diario (Monto Diario Recaudado)</span>
+        </button>
         <button onClick={() => setActiveTab('retenciones')}
-          className={`px-5 py-2.5 text-sm font-bold transition-all border-b-2 -mb-px ${
+          className={`px-5 py-2.5 text-sm font-bold transition-all border-b-2 -mb-px cursor-pointer ${
             activeTab === 'retenciones' ? 'border-purple-500 text-purple-700' : 'border-transparent text-slate-500 hover:text-slate-700'
           }`}>
           <span className="flex items-center gap-2"><Receipt size={15}/> Retenciones IVA</span>
@@ -3190,6 +3203,8 @@ export default function ConciliacionPage() {
       </div>
 
       {activeTab === 'retenciones' && <AdminRetenciones />}
+      {activeTab === 'puntos_venta' && <ConciliacionDiariaPanel mode="puntos_venta" />}
+      {activeTab === 'consolidado_diario' && <ConciliacionDiariaPanel mode="consolidado_diario" />}
       {activeTab === 'pagos' && (
         <div className="space-y-4">
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm">

@@ -318,10 +318,42 @@ export async function generarMontoDiarioRecaudado({
     }
   });
 
+  // Cargar ajustes diarios guardados por las analistas desde Conciliación (sistema_config: monto_diario_recaudado_diario)
+  let ajustesDiariosGuardados: Record<string, {
+    euro?: number | null;
+    ucd?: number | null;
+    puntoBs?: number | null;
+    transfBs?: number | null;
+    banescoBs?: number | null;
+    bancamigaBs?: number | null;
+  }> = {};
+  try {
+    const { data: cfgMd } = await supabase
+      .from('sistema_config')
+      .select('valor')
+      .eq('id', 'monto_diario_recaudado_diario')
+      .maybeSingle();
+    if (cfgMd?.valor) {
+      ajustesDiariosGuardados = typeof cfgMd.valor === 'string' ? JSON.parse(cfgMd.valor) : cfgMd.valor;
+    }
+  } catch {}
+
+  // Incluir también cualquier día dentro del rango que haya sido guardado manualmente por las analistas
+  Object.keys(ajustesDiariosGuardados).forEach((dKey) => {
+    if ((!dFromStr || dKey >= dFromStr) && (!dToStr || dKey <= dToStr)) {
+      ensureDia(dKey);
+    }
+  });
+
   const diasOrdenados = Array.from(agrupadoPorDia.keys())
     .filter((d) => {
       const obj = agrupadoPorDia.get(d)!;
-      return r2(obj.puntoBs) > 0 || r2(obj.transfBs) > 0;
+      const ov = ajustesDiariosGuardados[d];
+      const pBs = ov?.puntoBs !== undefined && ov?.puntoBs !== null ? Number(ov.puntoBs) : obj.puntoBs;
+      const tBs = ov?.transfBs !== undefined && ov?.transfBs !== null ? Number(ov.transfBs) : obj.transfBs;
+      const banBs = ov?.banescoBs !== undefined && ov?.banescoBs !== null ? Number(ov.banescoBs) : obj.banescoBs;
+      const bgaBs = ov?.bancamigaBs !== undefined && ov?.bancamigaBs !== null ? Number(ov.bancamigaBs) : obj.bancamigaBs;
+      return r2(pBs) > 0 || r2(tBs) > 0 || r2(banBs) > 0 || r2(bgaBs) > 0;
     })
     .sort();
 
@@ -468,6 +500,7 @@ export async function generarMontoDiarioRecaudado({
   // Llenar datos de cada día
   diasOrdenados.forEach((dia) => {
     const dData = agrupadoPorDia.get(dia)!;
+    const ov = ajustesDiariosGuardados[dia] || {};
     const [, mm, dd] = dia.split('-');
     const diaNum = parseInt(dd, 10);
     const mesNum = parseInt(mm, 10);
@@ -475,20 +508,25 @@ export async function generarMontoDiarioRecaudado({
     // Formatear etiqueta de fecha: DD/MM/YY
     const fechaLabel = `${diaNum}/${mesNum}/${String(anio).slice(-2)}`;
 
-    // Tasa oficial BCV del día (moda de operaciones POS del día; si no hubo POS ese día, moda general del día)
-    const tasaBcvDia = dData.tasasPosDia.length
+    // Tasa oficial BCV del día (si la analista guardó tasa manual para ese día, usarla; si no, moda de operaciones POS del día)
+    const autoTasaDia = dData.tasasPosDia.length
       ? obtenerModaTasa(dData.tasasPosDia, ultimaTasaValida)
       : (dData.tasasTodasDia.length ? obtenerModaTasa(dData.tasasTodasDia, ultimaTasaValida) : ultimaTasaValida);
+    const tasaBcvDia = (ov.euro !== undefined && ov.euro !== null && Number(ov.euro) > 0)
+      ? r2(Number(ov.euro))
+      : autoTasaDia;
     ultimaTasaValida = tasaBcvDia;
-    const tasaUcdDia = tasaBcvDia;
+    const tasaUcdDia = (ov.ucd !== undefined && ov.ucd !== null && Number(ov.ucd) > 0)
+      ? r2(Number(ov.ucd))
+      : tasaBcvDia;
 
-    const pBs = r2(dData.puntoBs);
+    const pBs = (ov.puntoBs !== undefined && ov.puntoBs !== null) ? r2(Number(ov.puntoBs)) : r2(dData.puntoBs);
     const pEur = tasaBcvDia > 0 ? r2(pBs / tasaBcvDia) : 0;
-    const tBs = r2(dData.transfBs);
+    const tBs = (ov.transfBs !== undefined && ov.transfBs !== null) ? r2(Number(ov.transfBs)) : r2(dData.transfBs);
     const tEur = tasaBcvDia > 0 ? r2(tBs / tasaBcvDia) : 0;
-    const banBs = r2(dData.banescoBs);
+    const banBs = (ov.banescoBs !== undefined && ov.banescoBs !== null) ? r2(Number(ov.banescoBs)) : r2(dData.banescoBs);
     const banEur = tasaBcvDia > 0 ? r2(banBs / tasaBcvDia) : 0;
-    const bgaBs = r2(dData.bancamigaBs);
+    const bgaBs = (ov.bancamigaBs !== undefined && ov.bancamigaBs !== null) ? r2(Number(ov.bancamigaBs)) : r2(dData.bancamigaBs);
     const bgaEur = tasaBcvDia > 0 ? r2(bgaBs / tasaBcvDia) : 0;
 
     sumPuntoBs += pBs;

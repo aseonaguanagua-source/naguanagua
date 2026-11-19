@@ -1275,7 +1275,14 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
     { leftCol: 0.12, rightCol: 6.08, textColStart: 3, textColEnd: 6 }
   );
   const mapaCajasSistema = await cargarMapaCajasSistema();
-  const pto = new Map<string, Map<string, { monto: number; usuarios: number }>>();
+  let cierresPosGuardados: Record<string, { cierrePunto?: number | null; nroLote?: string; comisionPunto?: number | null; diferencia?: number | null }> = {};
+  try {
+    const { data: cfgPos } = await supabase.from('sistema_config').select('valor').eq('id', 'conciliacion_puntos_venta_diaria').maybeSingle();
+    if (cfgPos?.valor) {
+      cierresPosGuardados = typeof cfgPos.valor === 'string' ? JSON.parse(cfgPos.valor) : cfgPos.valor;
+    }
+  } catch {}
+  const pto = new Map<string, Map<string, { monto: number; usuarios: number; lotes: Set<string> }>>();
   mapaCajasSistema.forEach((_cajero, cajaKey) => {
     pto.set(cajaKey, new Map());
   });
@@ -1286,8 +1293,9 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
     const { caja } = cajaDe(det);
     if (!pto.has(caja)) pto.set(caja, new Map());
     const m = pto.get(caja)!;
-    if (!m.has(dia)) m.set(dia, { monto: 0, usuarios: 0 });
+    if (!m.has(dia)) m.set(dia, { monto: 0, usuarios: 0, lotes: new Set() });
     const x = m.get(dia)!; x.monto += Number(p.monto) || 0; x.usuarios += 1;
+    if (det?.lote) x.lotes.add(String(det.lote).trim());
   });
   let fp = 6; let totalPunto = 0;
   [...pto.keys()].sort().forEach(caja => {
@@ -1307,6 +1315,7 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
     let totalCaja = 0;
     let totalPersonasCaja = 0;
 
+    const filaIniCaja = fp;
     if (m.size === 0) {
       const row = wsPto.getRow(fp);
       ['', `${dmy(fIni || fechaInicio)} al ${dmy(fFin || fechaFin)}`, 0, null, null, null, null, 0].forEach((v, i) => {
@@ -1316,23 +1325,41 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
         if (i === 2 || i === 3 || i === 5 || i === 6) c.numFmt = '#,##0.00';
       });
       row.getCell(6).value = { formula: `IF(D${fp}="","",C${fp}-D${fp})` } as any;
+      row.getCell(7).value = { formula: `IF(D${fp}="","",ABS((D${fp}+F${fp})-C${fp}))` } as any;
       fp++;
     } else {
       [...m.keys()].sort().forEach(dia => {
         const x = m.get(dia)!;
+        const savedKey = `${caja}|${dia}`;
+        const savedRow = cierresPosGuardados[savedKey] || {};
+        const hasCierreSaved = savedRow.cierrePunto !== undefined && savedRow.cierrePunto !== null && String(savedRow.cierrePunto) !== '';
+        const cierreVal = hasCierreSaved ? r2(Number(savedRow.cierrePunto)) : null;
+        const loteVal = (savedRow.nroLote && String(savedRow.nroLote).trim())
+          ? String(savedRow.nroLote).trim()
+          : (x.lotes.size > 0 ? Array.from(x.lotes).join('-') : null);
         const row = wsPto.getRow(fp);
-        ['', dmy(dia), r2(x.monto), null, null, null, null, x.usuarios].forEach((v, i) => {
+        ['', dmy(dia), r2(x.monto), cierreVal, loteVal, null, null, x.usuarios].forEach((v, i) => {
           const c = row.getCell(i + 1);
           c.value = v as any;
           c.border = BORDE;
           if (i === 2 || i === 3 || i === 5 || i === 6) c.numFmt = '#,##0.00';
         });
-        row.getCell(6).value = { formula: `IF(D${fp}="","",C${fp}-D${fp})` } as any;
+        if (savedRow.comisionPunto !== undefined && savedRow.comisionPunto !== null && String(savedRow.comisionPunto) !== '') {
+          row.getCell(6).value = r2(Number(savedRow.comisionPunto));
+        } else {
+          row.getCell(6).value = { formula: `IF(D${fp}="","",C${fp}-D${fp})` } as any;
+        }
+        if (savedRow.diferencia !== undefined && savedRow.diferencia !== null && String(savedRow.diferencia) !== '') {
+          row.getCell(7).value = r2(Number(savedRow.diferencia));
+        } else {
+          row.getCell(7).value = { formula: `IF(D${fp}="","",ABS((D${fp}+F${fp})-C${fp}))` } as any;
+        }
         totalCaja += x.monto;
         totalPersonasCaja += x.usuarios;
         fp++;
       });
     }
+    const filaFinCaja = fp - 1;
 
     // Requisito: AGREGAR EL TOTAL GENERAL POR CADA CAJA
     const rTotCaja = wsPto.getRow(fp++);
@@ -1341,6 +1368,15 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
     rTotCaja.getCell(3).value = r2(totalCaja);
     rTotCaja.getCell(3).numFmt = '#,##0.00';
     rTotCaja.getCell(3).font = { bold: true, size: 9 };
+    rTotCaja.getCell(4).value = { formula: `SUM(D${filaIniCaja}:D${filaFinCaja})` } as any;
+    rTotCaja.getCell(4).numFmt = '#,##0.00';
+    rTotCaja.getCell(4).font = { bold: true, size: 9 };
+    rTotCaja.getCell(6).value = { formula: `SUM(F${filaIniCaja}:F${filaFinCaja})` } as any;
+    rTotCaja.getCell(6).numFmt = '#,##0.00';
+    rTotCaja.getCell(6).font = { bold: true, size: 9 };
+    rTotCaja.getCell(7).value = { formula: `SUM(G${filaIniCaja}:G${filaFinCaja})` } as any;
+    rTotCaja.getCell(7).numFmt = '#,##0.00';
+    rTotCaja.getCell(7).font = { bold: true, size: 9 };
     rTotCaja.getCell(8).value = totalPersonasCaja;
     rTotCaja.getCell(8).font = { bold: true, size: 9 };
     for (let colIdx = 1; colIdx <= 8; colIdx++) {
@@ -1348,6 +1384,9 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
     }
     rTotCaja.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
     rTotCaja.getCell(3).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
+    rTotCaja.getCell(4).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
+    rTotCaja.getCell(6).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
+    rTotCaja.getCell(7).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
 
     totalPunto += totalCaja;
     fp++;
