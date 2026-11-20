@@ -357,19 +357,43 @@ export async function POST(req: Request) {
                 }
               }
 
-              // Condominios: retroceder fecha de aseo si aplica y no había prevLista
+              // Condominios: retroceder fecha de aseo SOLO si realmente descontó en BD, no había prevLista,
+              // y únicamente sobre las unidades específicas del pago (nunca masivamente en condominios por actividad/comerciales)
               const esCondo = actualP.modulo === 'condominios' || detMerged.es_condominio || detMerged.modulo === 'condominios';
-              if (esCondo && prevLista.length === 0) {
+              if (esCondo && prevLista.length === 0 && pagoDescontoEnBD) {
+                const lineasCondo: any[] = Array.isArray(detMerged.condominio?.lineas) ? detMerged.condominio.lineas : [];
+                const unidadIdsAfectadas = lineasCondo.map((l: any) => l?.unidad_id).filter(Boolean);
+                const codsUnidadesAfectadas = [
+                  ...lineasCondo.map((l: any) => String(l?.inmueble || '').trim().toUpperCase()).filter(Boolean),
+                  ...Array.from(propCodes).map(c => String(c || '').trim().toUpperCase()).filter(Boolean),
+                ];
                 const condoCod = detMerged.condominio?.codigo || detMerged.codigo_condominio || (Array.from(propCodes)[0]);
+                const esPagoIndividual = detMerged.modo === 'CONTRIBUYENTE' || detMerged.condominio?.modo === 'CONTRIBUYENTE' || unidadIdsAfectadas.length > 0;
+
                 if (condoCod) {
                   const { data: cRow } = await sb.from('condominios').select('*').eq('codigo', condoCod).limit(1).maybeSingle();
-                  if (cRow && cRow.aseo_pendiente_desde) {
+                  const esPorActividad = cRow && (cRow.modalidad === 'POR_ACTIVIDAD' || (!cRow.modalidad && cRow.tipo === 'Comercial'));
+                  if (cRow && cRow.aseo_pendiente_desde && !esPorActividad && !esPagoIndividual) {
                     const mesesARevertir = recibos.length > 0 ? recibos.length : (detMerged.meses || 1);
                     const f = new Date(cRow.aseo_pendiente_desde + 'T12:00:00Z');
                     f.setMonth(f.getMonth() - mesesARevertir);
                     const nuevaFecha = f.toISOString().slice(0, 10);
                     await sb.from('condominios').update({ aseo_pendiente_desde: nuevaFecha }).eq('id', cRow.id);
                     await sb.from('condominio_unidades').update({ aseo_pendiente_desde: nuevaFecha }).eq('condominio_id', cRow.id);
+                  } else if (codsUnidadesAfectadas.length > 0) {
+                    // Sincronizar condominio_unidades.aseo_pendiente_desde únicamente para las unidades específicas restauradas desde inmuebles
+                    const { data: inmsSync } = await sb.from('inmuebles').select('inmueble, meses_deuda').in('inmueble', codsUnidadesAfectadas);
+                    for (const iSync of inmsSync || []) {
+                      const mSync = Math.max(0, parseInt(String(iSync.meses_deuda ?? 0), 10) || 0);
+                      let nuevaFechaU: string | null = null;
+                      if (mSync > 0) {
+                        let yS = 2026;
+                        let moS = 10 - (mSync - 1);
+                        while (moS <= 0) { moS += 12; yS -= 1; }
+                        nuevaFechaU = `${yS}-${String(moS).padStart(2, '0')}-01`;
+                      }
+                      await sb.from('condominio_unidades').update({ aseo_pendiente_desde: nuevaFechaU }).eq('inmueble', iSync.inmueble);
+                    }
                   }
                 }
               }
