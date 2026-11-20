@@ -7096,7 +7096,7 @@ export default function CajaPage() {
                           {enVerif ? (
                             <div className="flex flex-col items-end gap-1">
                               <span className="font-bold text-purple-700 text-sm">Bs. {formatBs(baseMonto)}</span>
-                              <div className="flex items-center gap-1.5">
+                              <div className="flex items-center gap-1.5 flex-wrap justify-end">
                                 <span className="font-bold text-amber-600 text-xs">En Verificación</span>
                                 {pagoVinculado && (
                                   <button
@@ -7112,6 +7112,34 @@ export default function CajaPage() {
                                     <Eye className="w-3 h-3" /> Ver Comprobante
                                   </button>
                                 )}
+                                <button
+                                  type="button"
+                                  onClick={async (e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    try {
+                                      await supabase.from('servicios_especiales').update({ estado: 'Pendiente', pago_id: null }).eq('referencia', s.referencia);
+                                      if (pagoVinculado?.id) {
+                                        const det = typeof pagoVinculado.detalles === 'string'
+                                          ? JSON.parse(pagoVinculado.detalles || '{}')
+                                          : (pagoVinculado.detalles || {});
+                                        const nuevosServicios = Array.isArray(det.servicios)
+                                          ? det.servicios.filter((ref: string) => ref !== s.referencia)
+                                          : [];
+                                        await supabase.from('pagos_reportados').update({
+                                          detalles: { ...det, servicios: nuevosServicios }
+                                        }).eq('id', pagoVinculado.id);
+                                      }
+                                      if (refreshData) await refreshData();
+                                    } catch (err) {
+                                      console.error('Error al liberar servicio especial:', err);
+                                    }
+                                  }}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-bold cursor-pointer transition-colors shadow-2xs"
+                                  title="Desvincular del pago en verificación y habilitar para cobrar en Caja"
+                                >
+                                  ✓ Habilitar para Cancelar
+                                </button>
                               </div>
                             </div>
                           ) : esCobrable ? (
