@@ -682,12 +682,27 @@ function filtrarDestinatarios(
   });
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const url = new URL(request.url);
+    const listMode = url.searchParams.get('list') === '1';
+    const tipoFiltro = url.searchParams.get('tipoFiltro') || 'Todos los Sectores';
+    const estatusFiltro = url.searchParams.get('estatusFiltro') || 'Solo Morosos (Con deuda > 1 mes)';
+
     const tasa = await tasaVigente().catch(() => 1008.31);
     const padron = await cargarPadronDestinatarios(tasa);
     const conDeuda = padron.filter(x => x.hasDebt);
     const solventes = padron.filter(x => !x.hasDebt);
+
+    if (listMode) {
+      const filtrados = filtrarDestinatarios(padron, tipoFiltro, estatusFiltro);
+      return NextResponse.json({
+        ok: true,
+        tasaBcv: tasa,
+        total: filtrados.length,
+        destinatarios: filtrados,
+      });
+    }
 
     return NextResponse.json({
       ok: true,
@@ -733,7 +748,7 @@ export async function POST(request: Request) {
       process.env.TFHKA_BACKUP_EMAIL ||
       'facturacion.comercial@globalgreenca.com';
 
-    const tasa = await tasaVigente().catch(() => 1008.31);
+    const tasa = Number(body.tasaBcv) > 0 ? Number(body.tasaBcv) : await tasaVigente().catch(() => 1008.31);
     let destinatarios: DestinatarioCampana[] = [];
 
     if (testMode) {
@@ -767,9 +782,14 @@ export async function POST(request: Request) {
           ],
         },
       ];
+    } else if (Array.isArray(body.destinatariosLote) && body.destinatariosLote.length > 0) {
+      destinatarios = body.destinatariosLote;
     } else {
       const padron = await cargarPadronDestinatarios(tasa);
-      destinatarios = filtrarDestinatarios(padron, tipoFiltro, estatusFiltro);
+      const todos = filtrarDestinatarios(padron, tipoFiltro, estatusFiltro);
+      const offset = Math.max(0, parseInt(String(body.offset ?? 0), 10) || 0);
+      const limit = Math.max(1, Math.min(200, parseInt(String(body.limit ?? 100), 10) || 100));
+      destinatarios = todos.slice(offset, offset + limit);
     }
 
     if (!destinatarios.length) {
@@ -787,67 +807,96 @@ export async function POST(request: Request) {
     const fromEmail =
       process.env.RESEND_FROM || 'IAMEC Naguanagua <facturacion@globalgreenrec.com>';
 
-    for (let i = 0; i < destinatarios.length; i += 10) {
-      const lote = destinatarios.slice(i, i + 10);
-      await Promise.all(
-        lote.map(async dest => {
-          try {
-            const destinoComun = testMode || modoTestComun ? testEmail : dest.correo;
-            const subjectComun =
-              testMode || modoTestComun
-                ? `[PRUEBA | Para: ${dest.correo}] ${asuntoPersonalizado}`
-                : asuntoPersonalizado;
+    // Si no lleva PDF adjunto, usar Resend Batch API (hasta 100 correos por petición HTTP) para máxima velocidad sin timeout
+    if (!adjuntarPdf && !testMode && !modoTestComun) {
+      for (let i = 0; i < destinatarios.length; i += 100) {
+        const chunk = destinatarios.slice(i, i + 100);
+        const batchPayload = chunk.map(dest => ({
+          from: fromEmail,
+          to: [dest.correo],
+          subject: asuntoPersonalizado,
+          html: esRecordatorioPago
+            ? buildRecordatorioPagoHtml(dest)
+            : esEstadoCuentaMasivo
+            ? buildEstadoCuentaMasivoWordHtml(dest)
+            : buildEstadoCuentaConPdfHtml(dest),
+        }));
+        try {
+          const batchRes = await resend.batch.send(batchPayload);
+          if (batchRes.error) {
+            errores += chunk.length;
+            erroresList.push(batchRes.error.message || 'Error en lote batch');
+          } else {
+            enviados += chunk.length;
+          }
+        } catch (err: any) {
+          errores += chunk.length;
+          erroresList.push(err?.message || 'Error enviando lote batch');
+        }
+      }
+    } else {
+      for (let i = 0; i < destinatarios.length; i += 10) {
+        const lote = destinatarios.slice(i, i + 10);
+        await Promise.all(
+          lote.map(async dest => {
+            try {
+              const destinoComun = testMode || modoTestComun ? testEmail : dest.correo;
+              const subjectComun =
+                testMode || modoTestComun
+                  ? `[PRUEBA | Para: ${dest.correo}] ${asuntoPersonalizado}`
+                  : asuntoPersonalizado;
 
-            let attachments: { filename: string; content: Buffer }[] | undefined;
-            if (adjuntarPdf && dest.hasDebt) {
-              const pdfBuffer = construirEstadoCuentaPdfBuffer(dest, tasa);
-              const safeId = String(dest.identidad || 'CONTRIBUYENTE').replace(/[^A-Z0-9_-]/gi, '_');
-              attachments = [
-                {
-                  filename: `Estado_de_Cuenta_IAMEC_${safeId}.pdf`,
-                  content: pdfBuffer,
-                },
-              ];
-            }
+              let attachments: { filename: string; content: Buffer }[] | undefined;
+              if (adjuntarPdf && dest.hasDebt) {
+                const pdfBuffer = construirEstadoCuentaPdfBuffer(dest, tasa);
+                const safeId = String(dest.identidad || 'CONTRIBUYENTE').replace(/[^A-Z0-9_-]/gi, '_');
+                attachments = [
+                  {
+                    filename: `Estado_de_Cuenta_IAMEC_${safeId}.pdf`,
+                    content: pdfBuffer,
+                  },
+                ];
+              }
 
-            const htmlContent = esRecordatorioPago
-              ? buildRecordatorioPagoHtml(dest)
-              : esEstadoCuentaMasivo
-              ? buildEstadoCuentaMasivoWordHtml(dest)
-              : buildEstadoCuentaConPdfHtml(dest);
+              const htmlContent = esRecordatorioPago
+                ? buildRecordatorioPagoHtml(dest)
+                : esEstadoCuentaMasivo
+                ? buildEstadoCuentaMasivoWordHtml(dest)
+                : buildEstadoCuentaConPdfHtml(dest);
 
-            let sendRes = await resend.emails.send({
-              from: fromEmail,
-              to: [destinoComun],
-              subject: subjectComun,
-              html: htmlContent,
-              attachments,
-            });
-
-            if (sendRes.error && sendRes.error.message.includes('only send testing emails')) {
-              sendRes = await resend.emails.send({
+              let sendRes = await resend.emails.send({
                 from: fromEmail,
-                to: ['aseonaguanagua@globalgreenca.com'],
-                subject: subjectComun + ` (Destino original: ${destinoComun})`,
+                to: [destinoComun],
+                subject: subjectComun,
                 html: htmlContent,
                 attachments,
               });
-            }
 
-            if (sendRes.error) {
+              if (sendRes.error && sendRes.error.message.includes('only send testing emails')) {
+                sendRes = await resend.emails.send({
+                  from: fromEmail,
+                  to: ['aseonaguanagua@globalgreenca.com'],
+                  subject: subjectComun + ` (Destino original: ${destinoComun})`,
+                  html: htmlContent,
+                  attachments,
+                });
+              }
+
+              if (sendRes.error) {
+                errores++;
+                erroresList.push(dest.correo + ': ' + sendRes.error.message);
+              } else {
+                enviados++;
+              }
+            } catch (err: any) {
               errores++;
-              erroresList.push(dest.correo + ': ' + sendRes.error.message);
-            } else {
-              enviados++;
+              erroresList.push(dest.correo + ': ' + err.message);
             }
-          } catch (err: any) {
-            errores++;
-            erroresList.push(dest.correo + ': ' + err.message);
-          }
-        })
-      );
-      if (i + 10 < destinatarios.length) {
-        await new Promise(r => setTimeout(r, 500));
+          })
+        );
+        if (i + 10 < destinatarios.length) {
+          await new Promise(r => setTimeout(r, 250));
+        }
       }
     }
 
@@ -871,7 +920,7 @@ export async function POST(request: Request) {
       erroresList: erroresList.slice(0, 10),
       mensaje: testMode
         ? `Correo de prueba enviado exitosamente a ${testEmail}`
-        : `Campaña completada: ${enviados} recordatorios de pago enviados exitosamente.`,
+        : `Campaña completada: ${enviados} correos enviados exitosamente.`,
     });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });

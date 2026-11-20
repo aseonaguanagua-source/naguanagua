@@ -28,6 +28,7 @@ export default function CorreosPage() {
   const [isSending, setIsSending] = useState(false);
   const [isSendingTest, setIsSendingTest] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [sentProgressText, setSentProgressText] = useState('');
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const [resumen, setResumen] = useState<ResumenPadron>({
@@ -95,11 +96,19 @@ export default function CorreosPage() {
           testEmail: testEmailDestino.trim() || undefined,
         }),
       });
-      const data = await res.json();
+      const textResp = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(textResp);
+      } catch {
+        throw new Error(textResp.slice(0, 140) || `Respuesta inválida del servidor (HTTP ${res.status})`);
+      }
       if (data.success) {
         setStatusMessage({
           type: 'success',
-          text: data.mensaje || `Correo de prueba con Estado de Cuenta PDF adjunto despachado a ${testEmailDestino || 'facturacion.comercial@globalgreenca.com'}.`,
+          text:
+            data.mensaje ||
+            `Correo de prueba enviado exitosamente a ${testEmailDestino || 'facturacion.comercial@globalgreenca.com'}.`,
         });
       } else {
         setStatusMessage({
@@ -115,57 +124,114 @@ export default function CorreosPage() {
   };
 
   const handleSendMassive = async () => {
+    const esRec = plantilla === 'recordatorio_pago';
     if (
       !confirm(
-        `¿Desea iniciar el envío masivo a ${destinatariosSeleccionados.toLocaleString('es-VE')} contribuyentes (${tipoFiltro} · ${estatusFiltro})${
-          adjuntarPdf ? ' con su Estado de Cuenta PDF adjunto' : ''
-        }?`
+        `¿Desea iniciar el envío masivo de ${
+          esRec ? 'Recordatorio de Pago (Sin PDF adjunto)' : 'Estado de Cuenta (Con PDF adjunto)'
+        } a ${destinatariosSeleccionados.toLocaleString('es-VE')} contribuyentes (${tipoFiltro} · ${estatusFiltro})?`
       )
     ) {
       return;
     }
 
     setIsSending(true);
-    setProgress(10);
+    setProgress(2);
+    setSentProgressText('Cargando lista de destinatarios...');
     setStatusMessage(null);
 
     try {
-      const progressTimer = setInterval(() => {
-        setProgress(p => (p < 90 ? p + 10 : p));
-      }, 900);
+      // 1. Obtener lista completa de destinatarios una sola vez para no saturar ni agotar los 60s de Vercel
+      const qUrl = `/api/admin/envio-comunicado?list=1&tipoFiltro=${encodeURIComponent(
+        tipoFiltro
+      )}&estatusFiltro=${encodeURIComponent(estatusFiltro)}`;
+      const listRes = await fetch(qUrl);
+      const listText = await listRes.text();
+      let listJson: any = {};
+      try {
+        listJson = JSON.parse(listText);
+      } catch {
+        throw new Error(listText.slice(0, 140) || `Error obteniendo destinatarios (HTTP ${listRes.status})`);
+      }
 
-      const res = await fetch('/api/admin/envio-comunicado', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          test: false,
-          plantilla,
-          asunto,
-          tipoFiltro,
-          estatusFiltro,
-          adjuntarPdf,
-        }),
-      });
+      if (!listJson.ok || !Array.isArray(listJson.destinatarios) || listJson.destinatarios.length === 0) {
+        throw new Error(listJson.error || 'No se encontraron destinatarios para el filtro seleccionado.');
+      }
 
-      clearInterval(progressTimer);
+      const todosDestinatarios: any[] = listJson.destinatarios;
+      const tasaBcv = Number(listJson.tasaBcv) || 1008.31;
+      // Si es Recordatorio de Pago (sin PDF), podemos enviar lotes de 100 por petición (Resend Batch API).
+      // Si lleva PDF adjunto, enviamos lotes de 15 por petición para generar los PDFs holgadamente sin timeout.
+      const BATCH_SIZE = !esRec && adjuntarPdf ? 15 : 100;
+      let totalEnviados = 0;
+      let totalErrores = 0;
+      let ultimoError = '';
+
+      for (let i = 0; i < todosDestinatarios.length; i += BATCH_SIZE) {
+        const lote = todosDestinatarios.slice(i, i + BATCH_SIZE);
+        const pct = Math.min(99, Math.max(5, Math.round(((i + lote.length) / todosDestinatarios.length) * 100)));
+        setProgress(pct);
+        setSentProgressText(
+          `Enviando lote ${Math.floor(i / BATCH_SIZE) + 1} de ${Math.ceil(
+            todosDestinatarios.length / BATCH_SIZE
+          )} (${totalEnviados.toLocaleString('es-VE')} / ${todosDestinatarios.length.toLocaleString('es-VE')})...`
+        );
+
+        const res = await fetch('/api/admin/envio-comunicado', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            test: false,
+            plantilla,
+            asunto,
+            tipoFiltro,
+            estatusFiltro,
+            adjuntarPdf: !esRec && adjuntarPdf,
+            tasaBcv,
+            destinatariosLote: lote,
+          }),
+        });
+
+        const rawText = await res.text();
+        let data: any = {};
+        try {
+          data = JSON.parse(rawText);
+        } catch {
+          totalErrores += lote.length;
+          ultimoError = rawText.slice(0, 120) || `HTTP ${res.status}`;
+          continue;
+        }
+
+        if (data.success) {
+          totalEnviados += Number(data.enviados || 0);
+          totalErrores += Number(data.errores || 0);
+        } else {
+          totalErrores += lote.length;
+          ultimoError = data.error || 'Error en lote';
+        }
+      }
+
       setProgress(100);
+      setSentProgressText('');
 
-      const data = await res.json();
-      if (data.success) {
+      if (totalEnviados > 0) {
         setStatusMessage({
           type: 'success',
-          text: `Campaña completada: ${data.enviados} Estados de Cuenta enviados exitosamente.`,
+          text: `Campaña completada: ${totalEnviados.toLocaleString('es-VE')} ${
+            esRec ? 'recordatorios de pago' : 'estados de cuenta'
+          } enviados exitosamente${totalErrores > 0 ? ` (${totalErrores} con observación)` : ''}.`,
         });
       } else {
         setStatusMessage({
           type: 'error',
-          text: `Error en la campaña masiva: ${data.error}`,
+          text: `Error en la campaña masiva: ${ultimoError || 'No se pudieron entregar los correos.'}`,
         });
       }
     } catch (e: any) {
-      setStatusMessage({ type: 'error', text: 'Error en la conexión del servidor: ' + e.message });
+      setStatusMessage({ type: 'error', text: 'Error en la campaña: ' + e.message });
     } finally {
       setIsSending(false);
+      setSentProgressText('');
     }
   };
 
@@ -511,7 +577,13 @@ export default function CorreosPage() {
               {destinatariosSeleccionados.toLocaleString('es-VE')}
             </div>
             <div className="text-[11px] text-slate-500 uppercase font-semibold mt-1">
-              Usuarios a Enviar ({estatusFiltro.includes('Morosos') ? 'Con Deuda + PDF' : estatusFiltro})
+              Usuarios a Enviar (
+              {estatusFiltro.includes('Morosos')
+                ? plantilla === 'recordatorio_pago'
+                  ? 'Con Deuda · Sin PDF'
+                  : 'Con Deuda + PDF'
+                : estatusFiltro}
+              )
             </div>
           </div>
 
@@ -606,8 +678,8 @@ export default function CorreosPage() {
                 {isSending && (
                   <div className="pt-2 space-y-1">
                     <div className="flex justify-between text-xs text-slate-500">
-                      <span>Procesando...</span>
-                      <span>{progress}%</span>
+                      <span className="truncate pr-2">{sentProgressText || 'Procesando...'}</span>
+                      <span className="font-bold">{progress}%</span>
                     </div>
                     <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
                       <div
