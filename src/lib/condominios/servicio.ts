@@ -478,8 +478,13 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasaRaw: numb
     if (String(condoRow?.codigo || '').trim().toUpperCase() === 'URB016822' && !res && tasa > 0 && deuda.porMes.length > 0) {
       let acumBsPrev = 0;
       let acumEur = 0;
+      const mmvDirecto = u?.estado === 'Desocupada'
+        ? M.FO_DESOCUPADO
+        : (Number(u?.tarifa_mmv) || Number(c.tarifa_mmv) || 0);
       deuda.porMes = deuda.porMes.map((m) => {
-        const bEur = r2(m.baseBs / tasa);
+        const bEur = mmvDirecto > 0 && !u?.periodos_custom && !u?.desocupada_desde
+          ? r2(mmvDirecto * 57 * M.FAC_COMERCIAL)
+          : r2(m.baseBs / tasa);
         const iEur = r2(bEur * M.IVA);
         const totEurMes = r2(bEur + iEur);
         acumEur = r2(acumEur + totEurMes);

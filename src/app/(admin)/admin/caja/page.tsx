@@ -2591,7 +2591,8 @@ export default function CajaPage() {
     setCargandoTasaFecha(true);
     try {
       const { euro, fechaValor } = await obtenerTasaEuroFecha(fecha);
-      setCustomBcvRate(String(euro));
+      const euroR2 = (Math.round((Number(euro) + Number.EPSILON) * 100) / 100).toFixed(2);
+      setCustomBcvRate(euroR2);
       setFechaTransaccion(fecha);
       setJustificacionBcv(`Tasa BCV Euro del ${fechaDMY(fecha)}${fechaValor !== fecha ? ` (publicada con fecha valor ${fechaDMY(fechaValor)})` : ''}`);
     } catch (e: any) {

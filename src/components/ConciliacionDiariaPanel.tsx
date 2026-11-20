@@ -693,8 +693,8 @@ export default function ConciliacionDiariaPanel({
       next[f.dia] = {
         euro: String(ov?.euro !== undefined && ov?.euro !== null ? r2(Number(ov.euro)) : f.autoEuro),
         ucd: String(ov?.ucd !== undefined && ov?.ucd !== null ? r2(Number(ov.ucd)) : f.autoUcd),
-        puntoBs: String(ov?.puntoBs !== undefined && ov?.puntoBs !== null ? r2(Number(ov.puntoBs)) : f.autoPuntoBs),
-        transfBs: String(ov?.transfBs !== undefined && ov?.transfBs !== null ? r2(Number(ov.transfBs)) : f.autoTransfBs),
+        puntoBs: String(f.autoPuntoBs),
+        transfBs: String(f.autoTransfBs),
         banescoBs: String(ov?.banescoBs !== undefined && ov?.banescoBs !== null ? r2(Number(ov.banescoBs)) : f.autoBanescoBs),
         bancamigaBs: String(ov?.bancamigaBs !== undefined && ov?.bancamigaBs !== null ? r2(Number(ov.bancamigaBs)) : f.autoBancamigaBs),
       };
@@ -751,8 +751,6 @@ export default function ConciliacionDiariaPanel({
         const isSameAsAuto =
           Math.abs(euroVal - f.autoEuro) < 0.01 &&
           Math.abs(ucdVal - f.autoUcd) < 0.01 &&
-          Math.abs(puntoVal - f.autoPuntoBs) < 0.01 &&
-          Math.abs(transfVal - f.autoTransfBs) < 0.01 &&
           Math.abs(banescoVal - f.autoBanescoBs) < 0.01 &&
           Math.abs(bancamigaVal - f.autoBancamigaBs) < 0.01;
 
@@ -762,8 +760,6 @@ export default function ConciliacionDiariaPanel({
           merged[f.dia] = {
             euro: euroVal,
             ucd: ucdVal,
-            puntoBs: puntoVal,
-            transfBs: transfVal,
             banescoBs: banescoVal,
             bancamigaBs: bancamigaVal,
             updatedAt: nowIso,

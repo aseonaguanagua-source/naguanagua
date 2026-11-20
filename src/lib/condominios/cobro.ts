@@ -267,17 +267,24 @@ export async function prepararCobro(sol: SolicitudCobro): Promise<Cobro & { _dat
     if (modo === 'CONDOMINIO') {
         // Para C.C. Free Market (URB016822), cuya relación de cobranza en Excel suma (Tarifa_EUR_2_dec × Meses × Tasa_BCV) sin redondear fila a fila antes del SUM:
         // cuadrar totTotalBs al céntimo con la suma exacta de la relación Excel.
-        if (String(datos.condo?.codigo || '').trim().toUpperCase() === 'URB016822' && totMultaBs === 0 && tasa > 0 && lineas.length > 1) {
+        if (String(datos.condo?.codigo || '').trim().toUpperCase() === 'URB016822' && totMultaBs === 0 && totRetBs === 0 && tasa > 0 && lineas.length > 1) {
             const mapRenglon = new Map(estado.renglones.map(r => [r.clave, r]));
+            const mapUnidad = new Map((datos.unidades || []).map((u: any) => [u.id, u]));
             const sumEurMeses = lineas.reduce((acc, l) => {
                 const rg = mapRenglon.get(l.clave);
-                const bEur = r2((Number(rg?.mensualBs) || 0) / tasa);
+                const uRow: any = mapUnidad.get(l.clave);
+                const mmvDirecto = uRow?.estado === 'Desocupada'
+                    ? M.FO_DESOCUPADO
+                    : (Number(uRow?.tarifa_mmv) || 0);
+                const bEur = mmvDirecto > 0
+                    ? r2(mmvDirecto * 57 * M.FAC_COMERCIAL)
+                    : r2((Number(rg?.mensualBs) || 0) / tasa);
                 const iEur = rg?.residencial ? 0 : r2(bEur * M.IVA);
                 const totEur = r2(bEur + iEur);
                 return r2(acc + r2(totEur * (l.meses || 0)));
             }, 0);
             const targetExcelTotal = r2(sumEurMeses * tasa);
-            if (targetExcelTotal > 0 && Math.abs(targetExcelTotal - totTotalBs) <= 1.00 && targetExcelTotal !== totTotalBs) {
+            if (targetExcelTotal > 0 && Math.abs(targetExcelTotal - totTotalBs) <= 5.00 && targetExcelTotal !== totTotalBs) {
                 totTotalBs = targetExcelTotal;
                 totBaseBs = r2(totTotalBs / (1 + M.IVA));
                 totIvaBs = r2(totTotalBs - totBaseBs);

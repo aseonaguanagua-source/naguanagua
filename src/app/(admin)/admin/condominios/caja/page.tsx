@@ -1944,13 +1944,44 @@ function Caja() {
                               if (!ws) throw new Error('El archivo Excel no contiene hojas.');
 
                               let detectedTasa = 0;
+                              let detectedFechaISO = '';
                               const codeToMeses = new Map<string, number>();
 
                               ws.eachRow((row: any) => {
                                 const vals: any[] = Array.isArray(row.values) ? row.values : [];
-                                // Detectar tasa BCV en encabezados (ej. 1003.49)
+                                // Detectar Fecha de Emisión si viene en el encabezado del Excel
                                 vals.forEach((v) => {
-                                  const num = typeof v === 'number' ? v : parseFloat(String(v || '').replace(',', '.'));
+                                  if (detectedFechaISO) return;
+                                  if (v instanceof Date && !isNaN(v.getTime())) {
+                                    const iso = v.toISOString().slice(0, 10);
+                                    if (iso >= '2025-01-01' && iso <= '2030-12-31') detectedFechaISO = iso;
+                                  } else if (typeof v === 'string') {
+                                    const s = v.trim();
+                                    if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+                                      const iso = s.slice(0, 10);
+                                      if (iso >= '2025-01-01' && iso <= '2030-12-31') detectedFechaISO = iso;
+                                    } else {
+                                      const mDmy = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+                                      if (mDmy) {
+                                        let p1 = parseInt(mDmy[1], 10);
+                                        let p2 = parseInt(mDmy[2], 10);
+                                        let yr = parseInt(mDmy[3], 10);
+                                        if (yr < 100) yr += 2000;
+                                        // En Excel de Free Market viene MM/DD/YY (ej. 11/17/26) o DD/MM/YY
+                                        const mm = p1 <= 12 && p2 > 12 ? p1 : (p2 <= 12 ? p2 : p1);
+                                        const dd = p1 <= 12 && p2 > 12 ? p2 : (p2 <= 12 ? p1 : p2);
+                                        if (yr >= 2025 && yr <= 2030 && mm >= 1 && mm <= 12 && dd >= 1 && dd <= 31) {
+                                          detectedFechaISO = `${yr}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+                                        }
+                                      }
+                                    }
+                                  }
+                                });
+
+                                // Detectar tasa BCV en encabezados (ej. 1003.49 o 1010.56)
+                                vals.forEach((v) => {
+                                  const rawV = typeof v === 'object' && v !== null && 'result' in v ? (v as any).result : v;
+                                  const num = typeof rawV === 'number' ? rawV : parseFloat(String(rawV || '').replace(/,/g, ''));
                                   if (!isNaN(num) && num >= 30 && num <= 5000 && !detectedTasa) {
                                     // Verificar si en la misma fila dice "Código" o "Meses pagados"
                                     const rowStr = vals.map(x => String(x || '').toLowerCase()).join(' ');
@@ -2012,8 +2043,15 @@ function Caja() {
                               setMeses('');
                               setMesesPorUnidad(nuevosMesesPorUnidad);
                               setClaves(Array.from(new Set(nuevasClaves)));
+                              if (detectedFechaISO) {
+                                setFechaOverrideStr(detectedFechaISO);
+                                setFechaAct(detectedFechaISO);
+                                setFechaTransaccionAct(detectedFechaISO);
+                              }
                               if (detectedTasa > 0) {
-                                setTasaOverrideStr(detectedTasa.toFixed(2).replace('.', ','));
+                                const tasaFmt = detectedTasa.toFixed(2).replace('.', ',');
+                                setTasaOverrideStr(tasaFmt);
+                                setTasaFechaInfo(`Tasa tomada de la Relación Excel: Bs. ${tasaFmt}${detectedFechaISO ? ` (Emisión ${fechaDMY(detectedFechaISO)})` : ''}`);
                               }
                             } catch (err: any) {
                               alert('Error al leer la relación Excel: ' + (err?.message || 'Archivo inválido'));

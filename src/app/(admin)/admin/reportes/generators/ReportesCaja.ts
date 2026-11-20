@@ -5,6 +5,7 @@ import { parseDet, montosPago, cargarInmMapPagos, codigosDePago, resolverCodigoP
 import { obtenerNroReciboWeb } from './ReporteRecibosPagos';
 import { clasificarBancoDestino } from '@/lib/cuentasBancarias';
 import { logos } from '@/lib/logosBase64';
+import { aplicarMontoReporte } from '../montoReporte';
 
 function insertarEncabezadoLogos(
   wb: any,
@@ -204,7 +205,7 @@ export async function generarTotalPuntosVenta(pagos: any[], fechaInicio: string,
       from += PAGE;
     }
     if (fresh.length > 0) {
-      sourcePagos = fresh;
+      sourcePagos = fresh.map(aplicarMontoReporte);
     }
   } catch {}
 
@@ -736,7 +737,7 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
       from += PAGE;
     }
     if (fresh.length > 0) {
-      sourcePagos = fresh;
+      sourcePagos = fresh.map(aplicarMontoReporte);
     }
   } catch (eFresh) {
     console.warn('Usando pagos en memoria para Conciliación de Transferencias:', eFresh);

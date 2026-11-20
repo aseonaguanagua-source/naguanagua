@@ -349,8 +349,8 @@ export async function generarMontoDiarioRecaudado({
     .filter((d) => {
       const obj = agrupadoPorDia.get(d)!;
       const ov = ajustesDiariosGuardados[d];
-      const pBs = ov?.puntoBs !== undefined && ov?.puntoBs !== null ? Number(ov.puntoBs) : obj.puntoBs;
-      const tBs = ov?.transfBs !== undefined && ov?.transfBs !== null ? Number(ov.transfBs) : obj.transfBs;
+      const pBs = obj.puntoBs;
+      const tBs = obj.transfBs;
       const banBs = ov?.banescoBs !== undefined && ov?.banescoBs !== null ? Number(ov.banescoBs) : obj.banescoBs;
       const bgaBs = ov?.bancamigaBs !== undefined && ov?.bancamigaBs !== null ? Number(ov.bancamigaBs) : obj.bancamigaBs;
       return r2(pBs) > 0 || r2(tBs) > 0 || r2(banBs) > 0 || r2(bgaBs) > 0;
@@ -520,9 +520,10 @@ export async function generarMontoDiarioRecaudado({
       ? r2(Number(ov.ucd))
       : tasaBcvDia;
 
-    const pBs = (ov.puntoBs !== undefined && ov.puntoBs !== null) ? r2(Number(ov.puntoBs)) : r2(dData.puntoBs);
+    // Punto de Venta y Transferencias Conciliadas siempre usan el total real en vivo del sistema (igual que Total Puntos de Venta y Conciliación de Transferencias)
+    const pBs = r2(dData.puntoBs);
     const pEur = tasaBcvDia > 0 ? r2(pBs / tasaBcvDia) : 0;
-    const tBs = (ov.transfBs !== undefined && ov.transfBs !== null) ? r2(Number(ov.transfBs)) : r2(dData.transfBs);
+    const tBs = r2(dData.transfBs);
     const tEur = tasaBcvDia > 0 ? r2(tBs / tasaBcvDia) : 0;
     const banBs = (ov.banescoBs !== undefined && ov.banescoBs !== null) ? r2(Number(ov.banescoBs)) : r2(dData.banescoBs);
     const banEur = tasaBcvDia > 0 ? r2(banBs / tasaBcvDia) : 0;
