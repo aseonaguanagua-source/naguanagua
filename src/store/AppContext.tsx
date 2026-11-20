@@ -531,8 +531,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
         // Inmuebles "Eliminado", "Inactivo" o con actividad TERRENO no suman deuda ni multas (ellos no pagan).
         const esEliminado = ['eliminado', 'inactivo', 'desactivado'].includes(String(row.estado || '').trim().toLowerCase());
         const esTerreno = isTerrenoInm(row);
-        // Si es un contenedor matriz N/A cuyos hijos activos ya tienen su deuda desglosada (o es contenedor local de condominio), no sumar el contenedor para evitar duplicar o cobrar deuda fantasma
-        const isNAContainerWithChildDebt = isParentNormal && /^(N\/?A|NA|SIN ACTIVIDAD.*)$/i.test(String(row.actividad_principal || '').trim()) && (padresConDeudaEnHijos.has(cod) || isCondoChild);
+        // Si es un contenedor matriz cuyos hijos activos ya tienen su deuda desglosada (o ya están todos solventes en 0 meses y el contenedor no tiene deuda_mmv ni multa ni deuda_congelada propia), no sumar el contenedor para evitar duplicar o cobrar deuda fantasma
+        const isContainerWithoutOwnDebt =
+          isParentNormal &&
+          parseFloat(row.deuda_mmv || 0) === 0 &&
+          parseFloat(row.multa_bs || 0) === 0 &&
+          parseFloat(row.deuda_congelada_bs || 0) === 0;
+        const isNAContainerWithChildDebt =
+          (isParentNormal && /^(N\/?A|NA|SIN ACTIVIDAD.*)$/i.test(String(row.actividad_principal || '').trim()) && (padresConDeudaEnHijos.has(cod) || isCondoChild)) ||
+          isContainerWithoutOwnDebt;
         const rowDeudaMMV = (isCommercialChild || esEliminado || esTerreno || isNAContainerWithChildDebt) ? 0 : parseFloat(row.deuda_mmv || 0);
         const rowMultaBs = (isParentCondo || esEliminado || esTerreno || isNAContainerWithChildDebt) ? 0 : parseFloat(row.multa_bs || 0);
         const rowCongelada = (esEliminado || esTerreno || isNAContainerWithChildDebt) ? 0 : parseFloat(row.deuda_congelada_bs || 0);

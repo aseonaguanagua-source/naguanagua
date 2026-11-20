@@ -99,6 +99,11 @@ export default function MorososView({ contribuyentes = [], tcmmv = 0, onBack }: 
       const tasa = tcmmv > 0 ? tcmmv : 1;
       const map = new Map<string, any>();
 
+      const parentIdsSet = new Set<string>();
+      for (const row of inmueblesDirectos) {
+        if (row.padre_id) parentIdsSet.add(String(row.padre_id).trim());
+      }
+
       for (const row of inmueblesDirectos) {
         const esEliminado = ['eliminado', 'inactivo', 'desactivado'].includes(
           String(row.estado || '').trim().toLowerCase()
@@ -111,7 +116,17 @@ export default function MorososView({ contribuyentes = [], tcmmv = 0, onBack }: 
         const bMes = calcularMensualidad(row, tasa);
         const m = parseInt(String(row.meses_deuda || 0), 10) || 0;
         const deudaMMV = parseFloat(String(row.deuda_mmv || 0)) || 0;
-        const totalMeses = Math.max(0, m > 0 ? m : deudaMMV > 0 ? 1 : 0);
+        const rowMultaBs = parseFloat(String(row.multa_bs || 0)) || 0;
+        const rowCongelada = parseFloat(String(row.deuda_congelada_bs || 0)) || 0;
+        const isContainerWithoutOwnDebt =
+          !row.padre_id &&
+          parentIdsSet.has(String(cod || '').trim()) &&
+          deudaMMV === 0 &&
+          rowMultaBs === 0 &&
+          rowCongelada === 0;
+        const totalMeses = isContainerWithoutOwnDebt
+          ? 0
+          : Math.max(0, m > 0 ? m : deudaMMV > 0 ? 1 : 0);
         const mesesConMora = Math.max(0, totalMeses - 1);
         const tasaMora = esRes ? 0.1 : 0.12;
 
@@ -121,15 +136,13 @@ export default function MorososView({ contribuyentes = [], tcmmv = 0, onBack }: 
         const multaMes = r2(baseMes * tasaMora);
         const base2 = r2(baseMes * totalMeses);
         const iva2 = r2(ivaMes * totalMeses);
-        const rowMultaBs = parseFloat(String(row.multa_bs || 0)) || 0;
         const multa2 = totalMeses > 0 ? r2(multaMes * mesesConMora) : rowMultaBs;
         const ret2 =
           !esRes && row.agente_retencion === true ? r2(iva2 * 0.75) : 0;
         const saldoFavor = parseFloat(String(row.saldo_favor_bs || 0)) || 0;
-        const rowCongelada = parseFloat(String(row.deuda_congelada_bs || 0)) || 0;
-        const rowDeudaBs = r2(
-          Math.max(0, base2 + iva2 + multa2 + rowCongelada - ret2 - saldoFavor)
-        );
+        const rowDeudaBs = isContainerWithoutOwnDebt
+          ? 0
+          : r2(Math.max(0, base2 + iva2 + multa2 + rowCongelada - ret2 - saldoFavor));
 
         if (!map.has(groupKey)) {
           let clase = 'Residencial';
@@ -212,7 +225,20 @@ export default function MorososView({ contribuyentes = [], tcmmv = 0, onBack }: 
             _fromCondosModulo: true,
           };
         });
-      return [...nonCondoRows, ...condoRows].sort(
+      // Si se cargó inmueblesDirectos (que solo trae meses > 0 de la BD), incorporar también los contribuyentes solventes (0 meses) desde contribuyentes en memoria
+      let solventNonCondos: any[] = [];
+      if (inmueblesDirectos.length > 0 && Array.isArray(contribuyentes) && contribuyentes.length > 0) {
+        const existingCods = new Set(
+          nonCondoRows.map((r: any) => String(r.cod_cont || '').split(/\s+/)[0]?.trim().toUpperCase()).filter(Boolean)
+        );
+        solventNonCondos = construirListaMorosos([], contribuyentes, tcmmv, true).filter((r: any) => {
+          if (Number(r.mesesPendientes) !== 0) return false;
+          const primaryCod = String(r.cod_cont || '').split(/\s+/)[0]?.trim().toUpperCase();
+          if (!primaryCod || existingCods.has(primaryCod) || condoCodSet.has(primaryCod)) return false;
+          return true;
+        });
+      }
+      return [...nonCondoRows, ...solventNonCondos, ...condoRows].sort(
         (a, b) => b.mesesPendientes - a.mesesPendientes || b.totalDeudaBs - a.totalDeudaBs
       );
     }
@@ -293,7 +319,21 @@ export default function MorososView({ contribuyentes = [], tcmmv = 0, onBack }: 
     if (morososFiltrados.length === 0) return;
     setExportingExcel(true);
     try {
-      await generarMorososExcel(morososFiltrados, contribuyentes, tcmmv);
+      // Si el filtro de meses está en 'todos' o 'todos_incl_0' (y no hay búsqueda de texto puntual),
+      // incluir también los registros en 0 meses (solventes) que coincidan con la clasificación seleccionada,
+      // para que en el autofiltro de Excel siempre aparezca la opción "0" en Meses pendientes.
+      let rowsForExcel = morososFiltrados;
+      if ((filtroMeses === 'todos' || filtroMeses === 'todos_incl_0') && !searchTerm.trim()) {
+        rowsForExcel = morososList.filter((m) => {
+          if (filtroTipo !== 'todos') {
+            return String(m.clasificacion || '')
+              .toLowerCase()
+              .includes(filtroTipo.toLowerCase());
+          }
+          return true;
+        });
+      }
+      await generarMorososExcel(rowsForExcel, contribuyentes, tcmmv);
     } finally {
       setExportingExcel(false);
     }
@@ -557,7 +597,9 @@ export default function MorososView({ contribuyentes = [], tcmmv = 0, onBack }: 
                       <td className="py-2.5 px-3 text-center">
                         <span
                           className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-black ${
-                            esCritico
+                            m.mesesPendientes === 0
+                              ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                              : esCritico
                               ? 'bg-red-100 text-red-700 border border-red-200'
                               : 'bg-amber-100 text-amber-800 border border-amber-200'
                           }`}

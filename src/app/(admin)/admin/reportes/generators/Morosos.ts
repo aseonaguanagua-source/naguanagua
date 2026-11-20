@@ -287,12 +287,16 @@ export async function generarMorososExcel(
     const st = String(inm.estado || '').trim().toLowerCase();
     if (['eliminado', 'inactivo', 'desactivado'].includes(st)) return false;
     const chInfo = childActByParent.get(cod);
+    const hasChildren = childActByParent.has(cod);
     const inmMeses = parseInt(String(inm.meses_deuda || 0), 10) || 0;
     const inmDeudaMmv = parseFloat(String(inm.deuda_mmv || 0)) || 0;
     const inmMulta = parseFloat(String(inm.multa_bs || 0)) || 0;
     const inmCong = parseFloat(String(inm.deuda_congelada_bs || 0)) || 0;
-    const hasOwnDebt = inmMeses > 0 || inmDeudaMmv > 0 || inmMulta > 0 || inmCong > 0;
     const hasChildDebt = (chInfo?.maxMeses || 0) > 0;
+    // Si es un contenedor matriz con hijos activos y sus hijos están todos solventes (maxMeses === 0) y el contenedor no tiene deuda_mmv/multa/congelada propia, está solvente
+    const hasOwnDebt = hasChildren
+      ? (inmDeudaMmv > 0 || inmMulta > 0 || inmCong > 0)
+      : (inmMeses > 0 || inmDeudaMmv > 0 || inmMulta > 0 || inmCong > 0);
     if (!hasOwnDebt && !hasChildDebt) return false;
     return true;
   });
