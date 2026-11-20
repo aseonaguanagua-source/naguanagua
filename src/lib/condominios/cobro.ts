@@ -265,6 +265,24 @@ export async function prepararCobro(sol: SolicitudCobro): Promise<Cobro & { _dat
     let totTotalBs = t('totalBs');
 
     if (modo === 'CONDOMINIO') {
+        // Para C.C. Free Market (URB016822), cuya relación de cobranza en Excel suma (Tarifa_EUR_2_dec × Meses × Tasa_BCV) sin redondear fila a fila antes del SUM:
+        // cuadrar totTotalBs al céntimo con la suma exacta de la relación Excel.
+        if (String(datos.condo?.codigo || '').trim().toUpperCase() === 'URB016822' && totMultaBs === 0 && tasa > 0 && lineas.length > 1) {
+            const mapRenglon = new Map(estado.renglones.map(r => [r.clave, r]));
+            const sumEurMeses = lineas.reduce((acc, l) => {
+                const rg = mapRenglon.get(l.clave);
+                const bEur = r2((Number(rg?.mensualBs) || 0) / tasa);
+                const iEur = rg?.residencial ? 0 : r2(bEur * M.IVA);
+                const totEur = r2(bEur + iEur);
+                return r2(acc + r2(totEur * (l.meses || 0)));
+            }, 0);
+            const targetExcelTotal = r2(sumEurMeses * tasa);
+            if (targetExcelTotal > 0 && Math.abs(targetExcelTotal - totTotalBs) <= 1.00 && targetExcelTotal !== totTotalBs) {
+                totTotalBs = targetExcelTotal;
+                totBaseBs = r2(totTotalBs / (1 + M.IVA));
+                totIvaBs = r2(totTotalBs - totBaseBs);
+            }
+        }
         const totalBs = totTotalBs;
         let baseBs = totBaseBs;
         const multaBs = totMultaBs;

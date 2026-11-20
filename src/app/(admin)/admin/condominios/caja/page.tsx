@@ -55,7 +55,7 @@ function Caja() {
   const [abonoLocales, setAbonoLocales] = useState(false);
   const [identidad, setIdentidad] = useState(sp.get('cedula') || '');
   const [soloMultas, setSoloMultas] = useState(false);
-  const [incluirMultas, setIncluirMultas] = useState(true);
+  const [incluirMultas, setIncluirMultas] = useState(Boolean(sp.get('cedula') || sp.get('unidad')));
   const [modalContacto, setModalContacto] = useState(false);
   const [contactoTelefono, setContactoTelefono] = useState('');
   const [contactoCorreo, setContactoCorreo] = useState('');
@@ -428,7 +428,7 @@ function Caja() {
 
   /** unidad + todos=false → solo ese local; todos=true → todos los locales de ese dueño */
   const elegir = (cod: string, unidad?: any, todos = false) => {
-    setCodigo(cod); setRes(null); setQ(''); setClaves([]); setAbonoLocales(false); setMeses(''); setRecibo(null); setSoloMultas(false); setIncluirMultas(true); setOmitirMultaSeptiembre(false); setContactoOmitido(false);
+    setCodigo(cod); setRes(null); setQ(''); setClaves([]); setAbonoLocales(false); setMeses(''); setRecibo(null); setSoloMultas(false); setIncluirMultas(Boolean(unidad)); setOmitirMultaSeptiembre(false); setContactoOmitido(false);
     setFechaOverrideStr(''); setTasaOverrideStr('');
     if (unidad && todos && unidad.identidad) {
       setModo('CONTRIBUYENTE'); setIdentidad(String(unidad.identidad).toUpperCase());
@@ -444,7 +444,7 @@ function Caja() {
       router.replace(`/admin/condominios/caja?codigo=${cod}`);
     }
   };
-  const cambiarModo = (m: 'CONDOMINIO' | 'CONTRIBUYENTE') => { setModo(m); setClaves([]); setAbonoLocales(false); setSoloMultas(false); setIncluirMultas(true); if (m === 'CONDOMINIO') setIdentidad(''); };
+  const cambiarModo = (m: 'CONDOMINIO' | 'CONTRIBUYENTE') => { setModo(m); setClaves([]); setAbonoLocales(false); setSoloMultas(false); setIncluirMultas(m === 'CONTRIBUYENTE'); if (m === 'CONDOMINIO') setIdentidad(''); };
 
   // Calcular (cada vez que cambia la selección)
   useEffect(() => {
@@ -1591,7 +1591,7 @@ function Caja() {
                     setModo('CONDOMINIO');
                     setAbonoLocales(false);
                     setSoloMultas(false);
-                    setIncluirMultas(true);
+                    setIncluirMultas(false);
                     setClaves([]);
                     setIdentidad('');
                   }}
@@ -1630,7 +1630,7 @@ function Caja() {
                     setModo('CONDOMINIO');
                     setAbonoLocales(true);
                     setSoloMultas(false);
-                    setIncluirMultas(true);
+                    setIncluirMultas(false);
                     setIdentidad('');
                   }}
                   className={`text-left rounded-xl border-2 p-3.5 transition-all cursor-pointer relative flex flex-col justify-between ${
@@ -1923,10 +1923,108 @@ function Caja() {
                       >
                         Seleccionar todos los visibles
                       </button>
+                      <label className="text-xs font-bold text-white bg-teal-700 hover:bg-teal-800 border border-teal-800 px-2.5 py-1 rounded-md cursor-pointer shadow-2xs inline-flex items-center gap-1 transition-colors" title="Subir archivo Excel de Relación de Cobranza Diaria (ej. Free Market) para marcar automáticamente los locales, meses y tasa">
+                        <span>📥 Cargar Relación Excel</span>
+                        <input
+                          type="file"
+                          accept=".xlsx,.xls"
+                          className="hidden"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            try {
+                              const exceljsModule = await import('exceljs');
+                              const ExcelJS = (exceljsModule as any).default || exceljsModule;
+                              const wb = new ExcelJS.Workbook();
+                              const buf = await file.arrayBuffer();
+                              await wb.xlsx.load(buf);
+                              const ws = wb.worksheets[0];
+                              if (!ws) throw new Error('El archivo Excel no contiene hojas.');
+
+                              let detectedTasa = 0;
+                              const codeToMeses = new Map<string, number>();
+
+                              ws.eachRow((row: any) => {
+                                const vals: any[] = Array.isArray(row.values) ? row.values : [];
+                                // Detectar tasa BCV en encabezados (ej. 1003.49)
+                                vals.forEach((v) => {
+                                  const num = typeof v === 'number' ? v : parseFloat(String(v || '').replace(',', '.'));
+                                  if (!isNaN(num) && num >= 30 && num <= 5000 && !detectedTasa) {
+                                    // Verificar si en la misma fila dice "Código" o "Meses pagados"
+                                    const rowStr = vals.map(x => String(x || '').toLowerCase()).join(' ');
+                                    if (rowStr.includes('código') || rowStr.includes('codigo') || rowStr.includes('meses pagados')) {
+                                      detectedTasa = Math.round(num * 100) / 100;
+                                    }
+                                  }
+                                });
+
+                                // Buscar código URB/AURI en la fila
+                                const codCell = vals.find(v => typeof v === 'string' && /^(URB|AURI)\d+/i.test(v.trim()));
+                                if (codCell) {
+                                  const code = String(codCell).trim().toUpperCase();
+                                  // Buscar columna de meses pagados (típicamente penúltima columna numérica entera 1..60 antes del monto en Bs)
+                                  let mesesPag = 1;
+                                  for (let idx = vals.length - 1; idx >= 1; idx--) {
+                                    const rawV = vals[idx];
+                                    const nVal = typeof rawV === 'object' && rawV !== null && 'result' in rawV ? Number(rawV.result) : Number(rawV);
+                                    if (!isNaN(nVal) && Number.isInteger(nVal) && nVal >= 1 && nVal <= 60) {
+                                      mesesPag = nVal;
+                                      break;
+                                    }
+                                  }
+                                  codeToMeses.set(code, mesesPag);
+                                }
+                              });
+
+                              if (codeToMeses.size === 0) {
+                                alert('No se encontraron códigos de locales (URB...) en el archivo Excel.');
+                                return;
+                              }
+
+                              const allRengs: any[] = base?.renglones || [];
+                              const nuevasClaves: string[] = [];
+                              const nuevosMesesPorUnidad: Record<string, number> = {};
+                              const noEncontrados: string[] = [];
+
+                              codeToMeses.forEach((mPag, code) => {
+                                const matches = allRengs.filter(r =>
+                                  String(r.inmueble || '').toUpperCase() === code ||
+                                  String(r.padreInmueble || '').toUpperCase() === code
+                                );
+                                if (matches.length > 0) {
+                                  matches.forEach(m => {
+                                    if (!m.esGrupo) {
+                                      nuevasClaves.push(m.clave);
+                                      nuevosMesesPorUnidad[m.clave] = mPag;
+                                    }
+                                    if (m.padreId) {
+                                      nuevosMesesPorUnidad[m.padreId] = mPag;
+                                    }
+                                  });
+                                } else {
+                                  noEncontrados.push(code);
+                                }
+                              });
+
+                              setIncluirMultas(false);
+                              setMeses('');
+                              setMesesPorUnidad(nuevosMesesPorUnidad);
+                              setClaves(Array.from(new Set(nuevasClaves)));
+                              if (detectedTasa > 0) {
+                                setTasaOverrideStr(detectedTasa.toFixed(2).replace('.', ','));
+                              }
+                            } catch (err: any) {
+                              alert('Error al leer la relación Excel: ' + (err?.message || 'Archivo inválido'));
+                            } finally {
+                              e.target.value = '';
+                            }
+                          }}
+                        />
+                      </label>
                       {claves.length > 0 && (
                         <button
                           type="button"
-                          onClick={() => setClaves([])}
+                          onClick={() => { setClaves([]); setMesesPorUnidad({}); }}
                           className="text-xs font-bold text-slate-600 hover:text-red-700 underline cursor-pointer"
                         >
                           Deseleccionar todos
@@ -2002,7 +2100,7 @@ function Caja() {
                         const lc = lcs[0] as any;
                         const mismoDueno = porContrib && identidad && normId(r.identidad) === normId(identidad);
                         const maxMesesFila = soloMultas
-                          ? (lcs.length > 0 ? Math.max(...lcs.map(l => l.mesesDeuda || 0)) : ((r.multaMeses || 0) + (r.multasManuales || []).length))
+                          ? (lcs.length > 0 ? Math.max(...lcs.map(l => l.mesesDeuda || 0)) : Math.max(r.multaMeses || 0, (r.multasManuales || []).length))
                           : (lcs.length > 0 ? Math.max(...lcs.map(l => l.mesesDeuda || 0)) : (r.deuda?.meses || 0));
                         const customMes = typeof mesesPorUnidad[r.clave] === 'number'
                           ? mesesPorUnidad[r.clave]
@@ -2013,10 +2111,16 @@ function Caja() {
                         const dMeses = lcs.length > 0 ? Math.max(...lcs.map(l => l.meses || 0)) : mesActualFila;
                         const dMultas = lcs.length > 0
                           ? lcs.reduce((s, l) => s + (l.multaBs || 0) + (l.multasAparteBs || 0), 0)
-                          : multasDe(r);
+                          : (!soloMultas && !incluirMultas ? 0 : multasDe(r));
                         const dTotal = lcs.length > 0
                           ? lcs.reduce((s, l) => s + (l.totalBs || 0), 0)
-                          : (soloMultas ? multasDe(r) : r.totalBs);
+                          : soloMultas
+                            ? multasDe(r)
+                            : !incluirMultas
+                              ? ((!r._esPadreUnificado && Array.isArray(r.deuda?.porMes) && r.deuda.porMes.length > 0 && mesActualFila > 0 && mesActualFila < r.deuda.porMes.length)
+                                  ? Math.round(r.deuda.porMes.slice(0, mesActualFila).reduce((s: number, m: any) => s + (m.baseBs || 0) + (m.ivaBs || 0), 0) * 100) / 100
+                                  : Math.max(0, Math.round(((r.totalBs || 0) - multasDe(r)) * 100) / 100))
+                              : r.totalBs;
                         const claveMarcada = hijosClaves.some(k => claves.includes(k)) || claves.includes(r.clave) || Boolean(r.padreId && claves.includes(r.padreId)) || Boolean(r.padreInmueble && claves.includes(r.padreInmueble));
                         const seleccionada = porContrib
                           ? (claveMarcada || !!mismoDueno)

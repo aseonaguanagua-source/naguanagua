@@ -473,6 +473,35 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasaRaw: numb
     }
 
     const deuda = M.deudaPorMeses(meses, basesPorMes, res, esAgente, exonerados, multasPorMes, tasa);
+    // Para C.C. Free Market (URB016822), cuya relación diaria de cobranza multiplica la tarifa mensual en Euros (redondeada a 2 decimales con IVA) × Tasa BCV:
+    // ajustar baseBs e ivaBs de cada mes en porMes para que baseBs + ivaBs coincida al céntimo con Tarifa_EUR_2_dec × Tasa_BCV.
+    if (String(condoRow?.codigo || '').trim().toUpperCase() === 'URB016822' && !res && tasa > 0 && deuda.porMes.length > 0) {
+      let acumBsPrev = 0;
+      let acumEur = 0;
+      deuda.porMes = deuda.porMes.map((m) => {
+        const bEur = r2(m.baseBs / tasa);
+        const iEur = r2(bEur * M.IVA);
+        const totEurMes = r2(bEur + iEur);
+        acumEur = r2(acumEur + totEurMes);
+        const acumBsTarget = r2(acumEur * tasa);
+        const totSinMultaBs = r2(acumBsTarget - acumBsPrev);
+        acumBsPrev = acumBsTarget;
+        const nuevoBase = r2(totSinMultaBs / (1 + M.IVA));
+        const nuevoIva = r2(totSinMultaBs - nuevoBase);
+        const nuevoRet = esAgente ? r2(nuevoIva * M.RETENCION_IVA) : 0;
+        return {
+          ...m,
+          baseBs: nuevoBase,
+          ivaBs: nuevoIva,
+          retencionBs: nuevoRet,
+          totalBs: r2(nuevoBase + m.multaBs + nuevoIva - nuevoRet),
+        };
+      });
+      deuda.baseBs = r2(deuda.porMes.reduce((s, m) => s + m.baseBs, 0));
+      deuda.ivaBs = r2(deuda.porMes.reduce((s, m) => s + m.ivaBs, 0));
+      deuda.retencionBs = r2(deuda.porMes.reduce((s, m) => s + m.retencionBs, 0));
+      deuda.totalBs = r2(deuda.porMes.reduce((s, m) => s + m.totalBs, 0));
+    }
     const mesesMultaEnAseo = (r.montoBs > 0 && deuda.meses > 0) ? (deuda.porMes || []).filter(m => m.multaBs > 0).length : 0;
     const mesesMoraCubiertosPorAseo = Math.max(0, meses - 1);
 
