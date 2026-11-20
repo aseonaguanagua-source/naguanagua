@@ -22,7 +22,7 @@ export default function CorreosPage() {
   const [asunto, setAsunto] = useState('ESTADO DE CUENTA ASEO NAGUANAGUA - FAVOR LEER TEXTO COMPLETO');
   const [tipoFiltro, setTipoFiltro] = useState('Todos los Sectores');
   const [estatusFiltro, setEstatusFiltro] = useState('Solo Morosos (Con deuda > 1 mes)');
-  const [adjuntarPdf, setAdjuntarPdf] = useState(true);
+  const [adjuntarPdf, setAdjuntarPdf] = useState(false);
   const [testEmailDestino, setTestEmailDestino] = useState('facturacion.comercial@globalgreenca.com');
 
   const [isSending, setIsSending] = useState(false);
@@ -181,28 +181,12 @@ export default function CorreosPage() {
           className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-700 font-semibold outline-none focus:ring-2 focus:ring-emerald-500"
         >
           <option value="estado_cuenta_masivo">
-            ESTADO DE CUENTA ASEO NAGUANAGUA (MASIVO) — Con Estado de Cuenta PDF Adjunto (Predeterminado)
+            ESTADO DE CUENTA ASEO NAGUANAGUA (MASIVO) — Recordatorio de Pagos (Sin PDF adjunto)
           </option>
           <option value="comunicado_oficial">
             Comunicado Oficial - Renovación Tecnológica e Instructivo Portal
           </option>
         </select>
-
-        <div className="mt-3 flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-lg px-3.5 py-2.5">
-          <label className="flex items-center gap-2.5 text-xs font-bold text-emerald-900 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={adjuntarPdf}
-              onChange={e => setAdjuntarPdf(e.target.checked)}
-              className="rounded border-emerald-400 text-emerald-600 focus:ring-emerald-500 w-4 h-4"
-            />
-            <Paperclip className="w-4 h-4 text-emerald-700" />
-            Adjuntar automáticamente el Estado de Cuenta en PDF (Estado_de_Cuenta_IAMEC_RIF.pdf) si el usuario tiene deuda
-          </label>
-          <span className="text-[11px] font-bold bg-emerald-600 text-white px-2 py-0.5 rounded">
-            ACTIVO
-          </span>
-        </div>
       </div>
 
       <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 shadow-sm">
@@ -246,38 +230,67 @@ export default function CorreosPage() {
       <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-3">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide flex items-center gap-2">
-            <FileText className="w-4 h-4 text-emerald-600" /> Vista Previa del Correo Configurado
+            <FileText className="w-4 h-4 text-emerald-600" /> Vista Previa Exacta del Correo (Idéntico al Word)
           </h3>
           <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
-            Logos Oficiales: Alcaldía + Gestión + IAMEC
+            Logo Oficial IAMEC · Sin PDF Adjunto
           </span>
         </div>
 
-        <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 text-xs text-slate-700 space-y-2.5 leading-relaxed">
-          <div className="text-center font-extrabold text-emerald-900 text-sm uppercase">
-            ESTADO DE CUENTA ASEO NAGUANAGUA — FAVOR LEER TEXTO COMPLETO
+        <div className="bg-white border border-slate-200 rounded-lg p-6 text-sm text-[#222222] space-y-3 leading-relaxed max-w-2xl mx-auto shadow-2xs">
+          <div className="flex justify-center pb-2">
+            <img src="/logos/IAMEC.png" alt="IAMEC" className="w-48 h-auto" />
+          </div>
+          <div className="text-center font-bold text-[#222222] text-base">
+            ESTADO DE CUENTA ASEO NAGUANAGUA
+          </div>
+          <div className="text-center font-bold text-[#222222] text-sm pb-2">
+            FAVOR LEER TEXTO COMPLETO
           </div>
           <p>
-            Nos dirigimos a Ud., en la oportunidad de remitir <strong>estado de cuenta contentivo de su deuda (total o parcial)</strong> de la tasa de Aseo Urbano del Municipio Naguanagua. Por favor tenga en consideración las siguientes pautas:
+            Nos dirigimos a Ud., en la oportunidad de remitir estado de cuenta contentivo de su deuda (total o parcial) de la tasa de Aseo Urbano del Municipio Naguanagua.
           </p>
-          <div className="bg-white border border-emerald-200 rounded p-3 space-y-1.5">
-            <div className="font-bold text-emerald-900">• Los datos para realizar el pago son los siguientes:</div>
-            <div>
-              <strong>- BANCO: BANESCO</strong> | <strong>N° CUENTA:</strong> <span className="font-mono">0134-1089-59-0001008636</span> | <strong>CORRIENTE</strong> | <strong>TITULAR:</strong> INSTITUTO AUTÓNOMO MUNICIPAL DE ECOSOCIALISMO NAGUANAGUA (IAMEC) | <strong>RIF:</strong> G-20008614-9
-            </div>
-            <div>
-              <strong>- BANCO: BANCAMIGA</strong> | <strong>N° CUENTA:</strong> <span className="font-mono">0172-0110-71-1101340717</span> | <strong>CORRIENTE</strong> | <strong>TITULAR:</strong> INSTITUTO AUTÓNOMO MUNICIPAL DE ECOSOCIALISMO NAGUANAGUA (IAMEC) | <strong>RIF:</strong> G-20008614-9
-            </div>
-          </div>
-          <ul className="list-disc pl-5 space-y-1">
-            <li>Los pagos deben hacerse por <strong>MES O MESES COMPLETOS</strong>.</li>
-            <li>La factura es emitida por el <strong>Instituto Autónomo Municipal De Ecosocialismo Naguanagua (IAMEC) RIF G-20008614-9</strong>.</li>
-            <li>El comprobante de pago por transferencia, favor remitirlo a través del presente correo, indicando: usuario aseo urbano, razón social o nombre, RIF o CI, correo electrónico, número de teléfono y período pagado.</li>
-            <li><strong>Contribuyentes Especiales:</strong> Retención 75% (exentos de I.S.L.R.). Número de factura diferente al número de control. Pago máximo el <strong>día 28 del mes</strong> (otros bancos) o <strong>día 30 del mes</strong> (Banesco a Banesco / Bancamiga a Bancamiga).</li>
+          <p>
+            Por favor tenga en consideración las siguientes pautas:
+          </p>
+          <ul className="list-disc pl-6 space-y-2.5">
+            <li>
+              <strong>Los datos para realizar el pago son los siguientes:</strong><br />
+              - BANCO: <strong>BANESCO</strong><br />
+              NÚMERO DE CUENTA: <strong>0134-1089-59-0001008636</strong><br />
+              TIPO DE CUENTA: <strong>CORRIENTE</strong><br />
+              TITULAR: <strong>INSTITUTO AUTÓNOMO MUNICIPAL DE ECOSOCIALISMO NAGUANAGUA (IAMEC)</strong><br />
+              RIF: <strong>G-20008614-9</strong>
+              <div className="mt-3">
+                -BANCO: <strong>BANCAMIGA</strong><br />
+                NÚMERO DE CUENTA: 0172-0110-71-1101340717<br />
+                TIPO DE CUENTA: <strong>CORRIENTE</strong><br />
+                TITULAR: <strong>INSTITUTO AUTÓNOMO MUNICIPAL DE ECOSOCIALISMO NAGUANAGUA (IAMEC)</strong><br />
+                RIF: <strong>G-20008614-9</strong>
+              </div>
+            </li>
+            <li>Los pagos deben hacerse por MES O MESES COMPLETOS.</li>
+            <li>La factura es emitida por el Instituto Autónomo Municipal De Ecosocialismo Naguanagua (IAMEC) RIF G-20008614-9</li>
+            <li>El comprobante de pago por transferencia, favor remitirlo a través del presente correo, indicando en el texto del correo: usuario aseo urbano, razón social o nombre, RIF o CI, correo electrónico y número de teléfono, periodo pagado.</li>
+            <li>
+              En caso de ser contribuyente especial, además de las pautas antes mencionadas, deberá considerar las siguientes:
+              <ul className="list-[circle] pl-6 mt-1.5 space-y-1">
+                <li>El porcentaje de retención que corresponde a IAMEC es el 75%</li>
+                <li>Estamos exentos del I.S.L.R.</li>
+                <li>El número de factura es diferente al número de control.</li>
+              </ul>
+            </li>
+            <li>La factura debe ser pagada como máximo el día 28 del mes si es de otra entidad bancaria distinta a Banesco / Bancamiga o el día 30 del mes si es de Banesco a Banesco / Bancamiga a Bancamiga, debido a que debemos realizar el cierre fiscal del mes junto a la conciliación bancaria.</li>
           </ul>
-          <div className="pt-1 border-t border-slate-200 text-[11px] font-semibold text-slate-600">
-            Whatsapp Comercial: 0424-4282365 – Correo: aseoresnaguanagua@globalgreenca.com<br />
-            WhatsApp Residencial: 0424-4282364 – Correo: aseocomnaguanagua@globalgreenca.com
+          <p>
+            En caso de que la factura, no sea pagada en el período de tiempo, antes señalado se procederá a la anulación de la misma.
+          </p>
+          <p className="text-justify">
+            Si usted ya ejecutó su pago, hacer caso omiso de este correo. Agradeciendo su pronto pago, quedamos a sus órdenes.
+          </p>
+          <div className="pt-3 text-center space-y-1">
+            <div><strong>Whatsapp Comercial:</strong> 0424-4282365 – <strong>Correo:</strong> aseoresnaguanagua@globalgreenca.com</div>
+            <div><strong>WhatsApp Residencial:</strong> 0424-4282364 – <strong>Correo:</strong> aseocomnaguanagua@globalgreenca.com</div>
           </div>
         </div>
       </div>
@@ -447,7 +460,7 @@ export default function CorreosPage() {
                     </>
                   ) : (
                     <>
-                      <Eye className="w-4 h-4" /> Enviar Prueba con PDF
+                      <Eye className="w-4 h-4" /> Enviar Correo de Prueba
                     </>
                   )}
                 </button>
@@ -483,8 +496,8 @@ export default function CorreosPage() {
                   </div>
                 )}
 
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
-                  <strong>PDF Adjunto Automático:</strong> A cada contribuyente con deuda se le genera y adjunta en vivo su <code>Estado_de_Cuenta_IAMEC_RIF.pdf</code> con el desglose en Bs. y las cuentas oficiales de IAMEC.
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-900">
+                  <strong>Recordatorio de Pagos:</strong> Envía la plantilla oficial idéntica al documento Word con el logo de IAMEC y las cuentas bancarias, sin adjuntar archivos PDF.
                 </div>
               </div>
             </div>
