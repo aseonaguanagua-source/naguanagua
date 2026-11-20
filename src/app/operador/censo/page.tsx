@@ -186,33 +186,37 @@ export default function CensoMobilePage() {
       const act = formData.Clasificacion === 'Residencial' ? formData.TipoResidencia : formData.ActividadComercial;
       const finalContribuyente = (formData.NombreComercial && formData.NombreComercial.trim()) ? `${formData.Contribuyente} | Comercial: ${formData.NombreComercial}` : formData.Contribuyente;
 
-      // Save to pre_registros with advanced fields
-      const { error } = await supabase.from('pre_registros').insert([{
-        identidad: `${formData.IdentidadTipo || 'V'}${formData.IdentidadNumero || ''}`,
-        contribuyente: finalContribuyente,
-        registro: fullTelefono,
-        tipo: formData.Clasificacion,
-        actividad: act,
-        codigo: formData.Clasificacion === 'Residencial' ? formData.TipoResidencia : formData.NivelMetraje,
-        origen: `Censo - ${operador}`,
-        fecha_inicio: formData.FechaInicioActividad,
-        domicilio_fiscal: formData.Direccion,
-        direccion_exacta: formData.DireccionExacta,
-        coordenadas: formData.coordenadas,
-        is_condominio: formData.isCondominio,
-        cantidad_inmuebles: formData.cantidadInmuebles,
-        locales: formData.isCondominio ? formData.locales.map((l: any) => ({
-          ...l,
-          documentoIdentidad: `${l.documentoIdentidadTipo || 'V'}${l.documentoIdentidadNumero || ''}`
-        })) : formData.locales,
-        nota: [
-          formData.NumeroPatente ? `Patente: ${formData.NumeroPatente}` : '',
-          formData.FichaCatastral ? `Catastro: ${formData.FichaCatastral}` : '',
-          formData.Nota || ''
-        ].filter(Boolean).join(' | ')
-      }]);
-
-      if (error) throw error;
+      const res = await fetch('/api/admin/pre-registros', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          identidad: `${formData.IdentidadTipo || 'V'}-${formData.IdentidadNumero || ''}`,
+          contribuyente: finalContribuyente,
+          registro: fullTelefono,
+          correo: fullCorreo,
+          tipo: formData.Clasificacion,
+          actividad: act,
+          codigo: formData.Clasificacion === 'Residencial' ? formData.TipoResidencia : formData.NivelMetraje,
+          origen: `Censo - ${operador}`,
+          fecha_inicio: formData.FechaInicioActividad,
+          domicilio_fiscal: formData.Direccion,
+          direccion_exacta: formData.DireccionExacta,
+          coordenadas: formData.coordenadas,
+          is_condominio: formData.isCondominio,
+          cantidad_inmuebles: formData.cantidadInmuebles,
+          locales: formData.isCondominio ? formData.locales.map((l: any) => ({
+            ...l,
+            documentoIdentidad: `${l.documentoIdentidadTipo || 'V'}-${l.documentoIdentidadNumero || ''}`
+          })) : formData.locales,
+          nota: [
+            formData.NumeroPatente ? `Patente: ${formData.NumeroPatente}` : '',
+            formData.FichaCatastral ? `Catastro: ${formData.FichaCatastral}` : '',
+            formData.Nota || ''
+          ].filter(Boolean).join(' | ')
+        }),
+      });
+      const resJson = await res.json();
+      if (!res.ok || !resJson.ok) throw new Error(resJson.error || 'Error guardando censo');
       
       // Registrar en auditoria (vía servidor: la clave pública no puede insertar)
       await fetch('/api/audit', {

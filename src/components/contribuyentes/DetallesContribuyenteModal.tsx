@@ -251,6 +251,8 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
   const [editandoClave, setEditandoClave] = useState<boolean>(false);
   const [guardandoClave, setGuardandoClave] = useState<boolean>(false);
   const [liveContrib, setLiveContrib] = useState<any>(null);
+  const [expedienteDocs, setExpedienteDocs] = useState<Array<{ label: string; url: string; tipo: string }>>([]);
+  const [previewDocModal, setPreviewDocModal] = useState<{ label: string; url: string } | null>(null);
 
   const toggleExpandNA = (code: string) => {
     setExpandedNAs(prev => ({ ...prev, [code]: !prev[code] }));
@@ -272,17 +274,62 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
       .filter(Boolean);
     setFiltroInmueblePago('todos');
 
-    // Cargar datos oficiales del contribuyente en tiempo real desde Supabase
+    // Cargar datos oficiales del contribuyente y documentos del expediente en tiempo real desde Supabase
     if (idVariants.length > 0) {
-      supabase
-        .from('contribuyentes')
-        .select('nombre, email, telefono, direccion')
-        .in('identidad', idVariants)
-        .limit(1)
-        .maybeSingle()
-        .then(({ data }) => {
-          if (data && isMounted) setLiveContrib(data);
+      Promise.all([
+        supabase
+          .from('contribuyentes')
+          .select('nombre, email, telefono, direccion, observaciones')
+          .in('identidad', idVariants)
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from('documentos')
+          .select('detalles')
+          .eq('tipo', 'Pre-Registro')
+          .in('identidad', idVariants)
+          .order('created_at', { ascending: false })
+          .limit(5),
+      ]).then(([{ data }, { data: preRows }]) => {
+        if (!isMounted) return;
+        if (data) setLiveContrib(data);
+
+        const docsList: Array<{ label: string; url: string; tipo: string }> = [];
+        const addDoc = (label: string, url: string, tipo: string) => {
+          const cleanUrl = String(url || '').trim();
+          if (!cleanUrl || docsList.some(d => d.url === cleanUrl)) return;
+          docsList.push({ label, url: cleanUrl, tipo });
+        };
+
+        const obsText = `${data?.observaciones || ''}\n${viewData?.Observaciones || ''}`;
+        const tagMap: Record<string, string> = {
+          CEDULA: 'Copia de Cédula / RIF',
+          RIF: 'Documento RIF',
+          FICHA: 'Ficha Catastral Digitalizada',
+          PATENTE: 'Patente Comercial',
+          REGISTRO: 'Registro Mercantil / Otros',
+        };
+        const regexDoc = /\[DOC_(CEDULA|RIF|FICHA|PATENTE|REGISTRO):\s*([^\]]+)\]/gi;
+        let m: RegExpExecArray | null;
+        while ((m = regexDoc.exec(obsText)) !== null) {
+          const key = m[1].toUpperCase();
+          addDoc(tagMap[key] || `Documento ${key}`, m[2], key);
+        }
+
+        (preRows || []).forEach((pr: any) => {
+          let det: any = {};
+          try { det = typeof pr.detalles === 'string' ? JSON.parse(pr.detalles) : (pr.detalles || {}); } catch {}
+          if (det.cedula_doc) addDoc('Copia de Cédula / RIF', det.cedula_doc, 'CEDULA');
+          if (det.rif_doc) addDoc('Documento RIF', det.rif_doc, 'RIF');
+          if (det.ficha_doc) addDoc('Ficha Catastral Digitalizada', det.ficha_doc, 'FICHA');
+          if (det.patente_doc) addDoc('Patente Comercial', det.patente_doc, 'PATENTE');
+          if (det.registro_doc) addDoc('Registro Mercantil / Otros', det.registro_doc, 'REGISTRO');
         });
+
+        setExpedienteDocs(docsList);
+      });
+    } else {
+      setExpedienteDocs([]);
     }
 
     // 1. Cargar el inmueble seleccionado y sus vínculos jerárquicos (padres / hijos N/A). NUNCA unificar por cédula.
@@ -1844,6 +1891,71 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                 </div>
               </div>
 
+              {/* Documentos del Expediente Digitalizado (Subidos en Registro) */}
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                  <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-blue-600" /> Documentos Cargados del Registro (Expediente Digitalizado)
+                  </h3>
+                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                    {expedienteDocs.length} {expedienteDocs.length === 1 ? 'documento' : 'documentos'}
+                  </span>
+                </div>
+                {expedienteDocs.length === 0 ? (
+                  <p className="text-xs text-slate-400 italic">
+                    No hay documentos digitalizados adjuntos en el registro de este contribuyente. Puedes adjuntarlos desde &ldquo;✏️ Editar datos&rdquo;.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {expedienteDocs.map((doc, idx) => {
+                      const isImgDoc = doc.url.startsWith('data:image/') || /\.(jpg|jpeg|png|webp|gif|jfif)(\?|$)/i.test(doc.url);
+                      return (
+                        <div key={idx} className="border border-slate-200 rounded-xl p-3 bg-slate-50/70 flex flex-col justify-between gap-2.5">
+                          <div className="flex items-start gap-2">
+                            <FileText className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                            <div className="min-w-0">
+                              <span className="font-bold text-xs text-slate-800 block truncate" title={doc.label}>
+                                {doc.label}
+                              </span>
+                              <span className="text-[10px] text-slate-500">
+                                {isImgDoc ? 'Imagen digitalizada' : 'Documento PDF / Adjunto'}
+                              </span>
+                            </div>
+                          </div>
+                          {isImgDoc && (
+                            <div
+                              onClick={() => setPreviewDocModal({ label: doc.label, url: doc.url })}
+                              className="h-24 bg-slate-900/5 rounded-lg overflow-hidden flex items-center justify-center cursor-pointer border border-slate-200 hover:opacity-90 transition"
+                            >
+                              <img src={doc.url} alt={doc.label} className="max-h-full max-w-full object-contain" />
+                            </div>
+                          )}
+                          <div className="flex items-center gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => setPreviewDocModal({ label: doc.label, url: doc.url })}
+                              className="flex-1 px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[11px] font-bold flex items-center justify-center gap-1 cursor-pointer transition-colors"
+                            >
+                              <Eye className="w-3.5 h-3.5" /> Visualizar
+                            </button>
+                            <a
+                              href={doc.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              download
+                              className="px-2.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1 transition-colors"
+                              title="Abrir o descargar en pestaña nueva"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </a>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
               {/* Observaciones y Notas Administrativas */}
               {viewData.Observaciones && (
                 <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-4 flex items-start gap-3">
@@ -1851,7 +1963,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                   <div className="space-y-1">
                     <span className="text-xs font-bold text-amber-900 uppercase tracking-wider block">Observaciones del Registro</span>
                     <p className="text-xs text-amber-800 font-medium whitespace-pre-wrap leading-relaxed">
-                      {viewData.Observaciones}
+                      {String(viewData.Observaciones).replace(/\[DOC_(?:CEDULA|RIF|FICHA|PATENTE|REGISTRO):\s*[^\]]+\]/gi, '').trim() || 'Documentos adjuntos en el expediente digitalizado.'}
                     </p>
                   </div>
                 </div>
@@ -3241,6 +3353,45 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                 >
                   {guardandoEditNota ? 'Guardando...' : 'Guardar Cambios'}
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Visor de Documento del Expediente Digitalizado */}
+        {previewDocModal && (
+          <div className="fixed inset-0 z-[70] bg-black/75 backdrop-blur-xs flex items-center justify-center p-4" onClick={() => setPreviewDocModal(null)}>
+            <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl border border-slate-200" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-5 py-3.5 bg-slate-900 text-white">
+                <div className="flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-emerald-400" />
+                  <span className="font-bold text-sm">{previewDocModal.label} — {viewData.Contribuyente} ({viewData.Identidad})</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <a
+                    href={previewDocModal.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    download
+                    className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold flex items-center gap-1"
+                  >
+                    <Download className="w-3.5 h-3.5" /> Descargar / Abrir
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewDocModal(null)}
+                    className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+              <div className="flex-1 bg-slate-900/95 overflow-auto flex items-center justify-center p-4 min-h-[420px]">
+                {previewDocModal.url.startsWith('data:image/') || /\.(jpg|jpeg|png|webp|gif|jfif)(\?|$)/i.test(previewDocModal.url) ? (
+                  <img src={previewDocModal.url} alt={previewDocModal.label} className="max-h-[75vh] max-w-full object-contain rounded shadow-lg" />
+                ) : (
+                  <iframe src={previewDocModal.url} title={previewDocModal.label} className="w-full h-[75vh] bg-white rounded" />
+                )}
               </div>
             </div>
           </div>

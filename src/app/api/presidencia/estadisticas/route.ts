@@ -174,9 +174,10 @@ export async function GET(request: Request) {
         .select('id,nombre,usuario,rol,estado,letra,cedula,cargo,departamento,created_at')
         .then((r) => r.data || []),
       sb
-        .from('pre_registros')
-        .select('id,identidad,nombre,tipo,estado,created_at')
-        .then((r) => r.data || []),
+        .from('documentos')
+        .select('id,identidad,contribuyente,tipo,estado,created_at')
+        .eq('tipo', 'Pre-Registro')
+        .then((r) => (r.data || []).map((d: any) => ({ ...d, nombre: d.contribuyente }))),
       sb
         .from('reclamos')
         .select('id,tipo,asunto,estado,created_at')

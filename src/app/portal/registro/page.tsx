@@ -31,6 +31,22 @@ export default function RegistroPublico() {
       reader.readAsDataURL(file);
     });
 
+  const uploadFileToStorage = async (file: File, tipo: string, ident: string): Promise<string> => {
+    try {
+      const ext = file.name.split('.').pop() || 'jpg';
+      const cleanId = ident.replace(/[^a-zA-Z0-9]/g, '_');
+      const path = `expedientes/${cleanId}/${tipo}_${Date.now()}.${ext}`;
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('bucket', 'documentos');
+      fd.append('path', path);
+      const res = await fetch('/api/upload', { method: 'POST', body: fd });
+      const j = await res.json();
+      if (res.ok && j.success && j.publicUrl) return j.publicUrl;
+    } catch (_) {}
+    return toBase64(file);
+  };
+
   const todasLasActividades = [...ordenanzaData.actividadesComerciales, ...ordenanzaData.actividadesIndustriales];
 
   const [formData, setFormData] = useState({
@@ -46,7 +62,6 @@ export default function RegistroPublico() {
     correoDominio: '@gmail.com',
     Clasificacion: 'Residencial',
     TipoResidencia: ordenanzaData.tiposResidenciales[0].label,
-    NivelMetraje: ordenanzaData.nivelesMetraje[0],
     ActividadComercial: todasLasActividades[0].label,
   });
 
@@ -74,19 +89,29 @@ export default function RegistroPublico() {
         identidad: finalIdentidad,
         contribuyente: finalContribuyente,
         registro: finalTelefono,
+        correo: finalCorreo,
+        domicilio_fiscal: formData.Direccion,
+        direccion_exacta: formData.DireccionExacta,
+        direccion: finalDireccion,
         tipo: formData.Clasificacion,
         actividad: finalActividad,
-        codigo: formData.NivelMetraje,
+        codigo: 'Por Asignar',
+        origen: 'Portal Web',
         registrado: new Date().toISOString()
       };
 
-      // Attach documents as base64 if uploaded
-      if (archivos.rif) dataToSave.rif_doc = await toBase64(archivos.rif);
-      if (archivos.cedula) dataToSave.cedula_doc = await toBase64(archivos.cedula);
-      if (archivos.patente) dataToSave.patente_doc = await toBase64(archivos.patente);
+      // Subir documentos al Storage (con respaldo base64)
+      if (archivos.rif) dataToSave.rif_doc = await uploadFileToStorage(archivos.rif, 'rif', finalIdentidad);
+      if (archivos.cedula) dataToSave.cedula_doc = await uploadFileToStorage(archivos.cedula, 'cedula', finalIdentidad);
+      if (archivos.patente) dataToSave.patente_doc = await uploadFileToStorage(archivos.patente, 'patente', finalIdentidad);
 
-      const { error: dbError } = await supabase.from('pre_registros').insert([dataToSave]);
-      if (dbError) throw dbError;
+      const res = await fetch('/api/admin/pre-registros', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dataToSave),
+      });
+      const resJson = await res.json();
+      if (!res.ok || !resJson.ok) throw new Error(resJson.error || 'Error guardando la solicitud de registro');
 
       setSuccess(true);
       setTimeout(() => {
@@ -241,18 +266,11 @@ export default function RegistroPublico() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-2">Nivel de Metraje o Dimensión</label>
-                <select name="NivelMetraje" value={formData.NivelMetraje} onChange={handleChange} className="w-full border-2 border-slate-200 rounded-lg px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:border-emerald-500 bg-slate-50 appearance-none">
-                  {ordenanzaData.nivelesMetraje.map(n => <option key={n} value={n}>{n}</option>)}
-                </select>
-              </div>
-
-              <div className="md:col-span-2">
                 {formData.Clasificacion === 'Residencial' ? (
                   <>
                     <label className="block text-xs font-bold text-slate-700 uppercase mb-2">Tipo de Residencia</label>
                     <select name="TipoResidencia" value={formData.TipoResidencia} onChange={handleChange} className="w-full border-2 border-slate-200 rounded-lg px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:border-emerald-500 bg-slate-50 appearance-none">
-                      {ordenanzaData.tiposResidenciales.map(t => <option key={t.label} value={t.label}>{t.label}</option>)}
+                      {ordenanzaData.tiposResidenciales.map(t => <option key={t.label} value={t.label}>{t.label.replace(/\s*\(Zona\s+[A-D]\)/gi, '')}</option>)}
                     </select>
                   </>
                 ) : (

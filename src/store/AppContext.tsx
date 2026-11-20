@@ -253,17 +253,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
           // Revalidación ligera en segundo plano (tasa BCV y pre-registros) sin bloquear la pantalla
           (async () => {
             try {
-              const [{ data: dbCfg }, apiBcv, { data: dbPreReg }] = await Promise.all([
+              const [{ data: dbCfg }, apiBcv, preRegRes] = await Promise.all([
                 supabase.from('sistema_config').select('*'),
                 fetch(`/api/bcv?t=${Date.now()}`, { cache: 'no-store' }).then(r => r.json()).catch(() => ({ tcmmv: 0 })),
-                supabase.from('pre_registros').select('*')
+                fetch('/api/admin/pre-registros', { cache: 'no-store' }).then(r => r.json()).catch(() => ({ data: [] }))
               ]);
               if (apiBcv?.tcmmv && apiBcv.tcmmv !== cached.tcmmv) {
                 setTcmmv(apiBcv.tcmmv);
                 cached.tcmmv = apiBcv.tcmmv;
                 saveToIndexedDB('naguanagua_full_cache', cached).catch(() => {});
               }
-              if (dbPreReg) setPreRegistros(dbPreReg);
+              if (preRegRes?.data) setPreRegistros(preRegRes.data);
               // Sincronizar facturas frescas en vivo desde el servidor para evitar bloqueo RLS
               try {
                 const resF = await fetch('/api/admin/facturas?limit=5000');
@@ -400,7 +400,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         { data: dbConfig },
         apiBcv
       ] = await Promise.all([
-        supabase.from('pre_registros').select('*').limit(2000),
+        fetch('/api/admin/pre-registros', { cache: 'no-store' }).then(r => r.json()).then(j => ({ data: j?.data || [] })).catch(() => ({ data: [] as any[] })),
         supabase.from('documentos').select('*').limit(2000),
         supabase.from('certificados').select('*').limit(2000),
         supabase.from('reclamos').select('*').limit(2000),
@@ -1966,14 +1966,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCertificados(prev => [cert, ...prev]);
   };
 
-  const aprobarPreRegistro = async (item: number) => {
+  const aprobarPreRegistro = async (item: number | string) => {
     try {
-      const { error } = await supabase
-        .from('pre_registros')
-        .delete()
-        .eq('id', item);
-        
-      if (error) throw error;
+      const res = await fetch(`/api/admin/pre-registros?id=${encodeURIComponent(String(item))}&accion=aprobar`, {
+        method: 'DELETE',
+      });
+      const j = await res.json();
+      if (!res.ok || !j.ok) throw new Error(j.error || 'Error aprobando pre-registro');
       setPreRegistros(prev => prev.filter(r => r.id !== item));
       await addAuditLog('APROBAR_PREREGISTRO', `Se procesó el pre-registro ID: ${item}`);
     } catch (e) {

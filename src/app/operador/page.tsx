@@ -86,20 +86,14 @@ export default function OperadorDashboard() {
     if (!operador) return;
     setIsExporting(true);
     try {
-      let query = supabase
-        .from('pre_registros')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (exportAll) {
-        query = query.ilike('origen', 'Censo - %');
-      } else {
-        query = query.ilike('origen', `%Censo - ${operador}%`);
-      }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
+      const res = await fetch('/api/admin/pre-registros', { cache: 'no-store' });
+      const resJson = await res.json();
+      if (!res.ok || !resJson.ok) throw new Error(resJson.error || 'Error consultando censos');
+      const rawList: any[] = Array.isArray(resJson.data) ? resJson.data : [];
+      const data = rawList.filter((item: any) => {
+        const orig = String(item.origen || '');
+        return exportAll ? orig.startsWith('Censo') : orig.toLowerCase().includes(`censo - ${operador.toLowerCase()}`);
+      });
 
       if (!data || data.length === 0) {
         alert('No hay datos de censos registrados por usted para exportar.');

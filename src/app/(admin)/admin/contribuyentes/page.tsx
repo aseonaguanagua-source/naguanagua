@@ -122,6 +122,7 @@ function ContribuyentesPageContent() {
   const [serverResults, setServerResults] = useState<any[]>([]);
   const [isShowingServerResults, setIsShowingServerResults] = useState(false);
   const [showWithNotes, setShowWithNotes] = useState(false);
+  const [selectedMonthFilter, setSelectedMonthFilter] = useState<string>('ALL');
   const [groupCondoChildren, setGroupCondoChildren] = useState(true);
   const [filteredContribuyentes, setFilteredContribuyentes] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -450,6 +451,17 @@ function ContribuyentesPageContent() {
     if (showWithNotes) {
       result = result.filter((c: any) => c.Observaciones && c.Observaciones.trim().length > 0);
     }
+
+    if (selectedMonthFilter && selectedMonthFilter !== 'ALL') {
+      result = result.filter((c: any) => {
+        const rawF = c.FechaRegistro || c.created_at;
+        if (!rawF) return false;
+        const d = new Date(rawF);
+        if (isNaN(d.getTime())) return String(rawF).slice(0, 7) === selectedMonthFilter;
+        const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        return ym === selectedMonthFilter;
+      });
+    }
     
     // Optimize inmuebles lookup to prevent O(N^2) freezes
     const inmueblesById = new Map();
@@ -481,7 +493,7 @@ function ContribuyentesPageContent() {
       });
     }
     setFilteredContribuyentes(result);
-  }, [activeTab, contribuyentes, showWithNotes, isShowingServerResults, serverResults, groupCondoChildren, inmuebles]);
+  }, [activeTab, contribuyentes, showWithNotes, selectedMonthFilter, isShowingServerResults, serverResults, groupCondoChildren, inmuebles]);
 
   useEffect(() => {
     if (searchParams.get('action') === 'new') {
@@ -3255,10 +3267,57 @@ function ContribuyentesPageContent() {
           setIsSaving(false);
           return;
         }
-        const idGuardada = await addContribuyente({ ...dataToSave, Identidad: idCompleta, TipoIdentidad: tipoId });
+        const esResNew = formData.Clasificacion === 'Residencial';
+        const actPrincipalNew = esResNew ? (formData.TipoResidencia || ordenanzaData.tiposResidenciales[0].label) : (formData.ActividadComercial || todasLasActividades[0].label);
+        const nivelNew = esResNew ? (formData.TipoResidencia || ordenanzaData.tiposResidenciales[0].label) : (formData.NivelMetraje || ordenanzaData.nivelesMetraje[0]);
+        const cajeroAdmin = (typeof window !== 'undefined' ? (localStorage.getItem('user_name') || localStorage.getItem('adminUser') || localStorage.getItem('user_email')) : null) || 'Sistema Administrativo';
+
+        const preRegPayload: any = {
+          identidad: idCompleta,
+          contribuyente: contribUnificado,
+          registro: finalTelefono,
+          correo: finalCorreo,
+          tipo: formData.Clasificacion || 'Residencial',
+          actividad: actPrincipalNew,
+          codigo: nivelNew,
+          origen: `Sistema Administrativo (${cajeroAdmin})`,
+          domicilio_fiscal: formData.Direccion || '',
+          direccion_exacta: formData.DireccionExacta || '',
+          direccion: formData.DireccionExacta ? `${formData.Direccion || ''} | Exacta: ${formData.DireccionExacta}` : (formData.Direccion || ''),
+          coordenadas: formData.coordenadas || null,
+          is_condominio: Boolean(formData.isCondominio),
+          cantidad_inmuebles: formData.cantidadInmuebles || (Array.isArray(formData.locales) ? formData.locales.length : 1),
+          locales: formData.locales || [],
+          es_agente_retencion: Boolean(formData.esAgenteRetencion),
+          clave_portal: formData.clave_portal || '',
+          patente: formData.Patente || '',
+          ficha_catastral: formData.FichaCatastral || '',
+          nota: [
+            formData.Patente ? `Patente: ${formData.Patente}` : '',
+            formData.FichaCatastral ? `Catastro: ${formData.FichaCatastral}` : '',
+            formData.Nota || '',
+          ].filter(Boolean).join(' | '),
+          cedula_doc: uploadDocs.cedula.url || undefined,
+          ficha_doc: uploadDocs.ficha.url || undefined,
+          registro_doc: uploadDocs.registro.url || undefined,
+          registrado: new Date().toISOString(),
+        };
+
+        const resPre = await fetch('/api/admin/pre-registros', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(preRegPayload),
+        });
+        const jPre = await resPre.json();
+        if (!resPre.ok || !jPre.ok) {
+          throw new Error(jPre.error || 'No se pudo enviar el registro a Pre-Registros para aprobación');
+        }
+
+        await addAuditLog('PRE_REGISTRO_ADMIN', `Nuevo contribuyente ${contribUnificado} (${idCompleta}) enviado a Pre-Registros Web para aprobación.`);
+        await refreshData();
         setIsNew(false);
-        setEditingId(null); // volver a la lista: el registro ya quedó guardado
-        alert(`Contribuyente ${idGuardada || idCompleta} registrado correctamente.`);
+        setEditingId(null);
+        alert(`✅ Solicitud de registro para ${contribUnificado} (${idCompleta}) enviada a Pre-Registros Web para su revisión y aprobación.`);
         setIsSaving(false);
         return;
       } else if (editingId) {
@@ -5025,6 +5084,52 @@ function ContribuyentesPageContent() {
         </div>
         
         <div className="flex items-center gap-4 mb-2 flex-wrap">
+          {(() => {
+            const MESES_NOMBRES_FILTRO = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+            const monthCounts = new Map<string, number>();
+            const baseList = isShowingServerResults ? serverResults : contribuyentes;
+            baseList.forEach((c: any) => {
+              if (activeTab === 'Activos' && (c.Estado === 'Eliminado' || c.Estado === 'Inactivo')) return;
+              if (activeTab === 'Inactivos' && c.Estado !== 'Eliminado' && c.Estado !== 'Inactivo') return;
+              const rawF = c.FechaRegistro || c.created_at;
+              if (!rawF) return;
+              const d = new Date(rawF);
+              const ym = !isNaN(d.getTime())
+                ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+                : String(rawF).slice(0, 7);
+              if (/^\d{4}-\d{2}$/.test(ym)) {
+                monthCounts.set(ym, (monthCounts.get(ym) || 0) + 1);
+              }
+            });
+            const sortedMonths = Array.from(monthCounts.keys()).sort((a, b) => b.localeCompare(a));
+            return (
+              <div className="flex items-center gap-2 bg-emerald-50/80 border border-emerald-200 px-3 py-1 rounded-lg">
+                <span className="text-xs font-bold text-emerald-900 whitespace-nowrap">📅 Mes de Registro:</span>
+                <select
+                  value={selectedMonthFilter}
+                  onChange={(e) => setSelectedMonthFilter(e.target.value)}
+                  className="text-xs font-semibold text-emerald-950 bg-white border border-emerald-300 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
+                >
+                  <option value="ALL">Todos los meses</option>
+                  {sortedMonths.map((ym) => {
+                    const [yr, mo] = ym.split('-');
+                    const mIdx = parseInt(mo, 10) - 1;
+                    const label = `${MESES_NOMBRES_FILTRO[mIdx] || mo} ${yr} (${monthCounts.get(ym)})`;
+                    return <option key={ym} value={ym}>{label}</option>;
+                  })}
+                </select>
+                {selectedMonthFilter !== 'ALL' && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedMonthFilter('ALL')}
+                    className="text-[10px] font-bold text-emerald-700 hover:text-emerald-900 underline cursor-pointer"
+                  >
+                    Limpiar
+                  </button>
+                )}
+              </div>
+            );
+          })()}
           <div className="flex items-center gap-2">
             <input 
               type="checkbox" 
