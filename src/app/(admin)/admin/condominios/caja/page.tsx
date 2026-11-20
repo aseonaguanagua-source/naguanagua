@@ -609,14 +609,28 @@ function Caja() {
   }, [claves, conDeuda, porContrib, identidad, visiblesU]);
 
   const mesesMax = base?.totales?.mesesMax || 0;
-  const multasMax = Math.max(1, ...(unidadesParaMax || []).map((r: any) => (r.multaMeses || 0) + (r.multasManuales || []).length));
+  const multasMax = Math.max(1, ...(unidadesParaMax || []).map((r: any) => {
+    const enAseo = (r.deuda?.porMes || []).filter((m: any) => m.multaBs > 0).length;
+    const manList = r.multasManuales || [];
+    const manCount = r._esPadreUnificado
+      ? new Set(manList.map((m: any) => m.periodo || m.concepto || m.id)).size
+      : manList.length;
+    const remCount = (r.multaExtraBs || 0) > 0 ? Math.max(0, (r.multaMeses || 0) - enAseo - manCount) : 0;
+    return Math.max(r.multaMeses || 0, enAseo + remCount + manCount);
+  }));
   const maxOpciones = soloMultas ? multasMax : mesesMax;
   const listaMultasInfo = useMemo(() => {
     if (!soloMultas || !unidadesParaMax || unidadesParaMax.length === 0) return [];
     const u = unidadesParaMax[0];
     const items: { label: string; periodo?: string }[] = [];
     const mesesMultaEnAseo = (u.deuda?.porMes || []).filter((m: any) => m.multaBs > 0).length;
-    const mesesRemanentes = Math.max(0, (u.multaMeses || 0) - mesesMultaEnAseo);
+    const manList = u.multasManuales || [];
+    const manCount = u._esPadreUnificado
+      ? new Set(manList.map((m: any) => m.periodo || m.concepto || m.id)).size
+      : manList.length;
+    const mesesRemanentes = (u.multaExtraBs || 0) > 0
+      ? Math.max(0, (u.multaMeses || 0) - mesesMultaEnAseo - manCount)
+      : 0;
     if (mesesRemanentes > 0) {
       const persPrev = periodosMultasPrevias(u.pendienteDesde, mesesRemanentes);
       for (let i = 0; i < mesesRemanentes; i++) {
@@ -633,8 +647,12 @@ function Caja() {
       }
     }
     if (u.multasManuales) {
+      const seenManKeys = new Set<string>();
       for (const man of u.multasManuales) {
         const per = man.periodo;
+        const dedupKey = u._esPadreUnificado ? String(per || man.concepto || man.id) : String(man.id || per || Math.random());
+        if (seenManKeys.has(dedupKey)) continue;
+        seenManKeys.add(dedupKey);
         items.push({ label: per ? fmtPeriodo(per) : (man.concepto || 'Multa Fija'), periodo: per });
       }
     }

@@ -1587,7 +1587,7 @@ export default function CajaPage() {
         // Búsqueda por CÓDIGO o RIF: mantener todos los inmuebles activos del RIF del contribuyente
         // (ya filtrados en activeInmFresh para no mezclar inmuebles inactivos ni condominios)
 
-        const hasDeuda = billableInms.some((i: any) => parseFloat(i.deuda_mmv || '0') > 0 || parseFloat(i.deuda_congelada_bs || '0') > 0 || parseInt(i.meses_deuda || '0') > 0);
+        const hasDeuda = billableInms.some((i: any) => parseFloat(i.deuda_mmv || '0') > 0 || parseFloat(i.deuda_congelada_bs || '0') > 0 || parseInt(i.meses_deuda || '0') > 0 || parseFloat(i.multa_bs || '0') > 0);
         if (hasDeuda) {
           const now = new Date();
           // Consultar pagos aprobados del contribuyente para nunca volver a generar en Caja meses que ya fueron cancelados (ej. Septiembre 2026)
@@ -1621,7 +1621,10 @@ export default function CajaPage() {
             if (esCondoCentralizado) {
               const multaTotal = parseFloat(inm.multa_bs || '0');
               if (multaTotal > 0) {
-                const rawMesesMulta = Math.max(0, parseInt(inm.multa_meses || '0') || Math.max(0, (parseInt(inm.meses_deuda || '0') || 0) - 1));
+                const currentRateForMulta = (customBcvRate && !isNaN(parseFloat(customBcvRate))) ? parseFloat(customBcvRate) : (tcmmv || 1);
+                const cuotaMultaEst = Math.round(calcularMensualidad(inm, currentRateForMulta) * (isResidencialInm(inm) ? 0.10 : 0.12) * 100) / 100;
+                const inferidos = cuotaMultaEst > 1 ? Math.max(1, Math.round(multaTotal / cuotaMultaEst)) : 1;
+                const rawMesesMulta = Math.max(0, parseInt(inm.multa_meses || '0') || Math.max(0, (parseInt(inm.meses_deuda || '0') || 0) - 1) || inferidos);
                 const numMesesMulta = Math.max(1, rawMesesMulta);
                 const baseCuotaMulta = Math.round((multaTotal / numMesesMulta) * 100) / 100;
                 for (let i = 1; i <= numMesesMulta; i++) {

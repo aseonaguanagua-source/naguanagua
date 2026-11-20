@@ -365,10 +365,10 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasaRaw: numb
     const mu = motorPorId.get(r.clave);
     const res = M.unidadResidencial(c, mu || null);
     const tMulta = res ? M.TASA_MULTA_RES : M.TASA_MULTA_COM;
-    // Unidad registrada: usa siempre sus propios meses y multas. Solo los contenedores puros sin tarifa propia heredan del condominio.
+    // Unidad registrada: usa siempre sus propios meses y multas. Solo las unidades declaradas sin registrar (!u) heredan del condominio.
     const esGrupoOuNA = Boolean(mu?.es_grupo || (String(u?.actividad || '').trim().toUpperCase() === 'N/A' && !(Number(u?.tarifa_mmv) > 0)));
-    const desde = (u && !esGrupoOuNA)
-      ? (u.aseo_pendiente_desde !== undefined ? u.aseo_pendiente_desde : (padre ? padre.aseo_pendiente_desde : condoRow.aseo_pendiente_desde))
+    const desde = u
+      ? (u.aseo_pendiente_desde !== undefined ? u.aseo_pendiente_desde : (padre ? padre.aseo_pendiente_desde : (esGrupoOuNA ? null : condoRow.aseo_pendiente_desde)))
       : condoRow.aseo_pendiente_desde;
     const notasInmCheck = String((u && !esGrupoOuNA) ? (u.notas_inmueble || padre?.notas_inmueble || '') : (condoRow.notas_inmueble || condoRow.notas || ''));
     const rawPeriodos = M.periodosPendientes(r.montoBs > 0 ? desde : null, hoy);
@@ -385,7 +385,7 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasaRaw: numb
     const meses = r.montoBs > 0 ? periodos.length : 0;
     const mesesRealesHoy = r.montoBs > 0 ? M.periodosPendientes(desde, new Date()).filter(p => !pagadosUnidadSet.has(p)).length : 0;
     const mesesMoraRealesHoy = Math.max(0, mesesRealesHoy - 1);
-    const multaMesesRaw = Number((u && !esGrupoOuNA) ? (u.multa_meses !== undefined && u.multa_meses !== null ? u.multa_meses : (padre?.multa_meses ?? condoRow.multa_meses)) : condoRow.multa_meses) || 0;
+    const multaMesesRaw = Number(u ? (u.multa_meses !== undefined && u.multa_meses !== null ? u.multa_meses : (padre?.multa_meses ?? (esGrupoOuNA ? 0 : condoRow.multa_meses))) : condoRow.multa_meses) || 0;
     const exoneradoTotalInm = isExoneradoTotalMultas(notasInmCheck);
     // Multas exoneradas o ya pagadas poco a poco por el contribuyente:
     // Se respetan tanto `multa_exonerada_hasta` como `multa_meses` y las notas de `inmuebles` para sincronización total con Contribuyentes.

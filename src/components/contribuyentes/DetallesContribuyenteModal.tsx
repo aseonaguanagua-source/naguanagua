@@ -1097,18 +1097,24 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
 
       // Regla de Condominios: ninguna información de los condominios sale por sistema,
       // solo la multa de los usuarios. Todo lo demás lo hace condominio por oficina.
-      const isCondo = (inm.condominio_padre_id || inm.es_condominio) && !isNAParent;
+      const isCondo = Boolean(inm.condominio_padre_id || inm.es_condominio);
       if (isCondo) {
-        const m = parseFloat(inm.multa_bs || '0') || 0;
-        totalMultas += m;
+        const mPadre = parseFloat(inm.multa_bs || '0') || 0;
+        const mHijos = (isNAParent && hijos && hijos.length > 0)
+          ? hijos.reduce((acc: number, h: any) => acc + (parseFloat(h.multa_bs || '0') || 0), 0)
+          : 0;
+        totalMultas += (mHijos > 0 ? mHijos : mPadre);
         return;
       }
 
       const meses = Math.max(0, mesesDeuda);
       if (meses > mesesMax) mesesMax = meses;
       if (meses <= 0) {
-        const m = parseFloat(inm.multa_bs || '0') || 0;
-        totalMultas += m;
+        const mPadre = parseFloat(inm.multa_bs || '0') || 0;
+        const mHijos = (isNAParent && hijos && hijos.length > 0)
+          ? hijos.reduce((acc: number, h: any) => acc + (parseFloat(h.multa_bs || '0') || 0), 0)
+          : 0;
+        totalMultas += (mHijos > 0 ? mHijos : mPadre);
         return;
       }
 

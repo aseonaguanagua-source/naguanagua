@@ -162,7 +162,10 @@ export async function prepararCobro(sol: SolicitudCobro): Promise<Cobro & { _dat
             // Lista estructurada de todas las multas disponibles para esta unidad
             const tMulta = r.residencial ? M.TASA_MULTA_RES : M.TASA_MULTA_COM;
             const mesesMultaEnAseo = (r.deuda?.porMes || []).filter(m => m.multaBs > 0).length;
-            const mesesRemanentes = Math.max(0, (r.multaMeses || 0) - mesesMultaEnAseo);
+            const manualesCount = Array.isArray(r.multasManuales) ? r.multasManuales.length : 0;
+            const mesesRemanentes = (r.multaExtraBs || 0) > 0
+                ? Math.max(0, (r.multaMeses || 0) - mesesMultaEnAseo - manualesCount)
+                : 0;
             const cuotaMultaBs = (mesesRemanentes > 0 && r.multaExtraBs > 0)
                 ? r2(r.multaExtraBs / mesesRemanentes)
                 : r2(r.mensualBs * tMulta);

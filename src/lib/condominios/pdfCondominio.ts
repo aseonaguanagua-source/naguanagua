@@ -413,7 +413,7 @@ export async function generarPdfEstadoCuentaUnidad(
   allRenglones?: RenglonEstado[]
 ) {
   const childRenglones = (allRenglones || []).filter(x => x.padreId === r.clave);
-  const isParentGroup = childRenglones.length > 0 && r.totalBs === 0;
+  const isParentGroup = childRenglones.length > 0 && Boolean(r.esGrupo || (r as any)._hijosRenglones || r.totalBs === 0);
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const docNro = Math.floor(100000 + Math.random() * 900000).toString();
   const esEur = moneda === 'EUR';
@@ -627,7 +627,7 @@ export async function generarPdfEstadoCuentaUnidad(
       const chPorMes = ch.deuda?.porMes || [];
       const chPeriodos = ch.periodos || [];
       const chAct = cleanClasificacionActividad(ch.actividad || '').slice(0, 28);
-      const chLabel = `${r.inmueble || r.numero || 'Local'}${chAct ? ` (${chAct})` : ''}`;
+      const chLabel = `${ch.inmueble || r.inmueble || r.numero || 'Local'}${chAct ? ` (${chAct})` : ''}`;
       chPorMes.forEach((m: any, idx: number) => {
         const p = chPeriodos[idx] || '';
         const [py, pm] = p.split('-');
@@ -645,82 +645,128 @@ export async function generarPdfEstadoCuentaUnidad(
           ucdM
         ]);
       });
-    });
-  } else if (porMes.length > 0) {
-    porMes.forEach((m: any, idx: number) => {
-      const p = periodos[idx] || '';
-      const [py, pm] = p.split('-');
-      const mesFmt = pm && py ? `${pm}/${py}` : `Mes ${m.n}`;
-      const totM = m.baseBs + m.multaBs + m.ivaBs;
-      const ucdM = ucdValor > 0 ? (totM / ucdValor).toLocaleString('es-VE', { minimumFractionDigits: 4, maximumFractionDigits: 4 }) : '-';
-      oficialRows.push([
-        { content: r.inmueble || r.numero || 'Local', styles: { fontStyle: 'bold' } },
-        mesFmt,
-        fmtBs(toCurr(m.baseBs)),
-        '-',
-        m.multaBs > 0 ? fmtBs(toCurr(m.multaBs)) : '-',
-        fmtBs(toCurr(m.ivaBs)),
-        fmtBs(toCurr(totM)),
-        ucdM
-      ]);
-    });
-  } else if (baseAseo > 0) {
-    const totM = totalBrutoBs;
-    const ucdM = ucdValor > 0 ? (totM / ucdValor).toLocaleString('es-VE', { minimumFractionDigits: 4, maximumFractionDigits: 4 }) : '-';
-    oficialRows.push([
-      { content: r.inmueble || r.numero || 'Local', styles: { fontStyle: 'bold' } },
-      mesesVencidos > 0 ? `${periodoDesde} a ${periodoHasta}` : 'Aseo Urbano',
-      fmtBs(toCurr(baseAseo)),
-      '-',
-      sumMultas > 0 ? fmtBs(toCurr(sumMultas)) : '-',
-      fmtBs(toCurr(ivaBs)),
-      fmtBs(toCurr(totM)),
-      ucdM
-    ]);
-  } else {
-    oficialRows.push([{ content: 'Solvente — No posee períodos pendientes', colSpan: 8, styles: { halign: 'center' } }]);
-  }
 
-  // Multas adicionales / remanentes por períodos previos acumulados (ej. 35 multas adeudadas)
-  if ((r.multaExtraBs || 0) > 0) {
-    const mesesMultaEnAseo = (porMes || []).filter((m: any) => m.multaBs > 0).length;
-    const mRemanentes = Math.max(0, (r.multaMeses || 0) - mesesMultaEnAseo);
-    const cuotaRemanente = mRemanentes > 0 ? (r.multaExtraBs / mRemanentes) : r.multaExtraBs;
-    const periodosPrevios = M.periodosMultasPrevias(r.pendienteDesde, mRemanentes);
-    for (let k = 0; k < mRemanentes; k++) {
-      const pPrev = periodosPrevios[k];
-      const [py, pm] = pPrev ? pPrev.split('-') : ['', ''];
-      const perLabel = pm && py ? `Multa ${pm}/${py}` : `Multa Período Previo ${k + 1}`;
-      const totM = cuotaRemanente;
+      if ((ch.multaExtraBs || 0) > 0) {
+        const chMesesMultaEnAseo = chPorMes.filter((m: any) => m.multaBs > 0).length;
+        const chManCount = Array.isArray(ch.multasManuales) ? ch.multasManuales.length : 0;
+        const chRemanentes = Math.max(0, (ch.multaMeses || 0) - chMesesMultaEnAseo - chManCount);
+        const cuotaRemanente = chRemanentes > 0 ? (ch.multaExtraBs / chRemanentes) : ch.multaExtraBs;
+        const periodosPrevios = M.periodosMultasPrevias(ch.pendienteDesde, chRemanentes);
+        for (let k = 0; k < chRemanentes; k++) {
+          const pPrev = periodosPrevios[k];
+          const [py, pm] = pPrev ? pPrev.split('-') : ['', ''];
+          const perLabel = pm && py ? `Multa ${pm}/${py}` : `Multa Período Previo ${k + 1}`;
+          const totM = cuotaRemanente;
+          const ucdM = ucdValor > 0 ? (totM / ucdValor).toLocaleString('es-VE', { minimumFractionDigits: 4, maximumFractionDigits: 4 }) : '-';
+          oficialRows.push([
+            { content: chLabel, styles: { fontStyle: 'bold' } },
+            perLabel,
+            '0,00',
+            '-',
+            fmtBs(toCurr(totM)),
+            '0,00',
+            fmtBs(toCurr(totM)),
+            ucdM
+          ]);
+        }
+      }
+
+      if (Array.isArray(ch.multasManuales) && ch.multasManuales.length > 0) {
+        ch.multasManuales.forEach((man: any) => {
+          const ucdM = ucdValor > 0 ? (man.montoBs / ucdValor).toLocaleString('es-VE', { minimumFractionDigits: 4, maximumFractionDigits: 4 }) : '-';
+          oficialRows.push([
+            { content: chLabel, styles: { fontStyle: 'bold' } },
+            man.periodo ? fmtPeriodo(man.periodo) : 'Manual',
+            '0,00',
+            '-',
+            fmtBs(toCurr(man.montoBs)),
+            '0,00',
+            fmtBs(toCurr(man.montoBs)),
+            ucdM
+          ]);
+        });
+      }
+    });
+  } else {
+    if (porMes.length > 0) {
+      porMes.forEach((m: any, idx: number) => {
+        const p = periodos[idx] || '';
+        const [py, pm] = p.split('-');
+        const mesFmt = pm && py ? `${pm}/${py}` : `Mes ${m.n}`;
+        const totM = m.baseBs + m.multaBs + m.ivaBs;
+        const ucdM = ucdValor > 0 ? (totM / ucdValor).toLocaleString('es-VE', { minimumFractionDigits: 4, maximumFractionDigits: 4 }) : '-';
+        oficialRows.push([
+          { content: r.inmueble || r.numero || 'Local', styles: { fontStyle: 'bold' } },
+          mesFmt,
+          fmtBs(toCurr(m.baseBs)),
+          '-',
+          m.multaBs > 0 ? fmtBs(toCurr(m.multaBs)) : '-',
+          fmtBs(toCurr(m.ivaBs)),
+          fmtBs(toCurr(totM)),
+          ucdM
+        ]);
+      });
+    } else if (baseAseo > 0) {
+      const totM = totalBrutoBs;
       const ucdM = ucdValor > 0 ? (totM / ucdValor).toLocaleString('es-VE', { minimumFractionDigits: 4, maximumFractionDigits: 4 }) : '-';
       oficialRows.push([
         { content: r.inmueble || r.numero || 'Local', styles: { fontStyle: 'bold' } },
-        perLabel,
-        '0,00',
+        mesesVencidos > 0 ? `${periodoDesde} a ${periodoHasta}` : 'Aseo Urbano',
+        fmtBs(toCurr(baseAseo)),
         '-',
-        fmtBs(toCurr(totM)),
-        '0,00',
+        sumMultas > 0 ? fmtBs(toCurr(sumMultas)) : '-',
+        fmtBs(toCurr(ivaBs)),
         fmtBs(toCurr(totM)),
         ucdM
       ]);
     }
+
+    // Multas adicionales / remanentes por períodos previos acumulados (ej. 35 multas adeudadas)
+    if ((r.multaExtraBs || 0) > 0) {
+      const mesesMultaEnAseo = (porMes || []).filter((m: any) => m.multaBs > 0).length;
+      const manCount = Array.isArray(r.multasManuales) ? r.multasManuales.length : 0;
+      const mRemanentes = Math.max(0, (r.multaMeses || 0) - mesesMultaEnAseo - manCount);
+      const cuotaRemanente = mRemanentes > 0 ? (r.multaExtraBs / mRemanentes) : r.multaExtraBs;
+      const periodosPrevios = M.periodosMultasPrevias(r.pendienteDesde, mRemanentes);
+      for (let k = 0; k < mRemanentes; k++) {
+        const pPrev = periodosPrevios[k];
+        const [py, pm] = pPrev ? pPrev.split('-') : ['', ''];
+        const perLabel = pm && py ? `Multa ${pm}/${py}` : `Multa Período Previo ${k + 1}`;
+        const totM = cuotaRemanente;
+        const ucdM = ucdValor > 0 ? (totM / ucdValor).toLocaleString('es-VE', { minimumFractionDigits: 4, maximumFractionDigits: 4 }) : '-';
+        oficialRows.push([
+          { content: r.inmueble || r.numero || 'Local', styles: { fontStyle: 'bold' } },
+          perLabel,
+          '0,00',
+          '-',
+          fmtBs(toCurr(totM)),
+          '0,00',
+          fmtBs(toCurr(totM)),
+          ucdM
+        ]);
+      }
+    }
+
+    // Multas manuales si existen
+    if (Array.isArray(r.multasManuales) && r.multasManuales.length > 0) {
+      r.multasManuales.forEach((man: any) => {
+        const ucdM = ucdValor > 0 ? (man.montoBs / ucdValor).toLocaleString('es-VE', { minimumFractionDigits: 4, maximumFractionDigits: 4 }) : '-';
+        oficialRows.push([
+          { content: r.inmueble || 'Multa', styles: { fontStyle: 'bold' } },
+          man.periodo ? fmtPeriodo(man.periodo) : 'Manual',
+          '0,00',
+          '-',
+          fmtBs(toCurr(man.montoBs)),
+          '0,00',
+          fmtBs(toCurr(man.montoBs)),
+          ucdM
+        ]);
+      });
+    }
   }
 
-  // Multas manuales si existen
-  if (Array.isArray(r.multasManuales) && r.multasManuales.length > 0) {
-    r.multasManuales.forEach((man: any) => {
-      const ucdM = ucdValor > 0 ? (man.montoBs / ucdValor).toLocaleString('es-VE', { minimumFractionDigits: 4, maximumFractionDigits: 4 }) : '-';
-      oficialRows.push([
-        { content: r.inmueble || 'Multa', styles: { fontStyle: 'bold' } },
-        man.periodo ? fmtPeriodo(man.periodo) : 'Manual',
-        '0,00',
-        '-',
-        fmtBs(toCurr(man.montoBs)),
-        '0,00',
-        fmtBs(toCurr(man.montoBs)),
-        ucdM
-      ]);
-    });
+  if (oficialRows.length === 0) {
+    oficialRows.push([{ content: 'Solvente — No posee períodos pendientes', colSpan: 8, styles: { halign: 'center' } }]);
   }
 
   const colTotalLabel = esEur ? 'TOTAL €' : 'TOTAL BS';

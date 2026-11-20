@@ -154,10 +154,11 @@ function Ficha() {
         const sumIva = (r.deuda?.ivaBs || 0) + hijosR.reduce((acc: number, ch: any) => acc + (ch.deuda?.ivaBs || 0), 0);
         const sumTotal = (r.totalBs || 0) + hijosR.reduce((acc: number, ch: any) => acc + (ch.totalBs || 0), 0);
         const maxMeses = Math.max(r.deuda?.meses || 0, ...hijosR.map((ch: any) => ch.deuda?.meses || 0), 0);
+        const uniqueManualPeriods = new Set(allMultasManuales.map((m: any) => m.periodo || m.concepto || m.id)).size;
         const maxMultaMeses = Math.max(
           (r.multaMeses || 0),
           ...hijosR.map((ch: any) => ch.multaMeses || 0),
-          allMultasManuales.length,
+          uniqueManualPeriods,
           0
         );
         return {
@@ -380,21 +381,23 @@ function Ficha() {
   /** Meses con multa: toma los meses con recargo en mora (o multaMeses / multasManuales si es remanente) sin duplicar */
   const mesesMultaDe = (r: any) => {
     const enAseo = (r?.deuda?.porMes || []).filter((m: any) => m.multaBs > 0).length;
-    const manualesCount = Array.isArray(r?.multasManuales) ? r.multasManuales.length : 0;
-    if (enAseo === 0 && r?._hijosRenglones?.length) {
+    const manualesList = Array.isArray(r?.multasManuales) ? r.multasManuales : [];
+    const manualesCount = manualesList.length;
+    if (r?._hijosRenglones?.length) {
+      const uniquePeriodsHijos = new Set(manualesList.map((m: any) => m.periodo || m.concepto || m.id)).size;
       const maxHijos = Math.max(
-        ...r._hijosRenglones.map((ch: any) =>
-          Math.max(
-            (ch?.deuda?.porMes || []).filter((m: any) => m.multaBs > 0).length,
-            Number(ch?.multaMeses) || 0,
-            Array.isArray(ch?.multasManuales) ? ch.multasManuales.length : 0
-          )
-        ),
+        ...r._hijosRenglones.map((ch: any) => {
+          const chEnAseo = (ch?.deuda?.porMes || []).filter((m: any) => m.multaBs > 0).length;
+          const chMan = Array.isArray(ch?.multasManuales) ? ch.multasManuales.length : 0;
+          const chRem = (ch?.multaExtraBs || 0) > 0 ? Math.max(0, (Number(ch?.multaMeses) || 0) - chEnAseo - chMan) : 0;
+          return Math.max(chEnAseo + chRem + chMan, Number(ch?.multaMeses) || 0);
+        }),
         0
       );
-      return Math.max(maxHijos, Number(r?.multaMeses) || 0, manualesCount);
+      return Math.max(maxHijos, uniquePeriodsHijos);
     }
-    return Math.max(enAseo + manualesCount, Number(r?.multaMeses) || 0);
+    const remCount = (r?.multaExtraBs || 0) > 0 ? Math.max(0, (Number(r?.multaMeses) || 0) - enAseo - manualesCount) : 0;
+    return Math.max(enAseo + remCount + manualesCount, Number(r?.multaMeses) || 0);
   };
 
   /** Estado de cuenta individual desde la pestaña Unidades */
