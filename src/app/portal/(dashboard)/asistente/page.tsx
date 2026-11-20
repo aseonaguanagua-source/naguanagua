@@ -538,6 +538,7 @@ export default function AsistenteGlobalPage() {
 
       autoTable(doc, {
         startY: 70,
+        margin: { bottom: 22 },
         head: [['Código', 'Tipo', 'Actividad / Uso', 'F.O.', 'Tarifa Mes', 'Meses', 'Multas', 'Subtotal Deuda']],
         body: rows.length > 0 ? rows : [['—', '—', 'Sin inmuebles pendientes', '—', 'Bs. 0,00', '0', 'Bs. 0,00', 'Bs. 0,00']],
         theme: 'grid',
@@ -553,7 +554,11 @@ export default function AsistenteGlobalPage() {
         },
       });
 
-      const finalY = ((doc as any).lastAutoTable?.finalY || 95) + 8;
+      let finalY = ((doc as any).lastAutoTable?.finalY || 95) + 8;
+      if (finalY + 40 > 276) {
+        doc.addPage();
+        finalY = 20;
+      }
       const neto = Math.max(
         0,
         contextoCuenta.deudaTotalBs - contextoCuenta.totalRetencionBs - contextoCuenta.saldoFavorBs

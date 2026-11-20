@@ -1670,41 +1670,47 @@ function ContribuyentesPageContent() {
 
       const docNro = Math.floor(10000 + Math.random() * 90000);
 
-      // ── LOGOS INSTITUCIONALES HEADER (Instituto e IAMEC) ──
-      try {
-        const logoIzq = (logos as any).instituto || (logos as any).alcaldia;
-        if (logoIzq) doc.addImage(logoIzq, 'PNG', 14, 8, 38, 13, undefined, 'FAST');
-        if ((logos as any).iamec) doc.addImage((logos as any).iamec, 'PNG', 158, 8.5, 38, 12, undefined, 'FAST');
-      } catch(e) {}
+      const drawClusterPageHeader = () => {
+        // ── LOGOS INSTITUCIONALES HEADER (Instituto e IAMEC) ──
+        try {
+          const logoIzq = (logos as any).instituto || (logos as any).alcaldia;
+          if (logoIzq) doc.addImage(logoIzq, 'PNG', 14, 8, 38, 13, undefined, 'FAST');
+          if ((logos as any).iamec) doc.addImage((logos as any).iamec, 'PNG', 158, 8.5, 38, 12, undefined, 'FAST');
+        } catch(e) {}
 
-      // ── TÍTULO ──
-      doc.setFontSize(16);
-      doc.setFont('helvetica', 'bold');
-      doc.text('ESTADO DE CUENTA', 105, 14.5, { align: 'center' });
+        // ── TÍTULO ──
+        doc.setFontSize(16);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(0, 0, 0);
+        doc.text('ESTADO DE CUENTA', 105, 14.5, { align: 'center' });
 
-      doc.setFontSize(8.5);
-      if (cluster.isMultiActivity) {
-        doc.setTextColor(30, 64, 175);
-        doc.text('LOCAL UNIFICADO — MÚLTIPLES ACTIVIDADES ECONÓMICAS', 105, 20, { align: 'center' });
-      } else if (esRes) {
-        doc.setTextColor(5, 150, 105);
-        doc.text('EXENTO DE IVA', 105, 20, { align: 'center' });
-      }
+        doc.setFontSize(8.5);
+        if (cluster.isMultiActivity) {
+          doc.setTextColor(30, 64, 175);
+          doc.text('LOCAL UNIFICADO — MÚLTIPLES ACTIVIDADES ECONÓMICAS', 105, 20, { align: 'center' });
+        } else if (esRes) {
+          doc.setTextColor(5, 150, 105);
+          doc.text('EXENTO DE IVA', 105, 20, { align: 'center' });
+        }
 
-      doc.setFontSize(8);
-      doc.setTextColor(220, 38, 38);
-      doc.text(`TASA VIGENTE HASTA: ${tasaVigente}`, 105, 25, { align: 'center' });
-      doc.setTextColor(0, 0, 0);
+        doc.setFontSize(8);
+        doc.setTextColor(220, 38, 38);
+        doc.text(`TASA VIGENTE HASTA: ${tasaVigente}`, 105, 25, { align: 'center' });
+        doc.setTextColor(0, 0, 0);
 
-      // ── METADATA & LÍNEA ──
-      doc.setLineWidth(0.3);
-      doc.line(14, 28, 196, 28);
-      doc.setFontSize(7.5);
-      doc.setFont('helvetica', 'italic');
-      doc.text(`Generado por: ${cajero}`, 14, 32);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`Página ${clusterIdx + 1} de ${clustersToRender.length}   |   Nro.: ${docNro}`, 196, 32, { align: 'right' });
-      doc.line(14, 34, 196, 34);
+        // ── METADATA & LÍNEA ──
+        doc.setLineWidth(0.3);
+        doc.setDrawColor(0, 0, 0);
+        doc.line(14, 28, 196, 28);
+        doc.setFontSize(7.5);
+        doc.setFont('helvetica', 'italic');
+        doc.text(`Generado por: ${cajero}`, 14, 32);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Página ${clusterIdx + 1} de ${clustersToRender.length}   |   Nro.: ${docNro}`, 196, 32, { align: 'right' });
+        doc.line(14, 34, 196, 34);
+      };
+
+      drawClusterPageHeader();
 
       // ── DATOS DEL CONTRIBUYENTE Y LOCAL ──
       let y = 39;
@@ -1814,8 +1820,10 @@ function ContribuyentesPageContent() {
           ];
         });
 
+        const pageBeforeActTable = (doc.internal as any).getNumberOfPages();
         autoTable(doc, {
           startY: y,
+          margin: { top: 38, bottom: 22 },
           head: [['ACTIVIDAD ECONÓMICA', 'F.O.', 'BASE MES (Bs.)', 'IVA 16% (Bs.)', 'TOTAL MES (Bs.)']],
           body: actRows,
           foot: [[
@@ -1840,10 +1848,23 @@ function ContribuyentesPageContent() {
             2: { cellWidth: 24, halign: 'right' },
             3: { cellWidth: 24, halign: 'right' },
             4: { cellWidth: 24, halign: 'right', fontStyle: 'bold' }
+          },
+          didDrawPage: (data) => {
+            if (data.pageNumber > pageBeforeActTable) {
+              drawClusterPageHeader();
+            }
           }
         });
 
         y = (doc as any).lastAutoTable.finalY + 4;
+      }
+
+      // Si el bloque de resumen no cabe antes de los logos del pie, saltar de página
+      if (y + 62 > 276) {
+        doc.addPage();
+        pageCount++;
+        drawClusterPageHeader();
+        y = 39;
       }
 
       // ── ESTADO DE CUENTA RESUMIDO ──
@@ -1914,6 +1935,12 @@ function ContribuyentesPageContent() {
       y += 5;
 
       // ── ESTADO DE CUENTA DETALLADO ──
+      if (y + 28 > 276) {
+        doc.addPage();
+        pageCount++;
+        drawClusterPageHeader();
+        y = 39;
+      }
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8.5);
       doc.text('ESTADO DE CUENTA DETALLADO', 105, y, { align: 'center' });
@@ -2061,8 +2088,10 @@ function ContribuyentesPageContent() {
         });
       }
 
+      const pageBeforeMainTable = (doc.internal as any).getNumberOfPages();
       autoTable(doc, {
         startY: y,
+        margin: { top: 38, bottom: 22 },
         head: [['PROPIEDAD', 'MESES', 'SERV. ASEO', 'INT. MORA SERV. ASEO', 'MULTA IMPAGO', 'IVA', 'TOTAL BS', 'UCD']],
         body: oficialRows,
         foot: [[
@@ -2092,11 +2121,22 @@ function ContribuyentesPageContent() {
           5: { halign: 'right' },
           6: { halign: 'right', fontStyle: 'bold' },
           7: { halign: 'right' }
+        },
+        didDrawPage: (data) => {
+          if (data.pageNumber > pageBeforeMainTable) {
+            drawClusterPageHeader();
+          }
         }
       });
       void detalleRows; // detalle anterior (agrupado) reemplazado por la tabla oficial mes a mes
 
       y = (doc as any).lastAutoTable.finalY + 5;
+      if (y + 34 > 276) {
+        doc.addPage();
+        pageCount++;
+        drawClusterPageHeader();
+        y = 40;
+      }
 
       // ── INFORMACIÓN DE PAGO ──
       doc.setFont('helvetica', 'bold');

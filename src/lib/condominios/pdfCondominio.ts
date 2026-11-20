@@ -239,7 +239,7 @@ export function generarPdfEstadoCuentaCondominio(
 
   autoTable(doc, {
     startY: y,
-    margin: { top: 43, bottom: 20 },
+    margin: { top: 43, bottom: 22 },
     head: [['Inmueble', 'Nro/Local', 'Propietario', 'Identidad', 'Períodos', colHeadAseo, colHeadMultas, colHeadTotal]],
     body: rows,
     theme: 'grid',
@@ -354,7 +354,7 @@ export function generarPdfMultasCondominio(c: any, e: EstadoCuenta, cajero: stri
 
   autoTable(doc, {
     startY: y,
-    margin: { top: 43, bottom: 20 },
+    margin: { top: 43, bottom: 22 },
     head: [['Inmueble', 'Nro/Local', 'Propietario', 'Identidad', 'Períodos', 'Total Multas']],
     body: rows,
     theme: 'grid',
@@ -378,7 +378,12 @@ export function generarPdfMultasCondominio(c: any, e: EstadoCuenta, cajero: stri
     }
   });
 
-  const finalY = (doc as any).lastAutoTable.finalY + 8;
+  let finalY = (doc as any).lastAutoTable.finalY + 8;
+  if (finalY > 274) {
+    doc.addPage();
+    drawHeader((doc.internal as any).getNumberOfPages(), (doc.internal as any).getNumberOfPages());
+    finalY = 46;
+  }
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
   doc.setTextColor(153, 27, 27);
@@ -793,7 +798,7 @@ export async function generarPdfEstadoCuentaUnidad(
 
   autoTable(doc, {
     startY: y,
-    margin: { top: 38, bottom: 20 },
+    margin: { top: 38, bottom: 22 },
     head: [['PROPIEDAD', 'MESES', 'SERV. ASEO', 'INT. MORA SERV. ASEO', 'MULTA IMPAGO', 'IVA', colTotalLabel, 'UCD']],
     body: oficialRows,
     foot: [
@@ -842,6 +847,11 @@ export async function generarPdfEstadoCuentaUnidad(
   });
 
   y = (doc as any).lastAutoTable.finalY + 5;
+  if (y + 34 > 276) {
+    doc.addPage();
+    drawHeader((doc.internal as any).getNumberOfPages(), (doc.internal as any).getNumberOfPages());
+    y = 40;
+  }
 
   // ── INFORMACIÓN OFICIAL PARA PAGOS Y TRANSFERENCIAS ──
   doc.setFont('helvetica', 'bold');
