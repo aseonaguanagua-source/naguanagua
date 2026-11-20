@@ -23,6 +23,7 @@ export default function CorreosPage() {
   const [tipoFiltro, setTipoFiltro] = useState('Todos los Sectores');
   const [estatusFiltro, setEstatusFiltro] = useState('Solo Morosos (Con deuda > 1 mes)');
   const [adjuntarPdf, setAdjuntarPdf] = useState(true);
+  const [testEmailDestino, setTestEmailDestino] = useState('facturacion.comercial@globalgreenca.com');
 
   const [isSending, setIsSending] = useState(false);
   const [isSendingTest, setIsSendingTest] = useState(false);
@@ -91,13 +92,14 @@ export default function CorreosPage() {
           tipoFiltro,
           estatusFiltro,
           adjuntarPdf,
+          testEmail: testEmailDestino.trim() || undefined,
         }),
       });
       const data = await res.json();
       if (data.success) {
         setStatusMessage({
           type: 'success',
-          text: `Correo de prueba con Estado de Cuenta PDF adjunto despachado a facturacion.comercial@globalgreenca.com.`,
+          text: data.mensaje || `Correo de prueba con Estado de Cuenta PDF adjunto despachado a ${testEmailDestino || 'facturacion.comercial@globalgreenca.com'}.`,
         });
       } else {
         setStatusMessage({
@@ -422,6 +424,18 @@ export default function CorreosPage() {
               <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Acciones de Despacho</h3>
 
               <div className="pt-2 space-y-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                    Correo destino para la prueba:
+                  </label>
+                  <input
+                    type="email"
+                    value={testEmailDestino}
+                    onChange={e => setTestEmailDestino(e.target.value)}
+                    placeholder="ejemplo@correo.com"
+                    className="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-mono text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
                 <button
                   onClick={handleSendTest}
                   disabled={isSendingTest || isSending}

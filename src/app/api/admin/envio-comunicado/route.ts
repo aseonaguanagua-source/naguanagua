@@ -598,7 +598,9 @@ export async function POST(request: Request) {
     const asuntoPersonalizado: string =
       body.asunto || 'ESTADO DE CUENTA ASEO NAGUANAGUA - FAVOR LEER TEXTO COMPLETO';
     const adjuntarPdf: boolean = body.adjuntarPdf !== false;
+    const customTestEmail = String(body.testEmail || '').trim();
     const testEmail =
+      (isValidEmail(customTestEmail) ? customTestEmail : '') ||
       TheFactoryHKA.getBackupEmail() ||
       process.env.TFHKA_BACKUP_EMAIL ||
       'facturacion.comercial@globalgreenca.com';
