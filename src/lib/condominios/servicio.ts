@@ -509,13 +509,20 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasaRaw: numb
     const manuales = multasPend
       .filter(m => (u ? m.unidad_id === u.id : !m.unidad_id) && !(omitirMultaSeptiembre && String(m.periodo || '').slice(0, 7) === '2026-09'))
       .map(m => ({ id: m.id, concepto: m.concepto, montoBs: montoMulta(m, tasa), periodo: m.periodo, creada_por: m.creada_por, created_at: m.created_at }));
+    const manualesPadre = padre
+      ? multasPend.filter(m => m.unidad_id === padre.id && !(omitirMultaSeptiembre && String(m.periodo || '').slice(0, 7) === '2026-09'))
+      : [];
     const multasManualesBs = r2(manuales.reduce((a, m) => a + m.montoBs, 0));
 
     // Si la unidad es un grupo contenedor (mu?.es_grupo), no genera multas automáticas directas: cobran sus actividades
-    // multaExtraBs solo cobra meses de multa remanentes (previos al aseo pendiente) no cubiertos por el aseo dinámico ni por multas manuales específicas
-    let mesesMultaRemanente = (!mu?.es_grupo && u) ? Math.max(0, multaMesesRaw - Math.max(mesesMoraCubiertosPorAseo, mesesMoraRealesHoy) - manuales.length) : 0;
+    // multaExtraBs solo cobra meses de multa remanentes (previos al aseo pendiente) no cubiertos por el aseo dinámico ni por multas manuales específicas (propias o del padre N/A)
+    const totalManualesCount = manuales.length + manualesPadre.length;
+    let mesesMultaRemanente = (!mu?.es_grupo && u) ? Math.max(0, multaMesesRaw - Math.max(mesesMoraCubiertosPorAseo, mesesMoraRealesHoy) - totalManualesCount) : 0;
     if (mesesMultaRemanente > 0) {
-      const periodosManualesSet = new Set(manuales.map(m => String(m.periodo || '').slice(0, 7)).filter(Boolean));
+      const periodosManualesSet = new Set([
+        ...manuales.map(m => String(m.periodo || '').slice(0, 7)),
+        ...manualesPadre.map(m => String(m.periodo || '').slice(0, 7)),
+      ].filter(Boolean));
       const prevPeriodos = M.periodosMultasPrevias(desde, mesesMultaRemanente, hoy).filter(p => {
         if (exoneradoTotalInm) return false;
         if (hasta && p <= hasta) return false;
@@ -801,7 +808,13 @@ export async function cargarCondominio(codigo: string) {
       });
       padre.saldo_favor_bs = sfTotalGrupo >= 1.00 ? r2(sfTotalGrupo) : 0;
 
-      // 2. Sincronizar aseo_pendiente_desde y multa_meses del padre N/A con sus hijos activos
+      // 2. La tarifa de un contenedor N/A es siempre la sumatoria de sus actividades hijas
+      const sumMmvHijos = parseFloat(hijos.reduce((acc, h) => acc + (Number(h.tarifa_mmv) || 0), 0).toFixed(4));
+      if (sumMmvHijos > 0) {
+        padre.tarifa_mmv = sumMmvHijos;
+      }
+
+      // 3. Sincronizar aseo_pendiente_desde y multa_meses del padre N/A con sus hijos activos
       const desdesHijos = hijos.map(h => h.aseo_pendiente_desde).filter(Boolean).sort();
       const targetDesdePadre = desdesHijos.length > 0 ? desdesHijos[0] : null;
       const maxMultaHijos = Math.max(0, ...hijos.map(h => Number(h.multa_meses) || 0));

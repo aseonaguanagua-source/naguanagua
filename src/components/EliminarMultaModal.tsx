@@ -28,23 +28,45 @@ export function EliminarMultaModal({ row, inmuebles, tcmmv, recibos, onClose, on
   const { refreshData, refreshUserData } = useAppContext();
   const rawId = (row?.Identidad || row?.identidad || '').replace(/-/g, '').toUpperCase();
   
-  // Inmuebles del contribuyente (propagando meses_deuda desde contenedores N/A hacia actividades hijas)
-  const userInms = useMemo(() => {
-    const rawList = inmuebles.filter((i: any) =>
-      (i.identidad || '').replace(/-/g, '').toUpperCase() === rawId
+  // Inmuebles del contribuyente (incluyendo contenedores N/A y todas sus actividades hijas por padre_id)
+  const allRelatedInms = useMemo(() => {
+    const byId = inmuebles.filter((i: any) =>
+      (i.identidad || '').replace(/-/g, '').toUpperCase() === rawId && i.estado !== 'Eliminado'
     );
+    const parentCodes = new Set<string>(
+      byId.map((i: any) => String(i.inmueble || '').trim().toUpperCase()).filter(Boolean)
+    );
+    byId.forEach((i: any) => {
+      if (i.padre_id) parentCodes.add(String(i.padre_id).trim().toUpperCase());
+    });
+    const directCode = String(row?.inmueble || row?.codigo_inmueble || row?.cod_inmueble || '').trim().toUpperCase();
+    if (directCode) parentCodes.add(directCode);
+
+    const map = new Map<string, any>();
+    byId.forEach((i: any) => { if (i.inmueble) map.set(String(i.inmueble).trim().toUpperCase(), i); });
+    inmuebles.forEach((i: any) => {
+      if (i.estado === 'Eliminado') return;
+      const cod = String(i.inmueble || '').trim().toUpperCase();
+      const pid = String(i.padre_id || '').trim().toUpperCase();
+      if ((cod && parentCodes.has(cod)) || (pid && parentCodes.has(pid))) {
+        map.set(cod || i.id, i);
+      }
+    });
+    return Array.from(map.values());
+  }, [inmuebles, rawId, row]);
+
+  const userInms = useMemo(() => {
+    const rawList = allRelatedInms;
     const naParents = rawList.filter((i: any) => String(i.actividad_principal || '').trim().toUpperCase() === 'N/A');
     const maxParentMonths = Math.max(0, ...naParents.map((p: any) => parseInt(String(p.meses_deuda || '0'), 10)));
-    const nonNa = rawList.filter((i: any) => String(i.actividad_principal || '').trim().toUpperCase() !== 'N/A');
-    const baseList = nonNa.length > 0 ? nonNa : rawList;
-    return baseList.map((i: any) => {
+    return rawList.map((i: any) => {
       const m = parseInt(String(i.meses_deuda || '0'), 10);
       if (m <= 0 && maxParentMonths > 0) {
         return { ...i, meses_deuda: maxParentMonths };
       }
       return i;
     });
-  }, [inmuebles, rawId]);
+  }, [allRelatedInms]);
 
   const rowSpecificInm = useMemo(() => {
     const direct = row?.inmueble || row?.codigo_inmueble || row?.cod_inmueble;
@@ -68,10 +90,25 @@ export function EliminarMultaModal({ row, inmuebles, tcmmv, recibos, onClose, on
     return userInms.find((i: any) => i.inmueble === selectedInmCode) || userInms[0] || null;
   }, [userInms, selectedInmCode, isTodosSelected]);
 
-  // Lista de meses que adeuda el inmueble activo (o suma consolidada de todos los inmuebles si __TODOS__)
+  // Lista de meses que adeuda el inmueble activo (incluyendo actividades hijas si es un contenedor N/A o viceversa)
   const mesesAdeudados = useMemo<MonthItem[]>(() => {
     if (!activeInm) return [];
-    const targetInms = isTodosSelected ? userInms : [activeInm];
+    const activeCode = String(activeInm.inmueble || '').trim().toUpperCase();
+    const activePadre = String(activeInm.padre_id || '').trim().toUpperCase();
+    const targetInms = isTodosSelected
+      ? userInms
+      : userInms.filter((i: any) => {
+          const c = String(i.inmueble || '').trim().toUpperCase();
+          const p = String(i.padre_id || '').trim().toUpperCase();
+          return (
+            c === activeCode ||
+            (activeCode && p === activeCode) ||
+            (activePadre && (c === activePadre || p === activePadre))
+          );
+        });
+    const parentsWithChildren = new Set<string>(
+      targetInms.map((i: any) => String(i.padre_id || '').trim().toUpperCase()).filter(Boolean)
+    );
     const maxMeses = Math.max(0, ...targetInms.map((inm: any) => parseInt(String(inm.meses_deuda || '0'), 10)));
 
     const now = new Date();
@@ -96,21 +133,23 @@ export function EliminarMultaModal({ row, inmuebles, tcmmv, recibos, onClose, on
       let allExonerados = true;
 
       for (const inm of targetInms) {
+        const codInm = String(inm.inmueble || '').trim().toUpperCase();
+        const esContenedorConHijos = parentsWithChildren.has(codInm) && String(inm.actividad_principal || '').trim().toUpperCase() === 'N/A';
         const inmMeses = Math.max(0, parseInt(String(inm.meses_deuda || '0'), 10));
         // Verificar si este inmueble debe este mes específico
         const debeEsteMes = monthsDiff < inmMeses;
         if (!debeEsteMes && inmMeses > 0) continue;
         const esRes = isResidencialInm(inm);
-        const baseUnMes = calcularMensualidad(inm, tcmmv > 0 ? tcmmv : 1);
+        const baseUnMes = esContenedorConHijos ? 0 : calcularMensualidad(inm, tcmmv > 0 ? tcmmv : 1);
         const multaPorcentaje = esRes ? 0.10 : 0.12;
         const baseMultaMes = parseFloat((baseUnMes * multaPorcentaje).toFixed(2));
-        const yaExoneradoTodo = isExoneradoTotalMultas(inm.notas);
-        const yaExoneradoEsteMes = yaExoneradoTodo || isMesExoneradoMulta(inm.notas, key);
+        const multaGuardada = parseFloat(String(inm.multa_bs || '0')) || 0;
+        const yaExoneradoTodo = multaGuardada > 0 ? false : isExoneradoTotalMultas(inm.notas);
+        const yaExoneradoEsteMes = yaExoneradoTodo || (multaGuardada > 0 ? false : isMesExoneradoMulta(inm.notas, key));
         if (!yaExoneradoEsteMes) allExonerados = false;
         sumBaseBs += baseUnMes;
         let multaEsteMes = (!isOverdue || yaExoneradoEsteMes) ? 0 : baseMultaMes;
         if (multaEsteMes === 0 && !yaExoneradoEsteMes && i === 1) {
-          const multaGuardada = parseFloat(String(inm.multa_bs || '0')) || 0;
           if (multaGuardada > 0) {
             multaEsteMes = multaGuardada;
           }
@@ -197,13 +236,19 @@ export function EliminarMultaModal({ row, inmuebles, tcmmv, recibos, onClose, on
       
       const todosLosMesesConMulta = mesesAdeudados.filter(m => m.multaBs > 0);
       const exoneroTodos = selectedMonths.length >= todosLosMesesConMulta.length;
-      const rawAllInms = inmuebles.filter((i: any) =>
-        (i.identidad || '').replace(/-/g, '').toUpperCase() === rawId
-      );
-      const naParents = rawAllInms.filter((i: any) => String(i.actividad_principal || '').trim().toUpperCase() === 'N/A');
+      const activeCode = String(activeInm.inmueble || '').trim().toUpperCase();
+      const activePadre = String(activeInm.padre_id || '').trim().toUpperCase();
       const targetInms = isTodosSelected
-        ? [...userInms, ...naParents.filter((p: any) => !userInms.some((u: any) => u.id === p.id))]
-        : [activeInm, ...naParents.filter((p: any) => p.inmueble === activeInm.condominio_padre_id || p.inmueble === activeInm.padre_id)];
+        ? userInms
+        : userInms.filter((i: any) => {
+            const c = String(i.inmueble || '').trim().toUpperCase();
+            const p = String(i.padre_id || '').trim().toUpperCase();
+            return (
+              c === activeCode ||
+              (activeCode && p === activeCode) ||
+              (activePadre && (c === activePadre || p === activePadre))
+            );
+          });
       const registroExoneracion = `[${fechaHoy} ${hora}] EXONERACIÓN DE MULTAS: Se eliminaron las multas de ${selectedMonths.length} mes(es) (${selectedMonths.join(', ')}). Motivo: ${nota.trim()} (Autorizado por: dzara)`;
 
       const now = new Date();
@@ -338,14 +383,19 @@ export function EliminarMultaModal({ row, inmuebles, tcmmv, recibos, onClose, on
               }
             }
 
-            // Si el código es una unidad dentro de condominio_unidades
+            // Si el código es una unidad dentro de condominio_unidades (incluyendo su padre N/A y actividades hijas)
             const { data: uRows } = await supabase
               .from('condominio_unidades')
-              .select('id, condominio_id')
+              .select('id, condominio_id, padre_unidad_id')
               .eq('inmueble', inm.inmueble);
 
             if (uRows && uRows.length > 0) {
-              const uIds = uRows.map((u: any) => u.id);
+              const rootIds = Array.from(new Set(uRows.map((u: any) => u.padre_unidad_id || u.id)));
+              const { data: grupoRows } = await supabase
+                .from('condominio_unidades')
+                .select('id')
+                .or(rootIds.map(rid => `id.eq.${rid},padre_unidad_id.eq.${rid}`).join(','));
+              const uIds = Array.from(new Set([...uRows.map((u: any) => u.id), ...(grupoRows || []).map((g: any) => g.id)]));
               await supabase
                 .from('condominio_unidades')
                 .update({ multa_meses: nuevosMesesMulta, multa_exonerada_hasta: exoneradaHasta })

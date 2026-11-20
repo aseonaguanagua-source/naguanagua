@@ -161,15 +161,15 @@ export function generarPdfEstadoCuentaCondominio(
       if (!prop || prop === '') prop = 'N/A';
       if (!id || id === '') id = 'N/A';
     }
-    const isParentGroup = children.length > 0 && r.totalBs === 0;
+    const isParentGroup = children.length > 0 && Boolean(r.esGrupo || r.totalBs === 0);
     const multasMonto = isParentGroup
-      ? children.reduce((acc, ch) => acc + (ch.deuda?.multaBs || 0) + (ch.multaExtraBs || 0) + (ch.multasManualesBs || 0), 0)
+      ? (r.deuda?.multaBs || 0) + (r.multaExtraBs || 0) + (r.multasManualesBs || 0) + children.reduce((acc, ch) => acc + (ch.deuda?.multaBs || 0) + (ch.multaExtraBs || 0) + (ch.multasManualesBs || 0), 0)
       : (r.deuda?.multaBs || 0) + (r.multaExtraBs || 0) + (r.multasManualesBs || 0);
     const aseoMonto = isParentGroup
-      ? children.reduce((acc, ch) => acc + (ch.deuda?.baseBs || 0) + (ch.deuda?.ivaBs || 0), 0)
+      ? (r.deuda?.baseBs || 0) + (r.deuda?.ivaBs || 0) + children.reduce((acc, ch) => acc + (ch.deuda?.baseBs || 0) + (ch.deuda?.ivaBs || 0), 0)
       : (r.deuda?.baseBs || 0) + (r.deuda?.ivaBs || 0);
     const totalRowBs = isParentGroup
-      ? children.reduce((acc, ch) => acc + (ch.totalBs || 0), 0)
+      ? (r.totalBs || 0) + children.reduce((acc, ch) => acc + (ch.totalBs || 0), 0)
       : r.totalBs;
     const periodosRow = (r.periodos && r.periodos.length > 0)
       ? r.periodos
@@ -555,21 +555,22 @@ export async function generarPdfEstadoCuentaUnidad(
   y += 5;
 
   // ── RESUMEN OFICIAL DE LIQUIDACIÓN ──
-  const sumMultas = isParentGroup
-    ? childRenglones.reduce((acc, ch) => acc + (ch.deuda?.multaBs || 0) + (ch.multaExtraBs || 0) + (ch.multasManualesBs || 0), 0)
+  const yaEnriquecido = Boolean((r as any)._hijosRenglones);
+  const sumMultas = (isParentGroup && !yaEnriquecido)
+    ? (r.deuda?.multaBs || 0) + (r.multaExtraBs || 0) + (r.multasManualesBs || 0) + childRenglones.reduce((acc, ch) => acc + (ch.deuda?.multaBs || 0) + (ch.multaExtraBs || 0) + (ch.multasManualesBs || 0), 0)
     : (r.deuda?.multaBs || 0) + (r.multaExtraBs || 0) + (r.multasManualesBs || 0);
-  const baseAseo = isParentGroup
-    ? childRenglones.reduce((acc, ch) => acc + (ch.deuda?.baseBs || 0), 0)
+  const baseAseo = (isParentGroup && !yaEnriquecido)
+    ? (r.deuda?.baseBs || 0) + childRenglones.reduce((acc, ch) => acc + (ch.deuda?.baseBs || 0), 0)
     : (r.deuda?.baseBs || 0);
-  const ivaBs = isParentGroup
-    ? childRenglones.reduce((acc, ch) => acc + (ch.deuda?.ivaBs || 0), 0)
+  const ivaBs = (isParentGroup && !yaEnriquecido)
+    ? (r.deuda?.ivaBs || 0) + childRenglones.reduce((acc, ch) => acc + (ch.deuda?.ivaBs || 0), 0)
     : (r.deuda?.ivaBs || 0);
-  const retencionBs = isParentGroup
-    ? childRenglones.reduce((acc, ch) => acc + (ch.deuda?.retencionBs || 0), 0)
+  const retencionBs = (isParentGroup && !yaEnriquecido)
+    ? (r.deuda?.retencionBs || 0) + childRenglones.reduce((acc, ch) => acc + (ch.deuda?.retencionBs || 0), 0)
     : (r.deuda?.retencionBs || 0);
   const totalBrutoBs = Math.round((baseAseo + sumMultas + ivaBs) * 100) / 100;
-  const totalNetoBs = isParentGroup
-    ? childRenglones.reduce((acc, ch) => acc + (ch.totalBs || 0), 0)
+  const totalNetoBs = (isParentGroup && !yaEnriquecido)
+    ? (r.totalBs || 0) + childRenglones.reduce((acc, ch) => acc + (ch.totalBs || 0), 0)
     : (r.totalBs || (totalBrutoBs - retencionBs));
 
   doc.setFont('helvetica', 'bold');
@@ -687,6 +688,25 @@ export async function generarPdfEstadoCuentaUnidad(
         });
       }
     });
+    // Incluir multas manuales asignadas directamente al código contenedor padre N/A
+    const idsManualesHijos = new Set(childRenglones.flatMap(ch => (ch.multasManuales || []).map((m: any) => m.id)));
+    const manualesPropiasPadre = (r.multasManuales || []).filter((m: any) => !idsManualesHijos.has(m.id));
+    if (manualesPropiasPadre.length > 0) {
+      const pLabel = `${r.inmueble || r.numero || 'Local'} (N/A)`;
+      manualesPropiasPadre.forEach((man: any) => {
+        const ucdM = ucdValor > 0 ? (man.montoBs / ucdValor).toLocaleString('es-VE', { minimumFractionDigits: 4, maximumFractionDigits: 4 }) : '-';
+        oficialRows.push([
+          { content: pLabel, styles: { fontStyle: 'bold' } },
+          man.periodo ? fmtPeriodo(man.periodo) : 'Manual',
+          '0,00',
+          '-',
+          fmtBs(toCurr(man.montoBs)),
+          '0,00',
+          fmtBs(toCurr(man.montoBs)),
+          ucdM
+        ]);
+      });
+    }
   } else {
     if (porMes.length > 0) {
       porMes.forEach((m: any, idx: number) => {

@@ -56,8 +56,27 @@ export function AsignarMultaModal({ row, inmuebles, tcmmv, onClose, onSuccess }:
 
   useEffect(() => {
     if (!identProp) { setInmsBD([]); return; }
-    supabase.from('inmuebles').select('*').in('identidad', getIdentidadVariantsExact(identProp))
-      .then(({ data }) => setInmsBD((data || []).filter((i: any) => i.estado !== 'Eliminado')));
+    (async () => {
+      const { data: baseRows } = await supabase.from('inmuebles').select('*').in('identidad', getIdentidadVariantsExact(identProp));
+      const validBase = (baseRows || []).filter((i: any) => i.estado !== 'Eliminado');
+      const codes = Array.from(new Set([
+        ...validBase.map((i: any) => i.inmueble).filter(Boolean),
+        ...validBase.map((i: any) => i.padre_id).filter(Boolean),
+      ]));
+      if (codes.length > 0) {
+        const [{ data: childRows }, { data: parentRows }] = await Promise.all([
+          supabase.from('inmuebles').select('*').in('padre_id', codes),
+          supabase.from('inmuebles').select('*').in('inmueble', codes),
+        ]);
+        const map = new Map<string, any>();
+        [...validBase, ...(parentRows || []), ...(childRows || [])]
+          .filter((i: any) => i && i.estado !== 'Eliminado')
+          .forEach((i: any) => map.set(i.inmueble || i.id, i));
+        setInmsBD(Array.from(map.values()));
+      } else {
+        setInmsBD(validBase);
+      }
+    })();
   }, [identProp]);
 
   const userInms = useMemo(() => {
@@ -97,9 +116,24 @@ export function AsignarMultaModal({ row, inmuebles, tcmmv, onClose, onSuccess }:
     }
   }, [userInms, selectedInmCode, rowSpecificInm]);
 
-  const activeInm = useMemo(() => {
+  const activeInmRaw = useMemo(() => {
     return userInms.find((i: any) => i.inmueble === selectedInmCode) || userInms[0] || null;
   }, [userInms, selectedInmCode]);
+
+  // Si la unidad seleccionada es una actividad hija de un contenedor N/A, dirigir siempre al contenedor padre N/A
+  const activeInm = useMemo(() => {
+    if (!activeInmRaw) return null;
+    if (activeInmRaw.padre_id) {
+      const padreNa = userInms.find((i: any) => i.inmueble === activeInmRaw.padre_id && String(i.actividad_principal || '').trim().toUpperCase() === 'N/A');
+      if (padreNa) return padreNa;
+    }
+    return activeInmRaw;
+  }, [activeInmRaw, userInms]);
+
+  const hijosDeActiveInm = useMemo(() => {
+    if (!activeInm?.inmueble) return [];
+    return userInms.filter((i: any) => i.padre_id === activeInm.inmueble && i.estado !== 'Eliminado');
+  }, [activeInm, userInms]);
 
   // Lista de meses predefinidos
   const opcionesMeses = useMemo(() => generarListaMeses(), []);
@@ -167,13 +201,17 @@ export function AsignarMultaModal({ row, inmuebles, tcmmv, onClose, onSuccess }:
       ? pagosPorPeriodo[periodoFinal]
       : null;
 
-  // Estimación de 1 mes de multa
+  // Estimación de 1 mes de multa (si es N/A con actividades hijas, es la sumatoria de sus actividades)
   const esRes = activeInm ? isResidencialInm(activeInm) : false;
   const tasaMora = esRes ? 0.10 : 0.12;
   const mensualidadEstimadaBs = useMemo(() => {
     if (!activeInm) return 0;
-    return calcularMensualidad(activeInm, tcmmv > 0 ? tcmmv : 1);
-  }, [activeInm, tcmmv]);
+    const tasaAct = tcmmv > 0 ? tcmmv : 1;
+    if (hijosDeActiveInm.length > 0) {
+      return Math.round(hijosDeActiveInm.reduce((acc, h) => acc + calcularMensualidad(h, tasaAct), 0) * 100) / 100;
+    }
+    return calcularMensualidad(activeInm, tasaAct);
+  }, [activeInm, hijosDeActiveInm, tcmmv]);
 
   const multaEstimada1MesBs = useMemo(() => {
     return Math.round(mensualidadEstimadaBs * tasaMora * 100) / 100;
@@ -330,12 +368,22 @@ export function AsignarMultaModal({ row, inmuebles, tcmmv, onClose, onSuccess }:
           ? `${String(periodoFinal).trim()}-01`
           : periodoFinal;
 
-        // Buscar si el inmueble es una unidad en condominio_unidades
-        const { data: unidadDirecta } = await supabase
+        // Buscar si el inmueble es una unidad en condominio_unidades (si es hija de un N/A, usar el padre N/A)
+        const { data: unidadDirectaRaw } = await supabase
           .from('condominio_unidades')
-          .select('id, condominio_id, multa_meses')
+          .select('id, condominio_id, multa_meses, padre_unidad_id')
           .eq('inmueble', freshInm.inmueble)
           .maybeSingle();
+
+        let unidadDirecta = unidadDirectaRaw;
+        if (unidadDirectaRaw?.padre_unidad_id) {
+          const { data: uPadreNa } = await supabase
+            .from('condominio_unidades')
+            .select('id, condominio_id, multa_meses, padre_unidad_id')
+            .eq('id', unidadDirectaRaw.padre_unidad_id)
+            .maybeSingle();
+          if (uPadreNa) unidadDirecta = uPadreNa;
+        }
 
         const condoCodigo = freshInm.condominio_padre_id || (freshInm.padre_id?.startsWith('CONDO-') ? freshInm.padre_id.replace(/^CONDO-/, '') : null) || freshInm.inmueble;
         const { data: condoData } = unidadDirecta?.condominio_id

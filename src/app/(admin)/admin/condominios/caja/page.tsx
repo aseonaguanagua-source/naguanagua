@@ -534,12 +534,14 @@ function Caja() {
       (!ced || ced.length < 5 || normId(r.identidad) === ced) &&
       (!t || [r.inmueble, r.padreInmueble, r.numero, r.padreNumero, r.propietario, r.identidad, r.actividad].some((x: any) => String(x || '').toUpperCase().includes(t))));
 
-    // Unificar unidades hijas que comparten el mismo padre N/A (padreId) y propietario en una sola fila unificada
+    // Unificar padre contenedor N/A y sus unidades hijas en una sola fila unificada
     const resultado: any[] = [];
     const gruposPadre = new Map<string, any[]>();
+    const todosPadresIds = new Set(filtrados.map((x: any) => x.padreId).filter(Boolean));
     for (const r of filtrados) {
-      if (r.padreId) {
-        const keyGrupo = `${r.padreId}__${normId(r.identidad)}`;
+      const grupoPadreId = r.padreId || (r.esGrupo || todosPadresIds.has(r.clave) ? r.clave : null);
+      if (grupoPadreId) {
+        const keyGrupo = String(grupoPadreId);
         if (!gruposPadre.has(keyGrupo)) {
           const arr: any[] = [];
           gruposPadre.set(keyGrupo, arr);
@@ -563,17 +565,17 @@ function Caja() {
           _hijosCodigos: [unico.inmueble].filter(Boolean),
         };
       }
-      const primero = grp[0];
-      const actividadesUnicas = Array.from(new Set(grp.map(g => g.actividad).filter(Boolean)));
+      const padreRow = grp.find(g => !g.padreId) || grp[0];
+      const actividadesUnicas = Array.from(new Set(grp.map(g => g.actividad).filter(a => a && String(a).trim().toUpperCase() !== 'N/A')));
       const fechasDesde = grp.map(g => g.pendienteDesde).filter(Boolean).sort();
       return {
-        ...primero,
-        clave: primero.padreId || primero.clave,
-        inmueble: primero.padreInmueble || primero.inmueble,
-        padreInmueble: primero.padreInmueble,
-        numero: primero.padreNumero || primero.numero,
-        actividad: actividadesUnicas.join(' + '),
-        pendienteDesde: fechasDesde[0] || primero.pendienteDesde,
+        ...padreRow,
+        clave: padreRow.padreId || padreRow.clave,
+        inmueble: padreRow.padreInmueble || padreRow.inmueble,
+        padreInmueble: padreRow.padreInmueble || padreRow.inmueble,
+        numero: padreRow.padreNumero || padreRow.numero,
+        actividad: actividadesUnicas.length > 0 ? actividadesUnicas.join(' + ') : padreRow.actividad,
+        pendienteDesde: fechasDesde[0] || padreRow.pendienteDesde,
         saldoFavorBs: Math.max(0, ...grp.map(g => Number(g.saldoFavorBs || 0))),
         multaMeses: Math.max(0, ...grp.map(g => Number(g.multaMeses || 0))),
         multaExtraBs: grp.reduce((s, g) => s + (Number(g.multaExtraBs) || 0), 0),
@@ -581,7 +583,7 @@ function Caja() {
         multasManuales: grp.flatMap(g => g.multasManuales || []),
         totalBs: grp.reduce((s, g) => s + (Number(g.totalBs) || 0), 0),
         deuda: {
-          ...(primero.deuda || {}),
+          ...(padreRow.deuda || {}),
           meses: Math.max(0, ...grp.map(g => Number(g.deuda?.meses || 0))),
           baseBs: grp.reduce((s, g) => s + (Number(g.deuda?.baseBs) || 0), 0),
           multaBs: grp.reduce((s, g) => s + (Number(g.deuda?.multaBs) || 0), 0),

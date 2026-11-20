@@ -39,12 +39,26 @@ export async function POST(req: Request) {
     let identidad = c.identidad;
     let unidadInm: string | null = null;
     let uRowActual: any = null;
+    let targetUnidadId: string | null = unidad_id || null;
+    let grupoUnidadIds: string[] = [];
+    let hijosInmCodes: string[] = [];
     if (unidad_id) {
-      const { data: u } = await sb.from('condominio_unidades').select('id, identidad, condominio_id, inmueble, multa_meses').eq('id', unidad_id).maybeSingle();
+      const { data: u } = await sb.from('condominio_unidades').select('id, identidad, condominio_id, inmueble, multa_meses, padre_unidad_id, es_grupo, actividad').eq('id', unidad_id).maybeSingle();
       if (!u || u.condominio_id !== c.id) return NextResponse.json({ error: 'La unidad no pertenece a este condominio.' }, { status: 400 });
       uRowActual = u;
-      identidad = u.identidad;
-      unidadInm = u.inmueble || null;
+      // Si la unidad seleccionada es una actividad hija de un contenedor N/A, asignar la multa siempre al contenedor N/A padre
+      if (u.padre_unidad_id) {
+        const { data: uPadre } = await sb.from('condominio_unidades').select('id, identidad, condominio_id, inmueble, multa_meses, es_grupo, actividad').eq('id', u.padre_unidad_id).maybeSingle();
+        if (uPadre && uPadre.condominio_id === c.id && (uPadre.es_grupo || String(uPadre.actividad || '').trim().toUpperCase() === 'N/A')) {
+          uRowActual = uPadre;
+          targetUnidadId = uPadre.id;
+        }
+      }
+      identidad = uRowActual.identidad || u.identidad;
+      unidadInm = uRowActual.inmueble || null;
+      const { data: hijasGrupo } = await sb.from('condominio_unidades').select('id, inmueble').eq('padre_unidad_id', targetUnidadId).neq('estado', 'Eliminada');
+      grupoUnidadIds = [targetUnidadId!, ...(hijasGrupo || []).map((h: any) => h.id)];
+      hijosInmCodes = (hijasGrupo || []).map((h: any) => h.inmueble).filter(Boolean);
     }
 
     let periodoDate: string | null = null;
@@ -64,7 +78,7 @@ export async function POST(req: Request) {
     if (periodoYm) {
       const historial = await obtenerHistorialPagosMultasYPeriodos({
         inmueble: unidadInm || c.codigo,
-        unidad_id: unidad_id || null,
+        unidad_id: targetUnidadId || null,
         condominio_id: c.id,
         codigo_condominio: c.codigo,
         identidad,
@@ -82,32 +96,29 @@ export async function POST(req: Request) {
       }
     }
 
-    if (unidad_id && uRowActual) {
+    if (targetUnidadId && uRowActual) {
+      const idsLimpiar = grupoUnidadIds.length > 0 ? grupoUnidadIds : [targetUnidadId];
       if (reemplazar_acumulados) {
-        // Anular multas manuales anteriores de esta unidad y fijar solo el(los) período(s) nuevo(s)
+        // Anular multas manuales anteriores de esta unidad (y sus actividades hijas si es N/A) y fijar solo el(los) período(s) nuevo(s)
         await sb.from('condominio_multas')
           .update({ estado: 'Anulada', anulada_por: t.usuario, motivo_anulacion: `Reemplazada por multa específica: ${String(motivo).trim()}` })
-          .eq('unidad_id', unidad_id)
+          .in('unidad_id', idsLimpiar)
           .eq('estado', 'Pendiente');
         await sb.from('condominio_unidades').update({
           multa_meses: 0,
           multa_exonerada_hasta: '2099-12-31'
-        }).eq('id', unidad_id);
-        await sb.from('condominio_unidades').update({
-          multa_meses: 0,
-          multa_exonerada_hasta: '2099-12-31'
-        }).eq('padre_unidad_id', unidad_id).neq('estado', 'Eliminada');
+        }).in('id', idsLimpiar);
       } else {
-        // Anular si ya había una multa manual pendiente del mismo período para no duplicarla
+        // Anular si ya había una multa manual pendiente del mismo período en el padre o actividades hijas para no duplicarla
         if (periodoDate) {
           await sb.from('condominio_multas')
             .update({ estado: 'Anulada', anulada_por: t.usuario, motivo_anulacion: 'Actualizada por nueva asignación del mismo período' })
-            .eq('unidad_id', unidad_id)
+            .in('unidad_id', idsLimpiar)
             .eq('periodo', periodoDate)
             .eq('estado', 'Pendiente');
         }
       }
-    } else if (!unidad_id) {
+    } else if (!targetUnidadId) {
       await sb.from('condominios').update({
         multa_meses: Math.max(1, Number(c.multa_meses || 0) + 1),
         multa_exonerada_hasta: null
@@ -115,20 +126,24 @@ export async function POST(req: Request) {
     }
 
     const fila = {
-      condominio_id: c.id, unidad_id: unidad_id || null, identidad, concepto: String(concepto).trim().toUpperCase(),
+      condominio_id: c.id, unidad_id: targetUnidadId || null, identidad, concepto: String(concepto).trim().toUpperCase(),
       monto_bs: bs > 0 ? bs : null, monto_mmv: bs > 0 ? null : mmv, periodo: periodoDate, estado: 'Pendiente', creada_por: t.usuario,
     };
     const { data: m, error } = await sb.from('condominio_multas').insert(fila).select('*').single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    // Sincronizar también en tabla inmuebles (para que se vea en Contribuyentes)
+    // Sincronizar también en tabla inmuebles (la multa queda en el código N/A padre y en 0 en las actividades hijas)
     const targetCodigoInm = unidadInm || c.codigo;
     if (targetCodigoInm && bs > 0) {
+      if (hijosInmCodes.length > 0) {
+        await sb.from('inmuebles').update({ multa_bs: 0 }).in('inmueble', hijosInmCodes);
+      }
       const { data: inmRow } = await sb.from('inmuebles').select('id, multa_bs, notas').eq('inmueble', targetCodigoInm).limit(1).maybeSingle();
       if (inmRow) {
         let sumPendientes = bs;
-        if (unidad_id) {
-          const { data: pendRows } = await sb.from('condominio_multas').select('monto_bs').eq('unidad_id', unidad_id).eq('estado', 'Pendiente');
+        if (targetUnidadId) {
+          const idsCheck = grupoUnidadIds.length > 0 ? grupoUnidadIds : [targetUnidadId];
+          const { data: pendRows } = await sb.from('condominio_multas').select('monto_bs').in('unidad_id', idsCheck).eq('estado', 'Pendiente');
           if (pendRows && pendRows.length > 0) {
             sumPendientes = Math.round(pendRows.reduce((acc, r) => acc + (Number(r.monto_bs) || 0), 0) * 100) / 100;
           }
@@ -173,33 +188,63 @@ export async function PATCH(req: Request) {
       .eq('id', id).eq('estado', 'Pendiente').select('*');
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     if (!data?.length) return NextResponse.json({ error: 'La multa no existe o ya no está pendiente.' }, { status: 409 });
-    // Sincronizar en inmuebles al anular multa desde Condominios
+    // Sincronizar en inmuebles y actividades hermanas N/A al anular multa desde Condominios
     try {
       const multaAnulada = data[0];
       let targetInmCode: string | null = null;
+      let grupoIds: string[] = [];
+      let grupoInmCodes: string[] = [];
       if (multaAnulada.unidad_id) {
-        const { data: u } = await sb.from('condominio_unidades').select('inmueble, multa_meses').eq('id', multaAnulada.unidad_id).maybeSingle();
-        if (u?.inmueble) targetInmCode = u.inmueble;
+        const { data: u } = await sb.from('condominio_unidades').select('id, inmueble, multa_meses, padre_unidad_id').eq('id', multaAnulada.unidad_id).maybeSingle();
         if (u) {
-          const nextMeses = Math.max(0, Number(u.multa_meses || 0) - 1);
-          await sb.from('condominio_unidades').update({
-            multa_meses: nextMeses,
-            ...(nextMeses === 0 ? { multa_exonerada_hasta: '2099-12-31' } : {})
-          }).eq('id', multaAnulada.unidad_id);
+          const rootId = u.padre_unidad_id || u.id;
+          const { data: grupoRows } = await sb.from('condominio_unidades').select('id, inmueble, multa_meses, padre_unidad_id').or(`id.eq.${rootId},padre_unidad_id.eq.${rootId}`);
+          grupoIds = (grupoRows || []).map((g: any) => g.id);
+          grupoInmCodes = (grupoRows || []).map((g: any) => g.inmueble).filter(Boolean);
+          const rootRow = (grupoRows || []).find((g: any) => g.id === rootId) || u;
+          if (rootRow?.inmueble) targetInmCode = rootRow.inmueble;
+
+          // Si la multa tenía un período y había multas hermanas pendientes del mismo período en las actividades hijas, anularlas también
+          if (multaAnulada.periodo && grupoIds.length > 1) {
+            await sb.from('condominio_multas')
+              .update({ estado: 'Anulada', anulada_por: t.usuario, motivo_anulacion: String(motivo).trim() })
+              .in('unidad_id', grupoIds)
+              .eq('periodo', multaAnulada.periodo)
+              .eq('estado', 'Pendiente');
+          }
+
+          for (const g of grupoRows || [u]) {
+            const nextMeses = Math.max(0, Number(g.multa_meses || 0) - 1);
+            await sb.from('condominio_unidades').update({
+              multa_meses: nextMeses,
+              ...(nextMeses === 0 ? { multa_exonerada_hasta: '2099-12-31' } : {})
+            }).eq('id', g.id);
+          }
         }
       } else if (multaAnulada.condominio_id) {
         const { data: c } = await sb.from('condominios').select('codigo, multa_meses').eq('id', multaAnulada.condominio_id).maybeSingle();
         if (c?.codigo) targetInmCode = c.codigo;
       }
-      if (targetInmCode && Number(multaAnulada.monto_bs) > 0) {
+      if (targetInmCode) {
+        let sumRestante = 0;
+        if (grupoIds.length > 0) {
+          const { data: pendRest } = await sb.from('condominio_multas').select('monto_bs').in('unidad_id', grupoIds).eq('estado', 'Pendiente');
+          sumRestante = Math.round(((pendRest || []).reduce((acc, r) => acc + (Number(r.monto_bs) || 0), 0)) * 100) / 100;
+        }
         const { data: inmRow } = await sb.from('inmuebles').select('id, multa_bs, notas').eq('inmueble', targetInmCode).limit(1).maybeSingle();
         if (inmRow) {
-          const nextMultaBs = Math.max(0, Math.round(((Number(inmRow.multa_bs) || 0) - (Number(multaAnulada.monto_bs) || 0)) * 100) / 100);
+          const nextMultaBs = grupoIds.length > 0
+            ? sumRestante
+            : Math.max(0, Math.round(((Number(inmRow.multa_bs) || 0) - (Number(multaAnulada.monto_bs) || 0)) * 100) / 100);
           let notaStr = String(inmRow.notas || '').trim();
           if (nextMultaBs === 0 && !notaStr.startsWith('{') && !notaStr.includes('Caso especial: Exonerado de multas')) {
             notaStr = notaStr ? `Caso especial: Exonerado de multas\n${notaStr}` : 'Caso especial: Exonerado de multas';
           }
           await sb.from('inmuebles').update({ multa_bs: nextMultaBs, notas: notaStr || null }).eq('id', inmRow.id);
+        }
+        const childCodesOnly = grupoInmCodes.filter(c => c !== targetInmCode);
+        if (childCodesOnly.length > 0) {
+          await sb.from('inmuebles').update({ multa_bs: 0 }).in('inmueble', childCodesOnly);
         }
       }
     } catch (syncErr) {

@@ -139,10 +139,9 @@ function Ficha() {
     if (u) { setEditorU(u); setFocoAbierto(true); }
   }, [d, admin, unidadFoco, focoAbierto]);
 
-  const renglones = useMemo(() => {
+  const renglonesEnriquecidos = useMemo(() => {
     if (!e) return [];
-    const t = q.trim().toUpperCase();
-    const enriched = e.renglones.map((r: any) => {
+    return e.renglones.map((r: any) => {
       const hijosR = e.renglones.filter((x: any) => x.padreId === r.clave);
       if (hijosR.length > 0 && (r.esGrupo || (r.deuda?.baseBs || 0) === 0)) {
         const sumMensual = (r.mensualBs || 0) + hijosR.reduce((acc: number, ch: any) => acc + (ch.mensualBs || 0), 0);
@@ -183,7 +182,12 @@ function Ficha() {
       }
       return r;
     });
-    return enriched.filter((r: any) => {
+  }, [e]);
+
+  const renglones = useMemo(() => {
+    if (!renglonesEnriquecidos.length) return [];
+    const t = q.trim().toUpperCase();
+    return renglonesEnriquecidos.filter((r: any) => {
       const uIdClean = String(r.identidad || '').replace(/[\s-]/g, '').toUpperCase();
       const uNum = uIdClean.replace(/\D/g, '');
       const rCodeNum = String(r.inmueble || '').replace(/\D/g, '');
@@ -199,7 +203,7 @@ function Ficha() {
         (!t || [r.inmueble, r.numero, r.propietario, r.identidad, r.actividad].some((x: any) => String(x || '').toUpperCase().includes(t)))
       );
     });
-  }, [e, q, soloDeuda, conveniosUnidades]);
+  }, [renglonesEnriquecidos, q, soloDeuda, conveniosUnidades]);
   const paginas = Math.max(1, Math.ceil(renglones.length / POR_PAGINA));
   const visibles = renglones.slice(pagina * POR_PAGINA, (pagina + 1) * POR_PAGINA);
 
@@ -376,8 +380,8 @@ function Ficha() {
     await generarPdfEstadoCuentaUnidad(c, r, e.tasa, cajero, undefined, moneda, e?.renglones);
   };
 
-  /** Renglón del estado de cuenta de una unidad */
-  const renglonDe = (id: string) => e?.renglones?.find((x: any) => x.clave === id);
+  /** Renglón del estado de cuenta de una unidad (incluye enriquecimiento de padres N/A con la suma de sus actividades hijas) */
+  const renglonDe = (id: string) => renglonesEnriquecidos.find((x: any) => x.clave === id) || e?.renglones?.find((x: any) => x.clave === id);
   /** Meses con multa: toma los meses con recargo en mora (o multaMeses / multasManuales si es remanente) sin duplicar */
   const mesesMultaDe = (r: any) => {
     const enAseo = (r?.deuda?.porMes || []).filter((m: any) => m.multaBs > 0).length;
@@ -1111,7 +1115,14 @@ function Ficha() {
                       <td className="py-2 px-3 text-xs text-slate-600">{u.actividad || '—'}</td>
                       <td className="py-2 px-3"><span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${u.estado === 'Activa' ? 'bg-emerald-100 text-emerald-800' : u.estado === 'Desocupada' ? 'bg-slate-200 text-slate-700' : 'bg-red-100 text-red-700'}`}>{u.estado}</span></td>
                       <td className="py-2 px-4 text-xs">{u.aseo_pendiente_desde ? fmtPeriodo(String(u.aseo_pendiente_desde).slice(0, 7)) : <span className="text-emerald-700 font-bold">Al día</span>}</td>
-                      <td className="py-2 px-3 text-center">{(() => { const rr = renglonDe(u.id); const mm = rr ? mesesMultaDe(rr) : (Number(u.multa_meses) || 0); return <span className={`px-2 py-0.5 rounded-full text-[11px] font-black ${mm === 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{mm}</span>; })()}</td>
+                      <td className="py-2 px-3 text-center">{(() => {
+                        if (nivel > 0 && u.padre_unidad_id) {
+                          return <span className="text-[10px] font-bold text-slate-400" title="Las multas se reflejan y gestionan en el código contenedor N/A">En N/A</span>;
+                        }
+                        const rr = renglonDe(u.id);
+                        const mm = rr ? mesesMultaDe(rr) : (Number(u.multa_meses) || 0);
+                        return <span className={`px-2 py-0.5 rounded-full text-[11px] font-black ${mm === 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{mm}</span>;
+                      })()}</td>
                       <td className="py-2 px-2 text-right" onClick={ev => ev.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1">
                           {(renglonDe(u.id) || (arbol.hijos.get(u.id) || []).length > 0) && (
@@ -1866,7 +1877,7 @@ function Ficha() {
           multas={d.multas || []}
           usuario={usuarioActual()}
           porActividad={!!e?.porActividad}
-          renglon={editorU ? (renglones.find((r: any) => r.clave === editorU.id) || e?.renglones.find((r: any) => r.clave === editorU.id) || null) : null}
+          renglon={editorU ? (renglonesEnriquecidos.find((r: any) => r.clave === editorU.id) || e?.renglones.find((r: any) => r.clave === editorU.id) || null) : null}
           onClose={() => setEditorU(undefined)}
           onSaved={async (cerrar: boolean) => { await cargar(); if (cerrar) setEditorU(undefined); }}
         />

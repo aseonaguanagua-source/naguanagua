@@ -59,14 +59,28 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
     : (condo.tipo === 'RESIDENCIAL' ? 'RES' : 'COM');
   const [clase, setClase] = useState<'RES' | 'COM'>(claseIni);
   const esGrupoUnidad = Boolean(unidad?.es_grupo || actIni.toUpperCase() === 'N/A');
+  const hijasActivas = useMemo(
+    () => (unidad?.id ? (unidades || []).filter(h => h.padre_unidad_id === unidad.id && h.estado !== 'Eliminada') : []),
+    [unidad?.id, unidades]
+  );
+  const padreNA = useMemo(
+    () => (unidad?.padre_unidad_id ? (unidades || []).find(p => p.id === unidad.padre_unidad_id) || null : null),
+    [unidad?.padre_unidad_id, unidades]
+  );
   const mesesDefecto = unidad
     ? (renglon?.deuda?.meses !== undefined ? renglon.deuda.meses : (unidad.aseo_pendiente_desde !== undefined ? mesesPendientes(unidad.aseo_pendiente_desde) : mesesPendientes(condo.aseo_pendiente_desde)))
+    : 0;
+  const multaMesesDefecto = unidad
+    ? Math.max(Number(unidad.multa_meses || 0), ...hijasActivas.map(h => Number(h.multa_meses || 0)))
     : 0;
   const [f, setF] = useState<any>({
     inmueble: unidad?.inmueble || '', numero: unidad?.numero || '', propietario: unidad?.propietario || '', identidad: unidad?.identidad || '',
     estado: unidad?.estado || 'Activa', padre_unidad_id: unidad?.padre_unidad_id || '', es_grupo: !!unidad?.es_grupo,
-    meses: mesesDefecto, multa_meses: unidad?.multa_meses || 0,
-    tarifa_mmv: unidad?.tarifa_mmv ?? '', agente_retencion: !!unidad?.agente_retencion,
+    meses: mesesDefecto, multa_meses: multaMesesDefecto,
+    tarifa_mmv: (esGrupoUnidad && hijasActivas.length > 0)
+      ? parseFloat(hijasActivas.reduce((acc, h) => acc + (Number(h.tarifa_mmv) || 0), 0).toFixed(4))
+      : (unidad?.tarifa_mmv ?? ''),
+    agente_retencion: !!unidad?.agente_retencion,
     telefono: unidad?.telefono || '', correo: unidad?.correo || '',
     direccion: unidad?.direccion || '',
   });
@@ -249,7 +263,17 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
   };
 
   // Multas: siempre por meses — 10% (residencial) o 12% (comercial) de la mensualidad por cada mes
-  const multasPend = useMemo(() => (unidad ? multasLocales.filter(m => m.unidad_id === unidad.id && m.estado === 'Pendiente') : []), [multasLocales, unidad]);
+  const idsGrupoMultas = useMemo(() => {
+    if (!unidad?.id) return new Set<string>();
+    const set = new Set<string>([unidad.id]);
+    hijasActivas.forEach(h => { if (h.id) set.add(h.id); });
+    if (padreNA?.id) set.add(padreNA.id);
+    return set;
+  }, [unidad?.id, hijasActivas, padreNA?.id]);
+  const multasPend = useMemo(
+    () => (unidad ? multasLocales.filter(m => idsGrupoMultas.has(m.unidad_id) && m.estado === 'Pendiente') : []),
+    [multasLocales, unidad, idsGrupoMultas]
+  );
   const esRes = renglon ? !!renglon.residencial : clase === 'RES';
   const pctMulta = esRes ? 0.10 : 0.12;
   const mensualBs = Number(renglon?.mensualBs) || 0;
@@ -257,16 +281,22 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
   const multaMesesN = Math.max(0, parseInt(f.multa_meses) || 0);
   const mesesMoraAuto = (renglon?.deuda?.porMes || []).filter((m: any) => m.multaBs > 0).length;
   const mesesAdicionales = Math.max(0, multaMesesN - mesesMoraAuto);
-  const totalBadgeMeses = Math.max(mesesMoraAuto, multaMesesN) + multasPend.length;
+  const uniqueMultasPendCount = new Set(multasPend.map(m => m.periodo || m.concepto || m.id)).size;
+  const totalBadgeMeses = Math.max(mesesMoraAuto, multaMesesN) + uniqueMultasPendCount;
 
   const esNA = actCom.trim().toUpperCase() === 'N/A' || actCom.trim() === '';
   const actividad = clase === 'RES' ? actRes : (actCom.trim() ? actividadConNivel(actCom.trim().toUpperCase(), nivel) : '');
+  const sumMmvHijas = hijasActivas.length > 0
+    ? parseFloat(hijasActivas.reduce((acc, h) => acc + (Number(h.tarifa_mmv) || 0), 0).toFixed(4))
+    : 0;
   const tarifaSugerida = clase === 'RES'
     ? (RESIDENCIALES.find(r => r.label === actRes)?.factor ?? 0.91)
-    : (esNA && actividadesExtra.length > 0 
-        ? actividadesExtra.reduce((sum, a) => sum + (resolverFOComercial(actividadConNivel(a.actividad, a.nivel)) || 0), 0)
-        : (actCom.trim() ? resolverFOComercial(actividad) : null));
-  const tarifa = tarifaManual ? f.tarifa_mmv : (tarifaSugerida ?? f.tarifa_mmv);
+    : (esNA && sumMmvHijas > 0
+        ? sumMmvHijas
+        : (esNA && actividadesExtra.length > 0 
+            ? actividadesExtra.reduce((sum, a) => sum + (resolverFOComercial(actividadConNivel(a.actividad, a.nivel)) || 0), 0)
+            : (actCom.trim() ? resolverFOComercial(actividad) : null)));
+  const tarifa = (esNA && sumMmvHijas > 0 && !tarifaManual) ? sumMmvHijas : (tarifaManual ? f.tarifa_mmv : (tarifaSugerida ?? f.tarifa_mmv));
 
   const torres = unidades.filter(u => u.id !== unidad?.id && u.estado !== 'Eliminada' && (u.es_grupo || unidades.some(h => h.padre_unidad_id === u.id)));
   const resEnCondoComercial = clase === 'RES' && condo.tipo === 'COMERCIAL';
@@ -386,7 +416,11 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
         actividad_activa: unidad.actividad_activa || null,
       };
       for (const k of Object.keys(datos)) {
-        if (k === 'multa_meses' && (seGuardoMultaEspecifica || multasPend.length > 0) && Number(datos[k]) === 0) {
+        if (k === 'multa_meses' && (seGuardoMultaEspecifica || multasPend.length > 0) && Number(datos[k]) === 0 && !hijasActivas.some(h => Number(h.multa_meses || 0) > 0)) {
+          continue;
+        }
+        if (k === 'multa_meses' && hijasActivas.some(h => Number(h.multa_meses || 0) !== Number(datos[k] || 0))) {
+          cambios[k] = datos[k];
           continue;
         }
         if (k === 'actividades_extra') {
@@ -460,7 +494,7 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
       const r = await fetch('/api/admin/condominios/multas', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: m.id, usuario: uActual, motivo: mot }) });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || 'No se pudo anular');
-      setMultasLocales(prev => prev.filter(x => x.id !== m.id));
+      setMultasLocales(prev => prev.filter(x => x.id !== m.id && !(m.periodo && idsGrupoMultas.has(x.unidad_id) && x.periodo === m.periodo)));
       onSaved(false);
     } catch (e: any) { setErr(e.message); } finally { setGuardando(false); }
   };
@@ -584,6 +618,29 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
                     {NIVELES.map((n, i) => <option key={n} value={i}>{n}</option>)}
                   </select></label>
               </div>
+              {esNA && hijasActivas.length > 0 && (
+                <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-extrabold text-emerald-900">
+                      🏢 Actividades Comerciales Hijas de este N/A ({hijasActivas.length})
+                    </span>
+                    <span className="text-xs font-black text-emerald-800 bg-white px-2 py-0.5 rounded-md border border-emerald-300">
+                      Sumatoria: {sumMmvHijas} MMV
+                    </span>
+                  </div>
+                  <div className="divide-y divide-emerald-200/60 bg-white rounded-lg border border-emerald-200 px-3 py-1">
+                    {hijasActivas.map((h: any) => (
+                      <div key={h.id} className="py-1.5 flex items-center justify-between text-xs">
+                        <div>
+                          <span className="font-mono font-bold text-slate-800 mr-2">{h.inmueble}</span>
+                          <span className="font-semibold text-slate-700">{h.actividad || 'SIN ACTIVIDAD'}</span>
+                        </div>
+                        <span className="font-mono font-extrabold text-emerald-800">{Number(h.tarifa_mmv || 0)} MMV</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               {esNA && (
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
                   <span className={lbl}>Actividades Adicionales (suman a la tarifa final)</span>
@@ -797,6 +854,16 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
 
           {/* Multas */}
           <div className="rounded-xl border border-amber-200 bg-amber-50/40 p-4 space-y-3">
+            {padreNA && (
+              <div className="p-2.5 rounded-lg bg-amber-100/90 border border-amber-300 text-xs text-amber-950 font-semibold">
+                🏢 Esta actividad pertenece al código contenedor N/A <b>{padreNA.inmueble || padreNA.numero}</b>. Todas las multas que asigne o elimine aquí se aplican directamente al código principal <b>{padreNA.inmueble}</b> (sobre la sumatoria de sus actividades).
+              </div>
+            )}
+            {hijasActivas.length > 0 && (
+              <div className="p-2.5 rounded-lg bg-emerald-100/80 border border-emerald-300 text-xs text-emerald-950 font-semibold">
+                🏢 Código contenedor N/A con <b>{hijasActivas.length} actividades comerciales</b>: las multas se calculan sobre la sumatoria de sus actividades (<b>{sumMmvHijas} MMV = Bs {fmtBs(mensualBs)}/mes</b>) y al eliminar o anular multas desde aquí se limpian en todo el grupo.
+              </div>
+            )}
             <div className="flex items-center justify-between">
               <span className="text-xs font-black uppercase tracking-wider text-amber-800">Multa por meses ({esRes ? '10% residencial' : '12% comercial'})</span>
               <div className="flex items-center gap-3">

@@ -457,6 +457,12 @@ export async function PATCH(req: Request) {
     // propagar propietario, identidad, estado, aseo_pendiente_desde, multa_meses y multa_exonerada_hasta a sus actividades hijas
     if (tieneHijasPorSincronizar && hijas) {
       await sb.from('condominio_unidades').update(childSync).eq('padre_unidad_id', id).neq('estado', 'Eliminada');
+      if ('multa_meses' in childSync && Number(childSync.multa_meses) === 0 && cambios?.anular_multas_manuales === true) {
+        const hijaIds = hijas.map((h: any) => h.id).filter(Boolean);
+        if (hijaIds.length > 0) {
+          await sb.from('condominio_multas').update({ estado: 'Anulada' }).in('unidad_id', hijaIds).eq('estado', 'Pendiente');
+        }
+      }
       for (const h of hijas) {
         if (!h.inmueble) continue;
         const hInmUpd: Record<string, any> = {};
@@ -464,6 +470,9 @@ export async function PATCH(req: Request) {
         if ('identidad' in childSync && childSync.identidad) hInmUpd.identidad = childSync.identidad;
         if ('numero' in childSync && childSync.numero) hInmUpd.numero_local = childSync.numero;
         if ('agente_retencion' in cambios) hInmUpd.agente_retencion = esAgente;
+        if ('multa_meses' in childSync) {
+          hInmUpd.multa_bs = 0;
+        }
         if ('aseo_pendiente_desde' in childSync) {
           const mH = mesesPendientes(childSync.aseo_pendiente_desde);
           const mmvH = Number(h.tarifa_mmv) || 1.98;

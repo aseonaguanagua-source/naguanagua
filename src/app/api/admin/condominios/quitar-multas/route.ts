@@ -51,8 +51,13 @@ export async function POST(req: Request) {
     if (!c) return NextResponse.json({ error: 'Condominio no encontrado' }, { status: 404 });
     const hasta = '2099-12-31';
 
-    let qU = sb.from('condominio_unidades').select('id, inmueble, numero, multa_meses, multa_exonerada_hasta').eq('condominio_id', c.id);
-    if (unidad_id) qU = qU.eq('id', unidad_id);
+    let qU = sb.from('condominio_unidades').select('id, inmueble, numero, padre_unidad_id, multa_meses, multa_exonerada_hasta').eq('condominio_id', c.id);
+    if (unidad_id) {
+      // Si se solicita quitar multas a un código N/A (o a una de sus actividades hijas), incluir el padre N/A y todas sus actividades hijas
+      const { data: uTarget } = await sb.from('condominio_unidades').select('id, padre_unidad_id').eq('id', unidad_id).maybeSingle();
+      const rootId = uTarget?.padre_unidad_id || unidad_id;
+      qU = qU.or(`id.eq.${rootId},padre_unidad_id.eq.${rootId}`);
+    }
     const { data: us, error: eU } = await qU;
     if (eU) return NextResponse.json({ error: eU.message.includes('multa_exonerada_hasta') ? 'Falta ejecutar el SQL 2026-10-07_condominios_quitar_multas.sql en Supabase.' : eU.message }, { status: 500 });
     if (unidad_id && !us?.length) return NextResponse.json({ error: 'La unidad no pertenece a este condominio.' }, { status: 400 });
@@ -65,8 +70,14 @@ export async function POST(req: Request) {
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Limpiar también las multas heredadas en la tabla inmuebles y marcar exoneración en notas para Contribuyentes
-    const codigosInm = Array.from(new Set([...(unidad_id ? [] : [c.codigo]), ...inms].filter(Boolean)));
+    // Limpiar también las multas heredadas en la tabla inmuebles (incluyendo hijos por padre_id) y marcar exoneración en notas para Contribuyentes
+    const codigosInmBase = Array.from(new Set([...(unidad_id ? [] : [c.codigo]), ...inms].filter(Boolean)));
+    let hijosPorPadreInm: string[] = [];
+    if (codigosInmBase.length > 0) {
+      const { data: hInm } = await sb.from('inmuebles').select('inmueble').in('padre_id', codigosInmBase);
+      hijosPorPadreInm = (hInm || []).map((x: any) => x.inmueble).filter(Boolean);
+    }
+    const codigosInm = Array.from(new Set([...codigosInmBase, ...hijosPorPadreInm].filter(Boolean)));
     const fechaHoy = new Date().toLocaleDateString('es-VE');
     const registroExo = `[${fechaHoy}] EXONERACIÓN DE MULTAS (Condominios): ${String(motivo).trim()}`;
     for (let i = 0; i < codigosInm.length; i += 200) {
@@ -99,7 +110,7 @@ export async function POST(req: Request) {
     }
     let qM = sb.from('condominio_multas').update({ estado: 'Anulada', anulada_por: t.usuario, motivo_anulacion: String(motivo).trim() })
       .eq('condominio_id', c.id).eq('estado', 'Pendiente');
-    if (unidad_id) qM = qM.eq('unidad_id', unidad_id);
+    if (unidad_id) qM = qM.in('unidad_id', ids);
     const { data: anuladas } = await qM.select('id, concepto, monto_bs, monto_mmv, unidad_id');
 
     await sb.from('auditoria').insert({
