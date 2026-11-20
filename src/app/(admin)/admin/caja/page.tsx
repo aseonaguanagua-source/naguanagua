@@ -3034,7 +3034,13 @@ export default function CajaPage() {
               };
             })
           : null;
-        const esResInm = (esServicioDirecto || esPagoConvenio) ? true : isResidencialInm(singleInm);
+        const esResInm = esServicioDirecto ? true : isResidencialInm(singleInm);
+        const periodoConvenioStr = esPagoConvenio
+          ? selectedCuotas
+              .map(sc => cuotas.find(q => q.convId === sc.convId && q.cuotaId === sc.cuotaId)?.periodoCubierto || '')
+              .filter(Boolean)
+              .join(' / ')
+          : '';
         return [{
           reciboNo: refNum,
           controlWeb: `WEB-${refNum}`,
@@ -3044,7 +3050,7 @@ export default function CajaPage() {
           domicilioFiscal: ((singleInm?.direccion || foundUser.Direccion || 'NAGUANAGUA, CARABOBO') as string).toUpperCase(),
           rifCi: foundUser.Identidad,
           caja: cajero_id_recibo,
-          periodo: periodoDeRefs(selectedRefs),
+          periodo: periodoConvenioStr || periodoDeRefs(selectedRefs),
           conceptos: cuotasDetalles && cuotasDetalles.length > 0 ? cuotasDetalles : [{
             descripcion: esAbono ? `Abono Parcial a Deuda - Inmueble ${singleInm?.inmueble || ''}` : (esServicioDirecto ? srvDesc : `Servicio de Aseo Urbano y Domiciliario`),
             precioUnit: montoReal,
@@ -3588,6 +3594,28 @@ export default function CajaPage() {
         const codInmuebleFinal = inmPagoSeleccionado?.inmueble || inmPagoSeleccionado?.cod_cont || undefined;
         const totalSaldoUsado = paymentMethod === 'Saldo a Favor' ? montoReal : descuentoSaldoFavor;
 
+        const cuotasEnriquecidas = selectedCuotas.map(sc => {
+          const cq = cuotas.find(q => q.convId === sc.convId && q.cuotaId === sc.cuotaId);
+          return {
+            ...sc,
+            numeroConv: cq?.numeroConv,
+            numeroCuota: cq?.numeroCuota,
+            totalCuotas: cq?.totalCuotas,
+            periodoCubierto: cq?.periodoCubierto,
+          };
+        });
+        const periodosConvenioStr = cuotasEnriquecidas
+          .map(c => c.periodoCubierto || '')
+          .filter(Boolean)
+          .join(' / ');
+        const conceptoConvenioStr = (selectedCuotas.length > 0 && selectedRecibos.length === 0)
+          ? cuotasEnriquecidas.map(c => {
+              const numC = c.numeroConv || c.convId;
+              const nCuota = c.numeroCuota ? ` (Cuota ${c.numeroCuota}${c.totalCuotas ? ` de ${c.totalCuotas}` : ''}${c.periodoCubierto ? ` · Períodos: ${c.periodoCubierto}` : ''})` : '';
+              return `Servicio de Aseo Urbano - Convenio de Pago ${numC}${nCuota}${codInmuebleFinal ? ` · ${codInmuebleFinal}` : ''}`.trim();
+            }).join(' | ')
+          : undefined;
+
         const fullDetalles: any = {
           contribuyente: contribuyenteFinalPago,
           contribuyente_nombre: contribuyenteFinalPago,
@@ -3599,7 +3627,9 @@ export default function CajaPage() {
           } : {}),
           recibos: digitalRecibos,
           montos: digitalMontos,
-          cuotas: selectedCuotas,
+          cuotas: cuotasEnriquecidas,
+          ...(periodosConvenioStr ? { periodos_pagados: periodosConvenioStr } : {}),
+          ...(conceptoConvenioStr ? { concepto: conceptoConvenioStr } : {}),
           servicios: selectedServicios,
           tala_poda: selectedTalaPoda,
           cajero: cajero_id,
@@ -4339,13 +4369,37 @@ export default function CajaPage() {
           });
         }
 
+        const cuotasEnriquecidasT = selectedCuotas.map(sc => {
+          const cq = cuotas.find(q => q.convId === sc.convId && q.cuotaId === sc.cuotaId);
+          return {
+            ...sc,
+            numeroConv: cq?.numeroConv,
+            numeroCuota: cq?.numeroCuota,
+            totalCuotas: cq?.totalCuotas,
+            periodoCubierto: cq?.periodoCubierto,
+          };
+        });
+        const periodosConvenioStrT = cuotasEnriquecidasT
+          .map(c => c.periodoCubierto || '')
+          .filter(Boolean)
+          .join(' / ');
+        const conceptoConvenioStrT = (selectedCuotas.length > 0 && selectedRecibos.length === 0)
+          ? cuotasEnriquecidasT.map(c => {
+              const numC = c.numeroConv || c.convId;
+              const nCuota = c.numeroCuota ? ` (Cuota ${c.numeroCuota}${c.totalCuotas ? ` de ${c.totalCuotas}` : ''}${c.periodoCubierto ? ` · Períodos: ${c.periodoCubierto}` : ''})` : '';
+              return `Servicio de Aseo Urbano - Convenio de Pago ${numC}${nCuota}${codInmuebleT ? ` · ${codInmuebleT}` : ''}`.trim();
+            }).join(' | ')
+          : undefined;
+
         const detallesTransferenciaObj: any = {
           contribuyente: contribuyenteFinalT,
           contribuyente_nombre: contribuyenteFinalT,
           codigo_inmueble: codInmuebleT,
           cod_inmueble: codInmuebleT,
           recibos: selectedRecibos, 
-          cuotas: selectedCuotas,
+          cuotas: cuotasEnriquecidasT,
+          ...(periodosConvenioStrT ? { periodos_pagados: periodosConvenioStrT } : {}),
+          ...(conceptoConvenioStrT ? { concepto: conceptoConvenioStrT } : {}),
           servicios: selectedServicios,
           tala_poda: selectedTalaPoda,
           cajero: cajero_id,

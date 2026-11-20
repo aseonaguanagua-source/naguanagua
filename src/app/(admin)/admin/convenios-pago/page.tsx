@@ -14,6 +14,9 @@ export default function ConveniosPagoPage() {
   const [loadingConv, setLoadingConv] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [viewCuotasModal, setViewCuotasModal] = useState<{isOpen: boolean, convenio: any}>({isOpen: false, convenio: null});
+  const [isEditingPeriodos, setIsEditingPeriodos] = useState(false);
+  const [editedPeriodos, setEditedPeriodos] = useState<Record<number, string>>({});
+  const [savingPeriodos, setSavingPeriodos] = useState(false);
   const [searchDoc, setSearchDoc] = useState('');
   const [foundUser, setFoundUser] = useState<any>(null);
   const [isSearching, setIsSearching] = useState(false);
@@ -1014,7 +1017,86 @@ export default function ConveniosPagoPage() {
                       </div>
                     </div>
 
-                    <h4 className="text-sm font-semibold text-slate-800 mb-3">Cronograma de Fechas y Períodos a Pagar</h4>
+                    <div className="flex items-center justify-between gap-2 mb-3">
+                      <h4 className="text-sm font-semibold text-slate-800">Cronograma de Fechas y Períodos a Pagar</h4>
+                      {arrCuotas.length > 0 && conv.estado !== 'Anulado' && (
+                        !isEditingPeriodos ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const initMap: Record<number, string> = {};
+                              arrCuotas.forEach((c: any, idx: number) => {
+                                const numC = c.numero_cuota || (idx + 1);
+                                initMap[numC] = c.periodo_cubierto || (c.meses_cubiertos ? `${c.meses_cubiertos} meses` : '');
+                              });
+                              setEditedPeriodos(initMap);
+                              setIsEditingPeriodos(true);
+                            }}
+                            className="px-2.5 py-1 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded flex items-center gap-1 cursor-pointer transition-colors"
+                          >
+                            <FileEdit size={13} /> Editar Períodos
+                          </button>
+                        ) : (
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              disabled={savingPeriodos}
+                              onClick={async () => {
+                                setSavingPeriodos(true);
+                                try {
+                                  const res = await fetch('/api/admin/convenios', {
+                                    method: 'PATCH',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                      convId: conv.id,
+                                      customPeriodos: editedPeriodos,
+                                    }),
+                                  });
+                                  const j = await res.json();
+                                  if (!res.ok || !j.ok) {
+                                    alert('Error guardando períodos: ' + (j.error || 'Error en servidor'));
+                                    setSavingPeriodos(false);
+                                    return;
+                                  }
+                                  setIsEditingPeriodos(false);
+                                  const resGet = await fetch('/api/admin/convenios');
+                                  const jGet = await resGet.json();
+                                  if (jGet.ok && Array.isArray(jGet.data)) {
+                                    const updatedConv = jGet.data.find((x: any) => x.id === conv.id);
+                                    if (updatedConv) {
+                                      setViewCuotasModal(prev => ({
+                                        ...prev,
+                                        convenio: {
+                                          ...prev.convenio,
+                                          ...updatedConv,
+                                          monto_total: typeof updatedConv.monto_total === 'number' ? `${updatedConv.monto_total.toFixed(2)} Bs` : updatedConv.monto_total,
+                                          detalle_cuotas: JSON.stringify(updatedConv.convenios_cuotas || []),
+                                        },
+                                      }));
+                                    }
+                                  }
+                                  await fetchFreshConvenios();
+                                } catch (e: any) {
+                                  alert('Error guardando períodos: ' + e.message);
+                                } finally {
+                                  setSavingPeriodos(false);
+                                }
+                              }}
+                              className="px-2.5 py-1 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded cursor-pointer disabled:opacity-50"
+                            >
+                              {savingPeriodos ? 'Guardando...' : 'Guardar Períodos'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setIsEditingPeriodos(false)}
+                              className="px-2.5 py-1 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded cursor-pointer"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        )
+                      )}
+                    </div>
 
                     {arrCuotas.length === 0 ? (
                       <div className="bg-orange-50 border border-orange-200 rounded-lg p-6 text-center text-orange-700">
@@ -1034,12 +1116,24 @@ export default function ConveniosPagoPage() {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-200">
-                            {arrCuotas.map((c: any, i: number) => (
+                            {arrCuotas.map((c: any, i: number) => {
+                              const numC = c.numero_cuota || (i + 1);
+                              return (
                               <tr key={c.id || i} className="hover:bg-slate-50 text-xs">
-                                <td className="px-3 py-3 font-bold text-slate-700">Cuota {c.numero_cuota || (i + 1)}</td>
+                                <td className="px-3 py-3 font-bold text-slate-700">Cuota {numC}</td>
                                 <td className="px-3 py-3 font-mono text-slate-700">{c.fecha}</td>
                                 <td className="px-3 py-3 font-medium text-blue-900">
-                                  {c.periodo_cubierto || (c.meses_cubiertos ? `${c.meses_cubiertos} ${c.meses_cubiertos === 1 ? 'mes' : 'meses'}` : '—')}
+                                  {isEditingPeriodos ? (
+                                    <input
+                                      type="text"
+                                      value={editedPeriodos[numC] ?? ''}
+                                      onChange={(e) => setEditedPeriodos(prev => ({ ...prev, [numC]: e.target.value }))}
+                                      className="w-full border border-blue-400 rounded px-2 py-1 text-xs font-medium text-blue-950 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                      placeholder="Ej: Octubre 2025 a Julio 2026 (10 meses)"
+                                    />
+                                  ) : (
+                                    c.periodo_cubierto || (c.meses_cubiertos ? `${c.meses_cubiertos} ${c.meses_cubiertos === 1 ? 'mes' : 'meses'}` : '—')
+                                  )}
                                 </td>
                                 <td className="px-3 py-3 font-bold text-slate-900 text-right">{Number(c.monto || 0).toFixed(2)} Bs</td>
                                 <td className="px-3 py-3 text-center">
@@ -1052,7 +1146,8 @@ export default function ConveniosPagoPage() {
                                   </span>
                                 </td>
                               </tr>
-                            ))}
+                            );
+                            })}
                           </tbody>
                         </table>
                       </div>

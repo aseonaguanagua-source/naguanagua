@@ -79,6 +79,11 @@ export async function GET(req: Request) {
         customPeriodosMap.set(4, '12/2025, 02/2026, 03/2026, 06/2026 (4 meses)');
         customPeriodosMap.set(5, '09/2026, 10/2026 (2 meses más actuales)');
       }
+      if (customPeriodosMap.size === 0 && (conv.numero === 'CONV-015179' || kIdent === 'V-19866756')) {
+        customPeriodosMap.set(1, 'Marzo 2024 a Noviembre 2024 (9 meses)');
+        customPeriodosMap.set(2, 'Diciembre 2024 a Septiembre 2025 (10 meses)');
+        customPeriodosMap.set(3, 'Octubre 2025 a Julio 2026 (10 meses)');
+      }
       let obsObj: any = null;
       if (conv.observaciones) {
         try { obsObj = typeof conv.observaciones === 'string' ? JSON.parse(conv.observaciones) : conv.observaciones; } catch {}
@@ -101,8 +106,23 @@ export async function GET(req: Request) {
       const startTotalDate = new Date(Date.UTC(endYearBase, endMonthBase - totalMeses + 1, 1));
       const endTotalDate = new Date(Date.UTC(endYearBase, endMonthBase, 1));
       const fmtMesAnio = (d: Date) => `${MESES_NOMBRES[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
-      const periodoGeneral = (conv.numero === 'CONV-744592' || kIdent === 'V-4173445')
-        ? `Diciembre 2024 a Octubre 2026 (${totalMeses} meses)`
+      let periodoGeneralCustom = '';
+      if (conv.numero === 'CONV-744592' || kIdent === 'V-4173445') {
+        periodoGeneralCustom = `Diciembre 2024 a Octubre 2026 (${totalMeses} meses)`;
+      } else if (conv.numero === 'CONV-015179' || kIdent === 'V-19866756') {
+        periodoGeneralCustom = `Marzo 2024 a Julio 2026 (${totalMeses} meses)`;
+      } else if (customPeriodosMap.size > 0) {
+        const firstP = (customPeriodosMap.get(1) || '').replace(/\s*\([^)]*\)/g, '').trim();
+        const lastP = (customPeriodosMap.get(sortedCuotas.length) || customPeriodosMap.get(customPeriodosMap.size) || '').replace(/\s*\([^)]*\)/g, '').trim();
+        const startPart = firstP.split(/\s+a\s+/i)[0]?.trim();
+        const lastParts = lastP.split(/\s+a\s+/i);
+        const endPart = lastParts[lastParts.length - 1]?.trim();
+        if (startPart && endPart) {
+          periodoGeneralCustom = startPart === endPart ? `${startPart} (${totalMeses} meses)` : `${startPart} a ${endPart} (${totalMeses} meses)`;
+        }
+      }
+      const periodoGeneral = periodoGeneralCustom
+        ? periodoGeneralCustom
         : (totalMeses === 1
           ? `${fmtMesAnio(endTotalDate)} (1 mes)`
           : `${fmtMesAnio(startTotalDate)} a ${fmtMesAnio(endTotalDate)} (${totalMeses} meses)`);
@@ -496,6 +516,31 @@ export async function PATCH(request: Request) {
     const convId = String(body.convId || body.convenio_id || '').trim();
     const cuotaIds: string[] = Array.isArray(body.cuotaIds) ? body.cuotaIds.filter(Boolean) : [];
     const estado = String(body.estado || 'Pagado').trim();
+    const customPeriodos = body.customPeriodos && typeof body.customPeriodos === 'object' ? body.customPeriodos : null;
+
+    if (customPeriodos && convId) {
+      const { data: conv } = await supabase.from('convenios_pago').select('id, numero, identidad').eq('id', convId).maybeSingle();
+      if (!conv) {
+        return NextResponse.json({ ok: false, error: 'Convenio no encontrado' }, { status: 404 });
+      }
+      const tagParts = Object.entries(customPeriodos)
+        .filter(([k, v]) => Number(k) > 0 && String(v || '').trim())
+        .sort((a, b) => Number(a[0]) - Number(b[0]))
+        .map(([k, v]) => `${k}=${String(v).trim().replace(/[\|\[\]]/g, '')}`);
+      const newTag = tagParts.length > 0 ? `[CONV_PERIODOS:${tagParts.join('|')}]` : '';
+
+      const { data: inms } = await supabase
+        .from('inmuebles')
+        .select('id, inmueble, notas')
+        .eq('identidad', conv.identidad);
+      const targetInm = (inms || []).find((i: any) => String(i.notas || '').includes(conv.numero)) || (inms || [])[0];
+      if (targetInm) {
+        const cleanNotas = String(targetInm.notas || '').replace(/\s*\[CONV_PERIODOS:[^\]]*\]/g, '').trim();
+        const updatedNotas = newTag ? `${cleanNotas} ${newTag}`.trim() : cleanNotas;
+        await supabase.from('inmuebles').update({ notas: updatedNotas }).eq('id', targetInm.id);
+      }
+      return NextResponse.json({ ok: true });
+    }
 
     if (cuotaIds.length === 0) {
       return NextResponse.json({ ok: false, error: 'Faltan IDs de cuotas a actualizar' }, { status: 400 });
