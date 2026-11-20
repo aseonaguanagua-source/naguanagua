@@ -2444,6 +2444,19 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
                 <span className="text-slate-600 font-semibold">Período(s) a Cancelar</span>
                 <span className="font-bold text-indigo-800 text-xs">{periodos}</span>
               </div>
+              {((Array.isArray(det.servicios) && det.servicios.length > 0) || (Array.isArray(det.tala_poda) && det.tala_poda.length > 0)) && (
+                <div className="flex justify-between items-center text-sm mb-1.5 bg-purple-50 border border-purple-200 rounded px-2.5 py-1.5">
+                  <span className="text-purple-800 font-bold text-xs flex items-center gap-1">
+                    🔧 Servicio Especial / Extraordinario Incluido:
+                  </span>
+                  <span className="font-bold text-purple-900 text-xs font-mono">
+                    {[
+                      ...(Array.isArray(det.servicios) ? det.servicios.map((s: any) => typeof s === 'string' ? s : s?.referencia) : []),
+                      ...(Array.isArray(det.tala_poda) ? det.tala_poda.map((s: any) => typeof s === 'string' ? s : s?.referencia) : [])
+                    ].filter(Boolean).join(', ')}
+                  </span>
+                </div>
+              )}
               <div className="flex justify-between text-sm">
                 <span className="text-blue-600 font-semibold">Total Documento</span>
                 <span className="text-blue-600 font-bold">{fmt(totalDocumentoCalc)}</span>
@@ -2931,6 +2944,16 @@ export default function ConciliacionPage() {
               </span>
             );
           })()}
+          {Array.isArray(det.servicios) && det.servicios.length > 0 && (
+            <span className="inline-flex items-center gap-1 mr-2 px-1.5 py-0.5 rounded bg-purple-100 text-purple-900 border border-purple-300 font-sans text-[10px] font-bold align-middle">
+              🔧 Servicio Especial: {det.servicios.map((s: any) => typeof s === 'string' ? s : s?.referencia).filter(Boolean).join(', ')}
+            </span>
+          )}
+          {Array.isArray(det.tala_poda) && det.tala_poda.length > 0 && (
+            <span className="inline-flex items-center gap-1 mr-2 px-1.5 py-0.5 rounded bg-green-100 text-green-900 border border-green-300 font-sans text-[10px] font-bold align-middle">
+              🌲 Tala y Poda: {det.tala_poda.map((s: any) => typeof s === 'string' ? s : s?.referencia).filter(Boolean).join(', ')}
+            </span>
+          )}
           {det.factura_digital?.url && (
             <a
               href={det.factura_digital.url}

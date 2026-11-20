@@ -539,7 +539,11 @@ export default function CajaPage() {
       if (det.es_abono === true && det.abono_completado !== true) {
         return;
       }
-      const refs: string[] = det.recibos || [];
+      const refs: string[] = [
+        ...(Array.isArray(det.recibos) ? det.recibos : []),
+        ...(Array.isArray(det.servicios) ? det.servicios.map((s: any) => typeof s === 'string' ? s : s?.referencia).filter(Boolean) : []),
+        ...(Array.isArray(det.tala_poda) ? det.tala_poda.map((s: any) => typeof s === 'string' ? s : s?.referencia).filter(Boolean) : []),
+      ];
       const deudaPrev: any[] = Array.isArray(det.deuda_previa) ? det.deuda_previa : [];
       refs.forEach(ref => {
         const mHist = String(ref).match(/^RECIB-HIST-(.+)-M(\d+)$/i);
@@ -582,7 +586,11 @@ export default function CajaPage() {
       if (det.es_abono === true && det.abono_completado !== true) {
         return;
       }
-      const refs: string[] = det.recibos || [];
+      const refs: string[] = [
+        ...(Array.isArray(det.recibos) ? det.recibos : []),
+        ...(Array.isArray(det.servicios) ? det.servicios.map((s: any) => typeof s === 'string' ? s : s?.referencia).filter(Boolean) : []),
+        ...(Array.isArray(det.tala_poda) ? det.tala_poda.map((s: any) => typeof s === 'string' ? s : s?.referencia).filter(Boolean) : []),
+      ];
       refs.forEach(ref => map.set(ref, p));
     });
     return map;
@@ -1793,13 +1801,17 @@ export default function CajaPage() {
         }
       }
 
-      // Cargar servicios especiales y tala/poda pendientes vía API (bypassa RLS)
+      // Cargar servicios especiales y tala/poda pendientes o en verificación vía API (bypassa RLS)
       let allServiciosData: any[] = [];
       try {
         const idSearch = user.Identidad || user.identidad || '';
-        const res = await fetch(`/api/admin/servicios-especiales?identidad=${encodeURIComponent(idSearch)}&estado=Pendiente`);
+        const res = await fetch(`/api/admin/servicios-especiales?identidad=${encodeURIComponent(idSearch)}`);
         if (res.ok) {
-          allServiciosData = await res.json();
+          const rawSrvs = await res.json();
+          allServiciosData = (Array.isArray(rawSrvs) ? rawSrvs : []).filter((s: any) => {
+            const st = String(s?.estado || '').trim().toLowerCase();
+            return st === 'pendiente' || st === 'por verificar';
+          });
         }
       } catch (e) {
         console.error('Error fetching servicios_especiales:', e);
@@ -6852,10 +6864,28 @@ export default function CajaPage() {
                                       </p>
                                     </div>
                                   </label>
-                                  <div className="text-right pl-4">
-                                    <span className="font-extrabold text-emerald-700 text-sm">
+                                  <div className="text-right pl-4 flex items-center gap-2">
+                                    <span className={`font-extrabold text-sm ${anyPending ? 'text-amber-600' : 'text-emerald-700'}`}>
                                       {anyPending ? 'En Verificación' : `Bs. ${formatBs(totalMontoGrupo)}`}
                                     </span>
+                                    {anyPending && (() => {
+                                      const pGroup = group.items.map((it: any) => pendingPagoMap.get(it.referencia)).find(Boolean);
+                                      if (!pGroup) return null;
+                                      return (
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            setModalPagoComp(pGroup);
+                                          }}
+                                          className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 rounded text-[10px] font-bold cursor-pointer transition-colors shadow-2xs"
+                                          title="Ver comprobante y desglose del pago en verificación"
+                                        >
+                                          <Eye className="w-3 h-3" /> Ver Comprobante
+                                        </button>
+                                      );
+                                    })()}
                                   </div>
                                 </div>
 
@@ -6967,9 +6997,11 @@ export default function CajaPage() {
                 <div className="p-4 space-y-2">
                   {talaPoda.map((s: any) => {
                     const baseMonto = parseFloat(s.monto || '0');
-                    const esCobrable = baseMonto > 0;
+                    const enVerif = isItemPending(s.referencia) || String(s.estado || '').trim().toLowerCase() === 'por verificar';
+                    const pagoVinculado = pendingPagoMap.get(s.referencia);
+                    const esCobrable = baseMonto > 0 && !enVerif;
                     return (
-                      <label key={s.referencia} className={`flex items-center justify-between p-3 border rounded-lg transition-colors ${!esCobrable ? 'bg-slate-50 border-slate-200 opacity-75 cursor-not-allowed' : selectedTalaPoda.includes(s.referencia) ? 'bg-green-50 border-green-300 cursor-pointer' : 'hover:bg-slate-50 border-slate-200 cursor-pointer'}`}>
+                      <label key={s.referencia} className={`flex items-center justify-between p-3 border rounded-lg transition-colors ${enVerif ? 'bg-amber-50/40 border-amber-200 opacity-85 cursor-not-allowed' : !esCobrable ? 'bg-slate-50 border-slate-200 opacity-75 cursor-not-allowed' : selectedTalaPoda.includes(s.referencia) ? 'bg-green-50 border-green-300 cursor-pointer' : 'hover:bg-slate-50 border-slate-200 cursor-pointer'}`}>
                         <div className="flex items-center gap-3">
                           <input
                             type="checkbox"
@@ -6984,12 +7016,33 @@ export default function CajaPage() {
                             <p className="text-xs text-slate-500">{s.referencia} • {s.fecha || 'Sin fecha'}</p>
                           </div>
                         </div>
-                        <div className="text-right shrink-0">
-                          {esCobrable ? (
-                            <>
+                        <div className="text-right shrink-0 flex items-center gap-2">
+                          {enVerif ? (
+                            <div className="flex flex-col items-end gap-1">
+                              <span className="font-bold text-slate-700 text-xs">Bs. {formatBs(baseMonto)}</span>
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-bold text-amber-600 text-xs">En Verificación</span>
+                                {pagoVinculado && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      setModalPagoComp(pagoVinculado);
+                                    }}
+                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 rounded text-[10px] font-bold cursor-pointer transition-colors shadow-2xs"
+                                    title="Ver comprobante del pago en verificación"
+                                  >
+                                    <Eye className="w-3 h-3" /> Ver Comprobante
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          ) : esCobrable ? (
+                            <div>
                               <span className="font-bold text-green-700 block text-sm">Bs. {formatBs(baseMonto)}</span>
                               <span className="text-[10px] text-emerald-600 font-medium">Monto Total (Tasa / IVA Incluido)</span>
-                            </>
+                            </div>
                           ) : (
                             <span className="inline-block px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-bold">
                               ⏳ Cotización Pendiente
@@ -7020,9 +7073,11 @@ export default function CajaPage() {
                     const nve = Number(s.nve || 1);
                     const currentTasa = customBcvRate && !isNaN(parseFloat(customBcvRate)) ? parseFloat(customBcvRate) : (tcmmv || 0);
                     const baseMonto = (ucd > 0 && currentTasa > 0) ? Math.round(ucd * fac * nve * currentTasa * 100) / 100 : parseFloat(s.monto || '0');
-                    const esCobrable = baseMonto > 0;
+                    const enVerif = isItemPending(s.referencia) || String(s.estado || '').trim().toLowerCase() === 'por verificar';
+                    const pagoVinculado = pendingPagoMap.get(s.referencia);
+                    const esCobrable = baseMonto > 0 && !enVerif;
                     return (
-                      <label key={s.referencia} className={`flex items-center justify-between p-3 border rounded-lg transition-colors ${!esCobrable ? 'bg-slate-50 border-slate-200 opacity-75 cursor-not-allowed' : selectedServicios.includes(s.referencia) ? 'bg-purple-50 border-purple-200 cursor-pointer' : 'hover:bg-slate-50 border-slate-200 cursor-pointer'}`}>
+                      <label key={s.referencia} className={`flex items-center justify-between p-3 border rounded-lg transition-colors ${enVerif ? 'bg-amber-50/40 border-amber-200 opacity-85 cursor-not-allowed' : !esCobrable ? 'bg-slate-50 border-slate-200 opacity-75 cursor-not-allowed' : selectedServicios.includes(s.referencia) ? 'bg-purple-50 border-purple-200 cursor-pointer' : 'hover:bg-slate-50 border-slate-200 cursor-pointer'}`}>
                         <div className="flex items-center gap-3">
                           <input 
                             type="checkbox"
@@ -7034,19 +7089,40 @@ export default function CajaPage() {
                           <Icon className="w-4 h-4 text-purple-500 flex-shrink-0" />
                           <div>
                             <p className="font-semibold text-sm text-slate-800">{s.descripcion}</p>
-                            <p className="text-xs text-slate-500">{s.referencia} • {s.fecha}</p>
+                            <p className="text-xs text-slate-500">{s.referencia} • {s.fecha}{enVerif && pagoVinculado?.referencia ? ` • Incluido en Pago Ref. ${pagoVinculado.referencia}` : ''}</p>
                           </div>
                         </div>
-                        <div className="text-right shrink-0">
-                          {esCobrable ? (
-                            <>
+                        <div className="text-right shrink-0 flex items-center gap-2">
+                          {enVerif ? (
+                            <div className="flex flex-col items-end gap-1">
+                              <span className="font-bold text-purple-700 text-sm">Bs. {formatBs(baseMonto)}</span>
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-bold text-amber-600 text-xs">En Verificación</span>
+                                {pagoVinculado && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      setModalPagoComp(pagoVinculado);
+                                    }}
+                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 rounded text-[10px] font-bold cursor-pointer transition-colors shadow-2xs"
+                                    title="Ver comprobante del pago en verificación"
+                                  >
+                                    <Eye className="w-3 h-3" /> Ver Comprobante
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          ) : esCobrable ? (
+                            <div>
                               <span className="font-bold text-purple-700 block text-sm">Bs. {formatBs(baseMonto)}</span>
                               {ucd > 0 ? (
                                 <span className="text-[10px] text-slate-500 font-medium">{ucd * fac * nve} UCD · Tasa Bs {formatBs(currentTasa)}</span>
                               ) : (
                                 <span className="text-[10px] text-emerald-600 font-medium">Tasa Administrativa</span>
                               )}
-                            </>
+                            </div>
                           ) : (
                             <span className="inline-block px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-bold">
                               ⏳ Cotización Pendiente

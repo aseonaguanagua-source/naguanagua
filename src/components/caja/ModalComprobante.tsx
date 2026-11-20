@@ -163,6 +163,49 @@ export function ModalComprobante({ pago, onClose }: ModalComprobanteProps) {
           </div>
         </div>
 
+        {/* Desglose de conceptos incluidos en el pago */}
+        {(Array.isArray(det.recibos) && det.recibos.length > 0 || Array.isArray(det.servicios) && det.servicios.length > 0 || Array.isArray(det.tala_poda) && det.tala_poda.length > 0 || Array.isArray(det.cuotas) && det.cuotas.length > 0) && (
+          <div className="px-4 py-3 bg-indigo-50/70 border-b border-indigo-200 text-xs space-y-1.5">
+            <div className="font-bold text-indigo-900 flex items-center justify-between">
+              <span>📋 Conceptos Marcados en este Pago:</span>
+              {Number(det.monto_factura || det.total_seleccionado || det.montoTotal || 0) > 0 && (
+                <span className="text-[11px] font-bold text-slate-700">
+                  Total Seleccionado: Bs. {Number(det.monto_factura || det.total_seleccionado || det.montoTotal || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {Number(det.monto_retencion_iva || det.retencion_iva || 0) > 0 && ` (Retención IVA: -Bs. ${Number(det.monto_retencion_iva || det.retencion_iva || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`}
+                </span>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {Array.isArray(det.recibos) && det.recibos.length > 0 && (
+                <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold text-[11px]">
+                  🏢 Aseo Urbano ({det.recibos.length} {det.recibos.length === 1 ? 'inmueble/recibo' : 'inmuebles/recibos'}{det.periodos_pagados || det.periodos ? ` · ${det.periodos_pagados || det.periodos}` : ''})
+                </span>
+              )}
+              {Array.isArray(det.servicios) && det.servicios.map((srv: any, idx: number) => {
+                const refS = typeof srv === 'string' ? srv : (srv?.referencia || `Servicio #${idx + 1}`);
+                return (
+                  <span key={`srv-${idx}`} className="px-2 py-0.5 rounded bg-purple-100 text-purple-900 border border-purple-300 font-bold text-[11px]">
+                    🔧 Servicio Especial Incluido: {refS}
+                  </span>
+                );
+              })}
+              {Array.isArray(det.tala_poda) && det.tala_poda.map((tp: any, idx: number) => {
+                const refT = typeof tp === 'string' ? tp : (tp?.referencia || `Tala/Poda #${idx + 1}`);
+                return (
+                  <span key={`tp-${idx}`} className="px-2 py-0.5 rounded bg-green-100 text-green-900 border border-green-300 font-bold text-[11px]">
+                    🌲 Tala y Poda Incluido: {refT}
+                  </span>
+                );
+              })}
+              {Array.isArray(det.cuotas) && det.cuotas.length > 0 && (
+                <span className="px-2 py-0.5 rounded bg-orange-100 text-orange-900 border border-orange-300 font-bold text-[11px]">
+                  🤝 Convenio de Pago ({det.cuotas.length} {det.cuotas.length === 1 ? 'cuota' : 'cuotas'})
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Visor de comprobantes */}
         <div className="p-6 overflow-y-auto space-y-4 flex-1">
           {loading ? (
