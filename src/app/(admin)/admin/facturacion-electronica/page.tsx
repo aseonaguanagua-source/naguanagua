@@ -1391,10 +1391,11 @@ export default function FacturacionElectronicaPage() {
       const data = await res.json();
       if (data.success && data.correoEnviado) {
         setEmailSuccessMsg(`Factura enviada exitosamente a ${customEmailDestino} y copia de archivo`);
+        loadPagos();
         setTimeout(() => {
           setSelectedPagoForEmail(null);
           setEmailSuccessMsg(null);
-        }, 2200);
+        }, 1800);
       } else {
         alert(data.mensaje || 'Aviso: No se pudo entregar el correo.');
       }
@@ -1881,9 +1882,18 @@ export default function FacturacionElectronicaPage() {
                               const difiere = destReal && correoActual && destReal !== correoActual;
                               if (difiere) {
                                 return (
-                                  <span className="inline-block text-[9.5px] font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5" title="El correo actual de la ficha fue actualizado después de la emisión; pulse Enviar para reenviar al nuevo correo">
-                                    ⚠ Enviada a: {destReal} (pulse Enviar para actualizar)
-                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedPagoForEmail(pago);
+                                      setCustomEmailDestino(pago.correo || '');
+                                      setEmailSuccessMsg(null);
+                                    }}
+                                    className="inline-block text-left text-[9.5px] font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded px-1.5 py-0.5 cursor-pointer transition-colors"
+                                    title={`El correo de la ficha fue actualizado a ${correoActual} después de la emisión. Haga clic aquí o en "Reenviar" para enviarla al correo nuevo sin anular ni re-emitir la factura.`}
+                                  >
+                                    ⚠ Enviada antes a: {destReal} (clic aquí o en &ldquo;Reenviar&rdquo; para enviar a {correoActual})
+                                  </button>
                                 );
                               }
                               if (destReal) {
