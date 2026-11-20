@@ -4,6 +4,7 @@ import { FileText, Download, ExternalLink, Search, CheckCircle2, Clock, AlertTri
 import { supabase } from '@/lib/supabase';
 import { getIdentidadVariants, getIdentidadVariantsExact } from '@/lib/formatters';
 import { formatBs } from '@/lib/formatCurrency';
+import { resolverConceptoPeriodoPago } from '@/lib/facturaPeriodoHelper';
 import Link from 'next/link';
 
 const MESES_NOMBRES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
@@ -21,6 +22,7 @@ function formatPeriodoStr(p: string | null | undefined): string {
 
 function resolverPeriodoFactura(p: any, det: any, ret?: { estado?: string; periodo?: string }): string {
   if (det.periodos_pagados) return String(det.periodos_pagados);
+  if (typeof det.periodos === 'string' && det.periodos.trim()) return det.periodos.trim();
 
   const rcPeriods = Array.isArray(det.recibo_caja)
     ? Array.from(new Set(det.recibo_caja.map((r: any) => r.periodo).filter(Boolean)))
@@ -37,22 +39,21 @@ function resolverPeriodoFactura(p: any, det: any, ret?: { estado?: string; perio
   if (det.factura_digital?.periodo) return String(det.factura_digital.periodo);
   if (ret?.periodo) return String(ret.periodo);
 
-  if (Array.isArray(det.recibo_caja)) {
-    for (const rc of det.recibo_caja) {
-      if (Array.isArray(rc.conceptos)) {
-        for (const c of rc.conceptos) {
-          const m = String(c.descripcion || '').match(/Per[íi]odo:?\s*([^·)]+)/i);
-          if (m && m[1]) return m[1].trim();
-        }
-      }
+  try {
+    const conceptoCan = resolverConceptoPeriodoPago({ ...p, detalles: det });
+    if (conceptoCan && conceptoCan !== 'Servicio de Aseo Urbano Comercial') {
+      const limpio = conceptoCan.replace(/^Servicio de Aseo Urbano(?: Comercial| Residencial| Municipal)?\s*[-–:]\s*/i, '').trim();
+      if (limpio) return limpio;
     }
-  }
+  } catch {}
 
-  const fEmi = det.factura_digital?.fecha_emision || det.fecha_transaccion || p.created_at;
+  const fEmi = det.fecha_transaccion || det.factura_digital?.fecha_emision || p.created_at;
   if (fEmi) {
-    const d = new Date(fEmi);
+    const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(String(fEmi)) ? `${fEmi}T12:00:00-04:00` : fEmi);
     if (!isNaN(d.getTime())) {
-      return `${MESES_NOMBRES[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+      const mIdx = d.getUTCMonth() === 0 ? 11 : d.getUTCMonth() - 1;
+      const yr = d.getUTCMonth() === 0 ? d.getUTCFullYear() - 1 : d.getUTCFullYear();
+      return `${MESES_NOMBRES[mIdx]} ${yr}`;
     }
   }
   return '—';
@@ -174,10 +175,14 @@ export default function FacturacionPortalPage() {
           const base = parseFloat(String(r.base || (total ? total / 1.16 : 0))) || 0;
           const iva = parseFloat(String(r.iva || (total - base))) || 0;
           const periodoFacturado = resolverPeriodoFactura(p, det, matchedRet);
+          const codFromRecibo = Array.isArray(det.recibos)
+            ? det.recibos.map((x: any) => String(x || '').match(/(?:RECIB-HIST|CM|MULTA)-([A-Z0-9_-]+?)(?:-M\d+)?$/i)?.[1]).find(Boolean)
+            : null;
           const codigoInm =
             det.inmueble ||
             det.codigo_inmueble ||
             det.cod_inmueble ||
+            codFromRecibo ||
             det.condominio?.codigo ||
             det.recibo_caja?.[0]?.inmueble ||
             'General';
