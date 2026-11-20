@@ -106,7 +106,7 @@ function Ficha() {
       try {
         const { data: convs } = await supabase
           .from('convenios_pago')
-          .select('id, numero, identidad, monto_total, cuotas, estado')
+          .select('id, numero, identidad, monto_total, cuotas, estado, convenios_cuotas(id, fecha, monto, estado)')
           .neq('estado', 'Anulado');
         const cMap: Record<string, any> = {};
         (convs || []).forEach(cv => {
@@ -115,6 +115,10 @@ function Ficha() {
             cMap[clean] = cv;
             const soloNum = clean.replace(/\D/g, '');
             if (soloNum) cMap[soloNum] = cv;
+          }
+          if (cv.numero) {
+            const numCode = cv.numero.replace(/\D/g, '');
+            if (numCode.length >= 4) cMap[`COD_${numCode}`] = cv;
           }
         });
         setConveniosUnidades(cMap);
@@ -178,10 +182,23 @@ function Ficha() {
       }
       return r;
     });
-    return enriched.filter((r: any) =>
-      (!soloDeuda || r.totalBs > 0.01) &&
-      (!t || [r.inmueble, r.numero, r.propietario, r.identidad, r.actividad].some((x: any) => String(x || '').toUpperCase().includes(t))));
-  }, [e, q, soloDeuda]);
+    return enriched.filter((r: any) => {
+      const uIdClean = String(r.identidad || '').replace(/[\s-]/g, '').toUpperCase();
+      const uNum = uIdClean.replace(/\D/g, '');
+      const rCodeNum = String(r.inmueble || '').replace(/\D/g, '');
+      const convR = conveniosUnidades[uIdClean] || (uNum ? conveniosUnidades[uNum] : null) || (rCodeNum ? conveniosUnidades[`COD_${rCodeNum}`] : null);
+      const tieneConvenioPendiente = Boolean(
+        convR &&
+        (!Array.isArray(convR.convenios_cuotas) ||
+          convR.convenios_cuotas.length === 0 ||
+          convR.convenios_cuotas.some((q: any) => String(q?.estado || 'Pendiente').toLowerCase().includes('pend')))
+      );
+      return (
+        (!soloDeuda || r.totalBs > 0.01 || tieneConvenioPendiente) &&
+        (!t || [r.inmueble, r.numero, r.propietario, r.identidad, r.actividad].some((x: any) => String(x || '').toUpperCase().includes(t)))
+      );
+    });
+  }, [e, q, soloDeuda, conveniosUnidades]);
   const paginas = Math.max(1, Math.ceil(renglones.length / POR_PAGINA));
   const visibles = renglones.slice(pagina * POR_PAGINA, (pagina + 1) * POR_PAGINA);
 
@@ -890,7 +907,8 @@ function Ficha() {
                         const u = unidadDe(r.clave);
                         const uIdClean = (u?.identidad || r?.identidad || '').replace(/[\s-]/g, '').toUpperCase();
                         const uNum = uIdClean.replace(/\D/g, '');
-                        const convUnidad = conveniosUnidades[uIdClean] || (uNum ? conveniosUnidades[uNum] : null);
+                        const rCodeNum = String(r?.inmueble || u?.inmueble || '').replace(/\D/g, '');
+                        const convUnidad = conveniosUnidades[uIdClean] || (uNum ? conveniosUnidades[uNum] : null) || (rCodeNum ? conveniosUnidades[`COD_${rCodeNum}`] : null);
                         return (
                           <React.Fragment key={r.clave}>
                             <tr onClick={() => setAbierto(open ? null : r.clave)} className={`cursor-pointer hover:bg-emerald-50/40 ${sinReg ? 'bg-amber-50/50' : ''} ${unidadFoco && r.inmueble === unidadFoco ? 'bg-emerald-50' : ''}`}>

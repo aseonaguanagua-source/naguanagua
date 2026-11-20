@@ -266,106 +266,181 @@ function construirEstadoCuentaPdfBuffer(dest: DestinatarioCampana, tasaBcv: numb
   return Buffer.from(doc.output('arraybuffer'));
 }
 
-function buildEstadoCuentaMasivoHtml(_dest: DestinatarioCampana): string {
+function buildRecordatorioPagoHtml(_dest: DestinatarioCampana): string {
   const BASE = 'https://naguanagua.globalgreenrec.com';
   return `<!DOCTYPE html>
 <html lang="es">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ESTADO DE CUENTA ASEO NAGUANAGUA</title></head>
 <body style="margin:0;padding:0;background:#ffffff;font-family:Calibri,Arial,Helvetica,sans-serif;color:#222222;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;padding:24px 12px;">
+<div style="background:#ffffff;max-width:680px;margin:0 auto;padding:24px 36px;font-family:Calibri,Arial,Helvetica,sans-serif;font-size:11pt;line-height:1.35;color:#222222;">
+
+  <!-- ENCABEZADO DEL DOCUMENTO WORD: LOGO IAMEC CENTRADO -->
+  <div style="text-align:center;margin:0 0 18px 0;">
+    <img src="${BASE}/logos/IAMEC.png" alt="IAMEC - Instituto Autónomo Municipal de Ecosocialismo" width="200" style="display:inline-block;width:200px;max-width:200px;height:auto;border:0;" />
+  </div>
+
+  <!-- P0 y P1: TÍTULOS CENTRADOS -->
+  <p style="margin:0 0 8px 0;text-align:center;font-weight:bold;font-size:11pt;color:#222222;">ESTADO DE CUENTA ASEO NAGUANAGUA</p>
+  <p style="margin:0 0 14px 0;text-align:center;font-weight:bold;font-size:11pt;color:#222222;">FAVOR LEER TEXTO COMPLETO</p>
+
+  <!-- P2 y P3 -->
+  <p style="margin:0 0 12px 0;text-align:left;font-size:11pt;color:#222222;">Nos dirigimos a Ud., en la oportunidad de remitir estado de cuenta contentivo de su deuda (total o parcial) de la tasa de Aseo Urbano del Municipio Naguanagua.</p>
+  <p style="margin:0 0 12px 0;text-align:left;font-size:11pt;color:#222222;">Por favor tenga en consideración las siguientes pautas:</p>
+
+  <!-- P4: VIÑETA 1 (BANESCO) -->
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 12px 0;font-family:Calibri,Arial,Helvetica,sans-serif;font-size:11pt;line-height:1.35;color:#222222;">
+    <tr>
+      <td width="42" valign="top" style="padding-left:24px;width:42px;font-size:11pt;color:#222222;">&bull;</td>
+      <td valign="top" style="font-size:11pt;color:#222222;">
+        <strong>Los datos para realizar el pago son los siguientes:</strong><br/>
+        - BANCO: <strong>BANESCO</strong>NÚMERO DE CUENTA: <br/>
+        <strong>0134-1089-59-0001008636</strong>TIPO DE CUENTA: <br/>
+        <strong>CORRIENTE</strong>TITULAR: <br/>
+        <strong>INSTITUTO AUTÓNOMO MUNICIPAL DE ECOSOCIALISMO NAGUANAGUA (IAMEC)</strong>RIF: <br/>
+        <strong>G-20008614-9</strong>
+      </td>
+    </tr>
+  </table>
+
+  <!-- P5: PÁRRAFO BANCAMIGA (SIN VIÑETA Y ALINEADO A LA IZQUIERDA IGUAL QUE EN EL WORD) -->
+  <p style="margin:0 0 12px 0;text-align:left;font-size:11pt;line-height:1.35;color:#222222;">
+    -BANCO: <strong>BANCAMIGA</strong><br/>
+    NÚMERO DE CUENTA: 0172-0110-71-1101340717<br/>
+    TIPO DE CUENTA: <strong>CORRIENTE</strong>TITULAR: <br/>
+    <strong>INSTITUTO AUTÓNOMO MUNICIPAL DE ECOSOCIALISMO NAGUANAGUA (IAMEC)</strong>RIF: <br/>
+    <strong>G-20008614-9</strong>
+  </p>
+
+  <!-- P6, P7, P8, P9: VIÑETAS NIVEL 0 -->
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0;font-family:Calibri,Arial,Helvetica,sans-serif;font-size:11pt;line-height:1.35;color:#222222;">
+    <tr>
+      <td width="42" valign="top" style="padding:0 0 10px 24px;width:42px;">&bull;</td>
+      <td valign="top" style="padding:0 0 10px 0;">Los pagos deben hacerse por MES O MESES COMPLETOS.</td>
+    </tr>
+    <tr>
+      <td width="42" valign="top" style="padding:0 0 10px 24px;width:42px;">&bull;</td>
+      <td valign="top" style="padding:0 0 10px 0;">La factura es emitida por el Instituto Autónomo Municipal De Ecosocialismo Naguanagua (IAMEC) RIF G-20008614-9</td>
+    </tr>
+    <tr>
+      <td width="42" valign="top" style="padding:0 0 10px 24px;width:42px;">&bull;</td>
+      <td valign="top" style="padding:0 0 10px 0;">El comprobante de pago por transferencia, favor remitirlo a través del presente correo, indicando en el texto del correo: usuario aseo urbano, razón social o nombre, RIF o CI, correo electrónico y número de teléfono, periodo pagado.</td>
+    </tr>
+    <tr>
+      <td width="42" valign="top" style="padding:0 0 10px 24px;width:42px;">&bull;</td>
+      <td valign="top" style="padding:0 0 10px 0;">En caso de ser contribuyente especial, además de las pautas antes mencionadas, deberá considerar las siguientes:</td>
+    </tr>
+  </table>
+
+  <!-- P10, P11, P12: SUB-VIÑETAS NIVEL 1 (o) -->
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0;font-family:Calibri,Arial,Helvetica,sans-serif;font-size:11pt;line-height:1.35;color:#222222;">
+    <tr>
+      <td width="76" valign="top" style="padding:0 0 10px 58px;width:76px;font-family:'Courier New',Courier,monospace;">o</td>
+      <td valign="top" style="padding:0 0 10px 0;">El porcentaje de retención que corresponde a IAMEC es el 75%</td>
+    </tr>
+    <tr>
+      <td width="76" valign="top" style="padding:0 0 10px 58px;width:76px;font-family:'Courier New',Courier,monospace;">o</td>
+      <td valign="top" style="padding:0 0 10px 0;">Estamos exentos del I.S.L.R.</td>
+    </tr>
+    <tr>
+      <td width="76" valign="top" style="padding:0 0 10px 58px;width:76px;font-family:'Courier New',Courier,monospace;">o</td>
+      <td valign="top" style="padding:0 0 10px 0;">El número de factura es diferente al número de control.</td>
+    </tr>
+  </table>
+
+  <!-- P13: VIÑETA NIVEL 0 -->
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 12px 0;font-family:Calibri,Arial,Helvetica,sans-serif;font-size:11pt;line-height:1.35;color:#222222;">
+    <tr>
+      <td width="42" valign="top" style="padding:0 0 0 24px;width:42px;">&bull;</td>
+      <td valign="top">La factura debe ser pagada como máximo el día 28 del mes si es de otra entidad bancaria distinta a Banesco / Bancamiga o el día 30 del mes si es de Banesco a Banesco / Bancamiga a Bancamiga, debido a que debemos realizar el cierre fiscal del mes junto a la conciliación bancaria.</td>
+    </tr>
+  </table>
+
+  <!-- P14 y P15 -->
+  <p style="margin:0 0 12px 0;text-align:left;font-size:11pt;color:#222222;">En caso de que la factura, no sea pagada en el período de tiempo, antes señalado se procederá a la anulación de la misma.</p>
+  <p style="margin:0 0 18px 0;text-align:justify;font-size:11pt;color:#222222;">Si usted ya ejecutó su pago, hacer caso omiso de este correo. Agradeciendo su pronto pago, quedamos a sus órdenes.</p>
+
+  <!-- P16 y P17: CONTACTOS CENTRADOS -->
+  <p style="margin:14px 0 8px 0;text-align:center;font-size:11pt;color:#222222;">
+    <strong>Whatsapp Comercial:</strong> 0424-4282365 &ndash; <strong>Correo:</strong> <a href="mailto:aseoresnaguanagua@globalgreenca.com" style="color:#222222;text-decoration:none;">aseoresnaguanagua@globalgreenca.com</a>
+  </p>
+  <p style="margin:0;text-align:center;font-size:11pt;color:#222222;">
+    <strong>WhatsApp Residencial:</strong> 0424-4282364 &ndash; <strong>Correo:</strong> <a href="mailto:aseocomnaguanagua@globalgreenca.com" style="color:#222222;text-decoration:none;">aseocomnaguanagua@globalgreenca.com</a>
+  </p>
+
+</div>
+</body>
+</html>`;
+}
+
+function buildEstadoCuentaConPdfHtml(dest: DestinatarioCampana): string {
+  const BASE = 'https://naguanagua.globalgreenrec.com';
+  const codigos = dest.items.map(i => i.inmueble).filter(Boolean).join(', ');
+  return `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ESTADO DE CUENTA ASEO NAGUANAGUA</title></head>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:20px 0;">
 <tr><td align="center">
-<table width="640" cellpadding="0" cellspacing="0" style="background:#ffffff;max-width:640px;text-align:left;font-size:14.5px;line-height:1.55;color:#222222;">
-
-  <!-- ENCABEZADO DEL DOCUMENTO: LOGO IAMEC CENTRADO -->
+<table width="640" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.10);max-width:640px;">
   <tr>
-    <td align="center" style="padding:10px 0 18px;">
-      <img src="${BASE}/logos/IAMEC.png" alt="IAMEC - Instituto Autónomo Municipal de Ecosocialismo" width="210" style="display:block;margin:0 auto;height:auto;" />
-    </td>
-  </tr>
-
-  <!-- TÍTULO Y SUBTÍTULO CENTRADOS -->
-  <tr>
-    <td align="center" style="padding:0 0 6px;font-weight:bold;font-size:16px;color:#222222;">
-      ESTADO DE CUENTA ASEO NAGUANAGUA
+    <td style="background:linear-gradient(135deg,#0a4a2a 0%,#1a7a40 50%,#0a4a2a 100%);padding:20px 24px;">
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td align="center" width="33%"><img src="${BASE}/logos/ALCALDIA.png" alt="Alcaldía de Naguanagua" width="85" style="display:block;margin:0 auto;border-radius:6px;" /></td>
+          <td align="center" width="34%"><img src="${BASE}/logos/ELIZABETH.png" alt="Gestión Municipal Elizabeth Niño" width="125" style="display:block;margin:0 auto;border-radius:8px;padding:4px;" /></td>
+          <td align="center" width="33%"><img src="${BASE}/logos/IAMEC.png" alt="IAMEC Naguanagua" width="110" style="display:block;margin:0 auto;border-radius:6px;" /></td>
+        </tr>
+      </table>
     </td>
   </tr>
   <tr>
-    <td align="center" style="padding:0 0 18px;font-weight:bold;font-size:15px;color:#222222;">
-      FAVOR LEER TEXTO COMPLETO
+    <td style="background:#14532d;padding:14px 24px;text-align:center;">
+      <h1 style="margin:0;color:#ffffff;font-size:18px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;">ESTADO DE CUENTA ASEO NAGUANAGUA</h1>
+      <p style="margin:4px 0 0;color:#fde047;font-size:13px;font-weight:bold;letter-spacing:1.5px;text-transform:uppercase;">FAVOR LEER TEXTO COMPLETO</p>
     </td>
   </tr>
-
-  <!-- CUERPO EXACTO DEL DOCUMENTO WORD -->
   <tr>
-    <td style="padding:0 16px;color:#222222;font-size:14.5px;line-height:1.55;">
-      <p style="margin:0 0 14px;">
-        Nos dirigimos a Ud., en la oportunidad de remitir estado de cuenta contentivo de su deuda (total o parcial) de la tasa de Aseo Urbano del Municipio Naguanagua.
-      </p>
-
-      <p style="margin:0 0 12px;">
-        Por favor tenga en consideración las siguientes pautas:
-      </p>
-
-      <ul style="margin:0 0 14px;padding-left:24px;color:#222222;">
-        <li style="margin-bottom:14px;">
-          <strong>Los datos para realizar el pago son los siguientes:</strong><br/>
-          - BANCO: <strong>BANESCO</strong><br/>
-          NÚMERO DE CUENTA: <strong>0134-1089-59-0001008636</strong><br/>
-          TIPO DE CUENTA: <strong>CORRIENTE</strong><br/>
-          TITULAR: <strong>INSTITUTO AUTÓNOMO MUNICIPAL DE ECOSOCIALISMO NAGUANAGUA (IAMEC)</strong><br/>
-          RIF: <strong>G-20008614-9</strong>
-          <div style="margin-top:12px;">
-            -BANCO: <strong>BANCAMIGA</strong><br/>
-            NÚMERO DE CUENTA: 0172-0110-71-1101340717<br/>
-            TIPO DE CUENTA: <strong>CORRIENTE</strong><br/>
-            TITULAR: <strong>INSTITUTO AUTÓNOMO MUNICIPAL DE ECOSOCIALISMO NAGUANAGUA (IAMEC)</strong><br/>
-            RIF: <strong>G-20008614-9</strong>
-          </div>
-        </li>
-
-        <li style="margin-bottom:10px;">
-          Los pagos deben hacerse por MES O MESES COMPLETOS.
-        </li>
-
-        <li style="margin-bottom:10px;">
-          La factura es emitida por el Instituto Autónomo Municipal De Ecosocialismo Naguanagua (IAMEC) RIF G-20008614-9
-        </li>
-
-        <li style="margin-bottom:10px;">
-          El comprobante de pago por transferencia, favor remitirlo a través del presente correo, indicando en el texto del correo: usuario aseo urbano, razón social o nombre, RIF o CI, correo electrónico y número de teléfono, periodo pagado.
-        </li>
-
-        <li style="margin-bottom:8px;">
-          En caso de ser contribuyente especial, además de las pautas antes mencionadas, deberá considerar las siguientes:
-          <ul style="list-style-type:circle;margin:8px 0 4px;padding-left:22px;">
-            <li style="margin-bottom:6px;">El porcentaje de retención que corresponde a IAMEC es el 75%</li>
-            <li style="margin-bottom:6px;">Estamos exentos del I.S.L.R.</li>
-            <li style="margin-bottom:6px;">El número de factura es diferente al número de control.</li>
-          </ul>
-        </li>
-
-        <li style="margin-bottom:10px;">
-          La factura debe ser pagada como máximo el día 28 del mes si es de otra entidad bancaria distinta a Banesco / Bancamiga o el día 30 del mes si es de Banesco a Banesco / Bancamiga a Bancamiga, debido a que debemos realizar el cierre fiscal del mes junto a la conciliación bancaria.
-        </li>
+    <td style="background:#f8fafc;padding:16px 28px;border-bottom:2px solid #1a7a40;">
+      <table width="100%" cellpadding="3" cellspacing="0" style="font-size:13px;color:#334155;">
+        <tr>
+          <td><strong>Contribuyente:</strong> ${dest.nombre}</td>
+          <td align="right"><strong>RIF / C.I.:</strong> ${dest.identidad}</td>
+        </tr>
+        <tr>
+          <td><strong>Código(s) Aseo Urbano:</strong> ${codigos || dest.identidad}</td>
+          <td align="right"><strong>Deuda Estimada:</strong> <span style="color:#b91c1c;font-weight:bold;">Bs. ${fmtBs(dest.totalDeudaBs)}</span></td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:24px 28px 16px;color:#1e293b;font-size:14px;line-height:1.75;">
+      <p style="margin:0 0 14px;">Nos dirigimos a Ud., en la oportunidad de remitir <strong>estado de cuenta contentivo de su deuda (total o parcial)</strong> de la tasa de Aseo Urbano del Municipio Naguanagua${dest.hasDebt ? ' <em>(adjunto en formato PDF a este correo)</em>' : ''}.</p>
+      <p style="margin:0 0 12px;font-weight:bold;color:#0f172a;">Por favor tenga en consideración las siguientes pautas:</p>
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-left:5px solid #16a34a;border-radius:8px;padding:14px 18px;margin:0 0 16px;">
+        <p style="margin:0 0 10px;font-weight:bold;color:#14532d;">&bull; Los datos para realizar el pago son los siguientes:</p>
+        <div style="margin-bottom:12px;padding-bottom:10px;border-bottom:1px dashed #bbf7d0;">
+          <strong>- BANCO: BANESCO</strong><br/><strong>NÚMERO DE CUENTA:</strong> <span style="font-family:monospace;font-size:14px;">0134-1089-59-0001008636</span><br/><strong>TIPO DE CUENTA:</strong> CORRIENTE<br/><strong>TITULAR:</strong> INSTITUTO AUTÓNOMO MUNICIPAL DE ECOSOCIALISMO NAGUANAGUA (IAMEC)<br/><strong>RIF:</strong> G-20008614-9
+        </div>
+        <div>
+          <strong>- BANCO: BANCAMIGA</strong><br/><strong>NÚMERO DE CUENTA:</strong> <span style="font-family:monospace;font-size:14px;">0172-0110-71-1101340717</span><br/><strong>TIPO DE CUENTA:</strong> CORRIENTE<br/><strong>TITULAR:</strong> INSTITUTO AUTÓNOMO MUNICIPAL DE ECOSOCIALISMO NAGUANAGUA (IAMEC)<br/><strong>RIF:</strong> G-20008614-9
+        </div>
+      </div>
+      <ul style="margin:0 0 16px;padding-left:20px;color:#334155;">
+        <li style="margin-bottom:8px;">Los pagos deben hacerse por <strong>MES O MESES COMPLETOS</strong>.</li>
+        <li style="margin-bottom:8px;">La factura es emitida por el <strong>Instituto Autónomo Municipal De Ecosocialismo Naguanagua (IAMEC) RIF G-20008614-9</strong>.</li>
+        <li style="margin-bottom:8px;">El comprobante de pago por transferencia, favor remitirlo a través del presente correo, indicando en el texto del correo: <strong>usuario aseo urbano, razón social o nombre, RIF o CI, correo electrónico y número de teléfono, periodo pagado</strong>.</li>
       </ul>
-
-      <p style="margin:0 0 14px;">
-        En caso de que la factura, no sea pagada en el período de tiempo, antes señalado se procederá a la anulación de la misma.
-      </p>
-
-      <p style="margin:0 0 22px;text-align:justify;">
-        Si usted ya ejecutó su pago, hacer caso omiso de este correo. Agradeciendo su pronto pago, quedamos a sus órdenes.
-      </p>
-
-      <p style="margin:0 0 6px;text-align:center;">
-        <strong>Whatsapp Comercial:</strong> 0424-4282365 &ndash; <strong>Correo:</strong> <a href="mailto:aseoresnaguanagua@globalgreenca.com" style="color:#222222;text-decoration:none;">aseoresnaguanagua@globalgreenca.com</a>
-      </p>
-      <p style="margin:0 0 10px;text-align:center;">
-        <strong>WhatsApp Residencial:</strong> 0424-4282364 &ndash; <strong>Correo:</strong> <a href="mailto:aseocomnaguanagua@globalgreenca.com" style="color:#222222;text-decoration:none;">aseocomnaguanagua@globalgreenca.com</a>
-      </p>
+      <p style="margin:0 0 12px;color:#b91c1c;font-weight:bold;">En caso de que la factura, no sea pagada en el período de tiempo, antes señalado se procederá a la anulación de la misma.</p>
+      <p style="margin:0 0 16px;color:#334155;">Si usted ya ejecutó su pago, hacer caso omiso de este correo. Agradeciendo su pronto pago, quedamos a sus órdenes.</p>
     </td>
   </tr>
-
+  <tr>
+    <td style="background:#f8fafc;padding:16px 28px;border-top:1px solid #e2e8f0;font-size:13px;color:#1e293b;">
+      <p style="margin:0 0 6px;"><strong>Whatsapp Comercial:</strong> 0424-4282365 &ndash; <strong>Correo:</strong> <a href="mailto:aseoresnaguanagua@globalgreenca.com" style="color:#15803d;text-decoration:none;font-weight:bold;">aseoresnaguanagua@globalgreenca.com</a></p>
+      <p style="margin:0;"><strong>WhatsApp Residencial:</strong> 0424-4282364 &ndash; <strong>Correo:</strong> <a href="mailto:aseocomnaguanagua@globalgreenca.com" style="color:#15803d;text-decoration:none;font-weight:bold;">aseocomnaguanagua@globalgreenca.com</a></p>
+    </td>
+  </tr>
 </table>
 </td></tr>
 </table>
@@ -553,11 +628,13 @@ export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
     const testMode: boolean = body.test !== false;
+    const plantilla: string = body.plantilla || 'recordatorio_pago';
+    const esRecordatorioPago = plantilla === 'recordatorio_pago' || plantilla === 'estado_cuenta_masivo';
     const tipoFiltro: string = body.tipoFiltro || 'Todos los Sectores';
     const estatusFiltro: string = body.estatusFiltro || 'Solo Morosos (Con deuda > 1 mes)';
     const asuntoPersonalizado: string =
       body.asunto || 'ESTADO DE CUENTA ASEO NAGUANAGUA - FAVOR LEER TEXTO COMPLETO';
-    const adjuntarPdf: boolean = Boolean(body.adjuntarPdf);
+    const adjuntarPdf: boolean = !esRecordatorioPago && Boolean(body.adjuntarPdf);
     const customTestEmail = String(body.testEmail || '').trim();
     const testEmail =
       (isValidEmail(customTestEmail) ? customTestEmail : '') ||
@@ -642,11 +719,15 @@ export async function POST(request: Request) {
               ];
             }
 
+            const htmlContent = esRecordatorioPago
+              ? buildRecordatorioPagoHtml(dest)
+              : buildEstadoCuentaConPdfHtml(dest);
+
             let sendRes = await resend.emails.send({
               from: fromEmail,
               to: [destinoComun],
               subject: subjectComun,
-              html: buildEstadoCuentaMasivoHtml(dest),
+              html: htmlContent,
               attachments,
             });
 
@@ -655,7 +736,7 @@ export async function POST(request: Request) {
                 from: fromEmail,
                 to: ['aseonaguanagua@globalgreenca.com'],
                 subject: subjectComun + ` (Destino original: ${destinoComun})`,
-                html: buildEstadoCuentaMasivoHtml(dest),
+                html: htmlContent,
                 attachments,
               });
             }
