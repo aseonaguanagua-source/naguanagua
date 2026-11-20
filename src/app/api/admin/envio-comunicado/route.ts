@@ -270,24 +270,118 @@ function buildRecordatorioPagoHtml(_dest: DestinatarioCampana): string {
   const BASE = 'https://naguanagua.globalgreenrec.com';
   return `<!DOCTYPE html>
 <html lang="es">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>RECORDATORIO DE PAGO - IAMEC NAGUANAGUA</title></head>
+<body style="margin:0;padding:0;background:#ffffff;font-family:Calibri,Arial,Helvetica,sans-serif;color:#000000;">
+<div style="background:#ffffff;max-width:650px;margin:0 auto;padding:24px 36px;font-family:Calibri,Arial,Helvetica,sans-serif;font-size:11pt;line-height:1.45;color:#000000;">
+
+  <!-- ENCABEZADO DEL DOCUMENTO WORD: LOGO IAMEC CENTRADO -->
+  <div style="text-align:center;margin:0 0 22px 0;">
+    <img src="${BASE}/logos/IAMEC.png" alt="IAMEC - Instituto Autónomo Municipal de Ecosocialismo" width="210" style="display:inline-block;width:210px;max-width:210px;height:auto;border:0;" />
+  </div>
+
+  <!-- P1 -->
+  <p style="margin:0 0 12px 0;text-align:justify;font-size:11pt;color:#000000;">
+    <strong>Estimados usuarios</strong>, el Instituto Autónomo Municipal de Ecosocialismo (IAMEC) recuerda a todos los residentes, comerciantes e industriales del municipio Naguanagua la importancia de mantener al día el pago correspondiente al servicio de aseo urbano y domiciliario. Su contribución puntual permite garantizar la continuidad, eficiencia y operatividad de las rutas de recolección en todo el municipio.
+  </p>
+
+  <!-- P2 -->
+  <p style="margin:0 0 14px 0;text-align:justify;font-size:11pt;color:#000000;">
+    Para facilitar el cumplimiento de sus obligaciones tributarias, ponemos a su disposición nuestras cuentas bancarias oficiales autorizadas para realizar transferencias o pagos:
+  </p>
+
+  <!-- P3 -->
+  <p style="margin:0 0 12px 0;text-align:center;font-weight:bold;font-size:11pt;color:#000000;">
+    Datos Bancarios Oficiales
+  </p>
+
+  <!-- P4 - P11 -->
+  <p style="margin:0 0 10px 0;text-align:left;font-weight:bold;font-size:11pt;color:#000000;">Titular: IAMEC</p>
+  <p style="margin:0 0 10px 0;text-align:left;font-weight:bold;font-size:11pt;color:#000000;">RIF: G-200086149</p>
+  <p style="margin:0 0 10px 0;text-align:left;font-weight:bold;font-size:11pt;color:#000000;">BANCAMIGA</p>
+  <p style="margin:0 0 10px 0;text-align:left;font-size:11pt;color:#000000;">Tipo de cuenta: Cuenta Corriente</p>
+  <p style="margin:0 0 10px 0;text-align:left;font-size:11pt;color:#000000;">Número de cuenta: 0172-0110-71-1101340717</p>
+  <p style="margin:0 0 10px 0;text-align:left;font-weight:bold;font-size:11pt;color:#000000;">BANESCO</p>
+  <p style="margin:0 0 10px 0;text-align:left;font-size:11pt;color:#000000;">Tipo de cuenta: Cuenta Corriente</p>
+  <p style="margin:0 0 22px 0;text-align:left;font-size:11pt;color:#000000;">Número de cuenta: 0134-1089-59-0001008636</p>
+
+  <!-- P13 -->
+  <p style="margin:0 0 10px 0;text-align:left;font-weight:bold;font-size:11pt;color:#000000;">
+    Canales de Atención y Reporte de Pagos
+  </p>
+
+  <!-- P14 -->
+  <p style="margin:0 0 12px 0;text-align:justify;font-size:11pt;color:#000000;">
+    Una vez realizada la operación bancaria, o en caso de requerir información sobre su estado de cuenta, facturación o atención al contribuyente, comuníquese directamente a través de nuestros canales oficiales según su categoría:
+  </p>
+
+  <!-- P15 - P17 -->
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 10px 0;font-family:Calibri,Arial,Helvetica,sans-serif;font-size:11pt;color:#000000;">
+    <tr>
+      <td width="42" valign="top" style="padding-left:24px;width:42px;">-</td>
+      <td valign="top">Teléfonos de contacto (Atención / WhatsApp):</td>
+    </tr>
+  </table>
+  <p style="margin:0 0 10px 0;text-align:left;font-size:11pt;color:#000000;">Sector Residencial: 0424-4282364</p>
+  <p style="margin:0 0 10px 0;text-align:left;font-size:11pt;color:#000000;">Sector Comercial: 0424-4282365</p>
+
+  <!-- P18 - P20 -->
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 10px 0;font-family:Calibri,Arial,Helvetica,sans-serif;font-size:11pt;color:#000000;">
+    <tr>
+      <td width="42" valign="top" style="padding-left:24px;width:42px;">-</td>
+      <td valign="top">Correos electrónicos:</td>
+    </tr>
+  </table>
+  <p style="margin:0 0 10px 0;text-align:left;font-size:11pt;color:#000000;">
+    Sector Residencial: <a href="mailto:aseoresnaguanagua@globalgreenca.com" style="color:#0563c1;text-decoration:underline;">aseoresnaguanagua@globalgreenca.com</a>
+  </p>
+  <p style="margin:0 0 24px 0;text-align:left;font-size:11pt;color:#000000;">
+    Sector Comercial: <a href="mailto:aseocomnaguanagua@globalgreenca.com" style="color:#0563c1;text-decoration:underline;">aseocomnaguanagua@globalgreenca.com</a>
+  </p>
+
+  <!-- P22 -->
+  <p style="margin:0 0 14px 0;text-align:center;font-size:11pt;color:#000000;">
+    Agradecemos su compromiso y corresponsabilidad ciudadana para mantener a Naguanagua limpia y sustentable.
+  </p>
+
+  <!-- P23 -->
+  <p style="margin:0 0 26px 0;text-align:center;font-weight:bold;text-decoration:underline;font-size:11pt;color:#FF0000;">
+    SI USTED YA REALIZO SU PAGO, HAGA CASO OMISO DE ESTE MENSAJE
+  </p>
+
+  <!-- ENCABEZADO / LOGO DE SEGUNDA PÁGINA + FIRMA -->
+  <div style="text-align:center;margin:10px 0 4px 0;">
+    <img src="${BASE}/logos/IAMEC.png" alt="IAMEC" width="180" style="display:inline-block;width:180px;max-width:180px;height:auto;border:0;" />
+  </div>
+  <p style="margin:0 0 6px 0;text-align:center;font-weight:bold;font-size:11pt;color:#000000;">
+    ATENTAMENTE:
+  </p>
+  <p style="margin:0;text-align:center;font-weight:bold;font-size:11pt;color:#000000;">
+    OFICINA DE RECAUDACION DE ASEO
+  </p>
+
+</div>
+</body>
+</html>`;
+}
+
+function buildEstadoCuentaMasivoWordHtml(_dest: DestinatarioCampana): string {
+  const BASE = 'https://naguanagua.globalgreenrec.com';
+  return `<!DOCTYPE html>
+<html lang="es">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ESTADO DE CUENTA ASEO NAGUANAGUA</title></head>
 <body style="margin:0;padding:0;background:#ffffff;font-family:Calibri,Arial,Helvetica,sans-serif;color:#222222;">
 <div style="background:#ffffff;max-width:680px;margin:0 auto;padding:24px 36px;font-family:Calibri,Arial,Helvetica,sans-serif;font-size:11pt;line-height:1.35;color:#222222;">
 
-  <!-- ENCABEZADO DEL DOCUMENTO WORD: LOGO IAMEC CENTRADO -->
   <div style="text-align:center;margin:0 0 18px 0;">
     <img src="${BASE}/logos/IAMEC.png" alt="IAMEC - Instituto Autónomo Municipal de Ecosocialismo" width="200" style="display:inline-block;width:200px;max-width:200px;height:auto;border:0;" />
   </div>
 
-  <!-- P0 y P1: TÍTULOS CENTRADOS -->
   <p style="margin:0 0 8px 0;text-align:center;font-weight:bold;font-size:11pt;color:#222222;">ESTADO DE CUENTA ASEO NAGUANAGUA</p>
   <p style="margin:0 0 14px 0;text-align:center;font-weight:bold;font-size:11pt;color:#222222;">FAVOR LEER TEXTO COMPLETO</p>
 
-  <!-- P2 y P3 -->
   <p style="margin:0 0 12px 0;text-align:left;font-size:11pt;color:#222222;">Nos dirigimos a Ud., en la oportunidad de remitir estado de cuenta contentivo de su deuda (total o parcial) de la tasa de Aseo Urbano del Municipio Naguanagua.</p>
   <p style="margin:0 0 12px 0;text-align:left;font-size:11pt;color:#222222;">Por favor tenga en consideración las siguientes pautas:</p>
 
-  <!-- P4: VIÑETA 1 (BANESCO) -->
   <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 12px 0;font-family:Calibri,Arial,Helvetica,sans-serif;font-size:11pt;line-height:1.35;color:#222222;">
     <tr>
       <td width="42" valign="top" style="padding-left:24px;width:42px;font-size:11pt;color:#222222;">&bull;</td>
@@ -302,7 +396,6 @@ function buildRecordatorioPagoHtml(_dest: DestinatarioCampana): string {
     </tr>
   </table>
 
-  <!-- P5: PÁRRAFO BANCAMIGA (SIN VIÑETA Y ALINEADO A LA IZQUIERDA IGUAL QUE EN EL WORD) -->
   <p style="margin:0 0 12px 0;text-align:left;font-size:11pt;line-height:1.35;color:#222222;">
     -BANCO: <strong>BANCAMIGA</strong><br/>
     NÚMERO DE CUENTA: 0172-0110-71-1101340717<br/>
@@ -311,7 +404,6 @@ function buildRecordatorioPagoHtml(_dest: DestinatarioCampana): string {
     <strong>G-20008614-9</strong>
   </p>
 
-  <!-- P6, P7, P8, P9: VIÑETAS NIVEL 0 -->
   <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0;font-family:Calibri,Arial,Helvetica,sans-serif;font-size:11pt;line-height:1.35;color:#222222;">
     <tr>
       <td width="42" valign="top" style="padding:0 0 10px 24px;width:42px;">&bull;</td>
@@ -331,7 +423,6 @@ function buildRecordatorioPagoHtml(_dest: DestinatarioCampana): string {
     </tr>
   </table>
 
-  <!-- P10, P11, P12: SUB-VIÑETAS NIVEL 1 (o) -->
   <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0;font-family:Calibri,Arial,Helvetica,sans-serif;font-size:11pt;line-height:1.35;color:#222222;">
     <tr>
       <td width="76" valign="top" style="padding:0 0 10px 58px;width:76px;font-family:'Courier New',Courier,monospace;">o</td>
@@ -347,7 +438,6 @@ function buildRecordatorioPagoHtml(_dest: DestinatarioCampana): string {
     </tr>
   </table>
 
-  <!-- P13: VIÑETA NIVEL 0 -->
   <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 12px 0;font-family:Calibri,Arial,Helvetica,sans-serif;font-size:11pt;line-height:1.35;color:#222222;">
     <tr>
       <td width="42" valign="top" style="padding:0 0 0 24px;width:42px;">&bull;</td>
@@ -355,11 +445,9 @@ function buildRecordatorioPagoHtml(_dest: DestinatarioCampana): string {
     </tr>
   </table>
 
-  <!-- P14 y P15 -->
   <p style="margin:0 0 12px 0;text-align:left;font-size:11pt;color:#222222;">En caso de que la factura, no sea pagada en el período de tiempo, antes señalado se procederá a la anulación de la misma.</p>
   <p style="margin:0 0 18px 0;text-align:justify;font-size:11pt;color:#222222;">Si usted ya ejecutó su pago, hacer caso omiso de este correo. Agradeciendo su pronto pago, quedamos a sus órdenes.</p>
 
-  <!-- P16 y P17: CONTACTOS CENTRADOS -->
   <p style="margin:14px 0 8px 0;text-align:center;font-size:11pt;color:#222222;">
     <strong>Whatsapp Comercial:</strong> 0424-4282365 &ndash; <strong>Correo:</strong> <a href="mailto:aseoresnaguanagua@globalgreenca.com" style="color:#222222;text-decoration:none;">aseoresnaguanagua@globalgreenca.com</a>
   </p>
@@ -629,11 +717,14 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
     const testMode: boolean = body.test !== false;
     const plantilla: string = body.plantilla || 'recordatorio_pago';
-    const esRecordatorioPago = plantilla === 'recordatorio_pago' || plantilla === 'estado_cuenta_masivo';
+    const esRecordatorioPago = plantilla === 'recordatorio_pago';
+    const esEstadoCuentaMasivo = plantilla === 'estado_cuenta_masivo';
     const tipoFiltro: string = body.tipoFiltro || 'Todos los Sectores';
     const estatusFiltro: string = body.estatusFiltro || 'Solo Morosos (Con deuda > 1 mes)';
-    const asuntoPersonalizado: string =
-      body.asunto || 'ESTADO DE CUENTA ASEO NAGUANAGUA - FAVOR LEER TEXTO COMPLETO';
+    const defaultSubject = esRecordatorioPago
+      ? 'RECORDATORIO DE PAGO - IAMEC NAGUANAGUA'
+      : 'ESTADO DE CUENTA ASEO NAGUANAGUA - FAVOR LEER TEXTO COMPLETO';
+    const asuntoPersonalizado: string = body.asunto || defaultSubject;
     const adjuntarPdf: boolean = !esRecordatorioPago && Boolean(body.adjuntarPdf);
     const customTestEmail = String(body.testEmail || '').trim();
     const testEmail =
@@ -721,6 +812,8 @@ export async function POST(request: Request) {
 
             const htmlContent = esRecordatorioPago
               ? buildRecordatorioPagoHtml(dest)
+              : esEstadoCuentaMasivo
+              ? buildEstadoCuentaMasivoWordHtml(dest)
               : buildEstadoCuentaConPdfHtml(dest);
 
             let sendRes = await resend.emails.send({
