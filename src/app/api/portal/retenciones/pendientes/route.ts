@@ -49,7 +49,26 @@ export async function GET(request: Request) {
       const fd = det.factura_digital || {};
       const r = fd.retencion || {};
       const retMonto = parseFloat(String(det.monto_retencion_iva || det.retencion_iva || r.retenido || 0)) || 0;
-      const esRet = det.es_retencion || det.agente_retencion || retMonto > 0 || !!r.estado || (esContribAgente && !String(det.tipo || '').toUpperCase().includes('RESIDENCIAL'));
+      const montoPagadoP = parseFloat(String(p.monto || 0)) || 0;
+      const montoFacturaP = parseFloat(String(fd.monto_total || det.monto_factura || det.total_seleccionado || 0)) || 0;
+      const fueEmitidaSinRetencion = Boolean(
+        (fd.emitida || fd.numero_documento || fd.numero_control) &&
+        !r.estado &&
+        retMonto <= 0 &&
+        (det.es_retencion === false || det.agente_retencion === false || (montoFacturaP > 0 && montoPagadoP >= montoFacturaP - 1.00))
+      );
+      const pagoExplicitoSinRetencion =
+        det.es_retencion === false &&
+        det.agente_retencion === false &&
+        retMonto <= 0 &&
+        !r.estado;
+      const codInmPago = String(det.cod_inmueble || det.codigo_inmueble || '').trim().toUpperCase();
+      const inmPagoRow = codInmPago ? (inmsAg || []).find((i: any) => String(i.inmueble || '').trim().toUpperCase() === codInmPago) : null;
+      const esAgenteParaEstePago = inmPagoRow ? Boolean(inmPagoRow.agente_retencion) : esContribAgente;
+      const esRet =
+        !fueEmitidaSinRetencion &&
+        !pagoExplicitoSinRetencion &&
+        (det.es_retencion === true || det.agente_retencion === true || retMonto > 0 || !!r.estado || (esAgenteParaEstePago && !String(det.tipo || '').toUpperCase().includes('RESIDENCIAL') && !(montoFacturaP > 0 && montoPagadoP >= montoFacturaP - 1.00)));
 
       if (!esRet) return;
 

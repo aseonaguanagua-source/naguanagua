@@ -175,18 +175,73 @@ export async function POST(request: Request) {
       (parseFloat(String(dm?.monto_retencion_iva || dm?.retencion_iva || 0)) > 0)
     );
 
-    // Si el operador está emitiendo manualmente la factura desde el modal (con montos de servicio/total),
-    // o si es un pago con retención de IVA, se permite emitir la factura fiscal del mes.
-    const esEmisionManualConMontos = Boolean((montoServicio > 0 || montoTotal > 0 || totalManualNum > 0) && !dryRun);
-
-    if (!esPagoConRetencion && !esEmisionManualConMontos && (
+    // Validación estricta contra emisión de abonos incompletos o pagos a los que les falta diferencia por cubrir
+    if (!esPagoConRetencion && (
       dm?.es_abono === true ||
       dm?.abono === true ||
       pm?.tipo === 'Abono' ||
       dm?.pago_parcial === true ||
       (dm?.monto_pendiente !== undefined && parseFloat(String(dm.monto_pendiente)) > 0.05)
-    )) {
+    ) && !dm?.abono_completado) {
       return NextResponse.json({ error: 'No se puede emitir factura electrónica para un abono o pago parcial. La factura solo se emite cuando se completa el pago total del mes.' }, { status: 400 });
+    }
+
+    // Verificar que el monto pagado + abonos vinculados + saldo a favor + retención cubra el total de la factura (sin diferencias faltantes)
+    if (!dryRun && !reemitir) {
+      const montoPropioPago = parseFloat(String(pm?.monto || dm?.monto_abonado || 0)) || 0;
+      const sumFpBancarias = Array.isArray(formasPago) && formasPago.length > 1
+        ? formasPago
+            .filter((fp: any) => !String(fp?.descripcion || fp?.tipo || fp?.metodo || '').toLowerCase().includes('saldo a favor') && !String(fp?.descripcion || fp?.tipo || fp?.metodo || '').toLowerCase().includes('nota de credito'))
+            .reduce((s: number, fp: any) => s + (parseFloat(String(fp?.monto || 0)) || 0), 0)
+        : 0;
+      const sumSfDeudaPrevia = Array.isArray(dm?.deuda_previa)
+        ? dm.deuda_previa.reduce((acc: number, x: any) => acc + (parseFloat(String(x?.saldo_favor_bs || 0)) || 0), 0)
+        : 0;
+      const abonoPrevioDescontado = Math.max(sumSfDeudaPrevia, parseFloat(String(dm?.abono_previo_descontado || 0)) || 0);
+      const sfUsadoEnPago = parseFloat(String(dm?.saldo_usado ?? dm?.descuentoSaldoFavor ?? dm?.descuento_saldo_favor ?? dm?.saldo_favor_usado ?? dm?.nota_credito_usada ?? dm?.monto_saldo_favor ?? 0)) || 0;
+      const retIvaEnPago = parseFloat(String(dm?.monto_retencion_iva || dm?.retencion_iva || 0)) || 0;
+
+      // Buscar pagos secundarios/hermanos aprobados del mismo grupo_pago o vinculados a este pagoId
+      let sumaPagosHermanos = 0;
+      const { data: hermanosDb } = await supabase
+        .from('pagos_reportados')
+        .select('id, monto, estado, grupo_pago, detalles')
+        .eq('identidad', pm?.identidad || identidad)
+        .eq('estado', 'Aprobado')
+        .neq('id', pagoId);
+      for (const h of hermanosDb || []) {
+        let dh: any = h.detalles || {};
+        if (typeof dh === 'string') { try { dh = JSON.parse(dh); } catch { dh = {}; } }
+        const esHermano =
+          (pm?.grupo_pago && h.grupo_pago === pm.grupo_pago) ||
+          dh?.pago_principal_id === pagoId ||
+          dh?.completado_con_pago_id === pagoId ||
+          (Array.isArray(dm?.pagos_integrados_ids) && dm.pagos_integrados_ids.includes(h.id));
+        if (esHermano) {
+          sumaPagosHermanos += parseFloat(String(h.monto || 0)) || 0;
+        }
+      }
+
+      const montoBancarioCubierto = Math.max(montoPropioPago + sumaPagosHermanos, sumFpBancarias > 0 && sumaPagosHermanos > 0 ? sumFpBancarias : montoPropioPago + sumaPagosHermanos);
+      const montoFacturaRegistrado = Math.max(
+        parseFloat(String(dm?.monto_factura || 0)) || 0,
+        parseFloat(String(dm?.total_seleccionado || 0)) || 0
+      );
+      const objetivoFactura = totalManualNum > 0
+        ? totalManualNum
+        : (montoFacturaRegistrado > 0 ? montoFacturaRegistrado : (parseFloat(String(montoTotal || 0)) || 0));
+      const retEstimada = esPagoConRetencion && retIvaEnPago <= 0 && objetivoFactura > 0
+        ? r2((objetivoFactura - (objetivoFactura / 1.16)) * 0.75)
+        : retIvaEnPago;
+      const totalCubierto = r2(montoBancarioCubierto + abonoPrevioDescontado + sfUsadoEnPago + retEstimada);
+      const diferenciaFaltante = r2(objetivoFactura - totalCubierto);
+
+      if (objetivoFactura > 0 && montoPropioPago > 0 && diferenciaFaltante > 1.00) {
+        const fmt = (n: number) => n.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        return NextResponse.json({
+          error: `No se puede emitir la factura fiscal porque el pago tiene una diferencia faltante por cubrir de Bs. ${fmt(diferenciaFaltante)} (Total factura: Bs. ${fmt(objetivoFactura)} vs. Monto pagado/cubierto: Bs. ${fmt(totalCubierto)}). El contribuyente debe cancelar la diferencia antes de facturar.`
+        }, { status: 400 });
+      }
     }
     if ((pm?.modulo === 'condominios' || dm?.modulo === 'condominios') && Array.isArray(dm?.condominio?.lineas)) {
       lineasCondo = dm.condominio.lineas; condoDet = dm.condominio;

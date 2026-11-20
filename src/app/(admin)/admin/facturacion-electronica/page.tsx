@@ -766,6 +766,29 @@ export default function FacturacionElectronicaPage() {
 
   // 2. Abrir Modal de Emisión Manual
   const handleOpenEmitModal = (pago: any, totalOverride?: number, totalRef?: number) => {
+    const yaEmitida = Boolean(pago?.facturaEmitida || pago?.facturaAnulada || pago?.notaCredito || pago?.estado === 'Anulado');
+    if (!yaEmitida) {
+      const mPagado = parseFloat(String(pago?.montoPagado ?? pago?.monto ?? 0)) || 0;
+      const mRet = parseFloat(String(pago?.montoRetencion ?? pago?.detalles?.monto_retencion_iva ?? pago?.detalles?.retencion_iva ?? 0)) || 0;
+      const mSfUsado = parseFloat(String(pago?.saldoFavorUsado ?? pago?.detalles?.saldo_usado ?? pago?.detalles?.descuentoSaldoFavor ?? 0)) || 0;
+      const sumSfPrev = Array.isArray(pago?.detalles?.deuda_previa)
+        ? pago.detalles.deuda_previa.reduce((acc: number, x: any) => acc + (parseFloat(String(x?.saldo_favor_bs || 0)) || 0), 0)
+        : 0;
+      const mAbonoPrev = Math.max(sumSfPrev, parseFloat(String(pago?.detalles?.abono_previo_descontado || 0)) || 0);
+      const mFacturaObj = parseFloat(String(pago?.monto ?? pago?.detalles?.monto_factura ?? pago?.detalles?.total_seleccionado ?? 0)) || 0;
+      const mCubierto = Math.round((mPagado + mRet + mSfUsado + mAbonoPrev) * 100) / 100;
+      const difFaltante = Math.round((mFacturaObj - mCubierto) * 100) / 100;
+      if (mFacturaObj > 0 && mPagado > 0 && difFaltante > 1.00) {
+        const fmt = (n: number) => n.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        alert(
+          `⚠️ BLOQUEADO: No se puede emitir factura fiscal porque este pago tiene una diferencia pendiente por cubrir de Bs. ${fmt(difFaltante)}.\n\n` +
+          `• Monto Total de la Factura: Bs. ${fmt(mFacturaObj)}\n` +
+          `• Monto Pagado / Cubierto: Bs. ${fmt(mCubierto)}\n\n` +
+          `El contribuyente debe completar la diferencia antes de poder facturar.`
+        );
+        return;
+      }
+    }
     setSelectedPagoForEmit(pago);
     setEmitContribuyente(pago.contribuyente || pago.detalles?.contribuyente || '');
     setEmitIdentidad(pago.identidad || '');

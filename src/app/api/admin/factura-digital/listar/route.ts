@@ -600,11 +600,34 @@ export async function GET(request: Request) {
       }
 
       // REGLA: Los abonos o pagos parciales que NO han completado el pago total del mes y NO tienen factura ya emitida
-      // NUNCA deben salir como facturables por el mes completo (ej. un abono parcial con Nota de Crédito menor a la deuda)
-      const yaEmitidaOCompletada = Boolean(d?.factura_digital?.emitida) || d?.abono_completado === true;
+      // NUNCA deben salir como facturables por el mes completo (ni siquiera si abono_completado quedó en true por error cuando falta diferencia)
+      const infoAbPrev = abonosInfoPorPagoPrincipal.get(p.id);
+      const sumSfPrev = Array.isArray(d?.deuda_previa)
+        ? d.deuda_previa.reduce((acc: number, x: any) => acc + (parseFloat(String(x?.saldo_favor_bs || 0)) || 0), 0)
+        : 0;
+      const abonoPrevDesc = Math.max(sumSfPrev, parseFloat(String(d?.abono_previo_descontado || 0)) || 0);
+      const sfAplicadoP = parseFloat(String(d?.saldo_usado ?? d?.descuentoSaldoFavor ?? d?.descuento_saldo_favor ?? d?.saldo_favor_usado ?? d?.nota_credito_usada ?? d?.monto_saldo_favor ?? 0)) || 0;
+      const retGuardadaP = parseFloat(String(d?.monto_retencion_iva || d?.retencion_iva || d?.factura_digital?.retencion?.retenido || 0)) || 0;
+      const montoPagoBaseP = parseFloat(String(p.monto || 0)) || 0;
+      const sumFpBancP = Array.isArray(d?.formasPago) && d.formasPago.length > 1
+        ? d.formasPago
+            .filter((fp: any) => !String(fp?.descripcion || fp?.tipo || fp?.metodo || '').toLowerCase().includes('saldo a favor') && !String(fp?.descripcion || fp?.tipo || fp?.metodo || '').toLowerCase().includes('nota de credito'))
+            .reduce((s: number, fp: any) => s + (parseFloat(String(fp?.monto || 0)) || 0), 0)
+        : 0;
+      const montoPagadoMasAbonos = Math.max(montoPagoBaseP + (infoAbPrev?.montoTotal || 0), sumFpBancP);
+      const totalCubiertoPreCheck = montoPagadoMasAbonos + retGuardadaP + sfAplicadoP + (infoAbPrev ? 0 : abonoPrevDesc);
+      const montoFacObjetivoP = parseFloat(String(d?.monto_factura || d?.total_seleccionado || 0)) || 0;
+      const esRetCheckP = Boolean(d?.es_retencion || d?.conRetencion || d?.agente_retencion || retGuardadaP > 0);
+      const retEstimadaCheckP = esRetCheckP && retGuardadaP === 0 && montoFacObjetivoP > 0
+        ? Math.round((montoFacObjetivoP - (montoFacObjetivoP / 1.16)) * 0.75 * 100) / 100
+        : 0;
+      const faltaDiferenciaReal = !yaEmitidaOAnulada && montoFacObjetivoP > 0 && (totalCubiertoPreCheck + retEstimadaCheckP) < (montoFacObjetivoP - 1.00);
+
+      const yaEmitidaOCompletada = (Boolean(d?.factura_digital?.emitida) || d?.abono_completado === true) && !faltaDiferenciaReal;
       if (
         !yaEmitidaOCompletada &&
         (
+          faltaDiferenciaReal ||
           d?.es_abono === true ||
           d?.abono === true ||
           p.tipo === 'Abono' ||
@@ -1039,7 +1062,17 @@ export async function GET(request: Request) {
         esAgenteEnCatalogo = true;
       }
 
-      const tieneRetencion = montoRetNum > 0 || !!det.es_retencion || !!det.agente_retencion || !!vincRet || (esAgenteEnCatalogo && clasif.documento === 'factura');
+      const mPagoCheckRet = parseFloat(String(pago.monto || 0)) || 0;
+      const mFacCheckRet = parseFloat(String(fd?.monto_total || det.monto_factura || det.total_seleccionado || 0)) || 0;
+      const pagadoAlCienSinRet =
+        montoRetNum <= 0 &&
+        !vincRet &&
+        !fd?.retencion?.estado &&
+        (det.es_retencion === false || det.agente_retencion === false || (mFacCheckRet > 0 && mPagoCheckRet >= mFacCheckRet - 1.00));
+
+      const tieneRetencion =
+        !pagadoAlCienSinRet &&
+        (montoRetNum > 0 || det.es_retencion === true || det.agente_retencion === true || !!vincRet || (esAgenteEnCatalogo && clasif.documento === 'factura'));
 
       // Si el pago tiene retención y se guardó saldo_favor igual a la retención, se limpia para no mostrarlo como Nota de Crédito
       const sFavorGuardado = parseFloat(String(det.saldo_a_favor_nuevo || det.monto_sobrante || det.saldo_favor || det.saldo_favor_generado || 0)) || 0;
