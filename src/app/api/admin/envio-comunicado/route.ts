@@ -754,8 +754,8 @@ export async function POST(request: Request) {
     if (testMode) {
       destinatarios = [
         {
-          identidad: 'J-000000000',
-          nombre: 'CONTRIBUYENTE DE PRUEBA IAMEC NAGUANAGUA',
+          identidad: 'J-20008614-9',
+          nombre: 'IAMEC NAGUANAGUA',
           correo: testEmail,
           telefono: '0424-4282365',
           direccion: 'Av. Universidad, Municipio Naguanagua, Edo. Carabobo',
@@ -841,10 +841,7 @@ export async function POST(request: Request) {
           lote.map(async dest => {
             try {
               const destinoComun = testMode || modoTestComun ? testEmail : dest.correo;
-              const subjectComun =
-                testMode || modoTestComun
-                  ? `[PRUEBA | Para: ${dest.correo}] ${asuntoPersonalizado}`
-                  : asuntoPersonalizado;
+              const subjectComun = asuntoPersonalizado;
 
               let attachments: { filename: string; content: Buffer }[] | undefined;
               if (adjuntarPdf && dest.hasDebt) {
