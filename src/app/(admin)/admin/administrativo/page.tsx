@@ -55,11 +55,22 @@ export default function DashboardAdministrativo() {
       const data = await res.json();
       setTcmmv(data.tcmmv || 1);
       
-      const { data: pagos } = await supabase
-        .from('pagos_reportados')
-        .select('*')
-        .eq('estado', 'Aprobado');
-      setPagosReportados(pagos || []);
+      const allPagos: any[] = [];
+      let from = 0;
+      const PAGE = 1000;
+      while (true) {
+        const { data: chunk, error } = await supabase
+          .from('pagos_reportados')
+          .select('*')
+          .eq('estado', 'Aprobado')
+          .order('created_at', { ascending: false })
+          .range(from, from + PAGE - 1);
+        if (error || !chunk || chunk.length === 0) break;
+        allPagos.push(...chunk);
+        if (chunk.length < PAGE) break;
+        from += PAGE;
+      }
+      setPagosReportados(allPagos);
     } catch (error) {
       console.error(error);
     }

@@ -5,6 +5,7 @@ import { TrendingUp, FileSpreadsheet, Calendar, RefreshCw, Filter, Building, Hom
 import { formatBs } from '@/lib/formatCurrency';
 import { exportToExcelWithLogos } from '@/lib/excelExport';
 import { useAppContext } from '@/store/AppContext';
+import { aplicarMontoReporte } from '@/app/(admin)/admin/reportes/montoReporte';
 
 type Periodo = 'hoy' | 'semana' | 'mes' | 'mes_pasado' | 'personalizado';
 type Sector = 'Todos' | 'Residencial' | 'Comercial' | 'Industrial';
@@ -87,15 +88,40 @@ export default function RecaudacionWidget() {
     setIsLoading(true);
     const range = getRange(periodo, desde, hasta);
     try {
-      const { data } = await supabase
-        .from('pagos_reportados')
-        .select('*')
-        .eq('estado', 'Aprobado')
-        .gte('created_at', range.desde + 'T00:00:00')
-        .lte('created_at', range.hasta + 'T23:59:59')
-        .order('created_at', { ascending: false });
-      setPagos(data || []);
-    } catch(e) { console.error(e); }
+      const all: any[] = [];
+      let from = 0;
+      const PAGE = 1000;
+      while (true) {
+        const { data, error } = await supabase
+          .from('pagos_reportados')
+          .select('*')
+          .eq('estado', 'Aprobado')
+          .gte('created_at', range.desde + 'T00:00:00-04:00')
+          .lte('created_at', range.hasta + 'T23:59:59-04:00')
+          .order('created_at', { ascending: false })
+          .range(from, from + PAGE - 1);
+        if (error || !data || data.length === 0) break;
+        all.push(...data);
+        if (data.length < PAGE) break;
+        from += PAGE;
+      }
+      const valid = all
+        .map(p => aplicarMontoReporte(p))
+        .filter(p => {
+          const t = String(p.tipo || '').trim();
+          if (/retenci|saldo a favor|nota de cr[eé]dito/i.test(t)) return false;
+          let det: any = p.detalles || {};
+          if (typeof det === 'string') {
+            try { det = JSON.parse(det); } catch { det = {}; }
+          }
+          const caj = String(det?.cajero || det?.analista || '').trim();
+          if (/^(dz-)?dzara$|^c-dzara$/i.test(caj)) return false;
+          return (parseMonto(p.monto) || 0) > 0;
+        });
+      setPagos(valid);
+    } catch (e) {
+      console.error(e);
+    }
     setIsLoading(false);
   };
 
@@ -115,8 +141,12 @@ export default function RecaudacionWidget() {
 
   const tot = pagosConSector.reduce((a, p) => a + parseMonto(p.monto), 0);
   const totFilt = pagosFiltrados.reduce((a, p) => a + parseMonto(p.monto), 0);
-  const tra = pagosConSector.filter(p => p.tipo === 'Transferencia').reduce((a, p) => a + parseMonto(p.monto), 0);
-  const deb = pagosConSector.filter(p => p.tipo === 'Debito' || p.tipo === 'Punto de Venta' || p.tipo === 'REC').reduce((a, p) => a + parseMonto(p.monto), 0);
+  const deb = pagosConSector
+    .filter(p => /^(d[eé]bito|cr[eé]dito|tmd|tvd)\b|punto|tarjeta|^rec$/i.test(String(p.tipo || '').trim()))
+    .reduce((a, p) => a + parseMonto(p.monto), 0);
+  const tra = pagosConSector
+    .filter(p => /transfer|m[oó]vil|pago m|dep[oó]sito/i.test(String(p.tipo || '').trim()))
+    .reduce((a, p) => a + parseMonto(p.monto), 0);
 
   const contadores = useMemo(() => ({
     Residencial: pagosConSector.filter(p => p.sector === 'Residencial').reduce((a, p) => a + parseMonto(p.monto), 0),
@@ -211,7 +241,7 @@ export default function RecaudacionWidget() {
           <div className="col-span-2 sm:col-span-1 bg-emerald-50 border border-emerald-200 rounded-lg p-4 text-center">
             <p className="text-[10px] text-emerald-600 font-semibold uppercase mb-1">Total {lbl[periodo]}</p>
             <p className="text-xl font-black text-emerald-700">Bs. {formatBs(tot)}</p>
-            <p className="text-[10px] text-emerald-500 mt-1">{pagosConSector.length} transacciones</p>
+            <p className="text-[10px] text-emerald-500 mt-1">{pagosConSector.length.toLocaleString('es-VE')} transacciones</p>
           </div>
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
             <p className="text-[10px] text-blue-500 font-semibold uppercase mb-1 flex items-center justify-center gap-1"><Home className="w-3 h-3" /> Residencial</p>
