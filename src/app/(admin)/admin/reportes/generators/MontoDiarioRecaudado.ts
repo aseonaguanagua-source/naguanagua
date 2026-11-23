@@ -138,16 +138,17 @@ const obtenerFechaEfectivaCuadre = (p: any, det: any, pagoPorId: Map<string, any
     const rcPadre0 = Array.isArray(detPadre?.recibo_caja) ? detPadre.recibo_caja[0] : detPadre?.recibo_caja;
 
     const candidatos = [
-      det.fecha_emision_override,
-      (fd.emitida || fd.numero_documento || fd.numero_control) ? fd.fecha_emision : '',
-      detPadre?.fecha_emision_override,
-      (fdPadre?.emitida || fdPadre?.numero_documento || fdPadre?.numero_control) ? fdPadre.fecha_emision : '',
       rc0?.fechaEmision,
       rcPadre0?.fechaEmision,
       det.fecha_transaccion,
       rc0?.fechaIngresoCaja,
       rcPadre0?.fechaIngresoCaja,
       det.fecha_ingreso_caja,
+      det.fecha_conciliado ? fechaVE(det.fecha_conciliado) : '',
+      det.fecha_emision_override,
+      (fd.emitida || fd.numero_documento || fd.numero_control) ? fd.fecha_emision : '',
+      detPadre?.fecha_emision_override,
+      (fdPadre?.emitida || fdPadre?.numero_documento || fdPadre?.numero_control) ? fdPadre.fecha_emision : '',
     ];
     for (const c of candidatos) {
       const dCand = parseFechaCaracas(c);

@@ -262,8 +262,8 @@ export default function PreRegistrosPage() {
       setApproveLocales([]);
     }
 
-    let defaultMeses = 1;
-    if (String(row.origen || '').startsWith('Censo') && row.fecha_inicio) {
+    let defaultMeses = /TERRENO/i.test(String(row.actividad || '')) ? 0 : 1;
+    if (!/TERRENO/i.test(String(row.actividad || '')) && String(row.origen || '').startsWith('Censo') && row.fecha_inicio) {
       const start = new Date(row.fecha_inicio);
       const now = new Date();
       let months = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());

@@ -2250,7 +2250,12 @@ export async function POST(request: Request) {
           tfhkaResponse.resultado.fechaEmision = fechaEmisionDDMMYYYY;
         }
         nuevosDetalles.fecha_emision_override = fechaEmisionYMD;
-        if (fechaPagoOverride && /^\d{4}-\d{2}-\d{2}$/.test(String(fechaPagoOverride).trim())) {
+        if (
+          fechaPagoOverride &&
+          /^\d{4}-\d{2}-\d{2}$/.test(String(fechaPagoOverride).trim()) &&
+          !nuevosDetalles.fecha_banco &&
+          !nuevosDetalles.fecha_transaccion
+        ) {
           const fpClean = String(fechaPagoOverride).trim();
           nuevosDetalles.fecha_transaccion = fpClean;
           nuevosDetalles.fecha_pago_override = fpClean;
@@ -2531,30 +2536,11 @@ export async function POST(request: Request) {
     }
     if (modulo) updatePayload.modulo = modulo;
     if (totalManualNum > 0) updatePayload.monto = totalManualNum;
-    // Sincronizar created_at del registro para transferencias cuando la Fecha de Emisión difiera de la fecha de registro,
-    // para que Cuadre de Caja, Conciliación, Libro de Ventas y Reportes se guíen siempre por la Fecha de Emisión.
+    // Preservar siempre pagoRow.created_at y las fechas de Conciliación Bancaria (no sobreescribir created_at con la Fecha de Emisión de la factura)
     if (/^\d{4}-\d{2}-\d{2}$/.test(fechaEmisionYMD)) {
       const fRegActual = pagoRow?.created_at ? new Date(new Date(pagoRow.created_at).getTime() - 4 * 3600 * 1000).toISOString().slice(0, 10) : '';
-      const tPagoUpper = String(pagoRow?.tipo || tipoPago || '').toUpperCase().trim();
-      const esPosEmit =
-        tPagoUpper.includes('DEBITO') ||
-        tPagoUpper.includes('DÉBITO') ||
-        tPagoUpper.includes('CREDITO') ||
-        tPagoUpper.includes('CRÉDITO') ||
-        tPagoUpper.includes('TMD') ||
-        tPagoUpper.includes('TVD') ||
-        tPagoUpper === 'REC' ||
-        tPagoUpper === 'PUNTO DE VENTA';
-      if (!esPosEmit && fRegActual && fechaEmisionYMD !== fRegActual) {
-        if (!nuevosDetalles.created_at_original && pagoRow?.created_at) {
-          nuevosDetalles.created_at_original = pagoRow.created_at;
-        }
-        if (!nuevosDetalles.fecha_transaccion && !nuevosDetalles.fecha_banco) {
-          nuevosDetalles.fecha_transaccion = fRegActual;
-        }
-        updatePayload.created_at = `${fechaEmisionYMD}T16:00:00.000Z`;
-      } else if (fechaEmisionOverride && (!fRegActual || fechaEmisionYMD.slice(0, 7) < fRegActual.slice(0, 7)) && !esPosEmit) {
-        updatePayload.created_at = `${fechaEmisionYMD}T16:00:00.000Z`;
+      if (fRegActual && !nuevosDetalles.fecha_transaccion && !nuevosDetalles.fecha_banco) {
+        nuevosDetalles.fecha_transaccion = fRegActual;
       }
     }
 

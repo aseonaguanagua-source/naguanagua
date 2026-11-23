@@ -327,7 +327,6 @@ export async function POST(req: Request) {
       referencia: nuevaRef,
       modulo: nuevoModulo,
       detalles: nuevosDetalles,
-      ...(fechaEmisionClean && !esPosPago ? { created_at: `${fechaEmisionClean}T16:00:00.000Z` } : {}),
     };
 
     const { error: upErr } = await sb.from('pagos_reportados').update(updatePayload).eq('id', pagoId);

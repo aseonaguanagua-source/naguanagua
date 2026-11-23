@@ -854,7 +854,10 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
       if (Array.isArray(d.recibos)) {
         d.recibos.forEach((r: any) => {
           const rStr = String(r || '').trim();
-          if (rStr && !docMapPorRecibo.has(rStr)) docMapPorRecibo.set(rStr, doc);
+          // Ignorar identificadores genéricos por inmueble (ej. RECIB-HIST-URB002445-M1) que se repiten cada mes
+          if (rStr && !/^(RECIB-HIST-|dummy-hist-)/i.test(rStr) && !docMapPorRecibo.has(rStr)) {
+            docMapPorRecibo.set(rStr, doc);
+          }
         });
       }
     }
@@ -890,7 +893,7 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
   const porMes = new Map<string, any[]>();
   transf.forEach(p => {
     const det = parseDet(p);
-    const fRegistro = normalizarFechaYMD(fechaVE(p.created_at));
+    const fRegistro = normalizarFechaYMD(fechaVE(det.created_at_original || p.created_at));
     // Si la lista de pagos ya contiene las filas individuales de cada pago adicional,
     // NO debemos re-expandir pagos_agregados en el padre porque duplicaría las filas y sumaría varias veces el mismo pago.
     // Además, NUNCA incluir pagos de Punto de Venta (Tarjeta de débito / crédito) dentro de la Conciliación de Transferencias.
@@ -936,16 +939,21 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
       fTxDirecta.slice(0, 7) > fEmisionPadre.slice(0, 7) &&
       fRegistro.slice(0, 7) > fEmisionPadre.slice(0, 7)
     );
-    let fFacturaRaw =
+    // En Conciliación Bancaria, la fecha de conciliación/recibo (fRc, fTxDirecta, fecha_ingreso_caja, fConciliadoRaw) es inmutable
+    // y NO debe cambiar posteriormente si Facturación Electrónica emite la factura digital en otro día distinto.
+    const fEmisionFactura =
       normalizarFechaYMD(det.fecha_emision_override) ||
       ((fd.emitida || fd.numero_documento || fd.numero_control) ? normalizarFechaYMD(fd.fecha_emision) : '') ||
-      (!hijoEsDeMesPosteriorAlPadre ? fEmisionPadre : '') ||
+      (!hijoEsDeMesPosteriorAlPadre ? fEmisionPadre : '');
+    let fFacturaRaw =
       fRc ||
       (!hijoEsDeMesPosteriorAlPadre ? fRcPadre : '') ||
       fTxDirecta ||
       normalizarFechaYMD(rc0?.fechaIngresoCaja) ||
       (!hijoEsDeMesPosteriorAlPadre ? normalizarFechaYMD(rcPadre0?.fechaIngresoCaja) : '') ||
       normalizarFechaYMD(det.fecha_ingreso_caja) ||
+      fConciliadoRaw ||
+      fEmisionFactura ||
       fRegistro;
     // Si el pago fue registrado en septiembre pero recibió su recibo/conciliación en octubre o después, reflejar la fecha real de conciliación/recibo en Fecha Factura
     if (fFacturaRaw && fFacturaRaw < '2026-10-01') {
@@ -960,8 +968,15 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
     const fpExacto = (Array.isArray(det.formasPago) ? det.formasPago : []).find((f: any) => String(f?.referencia || '').trim() === String(p.referencia || '').trim());
     const paExacto = (Array.isArray(det.pagos_agregados) ? det.pagos_agregados : []).find((a: any) => String(a?.referencia || '').trim() === String(p.referencia || '').trim());
     const fPagoPropia = normalizarFechaYMD(fpExacto?.fecha || paExacto?.fecha || paExacto?.fechaTransaccion);
-    const fOverrideDirecta = normalizarFechaYMD(det.fecha_pago_override);
+    const fOverrideRaw = normalizarFechaYMD(det.fecha_pago_override);
     const fBancoDirecta = normalizarFechaYMD(det.fecha_banco);
+    // Si fecha_pago_override fue rellenada automáticamente al emitir factura con la fecha de conciliación/transacción, no debe pisar la fecha real de banco del pago
+    const fOverrideDirecta = (
+      fOverrideRaw &&
+      fBancoDirecta &&
+      fBancoDirecta < fOverrideRaw &&
+      (fOverrideRaw === fTxDirecta || fOverrideRaw === fConciliadoRaw || fOverrideRaw === fEmisionFactura)
+    ) ? '' : fOverrideRaw;
     const esPagoUnico = Boolean(yaExistenComoFilasSeparadas) || ((!Array.isArray(det.formasPago) || det.formasPago.length <= 1) && (!Array.isArray(det.pagos_agregados) || det.pagos_agregados.length <= 1));
     // Si fecha_banco quedó igual a la fecha de registro/conciliación pero fecha_transaccion tiene la fecha real anterior del comprobante (o viceversa), priorizar la fecha real del comprobante
     const fBancoOTxPreferida = (() => {
@@ -975,10 +990,7 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
     const fEditadaPreferida = fOverrideDirecta || (esPagoUnico && fBancoOTxPreferida ? fBancoOTxPreferida : '');
     const fPagoBancaria = fBancoOTxPreferida || (Array.isArray(det.formasPago) && det.formasPago[0]?.fecha ? normalizarFechaYMD(det.formasPago[0].fecha) : '');
     let fPago = fEditadaPreferida || fPagoPropia || fPagoBancaria || fTxDirecta || fFactura || fRegistro;
-    // Si la fecha bancaria supera la fecha de emisión de la factura/recibo (ej. error de tipeo de mes o año en fecha_banco), acotar a la fecha de transacción o emisión
-    if (fFactura && fPago > fFactura) {
-      fPago = fTxDirecta && fTxDirecta <= fFactura ? fTxDirecta : fFactura;
-    } else if (fPago > '2026-12-31' && (fFactura || fRegistro)) {
+    if (fPago > '2026-12-31' && (fFactura || fRegistro)) {
       const limiteFecha = fFactura && fFactura < fRegistro ? fFactura : fRegistro;
       if (limiteFecha) fPago = limiteFecha;
     }

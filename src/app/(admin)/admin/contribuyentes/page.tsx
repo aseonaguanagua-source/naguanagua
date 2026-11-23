@@ -3347,21 +3347,55 @@ function ContribuyentesPageContent() {
           registrado: new Date().toISOString(),
         };
 
-        const resPre = await fetch('/api/admin/pre-registros', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(preRegPayload),
+        const idGuardada = await addContribuyente({
+          ...dataToSave,
+          Identidad: idCompleta,
+          TipoIdentidad: tipoId,
         });
-        const jPre = await resPre.json();
-        if (!resPre.ok || !jPre.ok) {
-          throw new Error(jPre.error || 'No se pudo enviar el registro a Pre-Registros para aprobación');
-        }
 
-        await addAuditLog('PRE_REGISTRO_ADMIN', `Nuevo contribuyente ${contribUnificado} (${idCompleta}) enviado a Pre-Registros Web para aprobación.`);
+        // Guardar también respaldo del expediente digitalizado en documentos (estado Aprobado) y en observaciones del contribuyente
+        try {
+          const idFinal = String(idGuardada || idCompleta);
+          const { data: cObs } = await supabase.from('contribuyentes').select('observaciones').eq('identidad', idFinal).maybeSingle();
+          let obsCur = cObs?.observaciones || '';
+          let cambioObs = false;
+          ['cedula', 'ficha', 'registro'].forEach((tipo) => {
+            const doc = (uploadDocs as any)[tipo];
+            if (doc?.url && !obsCur.includes(doc.url)) {
+              const tag = `[DOC_${tipo.toUpperCase()}: ${doc.url}]`;
+              obsCur = obsCur ? `${obsCur}\n${tag}` : tag;
+              cambioObs = true;
+            }
+          });
+          if (cambioObs) {
+            await supabase.from('contribuyentes').update({ observaciones: obsCur }).eq('identidad', idFinal);
+          }
+
+          await fetch('/api/admin/pre-registros', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ...preRegPayload,
+              identidad: idFinal,
+              estado: 'Aprobado',
+            }),
+          }).then(async (r) => {
+            const j = await r.json().catch(() => ({}));
+            if (j?.data?.id) {
+              await fetch('/api/admin/pre-registros', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: j.data.id, estado: 'Aprobado' }),
+              });
+            }
+          }).catch(() => {});
+        } catch (_) {}
+
         await refreshData();
         setIsNew(false);
         setEditingId(null);
-        alert(`✅ Solicitud de registro para ${contribUnificado} (${idCompleta}) enviada a Pre-Registros Web para su revisión y aprobación.`);
+        setSearchQuery(String(idGuardada || idCompleta));
+        alert(`✅ Contribuyente ${contribUnificado} (${idGuardada || idCompleta}) registrado y activado correctamente.`);
         setIsSaving(false);
         return;
       } else if (editingId) {

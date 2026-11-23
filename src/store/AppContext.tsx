@@ -1928,7 +1928,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       const reutilizables = (inmsPrevios || []).filter((r: any) => {
         const est = String(r.estado || '').trim().toLowerCase();
-        return ['eliminado', 'inactivo', 'baja', 'desactivado'].includes(est) || (!r.condominio_padre_id && (inmsPrevios || []).length === 1);
+        return ['eliminado', 'inactivo', 'baja', 'desactivado'].includes(est);
       });
 
       const faltantes = Math.max(0, unidades.length - reutilizables.length);
