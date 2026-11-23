@@ -117,6 +117,15 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
     setMultasLocales(multas || []);
   }, [multas]);
 
+  React.useEffect(() => {
+    setF((prev: any) => ({
+      ...prev,
+      telefono: unidad?.telefono || '',
+      correo: unidad?.correo || '',
+      direccion: unidad?.direccion || '',
+    }));
+  }, [unidad?.id, unidad?.telefono, unidad?.correo, unidad?.direccion]);
+
   // Historial de períodos y multas ya cancelados (con sus referencias de pago)
   const [pagosPorPeriodo, setPagosPorPeriodo] = useState<Record<string, any>>({});
   const [listaPagosPeriodo, setListaPagosPeriodo] = useState<any[]>([]);

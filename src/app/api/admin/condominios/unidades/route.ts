@@ -272,6 +272,7 @@ export async function PATCH(req: Request) {
     // Actualizar campos en inmuebles (sincronización completa de propietario, identidad, deuda y actividad)
     const inmuebleAActualizar = antes.inmueble || upd.inmueble;
     if (inmuebleAActualizar) {
+      const { data: inmExistente } = await sb.from('inmuebles').select('id, inmueble, notas, telefono, correo_electronico, direccion').eq('inmueble', inmuebleAActualizar).limit(1).maybeSingle();
       const inmUpd: any = {};
       if ('inmueble' in upd && upd.inmueble) inmUpd.inmueble = upd.inmueble;
       if ('numero' in upd) inmUpd.numero_local = upd.numero;
@@ -281,7 +282,7 @@ export async function PATCH(req: Request) {
         inmUpd.identidad = upd.identidad;
         await sb.from('contribuyentes').upsert({
           identidad: upd.identidad,
-          nombre: upd.propietario || antes.propietario || antes.condominios?.nombre || upd.identidad,
+          nombre: upd.propietario || antes.propietario || (antes as any).condominios?.nombre || upd.identidad,
         }, { onConflict: 'identidad' });
       }
       if ('agente_retencion' in cambios) inmUpd.agente_retencion = esAgente;
@@ -289,9 +290,8 @@ export async function PATCH(req: Request) {
       if (_cor !== undefined) inmUpd.correo_electronico = _cor;
       if (_dir !== undefined) inmUpd.direccion = _dir;
       if ('desocupada_desde' in cambios || _actExt !== undefined) {
-        const { data: currInm } = await sb.from('inmuebles').select('notas').eq('inmueble', inmuebleAActualizar).limit(1).maybeSingle();
         let existingNotes: any = {};
-        try { if (currInm?.notas) existingNotes = typeof currInm.notas === 'string' ? JSON.parse(currInm.notas) : currInm.notas; } catch {}
+        try { if (inmExistente?.notas) existingNotes = typeof inmExistente.notas === 'string' ? JSON.parse(inmExistente.notas) : inmExistente.notas; } catch {}
         if (_actExt !== undefined) existingNotes.actividades_extra = _actExt;
         if ('desocupada_desde' in cambios) {
           if (cambios.desocupada_desde) {
@@ -333,8 +333,7 @@ export async function PATCH(req: Request) {
           if (m === 0) upd.multa_exonerada_hasta = null;
         }
         // Limpiar cualquier tag previo de [PERIODOS_PENDIENTES:...] al ajustar meses directamente
-        const { data: currInmPer } = await sb.from('inmuebles').select('notas').eq('inmueble', inmuebleAActualizar).limit(1).maybeSingle();
-        const rawNotasPer = String(inmUpd.notas !== undefined ? (inmUpd.notas || '') : (currInmPer?.notas || ''));
+        const rawNotasPer = String(inmUpd.notas !== undefined ? (inmUpd.notas || '') : (inmExistente?.notas || ''));
         if (rawNotasPer.includes('[PERIODOS_PENDIENTES:') || rawNotasPer.includes('[PERIODOS_EXCLUIDOS:')) {
           inmUpd.notas = rawNotasPer
             .replace(/\s*\[PERIODOS_PENDIENTES:[^\]]*\]/gi, '')
@@ -405,8 +404,41 @@ export async function PATCH(req: Request) {
         inmUpd.meses_deuda = 0;
         await sb.from('condominio_multas').update({ estado: 'Anulada' }).eq('unidad_id', id).eq('estado', 'Pendiente');
       }
-      if (Object.keys(inmUpd).length > 0) {
-        await sb.from('inmuebles').update(inmUpd).eq('inmueble', inmuebleAActualizar);
+      if (inmExistente) {
+        if (Object.keys(inmUpd).length > 0) {
+          await sb.from('inmuebles').update(inmUpd).eq('inmueble', inmuebleAActualizar);
+        }
+      } else if (upd.estado !== 'Eliminada') {
+        const codigoFinalInm = upd.inmueble || antes.inmueble;
+        const propFinalInm = upd.propietario || antes.propietario || (antes as any).condominios?.nombre || codigoFinalInm;
+        const identFinalInm = upd.identidad !== undefined ? upd.identidad : antes.identidad;
+        const actFinalInm = ('actividad' in upd ? upd.actividad : antes.actividad) || 'INMUEBLES Y LOCALES DESOCUPADOS';
+        const mmvFinalInm = Number(('tarifa_mmv' in upd ? upd.tarifa_mmv : antes.tarifa_mmv) ?? 1.98) || 1.98;
+        const desdeFinalInm = 'aseo_pendiente_desde' in upd ? upd.aseo_pendiente_desde : antes.aseo_pendiente_desde;
+        const mesesFinalInm = mesesPendientes(desdeFinalInm);
+        const esResInm = String(actFinalInm).toUpperCase().includes('RESIDENCIAL') || /APARTAMENTO|APTO|CASA|QUINTA|TOWN ?HOUSE|VIVIENDA/i.test(String(actFinalInm));
+        if (identFinalInm) {
+          await sb.from('contribuyentes').upsert({
+            identidad: identFinalInm,
+            nombre: propFinalInm,
+          }, { onConflict: 'identidad' });
+        }
+        await sb.from('inmuebles').upsert({
+          inmueble: codigoFinalInm,
+          contribuyente: propFinalInm,
+          identidad: identFinalInm,
+          numero_local: ('numero' in upd ? upd.numero : antes.numero) || null,
+          tipo: esResInm ? 'RESIDENCIAL' : 'COMERCIAL',
+          clasificacion: esResInm ? 'Individual' : 'Comercial',
+          actividad_principal: actFinalInm,
+          estado: 'ACTIVO',
+          mmv_mes: mmvFinalInm,
+          meses_deuda: mesesFinalInm,
+          deuda_mmv: parseFloat((mesesFinalInm * mmvFinalInm).toFixed(5)),
+          condominio_padre_id: (antes as any).condominios?.codigo || null,
+          es_condominio: false,
+          ...inmUpd,
+        }, { onConflict: 'inmueble' });
       }
     }
     // Capturar campos sincronizables a actividades hijas antes de filtrar los que ya estaban en el padre
@@ -492,6 +524,9 @@ export async function PATCH(req: Request) {
     const diff: Record<string, any> = Object.fromEntries(Object.keys(upd).map(k => [k, { antes: antes[k], despues: upd[k] }]));
     if ('agente_retencion' in cambios) diff.agente_retencion = { antes: '?', despues: esAgente };
     if ('aseo_pendiente_desde' in upd) diff.meses = { antes: mesesPendientes(antes.aseo_pendiente_desde), despues: mesesPendientes(upd.aseo_pendiente_desde) };
+    if (_tel !== undefined) diff.telefono = { antes: null, despues: _tel };
+    if (_cor !== undefined) diff.correo = { antes: null, despues: _cor };
+    if (_dir !== undefined) diff.direccion = { antes: null, despues: _dir };
     await sb.from('auditoria').insert({
       accion: 'Modificación de unidad de condominio', usuario: `${t.nombre || t.usuario} (${t.usuario})`,
       detalles: { _categoria: 'CONDOMINIOS', criticidad: 'ALTA', codigo: (antes as any).condominios?.codigo, condominio: (antes as any).condominios?.nombre, inmueble: antes.inmueble, numero: antes.numero, motivo: String(motivo).trim(), cambios: diff },
