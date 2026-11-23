@@ -2730,7 +2730,12 @@ function ContribuyentesPageContent() {
       correoNombre = row.Correo;
     }
 
-    let autoClasificacion = row.Clasificacion || 'A';
+    let autoClasificacion =
+      row.Clasificacion === 'Comercial/Institucional' || row.Clasificacion === 'Centro Comercial'
+        ? 'Comercial'
+        : row.Clasificacion === 'Individual'
+        ? 'Residencial'
+        : (row.Clasificacion || 'Residencial');
     
     // Auto-detectar si el nombre explícitamente es un condominio
     if (autoClasificacion !== 'Condominio') {

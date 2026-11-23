@@ -145,15 +145,13 @@ export default function MorososView({ contribuyentes = [], tcmmv = 0, onBack }: 
           : r2(Math.max(0, base2 + iva2 + multa2 + rowCongelada - ret2 - saldoFavor));
 
         if (!map.has(groupKey)) {
-          let clase = 'Residencial';
-          if (row.es_condominio || row.clasificacion === 'Condominio') {
+          let clase: 'Individual' | 'Comercial' | 'Condominio' = 'Individual';
+          if (row.es_condominio || /condominio/i.test(String(row.clasificacion || ''))) {
             clase = 'Condominio';
           } else if (esRes) {
-            clase = 'Residencial';
-          } else if ((row.tipo || '').toUpperCase().includes('COMERCIAL')) {
+            clase = 'Individual';
+          } else {
             clase = 'Comercial';
-          } else if ((row.tipo || '').toUpperCase().includes('INDUSTRIAL')) {
-            clase = 'Industrial';
           }
           map.set(groupKey, {
             id: row.id || groupKey,
@@ -161,6 +159,8 @@ export default function MorososView({ contribuyentes = [], tcmmv = 0, onBack }: 
             contribuyente: row.contribuyente || 'Sin Nombre',
             identidad: row.identidad || '—',
             clasificacion: clase,
+            uso: clase,
+            tipoInm: esRes ? 'Residencial' : 'Comercial',
             telefono: row.telefono || '—',
             mesesPendientes: totalMeses,
             periodos: generarPeriodosPorMeses(totalMeses),
@@ -260,11 +260,14 @@ export default function MorososView({ contribuyentes = [], tcmmv = 0, onBack }: 
     // Si es 'todos_incl_0', incluye tanto > 0 como 0 meses
 
     if (filtroTipo !== 'todos') {
-      list = list.filter((m) =>
-        String(m.clasificacion || '')
-          .toLowerCase()
-          .includes(filtroTipo.toLowerCase())
-      );
+      const ft = filtroTipo.toLowerCase();
+      list = list.filter((m) => {
+        const cl = String(m.uso || m.clasificacion || '').toLowerCase();
+        if (ft === 'individual' || ft === 'residencial') {
+          return cl === 'individual' || cl === 'residencial';
+        }
+        return cl.includes(ft);
+      });
     }
 
     if (searchTerm.trim()) {
@@ -326,9 +329,12 @@ export default function MorososView({ contribuyentes = [], tcmmv = 0, onBack }: 
       if ((filtroMeses === 'todos' || filtroMeses === 'todos_incl_0') && !searchTerm.trim()) {
         rowsForExcel = morososList.filter((m) => {
           if (filtroTipo !== 'todos') {
-            return String(m.clasificacion || '')
-              .toLowerCase()
-              .includes(filtroTipo.toLowerCase());
+            const ft = filtroTipo.toLowerCase();
+            const cl = String(m.uso || m.clasificacion || '').toLowerCase();
+            if (ft === 'individual' || ft === 'residencial') {
+              return cl === 'individual' || cl === 'residencial';
+            }
+            return cl.includes(ft);
           }
           return true;
         });
@@ -499,9 +505,9 @@ export default function MorososView({ contribuyentes = [], tcmmv = 0, onBack }: 
             onChange={(e) => setFiltroTipo(e.target.value)}
             className="border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
           >
-            <option value="todos">Todas las clasificaciones</option>
+            <option value="todos">Todos los usos (Individual / Comercial / Condominio)</option>
+            <option value="individual">Individual</option>
             <option value="comercial">Comercial</option>
-            <option value="residencial">Residencial</option>
             <option value="condominio">Condominio</option>
           </select>
         </div>

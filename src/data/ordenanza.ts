@@ -1,5 +1,5 @@
 export const ordenanzaData = {
-  clasificaciones: ['Residencial', 'Comercial/Institucional', 'Industrial', 'Otros'],
+  clasificaciones: ['Residencial', 'Comercial', 'Industrial'],
   tiposResidenciales: [
     { label: 'Quinta (Zona A)', factor: 1.06, far: 0.020366 },
     { label: 'Apartamento (Zona A)', factor: 0.91, far: 0.023723 },

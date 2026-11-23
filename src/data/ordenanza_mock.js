@@ -1,5 +1,5 @@
 const ordenanzaData = {
-  clasificaciones: ['Residencial', 'Comercial/Institucional', 'Industrial', 'Otros'],
+  clasificaciones: ['Residencial', 'Comercial', 'Industrial'],
   tiposResidenciales: [
     { label: 'Tipo I: Viviendas en zonas populares', factor: 0.50 },
     { label: 'Tipo II: Casas', factor: 0.80 },

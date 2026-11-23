@@ -89,15 +89,31 @@ export function construirListaMorosos(
                   parseFloat(String(c.DeudaMMV || 0)) * 57 * 0.128 * (tcmmv || 1)) *
                   100
               ) / 100;
-        const clasificacion = c.isCondominio
+        const esCondo = Boolean(
+          c.isCondominio ||
+            c.es_condominio ||
+            /condominio/i.test(String(c.Clasificacion || c.clasificacion || ''))
+        );
+        const esRes = isResidencialInm({
+          tipo: c.Clasificacion || c.clasificacion || c.tipo,
+          clasificacion: c.Clasificacion || c.clasificacion,
+          actividad_principal:
+            c.ActividadComercial || c.Actividad || c.actividad_principal || c.TipoResidencia,
+          contribuyente: c.Contribuyente || c.contribuyente,
+        });
+        const clasificacion = esCondo
           ? 'Condominio'
-          : c.Clasificacion || c.clasificacion || 'Residencial';
+          : esRes
+          ? 'Individual'
+          : 'Comercial';
         return {
           id: c.id || c.CodCont || c.Identidad || '—',
           cod_cont: c.CodCont || c.cod_cont || c.inmueble || '—',
           contribuyente: c.Contribuyente || c.contribuyente || '—',
           identidad: c.Identidad || c.identidad || '—',
           clasificacion,
+          uso: clasificacion,
+          tipoInm: esRes ? 'Residencial' : 'Comercial',
           telefono: c.Telefono || c.telefono || '—',
           mesesPendientes: meses,
           periodos: meses > 0 ? generarPeriodosPorMeses(meses) : 'AL DÍA (SOLVENTE)',
@@ -429,18 +445,21 @@ export async function generarMorososExcel(
       deudaSinMulta = r2(Math.max(0, totalVes - multaVes));
     }
 
-    const uso =
-      r.uso ||
-      inm.clasificacion ||
-      (inm.es_condominio ? 'Condominio' : esRes ? 'Residencial' : 'Comercial');
-    const tipoInm =
-      r.tipoInm ||
-      inm.tipo ||
-      (esRes ? 'Unifamiliar' : 'Comercial');
+    const esCondoRow = Boolean(
+      r._fromCondosModulo ||
+        inm.es_condominio === true ||
+        /condominio/i.test(String(r.uso || r.clasificacion || inm.clasificacion || ''))
+    );
+    const uso: 'Individual' | 'Comercial' | 'Condominio' = esCondoRow
+      ? 'Condominio'
+      : esRes
+      ? 'Individual'
+      : 'Comercial';
+    const tipoInm: 'Residencial' | 'Comercial' = esRes ? 'Residencial' : 'Comercial';
     const dirFiscal = r.direccion || inm.direccion || 'NAGUANAGUA';
     const rawAct = String(r.actividad || inm.actividad_principal || '').trim();
     const actividad = (!rawAct || /^(N\/?A|NA|Sin Actividad.*)$/i.test(rawAct))
-      ? (childActByParent.get(cod)?.act || (esRes ? 'VIVIENDA UNIFAMILIAR' : 'COMERCIAL'))
+      ? (childActByParent.get(cod)?.act || (esRes ? 'RESIDENCIAL' : 'COMERCIAL'))
       : rawAct;
     const agenteRet = Boolean(r.agenteRetencion ?? inm.agente_retencion ?? false);
     const idNum = typeof inm.id === 'number' ? inm.id : typeof r.id === 'number' ? r.id : idx + 1;
@@ -491,8 +510,8 @@ export async function generarMorososExcel(
     to: { row: Math.max(6, rows.length + 6), column: headers.length },
   };
 
-  // Fila de totales al final
-  const totRow = ws.getRow(rows.length + 7);
+  // Dejar una fila en blanco (rows.length + 7) antes de la fila de totales para que Excel no extienda el autofiltro a la fila de totales ni muestre "(Vacías)"
+  const totRow = ws.getRow(rows.length + 8);
   totRow.height = 18;
   totRow.getCell(10).value = 'TOTAL GENERAL:';
   totRow.getCell(10).font = { name: 'Calibri', size: 11, bold: true };

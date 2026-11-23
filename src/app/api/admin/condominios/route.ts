@@ -176,7 +176,7 @@ export async function POST(req: Request) {
     );
 
     if (accion === 'desmarcar_condominio') {
-      const nuevaClase = esResidencial ? 'Residencial' : 'Individual';
+      const nuevaClase = esResidencial ? 'Individual' : 'Comercial';
       await sb
         .from('inmuebles')
         .update({ es_condominio: false, clasificacion: nuevaClase })
@@ -186,7 +186,7 @@ export async function POST(req: Request) {
         const hijosCodes = hijosRows.map((h: any) => h.inmueble).filter(Boolean);
         await sb
           .from('inmuebles')
-          .update({ condominio_padre_id: null, padre_id: codigoPadre, es_condominio: false, clasificacion: 'Individual' })
+          .update({ condominio_padre_id: null, padre_id: codigoPadre, es_condominio: false, clasificacion: nuevaClase })
           .in('inmueble', hijosCodes);
       }
 

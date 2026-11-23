@@ -142,7 +142,7 @@ export async function POST(req: Request) {
       inmueble: fila.inmueble,
       contribuyente: fila.propietario || c.nombre,
       tipo: esResidencial ? 'RESIDENCIAL' : 'COMERCIAL',
-      clasificacion: esResidencial ? 'Residencial' : 'Comercial',
+      clasificacion: esResidencial ? 'Individual' : 'Comercial',
       actividad_principal: fila.actividad,
       estado: 'ACTIVO',
       identidad: fila.identidad,

@@ -1492,6 +1492,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
               if (local.uso !== 'Residencial' && !isTerrenoInm(act) && !(mmv > 0)) throw new Error(`No hay tarifa en la ordenanza para "${act}" (${local.codigo}).`);
               updatePayload.actividad_principal = act;
               updatePayload.tipo = tipoDeUso(local.uso);
+              if (!data.isCondominio) {
+                updatePayload.clasificacion = local.uso === 'Residencial' ? 'Individual' : 'Comercial';
+              }
               updatePayload.mmv_mes = mmv;
               updatePayload.agente_retencion = local.agente_retencion === true;
               local.mmvActual = mmv;
@@ -1527,7 +1530,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
               cod_cont: data.CodCont || data.cod_cont || null,
               padre_id: padreAsignado,
               tipo: tipoDeUso(local.uso),
-              clasificacion: 'Individual',
+              clasificacion: local.uso === 'Residencial' ? 'Individual' : 'Comercial',
               estado: 'Activo',
               actividad_principal: act,
               mmv_mes: mmv,
@@ -1611,6 +1614,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
               const primerCodigo = codigosPropios[0];
               upd.actividad_principal = nuevaActividad;
               upd.tipo = nuevaClasificacion === 'Residencial' ? 'RESIDENCIAL' : 'COMERCIAL';
+              if (!data.isCondominio) {
+                upd.clasificacion = nuevaClasificacion === 'Residencial' ? 'Individual' : 'Comercial';
+              }
               upd.mmv_mes = mmv;
               cambios.push(`${primerCodigo}: ${orig.ActividadComercial || orig.TipoResidencia || '-'} → ${nuevaActividad} (${mmv} MMV)`);
             } else {
@@ -1626,7 +1632,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 correo_electronico: data.Correo,
                 direccion: upd.direccion || data.Direccion,
                 tipo: nuevaClasificacion === 'Residencial' ? 'RESIDENCIAL' : 'COMERCIAL',
-                clasificacion: 'Individual',
+                clasificacion: nuevaClasificacion === 'Residencial' ? 'Individual' : 'Comercial',
                 estado: 'Activo',
                 actividad_principal: nuevaActividad,
                 mmv_mes: mmv,
@@ -1641,6 +1647,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
           } else {
             upd.actividad_principal = nuevaActividad;
             upd.tipo = nuevaClasificacion === 'Residencial' ? 'RESIDENCIAL' : 'COMERCIAL';
+            if (!data.isCondominio) {
+              upd.clasificacion = nuevaClasificacion === 'Residencial' ? 'Individual' : 'Comercial';
+            }
             upd.mmv_mes = mmv;
             cambios.push(`${objetivo}: ${orig.ActividadComercial || orig.TipoResidencia || '-'} → ${nuevaActividad} (${mmv} MMV)`);
           }
@@ -1664,7 +1673,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             return {
               inmueble: codigos[i], identidad: identidadExacta, contribuyente: data.Contribuyente,
               telefono: data.Telefono, correo_electronico: data.Correo, direccion: data.Direccion,
-              tipo: 'COMERCIAL', clasificacion: 'Individual', estado: 'Activo',
+              tipo: 'COMERCIAL', clasificacion: 'Comercial', estado: 'Activo',
               actividad_principal: actividadConNivel(a.actividad, idxNivel(a.nivel)), mmv_mes: mmv, cant_inmuebles: 1,
               agente_retencion: data.esAgenteRetencion === true,
             };
@@ -1904,7 +1913,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           direccion: u.etiqueta ? `${direccionBase} | Local: ${u.etiqueta}` : direccionBase,
           cod_cont: codCont,
           tipo: tipoDeUso(u.uso),
-          clasificacion: 'Individual',
+          clasificacion: data.isCondominio ? 'Condominio' : (u.uso === 'Residencial' ? 'Individual' : 'Comercial'),
           estado: 'Activo',
           condominio_padre_id: null,
           es_condominio: false,

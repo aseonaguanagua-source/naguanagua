@@ -228,7 +228,7 @@ export default function PreRegistrosPage() {
 
   const handleApproveClick = (row: any) => {
     setRowToApprove(row);
-    const initTipo = row.tipo === 'Residencial' ? 'Residencial' : (row.tipo === 'Industrial' ? 'Industrial' : 'Comercial/Institucional');
+    const initTipo = row.tipo === 'Residencial' ? 'Residencial' : (row.tipo === 'Industrial' ? 'Industrial' : 'Comercial');
     setApproveTipo(initTipo);
 
     if (initTipo === 'Residencial') {
@@ -304,7 +304,7 @@ export default function PreRegistrosPage() {
         correo_electronico: rowToApprove.correo || '',
         direccion: dirCompleta,
         cod_cont: codCont,
-        clasificacion: approveTipo === 'Residencial' ? 'Residencial' : 'Individual',
+        clasificacion: rowToApprove.is_condominio ? 'Condominio' : (approveTipo === 'Residencial' ? 'Individual' : 'Comercial'),
         tipo: approveTipo === 'Residencial' ? 'RESIDENCIAL' : (approveTipo === 'Industrial' ? 'INDUSTRIAL' : 'COMERCIAL'),
         estado: 'Activo',
         meses_deuda: meses,
@@ -707,7 +707,7 @@ export default function PreRegistrosPage() {
                       className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs font-bold text-slate-800 bg-white outline-none focus:ring-2 focus:ring-emerald-500"
                     >
                       <option value="Residencial">Residencial</option>
-                      <option value="Comercial/Institucional">Comercial / Institucional</option>
+                      <option value="Comercial">Comercial</option>
                       <option value="Industrial">Industrial</option>
                     </select>
                   </div>
