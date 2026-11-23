@@ -473,39 +473,48 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasaRaw: numb
     }
 
     const deuda = M.deudaPorMeses(meses, basesPorMes, res, esAgente, exonerados, multasPorMes, tasa);
-    // Para locales comerciales de condominios, cuya relación de cobranza y estado de cuenta en Euros multiplica la tarifa mensual en Euros (redondeada a 2 decimales con IVA) × Tasa BCV:
-    // ajustar baseBs e ivaBs de cada mes en porMes para que baseBs + ivaBs coincida al céntimo con Tarifa_EUR_2_dec × Tasa_BCV.
-    if (!res && tasa > 0 && deuda.porMes.length > 0 && !(u?.inmueble === 'URB016255' && Math.abs(tasa - 999.77) < 0.005)) {
-      let acumBsPrev = 0;
-      let acumEur = 0;
+    let mensualEfectivoBs = r.montoBs;
+    // Para C.C. Free Market (URB016822), cuya relación diaria de cobranza en Euros multiplica la tarifa mensual en Euros (redondeada a 2 decimales con IVA) × Tasa BCV:
+    // ajustar baseBs e ivaBs de cada mes en porMes y mensualEfectivoBs para que coincida al céntimo con Tarifa_EUR_2_dec × Tasa_BCV.
+    if (String(condoRow?.codigo || '').trim().toUpperCase() === 'URB016822' && !res && tasa > 0) {
       const baseEurUnit = u && !u.periodos_custom && !u.desocupada_desde
         ? (u.estado === 'Desocupada' ? M.tarifaDesocupadaBs(1) : M.tarifaUnidadBs(c, 1, u))
         : 0;
-      deuda.porMes = deuda.porMes.map((m) => {
-        const bEur = baseEurUnit > 0
-          ? r2(baseEurUnit)
-          : r2(m.baseBs / tasa);
-        const iEur = r2(bEur * M.IVA);
-        const totEurMes = r2(bEur + iEur);
-        acumEur = r2(acumEur + totEurMes);
-        const acumBsTarget = r2(acumEur * tasa);
-        const totSinMultaBs = r2(acumBsTarget - acumBsPrev);
-        acumBsPrev = acumBsTarget;
-        const nuevoBase = r2(totSinMultaBs / (1 + M.IVA));
-        const nuevoIva = r2(totSinMultaBs - nuevoBase);
-        const nuevoRet = esAgente ? r2(nuevoIva * M.RETENCION_IVA) : 0;
-        return {
-          ...m,
-          baseBs: nuevoBase,
-          ivaBs: nuevoIva,
-          retencionBs: nuevoRet,
-          totalBs: r2(nuevoBase + m.multaBs + nuevoIva - nuevoRet),
-        };
-      });
-      deuda.baseBs = r2(deuda.porMes.reduce((s, m) => s + m.baseBs, 0));
-      deuda.ivaBs = r2(deuda.porMes.reduce((s, m) => s + m.ivaBs, 0));
-      deuda.retencionBs = r2(deuda.porMes.reduce((s, m) => s + m.retencionBs, 0));
-      deuda.totalBs = r2(deuda.porMes.reduce((s, m) => s + m.totalBs, 0));
+      if (baseEurUnit > 0) {
+        const bEur0 = r2(baseEurUnit);
+        const iEur0 = r2(bEur0 * M.IVA);
+        const totSinMulta0 = r2(r2(bEur0 + iEur0) * tasa);
+        mensualEfectivoBs = r2(totSinMulta0 / (1 + M.IVA));
+      }
+      if (deuda.porMes.length > 0) {
+        let acumBsPrev = 0;
+        let acumEur = 0;
+        deuda.porMes = deuda.porMes.map((m) => {
+          const bEur = baseEurUnit > 0
+            ? r2(baseEurUnit)
+            : r2(m.baseBs / tasa);
+          const iEur = r2(bEur * M.IVA);
+          const totEurMes = r2(bEur + iEur);
+          acumEur = r2(acumEur + totEurMes);
+          const acumBsTarget = r2(acumEur * tasa);
+          const totSinMultaBs = r2(acumBsTarget - acumBsPrev);
+          acumBsPrev = acumBsTarget;
+          const nuevoBase = r2(totSinMultaBs / (1 + M.IVA));
+          const nuevoIva = r2(totSinMultaBs - nuevoBase);
+          const nuevoRet = esAgente ? r2(nuevoIva * M.RETENCION_IVA) : 0;
+          return {
+            ...m,
+            baseBs: nuevoBase,
+            ivaBs: nuevoIva,
+            retencionBs: nuevoRet,
+            totalBs: r2(nuevoBase + m.multaBs + nuevoIva - nuevoRet),
+          };
+        });
+        deuda.baseBs = r2(deuda.porMes.reduce((s, m) => s + m.baseBs, 0));
+        deuda.ivaBs = r2(deuda.porMes.reduce((s, m) => s + m.ivaBs, 0));
+        deuda.retencionBs = r2(deuda.porMes.reduce((s, m) => s + m.retencionBs, 0));
+        deuda.totalBs = r2(deuda.porMes.reduce((s, m) => s + m.totalBs, 0));
+      }
     }
     const mesesMultaEnAseo = (r.montoBs > 0 && deuda.meses > 0) ? (deuda.porMes || []).filter(m => m.multaBs > 0).length : 0;
     const mesesMoraCubiertosPorAseo = Math.max(0, meses - 1);
@@ -558,7 +567,7 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasaRaw: numb
       estado: u?.estado ?? 'Declarada', cantidad: r.cantidad, esGrupo: !!mu?.es_grupo, padreId: u?.padre_unidad_id ?? (padre?.id || null),
       padreInmueble: padre?.inmueble ?? u?.padre_inmueble ?? null, padreNumero: padre?.numero ?? null,
       residencial: res,
-      mensualBs: r.montoBs, pendienteDesde: desde || null, periodos,
+      mensualBs: mensualEfectivoBs, pendienteDesde: desde || null, periodos,
       deuda, multaMeses, multaExtraBs, multasManuales: manuales, multasManualesBs, totalBs: r2(deuda.totalBs + multaExtraBs + multasManualesBs),
       saldoFavorBs: Number(u?.saldo_favor_bs || padre?.saldo_favor_bs) >= 1.00 ? r2(Number(u?.saldo_favor_bs || padre?.saldo_favor_bs)) : 0,
       agenteRetencion: esAgente,
