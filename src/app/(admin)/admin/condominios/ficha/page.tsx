@@ -110,15 +110,13 @@ function Ficha() {
           .neq('estado', 'Anulado');
         const cMap: Record<string, any> = {};
         (convs || []).forEach(cv => {
+          const numCode = String(cv.numero || '').replace(/\D/g, '');
+          if (numCode.length >= 4) cMap[`COD_${numCode}`] = cv;
           if (cv.identidad) {
             const clean = cv.identidad.replace(/[\s-]/g, '').toUpperCase();
-            cMap[clean] = cv;
+            if (!cMap[clean]) cMap[clean] = cv;
             const soloNum = clean.replace(/\D/g, '');
-            if (soloNum) cMap[soloNum] = cv;
-          }
-          if (cv.numero) {
-            const numCode = cv.numero.replace(/\D/g, '');
-            if (numCode.length >= 4) cMap[`COD_${numCode}`] = cv;
+            if (soloNum && !cMap[soloNum]) cMap[soloNum] = cv;
           }
         });
         setConveniosUnidades(cMap);
@@ -184,26 +182,46 @@ function Ficha() {
     });
   }, [e]);
 
+  const convenioDe = (inmuebleRaw: any, identidadRaw: any) => {
+    const rCode = String(inmuebleRaw || '').trim().toUpperCase();
+    const rCodeNum = rCode.replace(/\D/g, '');
+    if (rCode.startsWith('URB') && rCodeNum && conveniosUnidades[`COD_${rCodeNum}`]) {
+      return conveniosUnidades[`COD_${rCodeNum}`];
+    }
+    const uIdClean = String(identidadRaw || '').replace(/[\s-]/g, '').toUpperCase();
+    const uNum = uIdClean.replace(/\D/g, '');
+    const cand = conveniosUnidades[uIdClean] || (uNum ? conveniosUnidades[uNum] : null);
+    if (cand) {
+      const candNum = String(cand.numero || '').replace(/\D/g, '');
+      if (candNum.length >= 4 && rCodeNum && candNum !== rCodeNum) return null;
+      return cand;
+    }
+    return null;
+  };
+  const infoConvenioPendiente = (cv: any) => {
+    if (!cv) return { pendiente: false, cuotasPend: 0, saldoBs: 0 };
+    const lista = Array.isArray(cv.convenios_cuotas) ? cv.convenios_cuotas : [];
+    const pend = lista.filter((q: any) => String(q?.estado || 'Pendiente').toLowerCase().includes('pend'));
+    const saldoBs = Math.round(pend.reduce((acc: number, q: any) => acc + (parseFloat(q.monto) || 0), 0) * 100) / 100;
+    return {
+      pendiente: lista.length === 0 || pend.length > 0,
+      cuotasPend: pend.length || Number(cv.cuotas) || 1,
+      saldoBs,
+    };
+  };
+
   const renglones = useMemo(() => {
     if (!renglonesEnriquecidos.length) return [];
     const t = q.trim().toUpperCase();
     return renglonesEnriquecidos.filter((r: any) => {
-      const uIdClean = String(r.identidad || '').replace(/[\s-]/g, '').toUpperCase();
-      const uNum = uIdClean.replace(/\D/g, '');
-      const rCodeNum = String(r.inmueble || '').replace(/\D/g, '');
-      const convR = conveniosUnidades[uIdClean] || (uNum ? conveniosUnidades[uNum] : null) || (rCodeNum ? conveniosUnidades[`COD_${rCodeNum}`] : null);
-      const tieneConvenioPendiente = Boolean(
-        convR &&
-        (!Array.isArray(convR.convenios_cuotas) ||
-          convR.convenios_cuotas.length === 0 ||
-          convR.convenios_cuotas.some((q: any) => String(q?.estado || 'Pendiente').toLowerCase().includes('pend')))
-      );
+      const convR = convenioDe(r.inmueble, r.identidad);
+      const { pendiente: tieneConvenioPendiente } = infoConvenioPendiente(convR);
       return (
         (!soloDeuda || r.totalBs > 0.01 || tieneConvenioPendiente) &&
         (!t || [r.inmueble, r.numero, r.propietario, r.identidad, r.actividad].some((x: any) => String(x || '').toUpperCase().includes(t)))
       );
     });
-  }, [renglonesEnriquecidos, q, soloDeuda, conveniosUnidades]);
+  }, [renglonesEnriquecidos, q, soloDeuda, conveniosUnidades]); // eslint-disable-line react-hooks/exhaustive-deps
   const paginas = Math.max(1, Math.ceil(renglones.length / POR_PAGINA));
   const visibles = renglones.slice(pagina * POR_PAGINA, (pagina + 1) * POR_PAGINA);
 
@@ -912,10 +930,9 @@ function Ficha() {
                         const sinReg = r.clave === '__SIN_REGISTRAR__';
                         const open = abierto === r.clave;
                         const u = unidadDe(r.clave);
-                        const uIdClean = (u?.identidad || r?.identidad || '').replace(/[\s-]/g, '').toUpperCase();
-                        const uNum = uIdClean.replace(/\D/g, '');
-                        const rCodeNum = String(r?.inmueble || u?.inmueble || '').replace(/\D/g, '');
-                        const convUnidad = conveniosUnidades[uIdClean] || (uNum ? conveniosUnidades[uNum] : null) || (rCodeNum ? conveniosUnidades[`COD_${rCodeNum}`] : null);
+                        const convUnidad = convenioDe(r?.inmueble || u?.inmueble, u?.identidad || r?.identidad);
+                        const convInfo = infoConvenioPendiente(convUnidad);
+                        const deudaEfectivaSolvencia = r.totalBs + (convInfo.pendiente ? Math.max(convInfo.saldoBs, 1) : 0);
                         return (
                           <React.Fragment key={r.clave}>
                             <tr onClick={() => setAbierto(open ? null : r.clave)} className={`cursor-pointer hover:bg-emerald-50/40 ${sinReg ? 'bg-amber-50/50' : ''} ${unidadFoco && r.inmueble === unidadFoco ? 'bg-emerald-50' : ''}`}>
@@ -985,11 +1002,17 @@ function Ficha() {
                                           ev.stopPropagation();
                                           const u = unidadDe(r.clave);
                                           const { emitirSolvenciaUnidad } = await import('@/lib/condominios/pdfSolvenciaCondominio');
-                                          await emitirSolvenciaUnidad(c, u, r.totalBs);
+                                          await emitirSolvenciaUnidad(c, u, deudaEfectivaSolvencia);
                                         }}
-                                        title={r.totalBs <= 0.01 ? "Descargar Certificado de Solvencia Municipal de esta unidad" : `Unidad con deuda pendiente (Bs ${fmtBs(r.totalBs)})`}
+                                        title={
+                                          deudaEfectivaSolvencia <= 0.01
+                                            ? "Descargar Certificado de Solvencia Municipal de esta unidad"
+                                            : convInfo.pendiente && r.totalBs <= 0.01
+                                              ? `Unidad con Convenio activo (${convUnidad?.numero}: ${convInfo.cuotasPend} cuota(s) pend. · Bs ${fmtBs(convInfo.saldoBs)})`
+                                              : `Unidad con deuda pendiente (Bs ${fmtBs(deudaEfectivaSolvencia)})`
+                                        }
                                         className={`px-2 py-0.5 rounded-md cursor-pointer border shadow-2xs transition-colors text-[11px] font-bold flex items-center gap-1 ${
-                                          r.totalBs <= 0.01
+                                          deudaEfectivaSolvencia <= 0.01
                                             ? 'text-emerald-700 hover:text-emerald-900 hover:bg-emerald-100 border-emerald-300 bg-emerald-50'
                                             : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50 border-slate-200 bg-white'
                                         }`}
@@ -1030,12 +1053,31 @@ function Ficha() {
                                 </div>
                               </td>
                               <td className="py-2.5 px-3 text-right tabular-nums">Bs {fmtBs(r.mensualBs)}</td>
-                              <td className="py-2.5 px-3 text-center"><span className={`px-2 py-0.5 rounded-full text-xs font-black ${r.deuda.meses === 0 ? 'bg-emerald-100 text-emerald-800' : r.deuda.meses > 12 ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'}`}>{r.deuda.meses}</span></td>
+                              <td className="py-2.5 px-3 text-center">
+                                {r.deuda.meses === 0 && convInfo.pendiente ? (
+                                  <span className="px-2 py-0.5 rounded-full text-[11px] font-black bg-amber-100 text-amber-800 border border-amber-300" title={`Convenio ${convUnidad?.numero}: ${convInfo.cuotasPend} cuota(s) pendiente(s)`}>
+                                    En Convenio ({convInfo.cuotasPend} cuota{convInfo.cuotasPend === 1 ? '' : 's'})
+                                  </span>
+                                ) : (
+                                  <span className={`px-2 py-0.5 rounded-full text-xs font-black ${r.deuda.meses === 0 ? 'bg-emerald-100 text-emerald-800' : r.deuda.meses > 12 ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'}`}>{r.deuda.meses}</span>
+                                )}
+                              </td>
                               <td className="py-2.5 px-3 text-center">{(() => { const mm = mesesMultaDe(r); return <span className={`px-2 py-0.5 rounded-full text-xs font-black ${mm === 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{mm}</span>; })()}</td>
                               <td className="py-2.5 px-3 text-right tabular-nums">{fmtBs(r.deuda.baseBs)}</td>
                               <td className="py-2.5 px-3 text-right tabular-nums">{fmtBs(r.deuda.multaBs + r.multaExtraBs + (r.multasManualesBs || 0))}</td>
                               {e.totales.ivaBs > 0 && <td className="py-2.5 px-3 text-right tabular-nums text-blue-700">{fmtBs(r.deuda.ivaBs)}</td>}
-                              <td className={`py-2.5 px-4 text-right font-black tabular-nums ${r.totalBs > 0.01 ? 'text-red-700' : 'text-emerald-700'}`}>{r.totalBs > 0.01 ? `Bs ${fmtBs(r.totalBs)}` : 'Al día'}</td>
+                              <td className={`py-2.5 px-4 text-right font-black tabular-nums ${(r.totalBs > 0.01 || convInfo.pendiente) ? 'text-red-700' : 'text-emerald-700'}`}>
+                                {r.totalBs > 0.01 ? (
+                                  `Bs ${fmtBs(r.totalBs)}`
+                                ) : convInfo.pendiente ? (
+                                  <div className="flex flex-col items-end leading-tight">
+                                    <span className="text-amber-800 font-black">Bs {fmtBs(convInfo.saldoBs)}</span>
+                                    <span className="text-[10px] font-bold text-amber-700">Convenio ({convInfo.cuotasPend} cuota{convInfo.cuotasPend === 1 ? '' : 's'} pend.)</span>
+                                  </div>
+                                ) : (
+                                  'Al día'
+                                )}
+                              </td>
                             </tr>
                             {open && (r.deuda.meses > 0 || (r.multasManuales || []).length > 0) && (
                               <tr className="bg-slate-50/70">
@@ -1114,7 +1156,18 @@ function Ficha() {
                       <td className="py-2 px-3 font-mono text-xs">{u.identidad || '—'}</td>
                       <td className="py-2 px-3 text-xs text-slate-600">{u.actividad || '—'}</td>
                       <td className="py-2 px-3"><span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${u.estado === 'Activa' ? 'bg-emerald-100 text-emerald-800' : u.estado === 'Desocupada' ? 'bg-slate-200 text-slate-700' : 'bg-red-100 text-red-700'}`}>{u.estado}</span></td>
-                      <td className="py-2 px-4 text-xs">{u.aseo_pendiente_desde ? fmtPeriodo(String(u.aseo_pendiente_desde).slice(0, 7)) : <span className="text-emerald-700 font-bold">Al día</span>}</td>
+                      <td className="py-2 px-4 text-xs">
+                        {u.aseo_pendiente_desde ? (
+                          fmtPeriodo(String(u.aseo_pendiente_desde).slice(0, 7))
+                        ) : (() => {
+                          const cvU = convenioDe(u.inmueble, u.identidad);
+                          const cvI = infoConvenioPendiente(cvU);
+                          if (cvI.pendiente) {
+                            return <span className="text-amber-700 font-bold">En Convenio ({cvI.cuotasPend} cuota{cvI.cuotasPend === 1 ? '' : 's'} pend.)</span>;
+                          }
+                          return <span className="text-emerald-700 font-bold">Al día</span>;
+                        })()}
+                      </td>
                       <td className="py-2 px-3 text-center">{(() => {
                         if (nivel > 0 && u.padre_unidad_id) {
                           return <span className="text-[10px] font-bold text-slate-400" title="Las multas se reflejan y gestionan en el código contenedor N/A">En N/A</span>;
@@ -1134,20 +1187,26 @@ function Ficha() {
                           <button
                             title={(() => {
                               const rr = renglonDe(u.id);
-                              const deuda = rr ? rr.totalBs : (u.aseo_pendiente_desde ? 100 : 0);
-                              return deuda <= 0.01 ? "Descargar Solvencia Municipal de esta unidad" : `Unidad con deuda pendiente (Bs ${fmtBs(deuda)})`;
+                              const cvU = convenioDe(u.inmueble, u.identidad);
+                              const cvI = infoConvenioPendiente(cvU);
+                              const deuda = (rr ? rr.totalBs : (u.aseo_pendiente_desde ? 100 : 0)) + (cvI.pendiente ? Math.max(cvI.saldoBs, 1) : 0);
+                              return deuda <= 0.01 ? "Descargar Solvencia Municipal de esta unidad" : `Unidad con deuda o convenio pendiente (Bs ${fmtBs(deuda)})`;
                             })()}
                             onClick={async (ev) => {
                               ev.stopPropagation();
                               const rr = renglonDe(u.id);
-                              const deuda = rr ? rr.totalBs : (u.aseo_pendiente_desde ? 100 : 0);
+                              const cvU = convenioDe(u.inmueble, u.identidad);
+                              const cvI = infoConvenioPendiente(cvU);
+                              const deuda = (rr ? rr.totalBs : (u.aseo_pendiente_desde ? 100 : 0)) + (cvI.pendiente ? Math.max(cvI.saldoBs, 1) : 0);
                               const { emitirSolvenciaUnidad } = await import('@/lib/condominios/pdfSolvenciaCondominio');
                               await emitirSolvenciaUnidad(c, u, deuda);
                             }}
                             className={`px-2 py-0.5 rounded-md cursor-pointer border shadow-2xs transition-colors text-[11px] font-bold flex items-center gap-1 ${
                               (() => {
                                 const rr = renglonDe(u.id);
-                                const deuda = rr ? rr.totalBs : (u.aseo_pendiente_desde ? 100 : 0);
+                                const cvU = convenioDe(u.inmueble, u.identidad);
+                                const cvI = infoConvenioPendiente(cvU);
+                                const deuda = (rr ? rr.totalBs : (u.aseo_pendiente_desde ? 100 : 0)) + (cvI.pendiente ? Math.max(cvI.saldoBs, 1) : 0);
                                 return deuda <= 0.01 ? 'border-emerald-300 text-emerald-700 hover:bg-emerald-100 bg-emerald-50' : 'border-slate-200 text-slate-400 hover:bg-slate-50 bg-white';
                               })()
                             }`}

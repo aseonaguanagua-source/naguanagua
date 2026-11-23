@@ -514,14 +514,19 @@ function Caja() {
   const normId = (s: any) => String(s || '').toUpperCase().trim().replace(/^[VEJPG]-?/, '').replace(/[^A-Z0-9]/g, '').replace(/^0+/, '');
   const convenioDeUnidad = (r: any) => {
     const rIdClean = String(r?.identidad || '').replace(/\D/g, '');
-    const inmCode = String(r?.inmueble || '').replace(/\D/g, '');
-    const padreCode = String(r?.padreInmueble || '').replace(/\D/g, '');
+    const inmRaw = String(r?.inmueble || '').trim().toUpperCase();
+    const padreRaw = String(r?.padreInmueble || '').trim().toUpperCase();
+    const inmCode = inmRaw.replace(/\D/g, '');
+    const padreCode = padreRaw.replace(/\D/g, '');
     return (cobro?.convenios || []).find((cv: any) => {
       const idClean = String(cv.identidad || '').replace(/\D/g, '');
       const numClean = String(cv.numero || '').replace(/\D/g, '');
       const matchId = idClean.length >= 4 && idClean === rIdClean;
-      const matchInm = (inmCode.length >= 3 && numClean.includes(inmCode)) || (padreCode.length >= 3 && numClean.includes(padreCode));
+      const matchInm =
+        (inmCode.length >= 4 && numClean === inmCode && (!inmRaw.startsWith('AURI') || matchId)) ||
+        (padreCode.length >= 4 && numClean === padreCode && (!padreRaw.startsWith('AURI') || matchId));
       if (!matchId && !matchInm) return false;
+      if (numClean.length >= 4 && inmCode && numClean !== inmCode && (!padreCode || numClean !== padreCode)) return false;
       const cuotasPend = (cv.convenios_cuotas || []).filter((q: any) => String(q?.estado || 'Pendiente').toLowerCase().includes('pend'));
       return cuotasPend.length > 0 || !Array.isArray(cv.convenios_cuotas) || cv.convenios_cuotas.length === 0;
     });

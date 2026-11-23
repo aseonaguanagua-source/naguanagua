@@ -74,6 +74,37 @@ export async function emitirSolvenciaUnidad(condo: any, unidad: any, deudaUnidad
       return null;
     }
 
+    // Verificar si la unidad posee un Convenio de Pago activo con cuotas pendientes
+    try {
+      const codeNum = String(unidad.inmueble || '').replace(/\D/g, '');
+      const idNum = String(unidad.identidad || '').replace(/\D/g, '');
+      const ors: string[] = [];
+      if (codeNum.length >= 4) ors.push(`numero.ilike.%${codeNum}%`);
+      if (idNum.length >= 5) ors.push(`identidad.ilike.%${idNum}%`);
+      if (ors.length > 0) {
+        const { data: convs } = await supabase
+          .from('convenios_pago')
+          .select('id, numero, identidad, cuotas, estado, convenios_cuotas(id, monto, estado)')
+          .neq('estado', 'Anulado')
+          .or(ors.join(','));
+        for (const cv of convs || []) {
+          const cvCode = String(cv.numero || '').replace(/\D/g, '');
+          const cvId = String(cv.identidad || '').replace(/\D/g, '');
+          const matchCode = codeNum.length >= 4 && cvCode === codeNum;
+          const matchId = idNum.length >= 5 && cvId === idNum && cvCode.length < 4;
+          if (!matchCode && !matchId) continue;
+          const cuotasPend = (cv.convenios_cuotas || []).filter((q: any) => String(q?.estado || 'Pendiente').toLowerCase().includes('pend'));
+          if (cuotasPend.length > 0) {
+            const saldoConv = cuotasPend.reduce((acc: number, q: any) => acc + (parseFloat(q.monto) || 0), 0);
+            alert(
+              `BLOQUEO DE SOLVENCIA POR CONVENIO ACTIVO:\nLa unidad "${descUnidad}" posee el Convenio de Pago "${cv.numero}" con ${cuotasPend.length} cuota(s) pendiente(s) por Bs ${fmtBs(saldoConv)}.\nDebe cancelar la totalidad de las cuotas del convenio antes de emitir la solvencia.`
+            );
+            return null;
+          }
+        }
+      }
+    } catch (_) {}
+
     const idContribuyente = (unidad.identidad || condo.identidad || unidad.inmueble || 'V-00000000').trim();
     const cleanId = idContribuyente.replace(/[^0-9A-Z]/gi, '');
     const codigoUnico = `SOL-${cleanId}-${Date.now().toString().slice(-6)}`;
