@@ -323,7 +323,7 @@ export default function ConciliacionDiariaPanel({
         if (data.length < PAGE) break;
         from += PAGE;
       }
-      setRawPagos(fresh);
+      setRawPagos(fresh.map((p: any) => aplicarMontoReporte(p)));
     } catch (e) {
       console.error('Error cargando datos de conciliación diaria:', e);
     } finally {

@@ -188,7 +188,7 @@ export async function generarMontoDiarioRecaudado({
   const dToStr = String(fechaFin || '').split('T')[0];
 
   // Consultar siempre la base de datos fresca igual que Total Puntos de Venta y Cuadre de Caja
-  let rawPagos = pagos;
+  let rawPagos = (pagos || []).map((p: any) => aplicarMontoReporte(p));
   try {
     const fresh: any[] = [];
     let from = 0;
@@ -206,7 +206,7 @@ export async function generarMontoDiarioRecaudado({
       from += PAGE;
     }
     if (fresh.length > 0) {
-      rawPagos = fresh;
+      rawPagos = fresh.map((p: any) => aplicarMontoReporte(p));
     }
   } catch {}
 

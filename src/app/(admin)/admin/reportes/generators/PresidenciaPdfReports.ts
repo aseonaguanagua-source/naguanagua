@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { descargarPdfBlob } from './PdfReports';
 import { parseDet, montosPago, cargarInmMapPagos, codigosDePago, resolverCodigoPrincipalInm, fechaEmisionDoc } from './LibroVentas';
 import { obtenerNroReciboWeb, obtenerRecibosPagosUnificados } from './ReporteRecibosPagos';
+import { aplicarMontoReporte } from '../montoReporte';
 
 const r2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
 const fmtBs = (n: number) =>
@@ -621,11 +622,12 @@ export async function generarTotalPuntosVentaPDF(
   fechaFin: string,
   contribuyentes: any[] = []
 ) {
-  let deb = pagos.filter(
+  const sourcePagos = (pagos || []).map((p: any) => aplicarMontoReporte(p));
+  let deb = sourcePagos.filter(
     (p) => !esAnulado(p) && esDebito(p) && !esRetencion(p) && !esSaldoFavor(p)
   );
   if (!deb.length) {
-    deb = pagos.filter((p) => !esAnulado(p) && !esRetencion(p) && !esSaldoFavor(p));
+    deb = sourcePagos.filter((p) => !esAnulado(p) && !esRetencion(p) && !esSaldoFavor(p));
   }
 
   const nombreDe = (id: string, det: any, p: any) => {
