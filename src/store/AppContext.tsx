@@ -1381,13 +1381,46 @@ export function AppProvider({ children }: { children: ReactNode }) {
           if (pid && !naParentCodes.includes(pid)) naParentCodes.push(pid);
         });
 
+        // Si el contribuyente comercial tiene 2+ actividades (o se colocó la actividad principal como N/A)
+        // y el primer código (ej. URB006999) aún no era un contenedor N/A, convertir el código principal en el contenedor N/A
+        // y crear su actividad propia como un inmueble hijo para que NO se pierda la 1ra actividad.
+        let localesToProcess = [...data.locales];
+        const firstWithCodeIdx = localesToProcess.findIndex((l: any) => Boolean(l.codigo));
+        const firstLocal = firstWithCodeIdx >= 0 ? localesToProcess[firstWithCodeIdx] : null;
+        const mainCodeCandidate = String(firstLocal?.codigo || '').trim().toUpperCase();
+        const userSetMainNA = String(data.ActividadComercial || '').trim().toUpperCase() === 'N/A';
+
+        if (
+          naParentCodes.length === 0 &&
+          !data.isCondominio &&
+          mainCodeCandidate &&
+          localesToProcess.length > 1 &&
+          (userSetMainNA || localesToProcess.some((l: any) => !l.codigo && l.uso !== 'Residencial'))
+        ) {
+          naParentCodes.push(mainCodeCandidate);
+          const firstAct = String(firstLocal?.actividad || '').trim().toUpperCase();
+          // Si la tarjeta del código principal tiene una actividad comercial real (distinta de N/A),
+          // crear un hijo nuevo para esa 1ra actividad y dejar el código principal como contenedor N/A
+          if (firstAct && firstAct !== 'N/A') {
+            localesToProcess[firstWithCodeIdx] = {
+              ...firstLocal,
+              codigo: null,
+              padre_id: mainCodeCandidate,
+              numeracion: firstLocal.numeracion && firstLocal.numeracion !== mainCodeCandidate
+                ? firstLocal.numeracion
+                : 'Local Comercial 1',
+              esNuevo: true,
+            };
+          }
+        }
+
         // 3a. Varios inmuebles/actividades: actualizar SOLO los que cambiaron; insertar los nuevos; dar de baja los eliminados
-        const nuevos = data.locales.filter((l: any) => !l.codigo);
+        const nuevos = localesToProcess.filter((l: any) => !l.codigo);
         const codigosNuevos = nuevos.length > 0 ? await siguientesCodigosInmueble(nuevos.length) : [];
         let iNuevo = 0;
         
         // Dar de baja (Eliminar) los inmuebles/actividades que fueron removidos en la interfaz (nunca eliminar contenedores N/A padres)
-        const codigosActuales = data.locales.map((l: any) => l.codigo).filter(Boolean);
+        const codigosActuales = localesToProcess.map((l: any) => l.codigo).filter(Boolean);
         const codigosEliminados = codigosPropios.filter(c => !codigosActuales.includes(c) && !naParentCodes.includes(String(c || '').trim().toUpperCase()));
         
         for (const codEliminado of codigosEliminados) {
@@ -1396,16 +1429,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
           cambios.push(`ELIMINADO: ${codEliminado} dado de baja`);
         }
 
-        if (data.locales.length === 1 && data.locales[0].codigo && naParentCodes.length === 0) {
+        if (localesToProcess.length === 1 && localesToProcess[0].codigo && naParentCodes.length === 0) {
           try {
             await supabase
               .from('inmuebles')
               .update({ cant_inmuebles: 1 })
-              .eq('inmueble', data.locales[0].codigo);
+              .eq('inmueble', localesToProcess[0].codigo);
           } catch (_) {}
         }
         
-        for (const local of data.locales) {
+        for (const local of localesToProcess) {
           const o = local.__orig || {};
           const esContenedorNA =
             local.esContenedorNA === true ||
@@ -1547,9 +1580,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
           }
         }
 
-        // Sincronizar contenedor(es) N/A padre (ej. URB033361) con el RIF, Razón Social y suma de MMV de sus actividades hijas
+        // Sincronizar contenedor(es) N/A padre (ej. URB033361, URB006999) con el RIF, Razón Social y suma de MMV de sus actividades hijas
+        data.locales = localesToProcess;
+        data.__naParentCodes = naParentCodes;
         for (const naCode of naParentCodes) {
-          const hijosLocales = data.locales.filter((l: any) =>
+          const hijosLocales = localesToProcess.filter((l: any) =>
             String(l.codigo || '').trim().toUpperCase() !== naCode &&
             (String(l.padre_id || l.__orig?.padre_id || '').trim().toUpperCase() === naCode || naParentCodes.length === 1)
           );
@@ -1568,6 +1603,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
             const updNa: any = {
               actividad_principal: 'N/A',
               padre_id: null,
+              condominio_padre_id: null,
+              es_condominio: false,
+              deuda_mmv: 0,
               cant_inmuebles: hijosLocales.length,
             };
             if (nombreUnificado) updNa.contribuyente = nombreUnificado;

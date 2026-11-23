@@ -3089,7 +3089,6 @@ function ContribuyentesPageContent() {
 
     setFormData({
       ...formData,
-      isCondominio: true,
       Clasificacion: nuevaClasificacion,
       cantidadInmuebles: listaActualizada.length,
       locales: listaActualizada
@@ -3964,13 +3963,13 @@ function ContribuyentesPageContent() {
                         onChange={e => {
                           const val = e.target.value;
                           const updatedLocales = (formData.locales || []).map((loc: any, idx: number) =>
-                            idx === 0 && loc.uso !== 'Residencial' ? { ...loc, actividadComercial: val } : loc
+                            idx === 0 && loc.uso !== 'Residencial' && val !== 'N/A' ? { ...loc, actividad: val, actividadComercial: val } : loc
                           );
                           setFormData({ ...formData, ActividadComercial: val, locales: updatedLocales });
                         }}
                         className="w-full border border-slate-300 bg-white rounded px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500"
                       >
-                        <option value="N/A">N/A (No Aplica)</option>
+                        <option value="N/A">N/A (No Aplica / Múltiples Actividades)</option>
                         {todasLasActividades.map(a => <option key={a.label} value={a.label}>{a.label}</option>)}
                       </select>
                     </div>
@@ -3981,7 +3980,7 @@ function ContribuyentesPageContent() {
                         onChange={e => {
                           const val = e.target.value;
                           const updatedLocales = (formData.locales || []).map((loc: any, idx: number) =>
-                            idx === 0 && loc.uso !== 'Residencial' ? { ...loc, nivelMetraje: val } : loc
+                            idx === 0 && loc.uso !== 'Residencial' ? { ...loc, nivel: val, nivelMetraje: val } : loc
                           );
                           setFormData({ ...formData, NivelMetraje: val, locales: updatedLocales });
                         }}
