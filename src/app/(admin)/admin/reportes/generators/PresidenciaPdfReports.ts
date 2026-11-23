@@ -415,7 +415,12 @@ export async function generarLibroVentasPDF(
     .filter((p) => !esRetencion(p))
     .forEach((p) => {
       const det = parseDet(p);
-      if (det.es_pago_adicional || det.factura_digital?.es_pago_adicional) return;
+      const esHijoSecundario = Boolean(
+        (det.pago_principal_id && det.pago_principal_id !== p.id) ||
+        det.factura_digital?.es_pago_adicional === true ||
+        det.factura_digital?.es_copia_integrada === true
+      );
+      if (esHijoSecundario) return;
       const fd = det.factura_digital || {};
       const previas = Array.isArray(det.facturas_digitales_previas)
         ? det.facturas_digitales_previas.filter(esPreviaValidaFiscal)

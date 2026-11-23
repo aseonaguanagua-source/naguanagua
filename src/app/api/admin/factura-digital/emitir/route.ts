@@ -2625,7 +2625,7 @@ export async function POST(request: Request) {
         }
         if (idsIntegrados.length > 0) {
           nuevosDetalles.pagos_integrados_ids = idsIntegrados;
-          nuevosDetalles.es_pago_adicional = true;
+          nuevosDetalles.es_pago_adicional = false;
           nuevosDetalles.tipo_registro_multi = 'DIFERENCIA';
           await supabase.from('pagos_reportados').update({ detalles: nuevosDetalles }).eq('id', pagoId);
         }

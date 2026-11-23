@@ -250,7 +250,12 @@ export async function obtenerRecibosPagosUnificados(
         if (!rd.enviado && p.estado !== 'Aprobado') return false;
         if (/retenci|nota de cr[eé]dito/i.test(String(p.tipo || ''))) return false;
         const fd = det.factura_digital || {};
-        if (det.es_pago_adicional || fd.es_pago_adicional) return false;
+        const esHijoSecundario = Boolean(
+          (det.pago_principal_id && det.pago_principal_id !== p.id) ||
+          fd.es_pago_adicional === true ||
+          fd.es_copia_integrada === true
+        );
+        if (esHijoSecundario) return false;
         if (fd.emitida || fd.numero_documento || fd.numero_control || fd.anulada) return false;
 
         const cod = resolverCodigo(p, det);

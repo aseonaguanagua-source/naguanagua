@@ -129,7 +129,12 @@ export default function FacturacionPortalPage() {
           const fd = det.factura_digital;
           // Solo facturas que ya hayan sido emitidas y que no sean filas secundarias de multipago
           if (!fd || fd.emitida !== true) return;
-          if (det.es_pago_adicional === true || fd.es_pago_adicional === true) return;
+          const esHijoSecundario = Boolean(
+            (det.pago_principal_id && det.pago_principal_id !== p.id) ||
+            fd.es_pago_adicional === true ||
+            fd.es_copia_integrada === true
+          );
+          if (esHijoSecundario) return;
 
           const numDoc = fd.numero_documento || fd.raw_response?.resultado?.numeroDocumento || '0';
           const numCtrl = fd.numero_control || fd.raw_response?.resultado?.numeroControl || 'N/A';

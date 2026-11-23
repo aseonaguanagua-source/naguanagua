@@ -26,6 +26,7 @@ export async function GET(request: Request) {
     // buscamos directamente en la base de datos sin restringir por fecha del día.
     const queryInmIdents = new Set<string>();
     const queryRelatedInmuebleCodes = new Set<string>();
+    const queryPrincipalIds = new Set<string>();
 
     if (query) {
       // Generar variantes con y sin guión para búsquedas por RIF/Cédula (ej. J309335758 <-> J-309335758, 309335758)
@@ -88,6 +89,10 @@ export async function GET(request: Request) {
       directPagos?.forEach(p => {
         if (p.identidad) queryInmIdents.add(p.identidad);
         const d = parseDetalles(p.detalles);
+        if (d?.pago_principal_id) {
+          const safePrin = String(d.pago_principal_id).replace(/[,()]/g, '').trim();
+          if (safePrin) queryPrincipalIds.add(safePrin);
+        }
         const esPagoLocalIndiv =
           d?.modo === 'CONTRIBUYENTE' ||
           String(d?.modalidad_cobro || '').toLowerCase() === 'individual' ||
@@ -161,8 +166,13 @@ export async function GET(request: Request) {
         `referencia.ilike.%${query}%`,
         `detalles->>codigo_inmueble.ilike.%${query}%`,
         `detalles->>cod_inmueble.ilike.%${query}%`,
-        `detalles->>contribuyente.ilike.%${query}%`
+        `detalles->>contribuyente.ilike.%${query}%`,
+        `detalles->factura_digital->>numero_control.ilike.%${query}%`,
+        `detalles->factura_digital->>numero_documento.ilike.%${query}%`
       ];
+      Array.from(queryPrincipalIds).forEach(pid => {
+        if (pid) orParts.push(`id.eq.${pid}`);
+      });
       Array.from(queryInmIdents).forEach(id => {
         const safeId = String(id || '').replace(/[,()]/g, '').trim();
         if (safeId) orParts.push(`identidad.eq.${safeId}`);
@@ -277,8 +287,8 @@ export async function GET(request: Request) {
       const emA = Boolean(dA?.factura_digital?.emitida || dA?.factura_digital?.numero_control || dA?.factura_digital?.numero_documento) ? 1 : 0;
       const emB = Boolean(dB?.factura_digital?.emitida || dB?.factura_digital?.numero_control || dB?.factura_digital?.numero_documento) ? 1 : 0;
       if (emB !== emA) return emB - emA;
-      const esSecA = Boolean(dA?.es_pago_adicional || (dA?.pago_principal_id && dA.pago_principal_id !== a.id) || (a.grupo_pago && a.grupo_pago !== a.id)) ? 1 : 0;
-      const esSecB = Boolean(dB?.es_pago_adicional || (dB?.pago_principal_id && dB.pago_principal_id !== b.id) || (b.grupo_pago && b.grupo_pago !== b.id)) ? 1 : 0;
+      const esSecA = Boolean((dA?.pago_principal_id && dA.pago_principal_id !== a.id) || (a.grupo_pago && a.grupo_pago !== a.id) || dA?.factura_digital?.es_pago_adicional || dA?.factura_digital?.es_copia_integrada) ? 1 : 0;
+      const esSecB = Boolean((dB?.pago_principal_id && dB.pago_principal_id !== b.id) || (b.grupo_pago && b.grupo_pago !== b.id) || dB?.factura_digital?.es_pago_adicional || dB?.factura_digital?.es_copia_integrada) ? 1 : 0;
       if (esSecA !== esSecB) return esSecA - esSecB;
       const pendA = Boolean(dA?.factura_digital?.pendiente || dA?.factura_digital?.preparada_at) ? 1 : 0;
       const pendB = Boolean(dB?.factura_digital?.pendiente || dB?.factura_digital?.preparada_at) ? 1 : 0;
@@ -306,7 +316,13 @@ export async function GET(request: Request) {
       const dP = parseDetalles(pPrincipal.detalles);
       if (dP?.factura_digital?.anulada || dP?.factura_digital?.nota_credito || dP?.factura_digital?.rechazada) return;
       // Un pago secundario / adicional nunca debe actuar como principal absorbiendo al verdadero principal
-      if (dP?.es_pago_adicional === true || (dP?.pago_principal_id && dP.pago_principal_id !== pPrincipal.id)) return;
+      const esSecundarioRealP = Boolean(
+        (dP?.pago_principal_id && dP.pago_principal_id !== pPrincipal.id) ||
+        (dP?.es_pago_adicional === true && pPrincipal.grupo_pago && pPrincipal.grupo_pago !== pPrincipal.id) ||
+        dP?.factura_digital?.es_pago_adicional === true ||
+        dP?.factura_digital?.es_copia_integrada === true
+      );
+      if (esSecundarioRealP) return;
 
       const sumSfDeudaPrevia = Array.isArray(dP?.deuda_previa)
         ? dP.deuda_previa.reduce((acc: number, x: any) => acc + (parseFloat(String(x?.saldo_favor_bs || 0)) || 0), 0)
@@ -509,12 +525,12 @@ export async function GET(request: Request) {
       // solo se excluye SI pertenece a un grupo_pago real (no un vínculo automático falso) y el pago principal está activo/aprobado.
       const esVinculoAutomaticoSinGrupo = Boolean(d?.vinculado_a_referencia) && !p.grupo_pago;
       if (!esVinculoAutomaticoSinGrupo) {
-        if (d?.pago_principal_id) {
+        if (d?.pago_principal_id && d.pago_principal_id !== p.id) {
           const principalActivo = pagosPrincipalesActivosMap.get(d.pago_principal_id);
           if (principalActivo === true) {
             return false;
           }
-        } else if (d?.es_pago_adicional === true && p.grupo_pago) {
+        } else if (d?.es_pago_adicional === true && p.grupo_pago && p.grupo_pago !== p.id) {
           return false;
         }
       }

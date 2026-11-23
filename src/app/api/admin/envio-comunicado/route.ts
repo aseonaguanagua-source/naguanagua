@@ -600,6 +600,9 @@ async function cargarFacturasYRecibosEnviados(
     'fecha_transaccion:detalles->>fecha_transaccion',
     'correlativo_recibo:detalles->>correlativo_recibo',
     'es_pago_adicional:detalles->>es_pago_adicional',
+    'pago_principal_id:detalles->>pago_principal_id',
+    'fd_es_adicional:detalles->factura_digital->>es_pago_adicional',
+    'fd_es_copia:detalles->factura_digital->>es_copia_integrada',
     'modo:detalles->>modo',
     'es_condominio:detalles->>es_condominio',
     'monto_factura:detalles->>monto_factura',
@@ -633,7 +636,11 @@ async function cargarFacturasYRecibosEnviados(
 
   const list: any[] = [];
   for (const p of rawPagos) {
-    if (String(p.es_pago_adicional || '') === 'true') continue;
+    const esHijoSecundario =
+      Boolean(p.pago_principal_id && p.pago_principal_id !== p.id) ||
+      String(p.fd_es_adicional || '') === 'true' ||
+      String(p.fd_es_copia || '') === 'true';
+    if (esHijoSecundario) continue;
     if (String(p.referencia || '').startsWith('RECH-')) continue;
     if (String(p.fd_anulada || '') === 'true') continue;
 

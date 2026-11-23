@@ -434,7 +434,12 @@ export const generarLibroVentas = async (pagosFiltrados: any[], contribuyentes: 
     .filter(p => {
       if (esRetencion(p)) return false;
       const det = parseDet(p);
-      if (det.es_pago_adicional || det.factura_digital?.es_pago_adicional) return false;
+      const esHijoSecundario = Boolean(
+        (det.pago_principal_id && det.pago_principal_id !== p.id) ||
+        det.factura_digital?.es_pago_adicional === true ||
+        det.factura_digital?.es_copia_integrada === true
+      );
+      if (esHijoSecundario) return false;
       const fd = det.factura_digital;
       const infoAudit = mapaAnulacionesAudit.get(String(p.id));
       const ncFiscalReal = Boolean(
