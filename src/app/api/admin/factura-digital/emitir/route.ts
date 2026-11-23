@@ -1810,7 +1810,22 @@ export async function POST(request: Request) {
               const codigo = hit ? hit[0] : '99';
               const casilla = (v: string, max: number) => v.replace(/\|/g, '/').trim().slice(0, max);
               const forma = casilla(hit ? hit[1] : tipoPago, 40);
-              const ref = casilla(refPago, 25);
+              const fmtBsRef = (n: number) =>
+                (Number(n) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+              // Si el monto real transferido/depositado supera el Total a Pagar de la factura (ej. generó Saldo a Favor),
+              // TFHKA exige por regla [1016] que FormasPago.Monto coincida con TotalAPagar, por lo que dejamos constancia
+              // del monto real del depósito bancario junto a la referencia para conciliación bancaria.
+              const montoRealDeposito = r2(
+                parseFloat(String(detPago.monto_conciliado || pagoRow?.monto || 0)) || 0
+              );
+              const esPagoUnicoConExcedente =
+                (!Array.isArray(formasPago) || formasPago.length <= 1) &&
+                (!Array.isArray(detPago.pagos_agregados) || detPago.pagos_agregados.length <= 1) &&
+                montoRealDeposito > totalAPagar + 0.05;
+              const refConDeposito = esPagoUnicoConExcedente && refPago && refPago !== 'N/A'
+                ? `${refPago} (Dep: Bs. ${fmtBsRef(montoRealDeposito)})`
+                : refPago;
+              const ref = casilla(refConDeposito, 45);
               const banco = casilla(bancoPago, Math.max(0, 100 - 2 - forma.length - ref.length));
 
               const porcRet = resolverPorcRetencion(detPago, totalIVA);

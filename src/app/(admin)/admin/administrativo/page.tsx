@@ -61,7 +61,7 @@ export default function DashboardAdministrativo() {
       while (true) {
         const { data: chunk, error } = await supabase
           .from('pagos_reportados')
-          .select('*')
+          .select('id, identidad, monto, tipo, estado, created_at')
           .eq('estado', 'Aprobado')
           .order('created_at', { ascending: false })
           .range(from, from + PAGE - 1);

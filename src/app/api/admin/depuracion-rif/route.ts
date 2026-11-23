@@ -326,8 +326,10 @@ export async function POST(req: Request) {
         const currentCode = updatesInm.inmueble || inmobCode;
         updatesInm.identidad = newIdNormalizada;
         try {
-          await sb.from('facturas').update({ identidad: newIdNormalizada }).eq('inmueble', currentCode);
-          tablasRifAfectadas['facturas_inmueble'] = 1;
+          if (currentCode) {
+            await sb.from('facturas').update({ identidad: newIdNormalizada }).ilike('referencia', `%${currentCode}%`);
+            tablasRifAfectadas['facturas_inmueble'] = 1;
+          }
         } catch (_) {}
         // Si es un contenedor padre (N/A), propagar también el cambio de RIF a sus actividades hijas directas
         try {

@@ -806,7 +806,7 @@ export async function GET(request: Request) {
           .in('inmueble', slice),
         supabase
           .from('condominio_unidades')
-          .select('inmueble, propietario, identidad, correo')
+          .select('inmueble, propietario, identidad')
           .in('inmueble', slice),
       ]);
       (inms || []).forEach((inm: any) => inmMap.set(inm.inmueble, inm));

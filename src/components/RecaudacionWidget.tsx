@@ -91,17 +91,42 @@ export default function RecaudacionWidget() {
       const all: any[] = [];
       let from = 0;
       const PAGE = 1000;
+      // Proyectar solo las columnas necesarias y los campos ligeros de detalles (excluyendo comprobante_b64 de varios MB)
+      const cols = [
+        'id',
+        'identidad',
+        'monto',
+        'tipo',
+        'estado',
+        'referencia',
+        'banco',
+        'created_at',
+        'cajero:detalles->>cajero',
+        'analista:detalles->>analista',
+        'monto_reporte:detalles->>monto_reporte',
+        'monto_conciliado:detalles->>monto_conciliado',
+      ].join(', ');
       while (true) {
         const { data, error } = await supabase
           .from('pagos_reportados')
-          .select('*')
+          .select(cols)
           .eq('estado', 'Aprobado')
           .gte('created_at', range.desde + 'T00:00:00-04:00')
           .lte('created_at', range.hasta + 'T23:59:59-04:00')
           .order('created_at', { ascending: false })
           .range(from, from + PAGE - 1);
         if (error || !data || data.length === 0) break;
-        all.push(...data);
+        for (const r of data as any[]) {
+          all.push({
+            ...r,
+            detalles: {
+              cajero: r.cajero || null,
+              analista: r.analista || null,
+              ...(r.monto_reporte != null ? { monto_reporte: r.monto_reporte } : {}),
+              ...(r.monto_conciliado != null ? { monto_conciliado: r.monto_conciliado } : {}),
+            },
+          });
+        }
         if (data.length < PAGE) break;
         from += PAGE;
       }
@@ -110,10 +135,7 @@ export default function RecaudacionWidget() {
         .filter(p => {
           const t = String(p.tipo || '').trim();
           if (/retenci|saldo a favor|nota de cr[eé]dito/i.test(t)) return false;
-          let det: any = p.detalles || {};
-          if (typeof det === 'string') {
-            try { det = JSON.parse(det); } catch { det = {}; }
-          }
+          const det: any = p.detalles || {};
           const caj = String(det?.cajero || det?.analista || '').trim();
           if (/^(dz-)?dzara$|^c-dzara$/i.test(caj)) return false;
           return (parseMonto(p.monto) || 0) > 0;

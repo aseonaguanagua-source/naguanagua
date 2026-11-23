@@ -104,7 +104,7 @@ export async function POST(request: Request) {
       } else {
         const { data: cUnits } = await supabase
           .from("condominio_unidades")
-          .select("id, propietario, identidad, inmueble, estado, correo, telefono")
+          .select("id, propietario, identidad, inmueble, estado")
           .or(orFilter)
           .neq("estado", "Eliminada")
           .limit(1);

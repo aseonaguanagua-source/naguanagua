@@ -76,12 +76,12 @@ async function evaluarSolvenciaLocal(identidad: string, inmuebleSpec: string = '
     const codigosAlcance = alcance.map((i: any) => i.inmueble).filter(Boolean);
     const { data: factsInm } = await supabase
       .from('facturas')
-      .select('id, referencia, inmueble, estado')
+      .select('id, referencia, estado')
       .in('identidad', variantes.length ? variantes : [identidad])
       .in('estado', ['Pendiente', 'Abonado', 'Por Verificar']);
 
     const facturasPendientesInm = (factsInm || []).filter((f: any) =>
-      codigosAlcance.some((c: string) => (f.referencia || '').includes(c) || f.inmueble === c)
+      codigosAlcance.some((c: string) => (f.referencia || '').includes(c))
     );
 
     if (facturasPendientesInm.length > 0) {

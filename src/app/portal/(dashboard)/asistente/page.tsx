@@ -172,7 +172,7 @@ export default function AsistenteGlobalPage() {
         ] = await Promise.all([
           supabase.from('contribuyentes').select('nombre, email, telefono, direccion').or(orFilter).limit(1).maybeSingle(),
           supabase.from('inmuebles').select('*').or(orFilter),
-          supabase.from('condominio_unidades').select('inmueble, propietario, direccion').or(orFilter),
+          supabase.from('condominio_unidades').select('inmueble, propietario, numero, actividad').or(orFilter),
           supabase.from('facturas').select('*').or(orFilter).order('emision', { ascending: true }),
           supabase
             .from('pagos_reportados')
@@ -228,7 +228,6 @@ export default function AsistenteGlobalPage() {
         const direccionReal =
           distinctInms.find((i: any) => i.direccion)?.direccion ||
           contribData?.direccion ||
-          condoUnits?.[0]?.direccion ||
           '';
 
         const rc = construirRecibosContribuyente({

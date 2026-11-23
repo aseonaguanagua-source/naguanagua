@@ -1014,8 +1014,16 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
                               </span>
                             </div>
                           )}
-                          {montoConciliado > 0 && <div><strong>Monto Conciliado:</strong> <span className="font-bold text-slate-900 font-mono">Bs. {formatBs(montoConciliado)}</span></div>}
-                          <div><strong>Aplicado a Factura (Neto):</strong> <span className="font-mono font-bold text-emerald-800">Bs. {formatBs(montoNetoCobrado)}</span></div>
+                          {montoConciliado > 0 ? (
+                            <>
+                              <div><strong>Monto:</strong> <span className="font-bold text-slate-900 font-mono">Bs. {formatBs(montoConciliado)}</span></div>
+                              {Math.abs(montoConciliado - montoNetoCobrado) >= 0.05 && (
+                                <div><strong>Aplicado a Factura:</strong> <span className="font-mono font-bold text-emerald-800">Bs. {formatBs(montoNetoCobrado)}</span></div>
+                              )}
+                            </>
+                          ) : (
+                            <div><strong>Monto:</strong> <span className="font-mono font-bold text-slate-900">Bs. {formatBs(montoNetoCobrado)}</span></div>
+                          )}
                         </div>
                       );
                     })()}

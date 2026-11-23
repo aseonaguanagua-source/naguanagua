@@ -44,8 +44,7 @@ export async function POST(request: Request) {
 
       await Promise.allSettled([
         supabaseAdmin.from('inmuebles').update(updatePayload).or(orFilter),
-        supabaseAdmin.from('condominios').update({ correo: cleanEmail, ...(cleanPhone ? { telefono: cleanPhone } : {}) }).or(orFilter),
-        supabaseAdmin.from('condominio_unidades').update({ correo: cleanEmail, ...(cleanPhone ? { telefono: cleanPhone } : {}) }).or(orFilter)
+        supabaseAdmin.from('condominios').update({ correo: cleanEmail, ...(cleanPhone ? { telefono: cleanPhone } : {}) }).or(orFilter)
       ]);
     }
 

@@ -818,7 +818,7 @@ async function fetchTableAllParallel(
   const totalEstimated = Math.max(count || 0, STEP);
   const totalPages = Math.ceil(totalEstimated / STEP) + 1;
   const all: any[] = [];
-  const CONCURRENCY = 10;
+  const CONCURRENCY = 3;
 
   for (let p = 0; p < totalPages; p += CONCURRENCY) {
     const batchSize = Math.min(CONCURRENCY, totalPages - p);

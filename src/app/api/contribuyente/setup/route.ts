@@ -93,24 +93,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Error al actualizar base de datos' }, { status: 500 });
     }
 
-    // 2. Actualizar también la tabla de contribuyentes
-    await supabase
-      .from('contribuyentes')
-      .update({
-        email: cleanEmail,
-        telefono: cleanPhone,
-        clave_portal: clave
-      })
-      .or(orFilter);
-
-    // 3. Actualizar también en condominio_unidades si existe
-    await supabase
-      .from('condominio_unidades')
-      .update({
-        correo: cleanEmail,
-        telefono: cleanPhone
-      })
-      .or(orFilter);
+    // 2. Actualizar también la tabla de contribuyentes y condominios
+    await Promise.allSettled([
+      supabase
+        .from('contribuyentes')
+        .update({
+          email: cleanEmail,
+          telefono: cleanPhone,
+          clave_portal: clave
+        })
+        .or(orFilter),
+      supabase
+        .from('condominios')
+        .update({
+          correo: cleanEmail,
+          telefono: cleanPhone
+        })
+        .or(orFilter)
+    ]);
 
     if (data && data.length > 0) {
       return NextResponse.json({ 

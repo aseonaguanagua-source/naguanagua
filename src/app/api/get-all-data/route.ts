@@ -21,7 +21,7 @@ async function fetchAllParallel(table: string, cols: string): Promise<any[]> {
   if (!count || count === 0) return [];
 
   const numBatches = Math.ceil(count / STEP);
-  const CONCURRENCY = 10;
+  const CONCURRENCY = 3;
   let all: any[] = [];
 
   for (let start = 0; start < numBatches; start += CONCURRENCY) {

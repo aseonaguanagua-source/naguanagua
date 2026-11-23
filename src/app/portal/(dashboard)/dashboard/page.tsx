@@ -127,7 +127,7 @@ export default function DatosContribuyentePage() {
         if ((!inmsData || inmsData.length === 0) && !condoMatriz) {
           const { data: cUnit } = await supabase
             .from('condominio_unidades')
-            .select('propietario, inmueble, actividad, telefono, correo')
+            .select('propietario, inmueble, actividad')
             .neq('estado', 'Eliminada')
             .or(orFilter)
             .limit(1)
@@ -215,10 +215,9 @@ export default function DatosContribuyentePage() {
         .or(orFilter);
       if (error) throw error;
 
-      // 2. Cascada en contribuyentes, condominios y condominio_unidades
+      // 2. Cascada en contribuyentes y condominios
       await Promise.allSettled([
         supabase.from('contribuyentes').update({ email: userData.email, telefono: userData.telefonoMovil, direccion: userData.direccion }).or(orFilter),
-        supabase.from('condominio_unidades').update({ correo: userData.email, telefono: userData.telefonoMovil }).or(orFilter),
         supabase.from('condominios').update({ correo: userData.email, telefono: userData.telefonoMovil, direccion: userData.direccion }).or(orFilter)
       ]);
 
