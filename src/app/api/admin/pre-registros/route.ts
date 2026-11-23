@@ -55,6 +55,28 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: 'Identidad y Nombre/Razón Social son obligatorios.' }, { status: 400 });
     }
 
+    const origenStr = String(body.origen || 'Portal Web').trim();
+    const esRegistroPortalWeb = origenStr.toLowerCase() === 'portal web' || origenStr.toLowerCase() === 'web';
+    if (esRegistroPortalWeb) {
+      const tieneRif = Boolean(body.rif_doc && String(body.rif_doc).trim());
+      const tieneCedula = Boolean(body.cedula_doc && String(body.cedula_doc).trim());
+      const tieneTercerDoc = Boolean(
+        (body.patente_doc && String(body.patente_doc).trim()) ||
+        (body.ficha_doc && String(body.ficha_doc).trim()) ||
+        (body.registro_doc && String(body.registro_doc).trim())
+      );
+      if (!tieneRif || !tieneCedula || !tieneTercerDoc) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error:
+              'Es obligatorio cargar los documentos requeridos (RIF, Cédula de Identidad y Ficha Catastral / Patente Comercial) para completar el registro por el Portal Web.',
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     const detallesObj = {
       ...body,
       identidad,
@@ -170,3 +192,4 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
   }
 }
+

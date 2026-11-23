@@ -85,6 +85,21 @@ export default function RegistroPublico() {
         ? `${formData.Contribuyente} | Comercial: ${formData.NombreComercial}` 
         : formData.Contribuyente;
 
+      // Validar que todos los documentos obligatorios hayan sido cargados
+      const etiquetaTercerDoc =
+        formData.Clasificacion === 'Residencial'
+          ? 'Ficha Catastral / Documento de Propiedad'
+          : 'Patente Comercial / Registro Mercantil';
+      const faltantes: string[] = [];
+      if (!archivos.rif) faltantes.push('RIF');
+      if (!archivos.cedula) faltantes.push('Cédula de Identidad');
+      if (!archivos.patente) faltantes.push(etiquetaTercerDoc);
+      if (faltantes.length > 0) {
+        throw new Error(
+          `Es obligatorio adjuntar todos los documentos requeridos antes de enviar la solicitud. Faltan: ${faltantes.join(', ')}.`
+        );
+      }
+
       const dataToSave: any = {
         identidad: finalIdentidad,
         contribuyente: finalContribuyente,
@@ -100,10 +115,21 @@ export default function RegistroPublico() {
         registrado: new Date().toISOString()
       };
 
-      // Subir documentos al Storage (con respaldo base64)
-      if (archivos.rif) dataToSave.rif_doc = await uploadFileToStorage(archivos.rif, 'rif', finalIdentidad);
-      if (archivos.cedula) dataToSave.cedula_doc = await uploadFileToStorage(archivos.cedula, 'cedula', finalIdentidad);
-      if (archivos.patente) dataToSave.patente_doc = await uploadFileToStorage(archivos.patente, 'patente', finalIdentidad);
+      // Subir documentos obligatorios al Storage (con respaldo base64)
+      dataToSave.rif_doc = await uploadFileToStorage(archivos.rif!, 'rif', finalIdentidad);
+      dataToSave.cedula_doc = await uploadFileToStorage(archivos.cedula!, 'cedula', finalIdentidad);
+      const tercerDocUrl = await uploadFileToStorage(
+        archivos.patente!,
+        formData.Clasificacion === 'Residencial' ? 'ficha' : 'patente',
+        finalIdentidad
+      );
+      if (formData.Clasificacion === 'Residencial') {
+        dataToSave.ficha_doc = tercerDocUrl;
+        dataToSave.patente_doc = tercerDocUrl;
+      } else {
+        dataToSave.patente_doc = tercerDocUrl;
+        dataToSave.registro_doc = tercerDocUrl;
+      }
 
       const res = await fetch('/api/admin/pre-registros', {
         method: 'POST',
@@ -287,33 +313,49 @@ export default function RegistroPublico() {
               </div>
             </div>
 
-            {/* Documentos */}
+            {/* Documentos Obligatorios */}
             <div className="pt-4 border-t border-slate-100">
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-3">Documentos (Opcional pero Recomendado)</label>
+              <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                <label className="block text-xs font-bold text-slate-800 uppercase">
+                  Documentos Requeridos del Expediente <span className="text-red-600">* (Obligatorios)</span>
+                </label>
+                <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
+                  {[archivos.rif, archivos.cedula, archivos.patente].filter(Boolean).length} de 3 cargados
+                </span>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {([
-                  { key: 'rif', label: 'RIF (J-/V-)', accept: '.pdf,.jpg,.png,.jpeg' },
-                  { key: 'cedula', label: 'Cédula de Identidad', accept: '.pdf,.jpg,.png,.jpeg' },
-                  { key: 'patente', label: 'Patente Comercial', accept: '.pdf,.jpg,.png,.jpeg' },
+                  { key: 'rif', label: 'RIF Vigente (J-/V-) *', accept: '.pdf,.jpg,.png,.jpeg' },
+                  { key: 'cedula', label: 'Cédula de Identidad *', accept: '.pdf,.jpg,.png,.jpeg' },
+                  {
+                    key: 'patente',
+                    label:
+                      formData.Clasificacion === 'Residencial'
+                        ? 'Ficha Catastral / Doc. Propiedad *'
+                        : 'Patente / Registro Mercantil *',
+                    accept: '.pdf,.jpg,.png,.jpeg',
+                  },
                 ] as const).map(doc => (
                   <div key={doc.key}>
                     <label
                       htmlFor={`file-${doc.key}`}
                       className={`flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-xl p-4 cursor-pointer transition-colors ${
-                        archivos[doc.key] ? 'border-emerald-400 bg-emerald-50' : 'border-slate-200 hover:border-emerald-400 hover:bg-emerald-50'
+                        archivos[doc.key]
+                          ? 'border-emerald-500 bg-emerald-50'
+                          : 'border-rose-300 bg-rose-50/30 hover:border-emerald-400 hover:bg-emerald-50'
                       }`}
                     >
                       {archivos[doc.key] ? (
                         <>
                           <FileText className="w-6 h-6 text-emerald-600" />
-                          <span className="text-xs font-semibold text-emerald-700 text-center truncate w-full text-center">{archivos[doc.key]!.name}</span>
-                          <span className="text-[10px] text-emerald-500">{(archivos[doc.key]!.size / 1024).toFixed(0)} KB</span>
+                          <span className="text-xs font-semibold text-emerald-700 text-center truncate w-full">{archivos[doc.key]!.name}</span>
+                          <span className="text-[10px] text-emerald-600 font-bold">✓ Cargado ({(archivos[doc.key]!.size / 1024).toFixed(0)} KB)</span>
                         </>
                       ) : (
                         <>
-                          <Upload className="w-6 h-6 text-slate-400" />
-                          <span className="text-xs font-semibold text-slate-600 text-center">{doc.label}</span>
-                          <span className="text-[10px] text-slate-400">PDF, JPG o PNG</span>
+                          <Upload className="w-6 h-6 text-rose-500" />
+                          <span className="text-xs font-bold text-slate-700 text-center">{doc.label}</span>
+                          <span className="text-[10px] text-rose-600 font-semibold">Obligatorio · PDF, JPG o PNG</span>
                         </>
                       )}
                     </label>
@@ -335,15 +377,15 @@ export default function RegistroPublico() {
                       <button
                         type="button"
                         onClick={() => setArchivos(prev => ({ ...prev, [doc.key]: null }))}
-                        className="mt-1 text-[10px] text-red-400 hover:text-red-600 w-full text-center"
+                        className="mt-1 text-[10px] text-red-500 hover:text-red-700 font-semibold w-full text-center cursor-pointer"
                       >Quitar archivo</button>
                     )}
                   </div>
                 ))}
               </div>
-              <p className="text-[10px] text-slate-400 mt-2 flex items-center gap-1">
-                <AlertCircle className="w-3 h-3" />
-                Los documentos son opcionales. Tamaño máximo: 5 MB por archivo.
+              <p className="text-[11px] text-rose-700 font-semibold mt-2.5 flex items-center gap-1.5 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                Es obligatorio adjuntar los 3 documentos de respaldo (máx. 5 MB por archivo) para poder enviar su solicitud de registro.
               </p>
             </div>
 

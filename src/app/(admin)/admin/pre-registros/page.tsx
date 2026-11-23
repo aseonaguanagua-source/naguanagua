@@ -510,7 +510,11 @@ export default function PreRegistrosPage() {
               </button>
             ))}
           </div>
-        ) : <span className="text-[10px] text-slate-400 italic">Sin adjuntos</span>;
+        ) : (
+          <span className="px-2 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-bold inline-flex items-center gap-1">
+            <AlertCircle className="w-3 h-3" /> Sin adjuntos
+          </span>
+        );
       }
     },
     {
@@ -658,7 +662,19 @@ export default function PreRegistrosPage() {
               {/* Documentos adjuntos visibles directamente en el modal de aprobación */}
               {(() => {
                 const docs = extraerDocumentosDeFila(rowToApprove);
-                if (docs.length === 0) return null;
+                if (docs.length === 0) {
+                  return (
+                    <div className="bg-rose-50 border border-rose-200 rounded-xl p-3.5 flex items-start gap-2.5">
+                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                      <div className="text-xs text-rose-800">
+                        <strong className="block font-bold">Este pre-registro no posee documentos adjuntos</strong>
+                        <span>
+                          Fue enviado antes de activarse la validación obligatoria de documentos en el Portal Web. Verifique la documentación del contribuyente antes de aprobarlo o rechace la solicitud para que se registre nuevamente con sus soportes.
+                        </span>
+                      </div>
+                    </div>
+                  );
+                }
                 return (
                   <div className="bg-blue-50/70 border border-blue-200 rounded-xl p-3.5 space-y-2">
                     <span className="text-xs font-bold text-blue-900 uppercase tracking-wide flex items-center gap-1.5">
