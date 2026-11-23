@@ -3655,7 +3655,7 @@ export default function CajaPage() {
           tasa_bcv: currentBcvRate,
           deuda_total_sistema: foundUser.DeudaTotal,
           fecha_transaccion: fechaTransaccion,
-          fecha_banco: fechaTransaccion,
+          fecha_ingreso_caja: fechaCorteCaja,
           tasa_bcv_aplicada: customBcvRate ? customBcvRate : undefined,
           nota_cambio_tasa: justificacionBcv ? justificacionBcv : undefined,
           iva_percent: ivaPercent,
@@ -4464,7 +4464,7 @@ export default function CajaPage() {
           porcentaje_retencion: retencionIVA > 0 ? retencionIVA : undefined,
           porcentaje_retencion_iva: retencionIVA > 0 ? retencionIVA : undefined,
           fecha_transaccion: fechaTransaccion,
-          fecha_banco: fechaTransaccion,
+          fecha_ingreso_caja: fechaCorteCaja,
           tasa_bcv_aplicada: customBcvRate ? customBcvRate : undefined,
           nota_cambio_tasa: justificacionBcv ? justificacionBcv : undefined,
           omitir_multa_septiembre: omitirMultaSeptiembre || undefined

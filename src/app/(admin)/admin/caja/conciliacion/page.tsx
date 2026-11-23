@@ -57,9 +57,6 @@ const fechaTransaccionDe = (det: any, createdAt?: string, refPago?: string): str
   if (fPaMatch && (!fTx || (fTx === createdYmd && fPaMatch !== createdYmd))) return fPaMatch;
   if (fFpMatch && (!fTx || (fTx === createdYmd && fFpMatch !== createdYmd))) return fFpMatch;
 
-  // Si fecha_banco fue corregida/guardada con la fecha real del banco mientras fecha_transaccion quedó con la fecha de creación
-  if (fBanco && fTx && fTx === createdYmd && fBanco !== createdYmd) return fBanco;
-
   if (fTx) return fTx;
   if (fPaMatch) return fPaMatch;
   if (fFpMatch) return fFpMatch;
@@ -715,8 +712,13 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
   const [telefonoResponsable, setTelefonoResponsable] = useState(det.telefono || '');
   const hoyCaracasStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' }).format(new Date());
   const fechaInicialTx = fechaTransaccionDe(det, pago.created_at, pago.referencia) || hoyCaracasStr;
+  const fechaInicialBanco =
+    (det.fecha_banco ? normalizarFechaYMD(det.fecha_banco) : '') ||
+    (det.fecha_ingreso_caja ? normalizarFechaYMD(det.fecha_ingreso_caja) : '') ||
+    (pago.created_at ? normalizarFechaYMD(pago.created_at) : '') ||
+    fechaInicialTx;
   const [fechaTransaccion, setFechaTransaccion] = useState(fechaInicialTx);
-  const [fechaBanco, setFechaBanco] = useState((det.fecha_banco ? normalizarFechaYMD(det.fecha_banco) : '') || fechaInicialTx);
+  const [fechaBanco, setFechaBanco] = useState(fechaInicialBanco);
   const [enviarCorreo, setEnviarCorreo] = useState(false);
   const [observaciones, setObservaciones] = useState(det.observaciones || '');
   const [cajeroOperador, setCajeroOperador] = useState(det.cajero || det.caja || det.usuario || '');
@@ -1294,16 +1296,11 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         updatedDet.banco_destino = bancoReceptor;
         updatedDet.banco_receptor = bancoReceptor;
       }
-      const createdYmdPago = pago.created_at ? normalizarFechaYMD(pago.created_at) : '';
       const fTxNorm = normalizarFechaYMD(fechaTransaccion);
       const fBancoNorm = normalizarFechaYMD(fechaBanco);
-      // Si el analista corrigió Fecha en Banco y Fecha Transacción seguía con la fecha de registro (hoy/created_at), sincronizar ambas
-      const fechaTxConciliada = (fBancoNorm && (!fTxNorm || (fTxNorm === createdYmdPago && fBancoNorm !== createdYmdPago)))
-        ? fBancoNorm
-        : (fTxNorm || fBancoNorm);
-      const fechaBancoConciliada = (fTxNorm && (!fBancoNorm || (fBancoNorm === createdYmdPago && fTxNorm !== createdYmdPago)))
-        ? fTxNorm
-        : (fBancoNorm || fechaTxConciliada);
+      // Respetar cada fecha de forma independiente (Fecha Transacción y Fecha en Banco)
+      const fechaTxConciliada = fTxNorm || fBancoNorm;
+      const fechaBancoConciliada = fBancoNorm || fTxNorm;
       if (fechaTxConciliada) {
         updatedDet.fecha_transaccion = fechaTxConciliada;
         if (pago.estado === 'Aprobado' && estatus === 'Aprobado') {
@@ -2332,12 +2329,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
                   max="2030-12-31"
                   value={fechaTransaccion}
                   onChange={e => {
-                    const val = e.target.value;
-                    setFechaTransaccion(val);
-                    const createdYmd = pago.created_at ? normalizarFechaYMD(pago.created_at) : '';
-                    if (!fechaBanco || fechaBanco === fechaTransaccion || fechaBanco === createdYmd) {
-                      setFechaBanco(val);
-                    }
+                    setFechaTransaccion(e.target.value);
                   }}
                   onBlur={e => {
                     const fixed = normalizarFechaYMD(e.target.value);
@@ -2353,12 +2345,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
                   max="2030-12-31"
                   value={fechaBanco}
                   onChange={e => {
-                    const val = e.target.value;
-                    setFechaBanco(val);
-                    const createdYmd = pago.created_at ? normalizarFechaYMD(pago.created_at) : '';
-                    if (!fechaTransaccion || fechaTransaccion === fechaBanco || fechaTransaccion === createdYmd) {
-                      setFechaTransaccion(val);
-                    }
+                    setFechaBanco(e.target.value);
                   }}
                   onBlur={e => {
                     const fixed = normalizarFechaYMD(e.target.value);

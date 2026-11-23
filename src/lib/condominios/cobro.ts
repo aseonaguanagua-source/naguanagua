@@ -870,7 +870,6 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
             porcentaje_retencion: pago.porcentajeRetencionIva ?? (fRet > 0 ? 75 : 0),
             porcentaje_retencion_iva: pago.porcentajeRetencionIva ?? (fRet > 0 ? 75 : 0),
             fecha_transaccion: fechaTransaccion,
-            fecha_banco: fechaTransaccion,
             fecha_ingreso_caja: new Date().toISOString().slice(0, 10),
             periodos_pagados: periodoTexto,
             recibo_caja: [reciboCajaItem],
