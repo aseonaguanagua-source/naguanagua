@@ -55,7 +55,7 @@ function Caja() {
   const [abonoLocales, setAbonoLocales] = useState(false);
   const [identidad, setIdentidad] = useState(sp.get('cedula') || '');
   const [soloMultas, setSoloMultas] = useState(false);
-  const [incluirMultas, setIncluirMultas] = useState(Boolean(sp.get('cedula') || sp.get('unidad')));
+  const [incluirMultas, setIncluirMultas] = useState<boolean | null>(sp.get('cedula') || sp.get('unidad') ? true : null);
   const [modalContacto, setModalContacto] = useState(false);
   const [contactoTelefono, setContactoTelefono] = useState('');
   const [contactoCorreo, setContactoCorreo] = useState('');
@@ -77,6 +77,7 @@ function Caja() {
     if (fecha > hoy) { alert('No se puede usar una fecha futura.'); return; }
     setFechaAct(fecha);
     setFechaTransaccionAct(fecha);
+    setPagosAgregados(prev => prev.map(p => ({ ...p, fecha, fechaTransaccion: fecha })));
     if (fecha === hoy) { setTasaOverrideStr(''); setTasaFechaInfo(''); return; }
     setCargandoTasaFecha(true);
     try {
@@ -428,8 +429,9 @@ function Caja() {
 
   /** unidad + todos=false → solo ese local; todos=true → todos los locales de ese dueño */
   const elegir = (cod: string, unidad?: any, todos = false) => {
-    setCodigo(cod); setRes(null); setQ(''); setClaves([]); setAbonoLocales(false); setMeses(''); setRecibo(null); setSoloMultas(false); setIncluirMultas(Boolean(unidad)); setOmitirMultaSeptiembre(false); setContactoOmitido(false);
-    setFechaOverrideStr(''); setTasaOverrideStr('');
+    const hoy = hoyCaracas();
+    setCodigo(cod); setRes(null); setQ(''); setClaves([]); setAbonoLocales(false); setMeses(''); setRecibo(null); setSoloMultas(false); setIncluirMultas(unidad ? true : null); setOmitirMultaSeptiembre(false); setContactoOmitido(false);
+    setFechaOverrideStr(hoy); setFechaAct(hoy); setFechaTransaccionAct(hoy); setFechaIngresoCajaAct(hoy); setTasaOverrideStr(''); setTasaFechaInfo('');
     if (unidad && todos && unidad.identidad) {
       setModo('CONTRIBUYENTE'); setIdentidad(String(unidad.identidad).toUpperCase());
       setFiltroNotas(String(unidad.identidad).trim());
@@ -444,7 +446,7 @@ function Caja() {
       router.replace(`/admin/condominios/caja?codigo=${cod}`);
     }
   };
-  const cambiarModo = (m: 'CONDOMINIO' | 'CONTRIBUYENTE') => { setModo(m); setClaves([]); setAbonoLocales(false); setSoloMultas(false); setIncluirMultas(m === 'CONTRIBUYENTE'); if (m === 'CONDOMINIO') setIdentidad(''); };
+  const cambiarModo = (m: 'CONDOMINIO' | 'CONTRIBUYENTE') => { setModo(m); setClaves([]); setAbonoLocales(false); setSoloMultas(false); setIncluirMultas(m === 'CONTRIBUYENTE' ? true : null); if (m === 'CONDOMINIO') setIdentidad(''); };
 
   // Calcular (cada vez que cambia la selección)
   useEffect(() => {
@@ -470,7 +472,7 @@ function Caja() {
           meses: meses || null,
           mesesPorUnidad: Object.keys(mesesPorUnidad).length > 0 ? mesesPorUnidad : undefined,
           soloMultas,
-          incluirMultas,
+          incluirMultas: incluirMultas !== null ? incluirMultas : undefined,
           omitirMultaSeptiembre,
           retencionPorcentajeOverride: retencionIVA,
           tasaOverride: tasaParsed > 0 ? tasaParsed : undefined,
@@ -507,6 +509,7 @@ function Caja() {
   const c = cobro?.condo;
   const base = cobro?.estado;
   const porContrib = modo === 'CONTRIBUYENTE';
+  const incluirMultasEfectivo = incluirMultas !== null ? incluirMultas : (porContrib || Boolean(base && !base.porActividad));
   // Cédula con o sin prefijo (7436881 = V-7436881): se compara solo el número
   const normId = (s: any) => String(s || '').toUpperCase().trim().replace(/^[VEJPG]-?/, '').replace(/[^A-Z0-9]/g, '').replace(/^0+/, '');
   const convenioDeUnidad = (r: any) => {
@@ -678,6 +681,10 @@ function Caja() {
       if (refClean.length !== 8) return alert('La referencia debe tener exactamente 8 dígitos numéricos.');
       if (metodoAct === 'Transferencia' && !comprobanteAct) return alert('Es obligatorio adjuntar el comprobante para Transferencia.');
     }
+    const hoy = hoyCaracas();
+    const fechaTxEfectiva = (fechaTransaccionAct && fechaTransaccionAct !== hoy)
+      ? fechaTransaccionAct
+      : (fechaOverrideStr && fechaOverrideStr !== hoy ? fechaOverrideStr : (fechaTransaccionAct || hoy));
     // if (montoParsed > faltaPagar + 0.05) return alert('El monto supera la deuda restante.');
     setPagosAgregados([...pagosAgregados, { 
       metodo: metodoAct, 
@@ -686,8 +693,8 @@ function Caja() {
       referencia: referenciaAct, 
       monto: montoParsed, 
       comprobante: comprobanteAct, 
-      fecha: fechaAct,
-      fechaTransaccion: fechaTransaccionAct,
+      fecha: fechaTxEfectiva,
+      fechaTransaccion: fechaTxEfectiva,
       fechaIngresoCaja: fechaIngresoCajaAct,
     }]);
     const nuevoRestante = Math.max(0, Math.round((faltaPagar - montoParsed) * 100) / 100);
@@ -819,17 +826,25 @@ function Caja() {
 
       const u = usuario();
       
+      const hoyStrCobro = hoyCaracas();
+      const fechaTxBaseCobro = (fechaTransaccionAct && fechaTransaccionAct !== hoyStrCobro)
+        ? fechaTransaccionAct
+        : (fechaOverrideStr && fechaOverrideStr !== hoyStrCobro ? fechaOverrideStr : (fechaTransaccionAct || hoyStrCobro));
       const realPagosSubidos = [];
       if (descuentoSaldoFavor > 0) {
          realPagosSubidos.push({
             metodo: 'Saldo a Favor',
             monto: descuentoSaldoFavor,
             referencia: 'Desc. Saldo Favor',
-            fechaTransaccion: fechaTransaccionAct,
+            fechaTransaccion: fechaTxBaseCobro,
             fechaIngresoCaja: fechaIngresoCajaAct,
          });
       }
-      realPagosSubidos.push(...pagosSubidos);
+      realPagosSubidos.push(...pagosSubidos.map(p => ({
+        ...p,
+        fecha: (p.fecha && p.fecha !== hoyStrCobro) ? p.fecha : fechaTxBaseCobro,
+        fechaTransaccion: (p.fechaTransaccion && p.fechaTransaccion !== hoyStrCobro) ? p.fechaTransaccion : fechaTxBaseCobro,
+      })));
       
       const clavesPayload = (modo === 'CONDOMINIO' && abonoLocales && claves.length === 0)
         ? ['__NINGUNO__']
@@ -855,12 +870,12 @@ function Caja() {
           meses: meses || null,
           mesesPorUnidad: Object.keys(mesesPorUnidad).length > 0 ? mesesPorUnidad : undefined,
           soloMultas,
-          incluirMultas,
+          incluirMultas: incluirMultasEfectivo,
           omitirMultaSeptiembre,
           retencionPorcentajeOverride: retencionIVA,
           usuario: u.usuario,
           tasaOverride: tasaParsed > 0 ? tasaParsed : (cobro?.estado?.tasa ? Number(cobro.estado.tasa) : undefined),
-          fechaOverride: fechaOverrideStr || undefined,
+          fechaOverride: (primerPagoReal?.fechaTransaccion || fechaTxBaseCobro || fechaOverrideStr) || undefined,
           pago: { 
             pagoId: nuevoCobroId, 
             metodo: primerPagoReal?.metodo || 'MÚLTIPLE', 
@@ -1593,7 +1608,7 @@ function Caja() {
                     setModo('CONDOMINIO');
                     setAbonoLocales(false);
                     setSoloMultas(false);
-                    setIncluirMultas(false);
+                    setIncluirMultas(null);
                     setClaves([]);
                     setIdentidad('');
                   }}
@@ -1632,7 +1647,7 @@ function Caja() {
                     setModo('CONDOMINIO');
                     setAbonoLocales(true);
                     setSoloMultas(false);
-                    setIncluirMultas(false);
+                    setIncluirMultas(null);
                     setIdentidad('');
                   }}
                   className={`text-left rounded-xl border-2 p-3.5 transition-all cursor-pointer relative flex flex-col justify-between ${
@@ -1772,14 +1787,14 @@ function Caja() {
                     {/* Switch de Multa por Mora (activo para Pago de Condominio completo, Abono o Individual) */}
                     {!soloMultas && (
                       <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold cursor-pointer transition-colors ${
-                        incluirMultas
+                        incluirMultasEfectivo
                           ? 'bg-amber-100 border-amber-400 text-amber-950 shadow-2xs ring-1 ring-amber-300'
                           : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100'
                       }`} title="Incluye o no las multas acumuladas en este cobro">
                         <input
                           id="incluir-multas-condominio"
                           type="checkbox"
-                          checked={incluirMultas}
+                          checked={incluirMultasEfectivo}
                           onChange={e => setIncluirMultas(e.target.checked)}
                           className="w-4 h-4 accent-amber-600 rounded"
                         />
@@ -2151,12 +2166,12 @@ function Caja() {
                         const dMeses = lcs.length > 0 ? Math.max(...lcs.map(l => l.meses || 0)) : mesActualFila;
                         const dMultas = lcs.length > 0
                           ? lcs.reduce((s, l) => s + (l.multaBs || 0) + (l.multasAparteBs || 0), 0)
-                          : (!soloMultas && !incluirMultas ? 0 : multasDe(r));
+                          : (!soloMultas && !incluirMultasEfectivo ? 0 : multasDe(r));
                         const dTotal = lcs.length > 0
                           ? lcs.reduce((s, l) => s + (l.totalBs || 0), 0)
                           : soloMultas
                             ? multasDe(r)
-                            : !incluirMultas
+                            : !incluirMultasEfectivo
                               ? ((!r._esPadreUnificado && Array.isArray(r.deuda?.porMes) && r.deuda.porMes.length > 0 && mesActualFila > 0 && mesActualFila < r.deuda.porMes.length)
                                   ? Math.round(r.deuda.porMes.slice(0, mesActualFila).reduce((s: number, m: any) => s + (m.baseBs || 0) + (m.ivaBs || 0), 0) * 100) / 100
                                   : Math.max(0, Math.round(((r.totalBs || 0) - multasDe(r)) * 100) / 100))
@@ -2176,7 +2191,7 @@ function Caja() {
                           } else {
                             // En cobro completo: al hacer click en un local, se activa el modo abono seleccionando este local
                             setAbonoLocales(true);
-                            setIncluirMultas(false);
+                            setIncluirMultas(null);
                             setClaves(hijosClaves);
                           }
                         };

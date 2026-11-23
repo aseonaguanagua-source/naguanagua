@@ -226,8 +226,12 @@ export async function prepararCobro(sol: SolicitudCobro): Promise<Cobro & { _dat
             : (sol.meses && sol.meses > 0 ? Math.min(nMesesMax, Math.floor(sol.meses)) : nMesesMax);
         const meses = r.deuda.porMes.slice(0, nMeses);
         const s = (k: 'baseBs' | 'multaBs' | 'ivaBs' | 'retencionBs') => r2(meses.reduce((a, m) => a + m[k], 0));
-        // ¿Las multas van en este cobro? Incluidas por defecto salvo que se desmarque incluirMultas
-        const permitirMultas = sol.soloMultas || sol.incluirMultas !== false;
+        // ¿Las multas van en este cobro? En condominios residenciales centralizados (!porAct) y cobros individuales van incluidas por defecto
+        const defaultIncluirMultas = modo === 'CONTRIBUYENTE' || !porAct;
+        const permitirMultas = Boolean(
+            sol.soloMultas ||
+            (typeof sol.incluirMultas === 'boolean' ? sol.incluirMultas : defaultIncluirMultas)
+        );
         const multaMora = !permitirMultas ? 0 : s('multaBs');
         const multaMesesQueQuedan = !permitirMultas ? r.multaMeses : 0;
         const incluirAparte = permitirMultas;
@@ -806,6 +810,11 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
         const modoEfectivo: ModoCobro = (sol.soloMultas || modalidadCobroActiva === 'individual' || modalidadCobroActiva === 'multas_separadas')
             ? 'CONTRIBUYENTE'
             : 'CONDOMINIO';
+        const defaultIncluirMultasReg = modoEfectivo === 'CONTRIBUYENTE' || !cobro.estado.porActividad;
+        const incluirMultasEfectivoReg = Boolean(
+            sol.soloMultas ||
+            (typeof sol.incluirMultas === 'boolean' ? sol.incluirMultas : defaultIncluirMultasReg)
+        );
         const detalles = {
             modulo: 'condominios', modo: modoEfectivo, modalidad_cobro: modalidadCobroActiva, cajero: pago.cajero, tasa_bcv: tasa, es_condominio: true, isCondominio: true,
             soloMultas: !!sol.soloMultas,
@@ -817,9 +826,9 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
                 lineas: ls.map(l => ({ unidad_id: porId.get(l.clave)?.id || undefined, inmueble: l.inmueble, numero: l.numero, propietario: l.propietario, identidad: l.identidad, actividad: l.actividad, residencial: l.residencial, meses: l.meses, periodos: l.periodos, aseoBs: l.baseBs, ivaBs: l.ivaBs, multaBs: r2(l.multaBs + l.multasAparteBs), retencionBs: l.retencionBs, totalBs: l.totalBs, totalBrutoBs: r2(l.baseBs + l.multaBs + l.multasAparteBs + l.ivaBs), _multasDetalle: l._multasDetalle || undefined }))
             },
             ...(grupo ? { grupo_pago: { id: grupo, referencia: refFinal, monto_total: cobro.totales.totalBs, partes: cobro.facturas.length, parte: i + 1 } } : {}),
-            solo_aseo: !sol.incluirMultas && !sol.soloMultas,
-            sin_multas: !sol.incluirMultas && !sol.soloMultas,
-            incluir_multas: Boolean(sol.incluirMultas || sol.soloMultas),
+            solo_aseo: !incluirMultasEfectivoReg && !sol.soloMultas,
+            sin_multas: !incluirMultasEfectivoReg && !sol.soloMultas,
+            incluir_multas: incluirMultasEfectivoReg,
             omitir_multa_septiembre: !!sol.omitirMultaSeptiembre,
             recibos: [reciboRef],
             montos: { [reciboRef]: fTotalBruto },
@@ -914,6 +923,7 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
                 const paExtra = pagosReales[pIdx];
                 const extraId = crypto.randomUUID();
                 const esTransExtra = paExtra.metodo.toLowerCase().includes('transferencia') || paExtra.metodo.toLowerCase().includes('pago móvil');
+                const fechaTxExtra = String(paExtra.fechaTransaccion || paExtra.fecha || fechaTransaccion || new Date().toISOString()).slice(0, 10);
                 await sb.from('pagos_reportados').insert({
                     id: extraId,
                     identidad: f.identidad,
@@ -935,6 +945,8 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
                         banco_destino: paExtra.bancoDestino || pago.bancoDestino,
                         comprobante_url: paExtra.comprobante_url,
                         comprobante_nombre: paExtra.comprobante_nombre,
+                        fecha_transaccion: fechaTxExtra,
+                        fecha_banco: fechaTxExtra,
                         pago_principal_id: fila.id,
                         es_pago_adicional: true,
                         saldo_favor: 0,

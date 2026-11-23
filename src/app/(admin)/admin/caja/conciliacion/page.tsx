@@ -27,16 +27,49 @@ const normalizarFechaYMD = (raw: any): string => {
 };
 
 /** Fecha (YYYY-MM-DD) de la transacción tal como se registró en Caja / Caja de Condominios o se concilió en banco. */
-const fechaTransaccionDe = (det: any, createdAt?: string): string => {
+const fechaTransaccionDe = (det: any, createdAt?: string, refPago?: string): string => {
+  const refClean = String(refPago || det?.referencia || '').trim().replace(/^RECH-/, '').split('-')[0];
+  const createdYmd = createdAt ? normalizarFechaYMD(createdAt) : '';
+
   const fTx = det?.fecha_transaccion ? normalizarFechaYMD(det.fecha_transaccion) : '';
-  if (fTx) return fTx;
-  const fPa = (det?.pagos_agregados || []).find((p: any) => (p?.fechaTransaccion || p?.fecha) && p?.metodo !== 'Saldo a Favor');
-  if (fPa?.fechaTransaccion || fPa?.fecha) return normalizarFechaYMD(fPa.fechaTransaccion || fPa.fecha);
-  const fFp = (det?.formasPago || []).find((p: any) => p?.fecha && p?.descripcion !== 'Saldo a Favor');
-  if (fFp?.fecha) return normalizarFechaYMD(fFp.fecha);
   const fBanco = det?.fecha_banco ? normalizarFechaYMD(det.fecha_banco) : '';
+
+  // 1) Buscar la fecha del abono/transferencia específico por referencia en pagos_agregados o formasPago
+  const listaPa = Array.isArray(det?.pagos_agregados)
+    ? det.pagos_agregados.filter((p: any) => (p?.fechaTransaccion || p?.fecha) && p?.metodo !== 'Saldo a Favor')
+    : [];
+  const matchPa = refClean
+    ? listaPa.find((p: any) => String(p?.referencia || '').trim() === refClean)
+    : undefined;
+  const fPaMatch = (matchPa?.fechaTransaccion || matchPa?.fecha)
+    ? normalizarFechaYMD(matchPa.fechaTransaccion || matchPa.fecha)
+    : '';
+
+  const listaFp = Array.isArray(det?.formasPago)
+    ? det.formasPago.filter((p: any) => p?.fecha && p?.descripcion !== 'Saldo a Favor')
+    : [];
+  const matchFp = refClean
+    ? listaFp.find((p: any) => String(p?.referencia || '').trim() === refClean)
+    : undefined;
+  const fFpMatch = matchFp?.fecha ? normalizarFechaYMD(matchFp.fecha) : '';
+
+  // Si es un pago múltiple y encontramos una fecha específica distinta a la fecha de creación para esta referencia, priorizarla
+  if (fPaMatch && (!fTx || (fTx === createdYmd && fPaMatch !== createdYmd))) return fPaMatch;
+  if (fFpMatch && (!fTx || (fTx === createdYmd && fFpMatch !== createdYmd))) return fFpMatch;
+
+  // Si fecha_banco fue corregida/guardada con la fecha real del banco mientras fecha_transaccion quedó con la fecha de creación
+  if (fBanco && fTx && fTx === createdYmd && fBanco !== createdYmd) return fBanco;
+
+  if (fTx) return fTx;
+  if (fPaMatch) return fPaMatch;
+  if (fFpMatch) return fFpMatch;
   if (fBanco) return fBanco;
-  return createdAt ? normalizarFechaYMD(createdAt) : '';
+
+  const fPa = listaPa[0];
+  if (fPa?.fechaTransaccion || fPa?.fecha) return normalizarFechaYMD(fPa.fechaTransaccion || fPa.fecha);
+  const fFp = listaFp[0];
+  if (fFp?.fecha) return normalizarFechaYMD(fFp.fecha);
+  return createdYmd;
 };
 
 type Pago = {
@@ -681,8 +714,9 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
   const [correoResponsable, setCorreoResponsable] = useState(det.correo || '');
   const [telefonoResponsable, setTelefonoResponsable] = useState(det.telefono || '');
   const hoyCaracasStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' }).format(new Date());
-  const [fechaTransaccion, setFechaTransaccion] = useState(fechaTransaccionDe(det, pago.created_at) || hoyCaracasStr);
-  const [fechaBanco, setFechaBanco] = useState(det.fecha_banco || fechaTransaccionDe(det, pago.created_at) || hoyCaracasStr);
+  const fechaInicialTx = fechaTransaccionDe(det, pago.created_at, pago.referencia) || hoyCaracasStr;
+  const [fechaTransaccion, setFechaTransaccion] = useState(fechaInicialTx);
+  const [fechaBanco, setFechaBanco] = useState((det.fecha_banco ? normalizarFechaYMD(det.fecha_banco) : '') || fechaInicialTx);
   const [enviarCorreo, setEnviarCorreo] = useState(false);
   const [observaciones, setObservaciones] = useState(det.observaciones || '');
   const [cajeroOperador, setCajeroOperador] = useState(det.cajero || det.caja || det.usuario || '');
@@ -1260,8 +1294,16 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         updatedDet.banco_destino = bancoReceptor;
         updatedDet.banco_receptor = bancoReceptor;
       }
-      const fechaTxConciliada = normalizarFechaYMD(fechaTransaccion) || normalizarFechaYMD(fechaBanco);
-      const fechaBancoConciliada = normalizarFechaYMD(fechaBanco) || fechaTxConciliada;
+      const createdYmdPago = pago.created_at ? normalizarFechaYMD(pago.created_at) : '';
+      const fTxNorm = normalizarFechaYMD(fechaTransaccion);
+      const fBancoNorm = normalizarFechaYMD(fechaBanco);
+      // Si el analista corrigió Fecha en Banco y Fecha Transacción seguía con la fecha de registro (hoy/created_at), sincronizar ambas
+      const fechaTxConciliada = (fBancoNorm && (!fTxNorm || (fTxNorm === createdYmdPago && fBancoNorm !== createdYmdPago)))
+        ? fBancoNorm
+        : (fTxNorm || fBancoNorm);
+      const fechaBancoConciliada = (fTxNorm && (!fBancoNorm || (fBancoNorm === createdYmdPago && fTxNorm !== createdYmdPago)))
+        ? fTxNorm
+        : (fBancoNorm || fechaTxConciliada);
       if (fechaTxConciliada) {
         updatedDet.fecha_transaccion = fechaTxConciliada;
         if (pago.estado === 'Aprobado' && estatus === 'Aprobado') {
@@ -1285,28 +1327,44 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         updatedDet.fecha_banco = fechaBancoConciliada;
       }
 
-      if (Array.isArray(updatedDet.formasPago) && updatedDet.formasPago.length === 1) {
+      if (Array.isArray(updatedDet.formasPago) && updatedDet.formasPago.length > 0) {
         const esDeb = /d[eé]bito|punto/i.test(String(tipoPagoEdit || ''));
         const fForma = fechaTxConciliada || fechaBancoConciliada;
-        updatedDet.formasPago = [{
-          ...updatedDet.formasPago[0],
-          ...(fForma ? { fecha: `${fForma}T12:00:00.000Z` } : {}),
-          ...(bancoReceptor ? { bancoDestino: bancoReceptor } : {}),
-          forma: esDeb ? '05' : '03',
-          tipo: esDeb ? 'Debito' : 'Transferencia',
-          metodo: esDeb ? 'Debito' : 'Transferencia',
-          descripcion: esDeb ? 'TARJETA DE DÉBITO' : 'TRANSFERENCIA BANCARIA',
-          banco: bancoEmisor || updatedDet.formasPago[0]?.banco || '',
-          referencia: refFinal || updatedDet.formasPago[0]?.referencia || '',
-        }];
+        if (updatedDet.formasPago.length === 1) {
+          updatedDet.formasPago = [{
+            ...updatedDet.formasPago[0],
+            ...(fForma ? { fecha: `${fForma}T12:00:00.000Z` } : {}),
+            ...(bancoReceptor ? { bancoDestino: bancoReceptor } : {}),
+            forma: esDeb ? '05' : '03',
+            tipo: esDeb ? 'Debito' : 'Transferencia',
+            metodo: esDeb ? 'Debito' : 'Transferencia',
+            descripcion: esDeb ? 'TARJETA DE DÉBITO' : 'TRANSFERENCIA BANCARIA',
+            banco: bancoEmisor || updatedDet.formasPago[0]?.banco || '',
+            referencia: refFinal || updatedDet.formasPago[0]?.referencia || '',
+          }];
+        } else if (refFinal && fForma) {
+          updatedDet.formasPago = updatedDet.formasPago.map((fp: any) =>
+            String(fp?.referencia || '').trim() === refFinal
+              ? { ...fp, fecha: `${fForma}T12:00:00.000Z`, ...(bancoReceptor ? { bancoDestino: bancoReceptor } : {}) }
+              : fp
+          );
+        }
       }
-      if (Array.isArray(updatedDet.pagos_agregados) && updatedDet.pagos_agregados.length === 1) {
+      if (Array.isArray(updatedDet.pagos_agregados) && updatedDet.pagos_agregados.length > 0) {
         const fPa = fechaTxConciliada || fechaBancoConciliada;
-        updatedDet.pagos_agregados = [{
-          ...updatedDet.pagos_agregados[0],
-          ...(fPa ? { fecha: fPa, fechaTransaccion: fPa } : {}),
-          ...(bancoReceptor ? { bancoDestino: bancoReceptor } : {}),
-        }];
+        if (updatedDet.pagos_agregados.length === 1) {
+          updatedDet.pagos_agregados = [{
+            ...updatedDet.pagos_agregados[0],
+            ...(fPa ? { fecha: fPa, fechaTransaccion: fPa } : {}),
+            ...(bancoReceptor ? { bancoDestino: bancoReceptor } : {}),
+          }];
+        } else if (refFinal && fPa) {
+          updatedDet.pagos_agregados = updatedDet.pagos_agregados.map((pa: any) =>
+            String(pa?.referencia || '').trim() === refFinal
+              ? { ...pa, fecha: fPa, fechaTransaccion: fPa, ...(bancoReceptor ? { bancoDestino: bancoReceptor } : {}) }
+              : pa
+          );
+        }
       }
 
       // Si el pago ya estaba aprobado y se confirma en Aprobado, es una edición de datos / corrección de referencia
@@ -1374,12 +1432,15 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         const otrosPagos = pagosVinculados.filter((p: any) => p.id !== pago.id && p.estado !== estatus);
         for (const op of otrosPagos) {
           const opDet = parseDetalles(op.detalles);
-          const opTxFecha = opDet.fecha_transaccion || fechaTxConciliada;
+          const opTxFecha = fechaTransaccionDe(opDet, op.created_at, op.referencia) || fechaTxConciliada;
+          const opBancoFecha = (opDet.fecha_banco ? normalizarFechaYMD(opDet.fecha_banco) : '') || opTxFecha;
           const opMontoNum = parseFloat(String(op.monto || 0)) || 0;
           const opUpdatedDet = {
             ...opDet,
             analista: updatedDet.analista,
             fecha_conciliado: new Date().toISOString(),
+            ...(opTxFecha ? { fecha_transaccion: opTxFecha } : {}),
+            ...(opBancoFecha ? { fecha_banco: opBancoFecha } : {}),
             ...(opMontoNum > 0 ? { monto_conciliado: opMontoNum.toFixed(2) } : {}),
             ...(!opDet.factura_digital?.emitida && !opDet.es_pago_adicional
               ? { factura_digital: opDet.factura_digital || { emitida: false, pendiente: true, preparada_at: new Date().toISOString() } }
@@ -1388,7 +1449,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
             tasa_bcv: tasaParaGuardar,
             tasa_bcv_conciliacion: tasaParaGuardar,
             ...(opTxFecha && Array.isArray(opDet.recibo_caja) && !opDet.factura_digital?.emitida
-              ? { recibo_caja: opDet.recibo_caja.map((rc: any) => ({ ...rc, fechaEmision: opTxFecha })) }
+              ? { recibo_caja: opDet.recibo_caja.map((rc: any) => ({ ...rc, fechaEmision: opTxFecha, fechaTransaccion: opTxFecha })) }
               : {}),
           };
           const opPayload: any = {
@@ -2270,7 +2331,14 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
                   min="2020-01-01"
                   max="2030-12-31"
                   value={fechaTransaccion}
-                  onChange={e => setFechaTransaccion(e.target.value)}
+                  onChange={e => {
+                    const val = e.target.value;
+                    setFechaTransaccion(val);
+                    const createdYmd = pago.created_at ? normalizarFechaYMD(pago.created_at) : '';
+                    if (!fechaBanco || fechaBanco === fechaTransaccion || fechaBanco === createdYmd) {
+                      setFechaBanco(val);
+                    }
+                  }}
                   onBlur={e => {
                     const fixed = normalizarFechaYMD(e.target.value);
                     if (fixed && fixed !== e.target.value) setFechaTransaccion(fixed);
@@ -2284,7 +2352,14 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
                   min="2020-01-01"
                   max="2030-12-31"
                   value={fechaBanco}
-                  onChange={e => setFechaBanco(e.target.value)}
+                  onChange={e => {
+                    const val = e.target.value;
+                    setFechaBanco(val);
+                    const createdYmd = pago.created_at ? normalizarFechaYMD(pago.created_at) : '';
+                    if (!fechaTransaccion || fechaTransaccion === fechaBanco || fechaTransaccion === createdYmd) {
+                      setFechaTransaccion(val);
+                    }
+                  }}
                   onBlur={e => {
                     const fixed = normalizarFechaYMD(e.target.value);
                     if (fixed && fixed !== e.target.value) setFechaBanco(fixed);
@@ -3127,7 +3202,7 @@ export default function ConciliacionPage() {
           </div>
         </td>
         <td className="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">{fmtFecha(pago.created_at)}</td>
-        <td className="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">{fechaTransaccionDe(det) || '---'}</td>
+        <td className="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">{fechaTransaccionDe(det, pago.created_at, pago.referencia) || '---'}</td>
         <td className="px-3 py-2 text-xs text-slate-600">
           {pago.tipo === 'Retencion de IVA' ? (
             <span className="bg-purple-100 text-purple-800 text-[10px] font-black px-2 py-0.5 rounded border border-purple-200 inline-block">

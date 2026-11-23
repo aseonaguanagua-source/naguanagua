@@ -282,15 +282,19 @@ export async function POST(req: Request) {
 
       if (normalizedFps.length > 0) {
         nuevosDetalles.formasPago = normalizedFps;
-        nuevosDetalles.pagos_agregados = normalizedFps.map((fp: any) => ({
-          tipo: fp.tipo,
-          metodo: fp.metodo,
-          descripcion: fp.descripcion,
-          banco: fp.banco,
-          referencia: fp.referencia,
-          fecha: String(fp.fecha || '').slice(0, 10),
-          monto: fp.monto,
-        }));
+        nuevosDetalles.pagos_agregados = normalizedFps.map((fp: any) => {
+          const fYmd = String(fp.fecha || '').slice(0, 10);
+          return {
+            tipo: fp.tipo,
+            metodo: fp.metodo,
+            descripcion: fp.descripcion,
+            banco: fp.banco,
+            referencia: fp.referencia,
+            fecha: fYmd,
+            fechaTransaccion: fYmd,
+            monto: fp.monto,
+          };
+        });
       }
     } else if (montoCambio) {
       // Actualizar monto pagado en formasPago y monto_conciliado si el monto fue modificado expresamente
