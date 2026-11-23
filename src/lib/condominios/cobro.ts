@@ -819,7 +819,7 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
             ...(grupo ? { grupo_pago: { id: grupo, referencia: refFinal, monto_total: cobro.totales.totalBs, partes: cobro.facturas.length, parte: i + 1 } } : {}),
             solo_aseo: !sol.incluirMultas && !sol.soloMultas,
             sin_multas: !sol.incluirMultas && !sol.soloMultas,
-            incluir_multas: !!sol.incluirMultas,
+            incluir_multas: Boolean(sol.incluirMultas || sol.soloMultas),
             omitir_multa_septiembre: !!sol.omitirMultaSeptiembre,
             recibos: [reciboRef],
             montos: { [reciboRef]: fTotalBruto },

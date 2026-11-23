@@ -479,7 +479,8 @@ export async function POST(request: Request) {
         // Si hay deuda_previa: manda si previa.multa_bs es 0 (exonerado / sin multa).
         // Si notas indica exoneración total o por mes, o si se eliminó la multa: no hay multa.
         const omitirSepPago = Boolean(detPago?.omitir_multa_septiembre);
-        const sinMultaGlobal = Boolean(
+        const esSoloMultasHist = Boolean(detPago?.soloMultas || detPago?.solo_multas || detPago?.condominio?.solo_multas);
+        const sinMultaGlobal = !esSoloMultasHist && Boolean(
           llevaMulta === false ||
           detPago?.llevaMulta === false ||
           detPago?.sin_multas === true ||
@@ -652,7 +653,8 @@ export async function POST(request: Request) {
     // Multas pagadas por referencia MULTA-{COD}: solo inmuebles comerciales, exentas de IVA.
     const multaRecibos = (recibos || []).filter((r: string) => /^MULTA-/i.test(String(r)));
     const itemsMulta: any[] = [];
-    const multaDescartadaGeneral = Boolean(
+    const esSoloMultasRef = multaRecibos.length === recibos.length || Boolean(detPago?.soloMultas || detPago?.solo_multas || detPago?.condominio?.solo_multas);
+    const multaDescartadaGeneral = !esSoloMultasRef && Boolean(
       llevaMulta === false ||
       detPago?.llevaMulta === false ||
       detPago?.sin_multas === true ||

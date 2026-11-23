@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { 
   CreditCard, FileText, Upload, Send, Building, CheckSquare, 
   AlertCircle, CheckCircle2, MapPin, ArrowRightLeft, Store, 
-  ChevronDown, ChevronUp, CheckSquare2, Square, Sparkles, ShieldCheck, Lock
+  ChevronDown, ChevronUp, CheckSquare2, Square, Sparkles, ShieldCheck, Lock, Plus, Trash2
 } from 'lucide-react';
 import { useAppContext } from '@/store/AppContext';
 import { supabase } from '@/lib/supabase';
@@ -40,6 +40,16 @@ interface ConvenioItem {
   monto: number;
 }
 
+interface TransferenciaAgregadaItem {
+  id: string;
+  bancoDestino: string;
+  bancoOrigen: string;
+  referencia: string;
+  monto: number;
+  fecha: string;
+  comprobante: File;
+}
+
 const MESES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
@@ -66,6 +76,8 @@ export default function DondePagarPage() {
     fecha: '',
     comprobante: null as File | null
   });
+  const [transferenciasAgregadas, setTransferenciasAgregadas] = useState<TransferenciaAgregadaItem[]>([]);
+  const [montoEditadoManual, setMontoEditadoManual] = useState(false);
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [result, setResult] = useState<{type: 'success' | 'approved' | 'error', msg: string} | null>(null);
@@ -1140,14 +1152,93 @@ export default function DondePagarPage() {
 
   const totalConceptosSeleccionados = selectedReceiptRefs.length + selectedConvenioIds.length + selectedServicios.length;
 
+  const parseMontoInput = (raw: string): number => {
+    const s = String(raw || '').trim();
+    if (!s) return 0;
+    const clean = s.includes(',')
+      ? s.replace(/\./g, '').replace(',', '.').replace(/[^0-9.]/g, '')
+      : s.replace(/[^0-9.]/g, '');
+    return r2(parseFloat(clean) || 0);
+  };
+
+  const totalTransferenciasAgregadas = useMemo(() => {
+    return r2(transferenciasAgregadas.reduce((acc, t) => acc + (Number(t.monto) || 0), 0));
+  }, [transferenciasAgregadas]);
+
+  const montoRestanteTransferir = useMemo(() => {
+    return Math.max(0, r2(montoTotal - totalTransferenciasAgregadas));
+  }, [montoTotal, totalTransferenciasAgregadas]);
+
+  const montoActualInputNum = useMemo(() => {
+    return parseMontoInput(formData.monto);
+  }, [formData.monto]);
+
   useEffect(() => {
-    setFormData(prev => ({ ...prev, monto: montoTotal > 0 ? formatBs(montoTotal) : '' }));
+    if (!montoEditadoManual) {
+      setFormData(prev => ({
+        ...prev,
+        monto: montoRestanteTransferir > 0 ? formatBs(montoRestanteTransferir) : ''
+      }));
+    }
     if (deudaNetaAntesDeNota > 0 && montoTotal === 0 && totalNotaCreditoAplicada > 0) {
       setMetodo('saldo_a_favor');
     } else if (metodo === 'saldo_a_favor' && montoTotal > 0) {
       setMetodo('transferencia');
     }
-  }, [montoTotal, deudaNetaAntesDeNota, totalNotaCreditoAplicada]);
+  }, [montoTotal, montoRestanteTransferir, deudaNetaAntesDeNota, totalNotaCreditoAplicada, montoEditadoManual]);
+
+  const handleAgregarTransferenciaLista = () => {
+    if (!formData.bancoOrigen) {
+      alert('Seleccione el Banco Emisor Origen de esta transferencia.');
+      return;
+    }
+    const refLimpia = String(formData.referencia || '').trim().replace(/\D/g, '');
+    if (refLimpia.length !== 8) {
+      alert('El número de referencia debe contener exactamente 8 dígitos numéricos.');
+      return;
+    }
+    if (transferenciasAgregadas.some(t => t.referencia === refLimpia)) {
+      alert(`La referencia ${refLimpia} ya fue agregada a la lista de transferencias.`);
+      return;
+    }
+    if (!formData.fecha) {
+      alert('Seleccione la fecha de pago de esta transferencia.');
+      return;
+    }
+    const mNum = parseMontoInput(formData.monto);
+    if (!(mNum > 0)) {
+      alert('Ingrese un monto válido para esta transferencia.');
+      return;
+    }
+    if (!formData.comprobante) {
+      alert('Adjunte el comprobante o captura de esta transferencia.');
+      return;
+    }
+    const nueva: TransferenciaAgregadaItem = {
+      id: `tr_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      bancoDestino: formData.bancoDestino,
+      bancoOrigen: formData.bancoOrigen,
+      referencia: refLimpia,
+      monto: mNum,
+      fecha: formData.fecha,
+      comprobante: formData.comprobante,
+    };
+    const nuevoTotal = r2(totalTransferenciasAgregadas + mNum);
+    const nuevoRestante = Math.max(0, r2(montoTotal - nuevoTotal));
+    setTransferenciasAgregadas(prev => [...prev, nueva]);
+    setMontoEditadoManual(false);
+    setFormData(prev => ({
+      ...prev,
+      referencia: '',
+      monto: nuevoRestante > 0 ? formatBs(nuevoRestante) : '',
+      comprobante: null,
+    }));
+  };
+
+  const handleQuitarTransferenciaLista = (id: string) => {
+    setTransferenciasAgregadas(prev => prev.filter(t => t.id !== id));
+    setMontoEditadoManual(false);
+  };
 
   const bancos = LISTA_BANCOS;
 
@@ -1215,52 +1306,114 @@ export default function DondePagarPage() {
       }
     }
 
+    let transferenciasParaEnviar: TransferenciaAgregadaItem[] = [...transferenciasAgregadas];
     if (metodoEfectivo === 'transferencia') {
-      if (!formData.bancoOrigen) { alert('Seleccione el banco origen.'); return; }
-      const refLimpia = String(formData.referencia || '').trim().replace(/\D/g, '');
-      if (!refLimpia) { alert('Ingrese el número de referencia.'); return; }
-      if (refLimpia.length !== 8) {
-        alert('El número de referencia debe contener exactamente 8 dígitos numéricos (mínimo 8 y máximo 8).');
+      const refLimpiaActual = String(formData.referencia || '').trim().replace(/\D/g, '');
+      const montoActual = parseMontoInput(formData.monto);
+      const tieneDatosFormularioActual = Boolean(
+        refLimpiaActual.length > 0 ||
+        formData.comprobante ||
+        transferenciasParaEnviar.length === 0
+      );
+
+      if (tieneDatosFormularioActual) {
+        if (!formData.bancoOrigen) { alert('Seleccione el banco origen.'); return; }
+        if (!refLimpiaActual) { alert('Ingrese el número de referencia.'); return; }
+        if (refLimpiaActual.length !== 8) {
+          alert('El número de referencia debe contener exactamente 8 dígitos numéricos (mínimo 8 y máximo 8).');
+          return;
+        }
+        if (transferenciasParaEnviar.some(t => t.referencia === refLimpiaActual)) {
+          alert(`La referencia bancaria ${refLimpiaActual} ya está agregada en este pago.`);
+          return;
+        }
+        if (!formData.fecha) { alert('Seleccione la fecha de pago.'); return; }
+        if (!(montoActual > 0)) { alert('Ingrese el monto transferido.'); return; }
+        if (!formData.comprobante) { alert('Debe adjuntar obligatoriamente el comprobante de pago.'); return; }
+
+        transferenciasParaEnviar.push({
+          id: `tr_actual_${Date.now()}`,
+          bancoDestino: formData.bancoDestino,
+          bancoOrigen: formData.bancoOrigen,
+          referencia: refLimpiaActual,
+          monto: montoActual,
+          fecha: formData.fecha,
+          comprobante: formData.comprobante,
+        });
+      }
+
+      if (transferenciasParaEnviar.length === 0) {
+        alert('Debe ingresar al menos una transferencia bancaria.');
         return;
       }
-      if (!formData.comprobante) { alert('Debe adjuntar obligatoriamente el comprobante de pago.'); return; }
+
+      const sumaTotalTransferencias = r2(
+        transferenciasParaEnviar.reduce((acc, t) => acc + (Number(t.monto) || 0), 0)
+      );
+      if (sumaTotalTransferencias + 0.05 < montoTotal) {
+        const faltante = r2(montoTotal - sumaTotalTransferencias);
+        alert(
+          `El total de las transferencias ingresadas (Bs. ${formatBs(sumaTotalTransferencias)}) no cubre el total a pagar (Bs. ${formatBs(montoTotal)}).\n\n` +
+          `Falta por cubrir: Bs. ${formatBs(faltante)}.\n\n` +
+          `Pulse "+ Agregar otra transferencia (Pago Múltiple)" para anexar el comprobante restante antes de enviar.`
+        );
+        return;
+      }
     }
 
     setIsSubmitting(true);
     setResult(null);
 
     let comprobanteUrl = '';
+    const transferenciasSubidas: Array<{
+      banco: string;
+      bancoDestino: string;
+      referencia: string;
+      monto: number;
+      fecha: string;
+      comprobanteUrl: string;
+    }> = [];
+
     if (metodoEfectivo === 'transferencia') {
-      if (!formData.comprobante) {
-        setIsSubmitting(false);
-        alert('Debe adjuntar obligatoriamente el comprobante de pago.');
-        return;
-      }
       try {
-        if (formData.comprobante.size > 4.5 * 1024 * 1024) {
-          throw new Error('El comprobante seleccionado supera el límite permitido de 4.5 MB. Por favor comprima el archivo o capture una foto.');
-        }
-        const upFd = new FormData();
-        upFd.append('file', formData.comprobante);
-        upFd.append('bucket', 'documentos');
-        const upRes = await fetch('/api/upload', { method: 'POST', body: upFd });
-        if (!upRes.ok) {
-          const textErr = await upRes.text();
-          if (upRes.status === 413 || textErr.includes('Request Entity') || textErr.includes('FUNCTION_PAYLOAD_TOO_LARGE')) {
-            throw new Error('El comprobante supera el tamaño máximo permitido de 4.5 MB. Por favor tome una foto o comprima el archivo.');
+        for (let idx = 0; idx < transferenciasParaEnviar.length; idx++) {
+          const item = transferenciasParaEnviar[idx];
+          if (!item.comprobante) {
+            throw new Error(`Falta adjuntar el comprobante de la transferencia #${idx + 1} (Ref. ${item.referencia}).`);
           }
-          try {
-            const parsedErr = JSON.parse(textErr);
-            throw new Error(parsedErr.error || `Error del servidor HTTP ${upRes.status}`);
-          } catch {
-            throw new Error(textErr.slice(0, 120) || `Error HTTP ${upRes.status}`);
+          if (item.comprobante.size > 4.5 * 1024 * 1024) {
+            throw new Error(`El comprobante de la transferencia #${idx + 1} (Ref. ${item.referencia}) supera el límite permitido de 4.5 MB.`);
           }
+          const upFd = new FormData();
+          upFd.append('file', item.comprobante);
+          upFd.append('bucket', 'documentos');
+          const upRes = await fetch('/api/upload', { method: 'POST', body: upFd });
+          if (!upRes.ok) {
+            const textErr = await upRes.text();
+            if (upRes.status === 413 || textErr.includes('Request Entity') || textErr.includes('FUNCTION_PAYLOAD_TOO_LARGE')) {
+              throw new Error(`El comprobante (Ref. ${item.referencia}) supera el tamaño máximo permitido de 4.5 MB.`);
+            }
+            try {
+              const parsedErr = JSON.parse(textErr);
+              throw new Error(parsedErr.error || `Error del servidor HTTP ${upRes.status}`);
+            } catch {
+              throw new Error(textErr.slice(0, 120) || `Error HTTP ${upRes.status}`);
+            }
+          }
+          const upJson = await upRes.json();
+          if (!upJson.success || !upJson.publicUrl) {
+            throw new Error(upJson.error || `No se pudo subir el comprobante (Ref. ${item.referencia})`);
+          }
+          if (idx === 0) comprobanteUrl = upJson.publicUrl;
+          transferenciasSubidas.push({
+            banco: item.bancoOrigen,
+            bancoDestino: item.bancoDestino,
+            referencia: item.referencia,
+            monto: item.monto,
+            fecha: item.fecha,
+            comprobanteUrl: upJson.publicUrl,
+          });
         }
-        const upJson = await upRes.json();
-        if (!upJson.success || !upJson.publicUrl) {
-          throw new Error(upJson.error || 'No se pudo subir el comprobante');
-        }
-        comprobanteUrl = upJson.publicUrl;
       } catch (err: any) {
         setIsSubmitting(false);
         alert('Error al subir comprobante de pago: ' + (err.message || 'Intente nuevamente'));
@@ -1334,12 +1487,13 @@ export default function DondePagarPage() {
           deuda_previa: deudaPreviaSnapshot,
           periodos_pagados: periodosPagadosTexto,
           cod_inmueble: codigosSeleccionados.join(', '),
-          referencia: formData.referencia,
-          banco: formData.bancoOrigen,
-          bancoDestino: formData.bancoDestino,
-          fecha: formData.fecha,
+          referencia: transferenciasSubidas[0]?.referencia || formData.referencia,
+          banco: transferenciasSubidas[0]?.banco || formData.bancoOrigen,
+          bancoDestino: transferenciasSubidas[0]?.bancoDestino || formData.bancoDestino,
+          fecha: transferenciasSubidas[0]?.fecha || formData.fecha,
           identidad,
-          comprobanteUrl
+          comprobanteUrl,
+          transferencias: transferenciasSubidas.length > 0 ? transferenciasSubidas : undefined,
         })
       });
 
@@ -1350,9 +1504,11 @@ export default function DondePagarPage() {
           type: metodoEfectivo === 'saldo_a_favor' ? 'approved' : 'success',
           msg: metodoEfectivo === 'saldo_a_favor'
             ? '¡Pago aplicado exitosamente con su Nota de Crédito / Saldo a Favor!'
-            : totalNotaCreditoAplicada > 0
-              ? `¡Pago reportado exitosamente! Se aplicó su Nota de Crédito por Bs. ${formatBs(totalNotaCreditoAplicada)} y su comprobante fue enviado para validación.`
-              : '¡Pago reportado exitosamente! Su comprobante fue enviado para validación por el equipo de Recaudación y Caja.'
+            : transferenciasSubidas.length > 1
+              ? `¡Pago múltiple (${transferenciasSubidas.length} transferencias) reportado exitosamente! Sus comprobantes fueron enviados para validación.`
+              : totalNotaCreditoAplicada > 0
+                ? `¡Pago reportado exitosamente! Se aplicó su Nota de Crédito por Bs. ${formatBs(totalNotaCreditoAplicada)} y su comprobante fue enviado para validación.`
+                : '¡Pago reportado exitosamente! Su comprobante fue enviado para validación por el equipo de Recaudación y Caja.'
         });
         
         // Bloquear inmediatamente las referencias reportadas
@@ -1360,9 +1516,9 @@ export default function DondePagarPage() {
         setPagosPorVerificar(prev => [
           ...prev,
           {
-            referencia: formData.referencia || 'SALDO-FAVOR',
+            referencia: transferenciasSubidas[0]?.referencia || formData.referencia || 'SALDO-FAVOR',
             monto: montoTotal,
-            detalles: JSON.stringify({ recibos: justPaidRefs, banco_destino: formData.bancoDestino, saldo_usado: totalNotaCreditoAplicada })
+            detalles: JSON.stringify({ recibos: justPaidRefs, banco_destino: transferenciasSubidas[0]?.bancoDestino || formData.bancoDestino, saldo_usado: totalNotaCreditoAplicada })
           }
         ]);
 
@@ -1374,6 +1530,8 @@ export default function DondePagarPage() {
         setSelectedConvenioIds([]);
         setServiciosPend(prev => prev.filter(x => !selectedServicios.includes(x.referencia)));
         setSelectedServicios([]);
+        setTransferenciasAgregadas([]);
+        setMontoEditadoManual(false);
         setFormData({ bancoDestino: 'BANCAMIGA - 0172 - 0717', bancoOrigen: '', referencia: '', monto: '', fecha: '', comprobante: null });
         setMetodo('');
       } else {
@@ -2138,155 +2296,273 @@ export default function DondePagarPage() {
               {/* Campos del Formulario de Transferencia */}
               {metodo === 'transferencia' && (
                 <div className="space-y-3 pt-2">
-                  
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                      Monto a Transferir (Bs) <span className="text-red-500">*</span>
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">Bs.</span>
-                      <input 
-                        type="text"
-                        value={formData.monto}
-                        readOnly
-                        className="w-full border border-slate-200 bg-slate-50 rounded-lg pl-9 pr-3 py-2 text-xs font-mono font-bold text-slate-800 cursor-not-allowed"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                      Cuenta Receptora Oficial IAMEC <span className="text-red-500">*</span>
-                    </label>
-                    <select 
-                      value={formData.bancoDestino}
-                      onChange={(e) => setFormData({...formData, bancoDestino: e.target.value})}
-                      className="w-full border border-blue-300 rounded-lg px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-blue-500 bg-blue-50/40"
-                      required
-                    >
-                      <option value="BANCAMIGA - 0172 - 0717">Bancamiga (0172) - 01720110711101340717 (IAMEC BANCAMIGA)</option>
-                      <option value="BANESCO - 0134 - 8636">Banesco (0134) - 01341089590001008636 (IAMEC)</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                      Banco Emisor Origen (Su Banco) <span className="text-red-500">*</span>
-                    </label>
-                    <select 
-                      value={formData.bancoOrigen}
-                      onChange={(e) => {
-                        const nuevoOrigen = e.target.value;
-                        const autoDestino = nuevoOrigen.includes('0134')
-                          ? 'BANESCO - 0134 - 8636'
-                          : nuevoOrigen.includes('0172')
-                            ? 'BANCAMIGA - 0172 - 0717'
-                            : formData.bancoDestino;
-                        setFormData({...formData, bancoOrigen: nuevoOrigen, bancoDestino: autoDestino});
-                      }}
-                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-800 outline-none focus:border-emerald-500 bg-white"
-                      required
-                    >
-                      <option value="">-- Seleccione su banco --</option>
-                      {bancos.map(b => <option key={b} value={b}>{b}</option>)}
-                      <option value="OTRO">OTRO BANCO</option>
-                    </select>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="block text-[11px] font-bold text-slate-700 uppercase">
-                          Nro. de Referencia (8 dígitos) <span className="text-red-500">*</span>
-                        </label>
-                        <span className={`text-[10px] font-mono font-semibold ${formData.referencia.length === 8 ? 'text-emerald-600' : 'text-slate-400'}`}>
-                          {formData.referencia.length}/8
+                  {/* Lista de transferencias ya agregadas en Pago Múltiple */}
+                  {transferenciasAgregadas.length > 0 && (
+                    <div className="bg-indigo-50/70 border-2 border-indigo-200 rounded-xl p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-black uppercase tracking-wider text-indigo-900">
+                          🔗 Pago Múltiple ({transferenciasAgregadas.length} {transferenciasAgregadas.length === 1 ? 'transferencia agregada' : 'transferencias agregadas'})
+                        </span>
+                        <span className="text-xs font-black text-indigo-800">
+                          Bs. {formatBs(totalTransferenciasAgregadas)}
                         </span>
                       </div>
-                      <input 
-                        type="text"
-                        inputMode="numeric"
-                        maxLength={8}
-                        placeholder="Ej. 12345678"
-                        value={formData.referencia}
-                        onChange={(e) => setFormData({...formData, referencia: e.target.value.replace(/\D/g, '').slice(0, 8)})}
-                        className={`w-full border rounded-lg px-3 py-2 text-xs text-slate-800 outline-none font-mono ${
-                          formData.referencia.length > 0 && formData.referencia.length !== 8
-                            ? 'border-amber-400 focus:border-amber-500 bg-amber-50/30'
-                            : 'border-slate-300 focus:border-emerald-500'
-                        }`}
-                        required
-                      />
-                      {formData.referencia.length > 0 && formData.referencia.length !== 8 ? (
-                        <p className="text-[10px] text-amber-600 mt-1 font-medium">
-                          Debe contener exactamente 8 dígitos numéricos (faltan {8 - formData.referencia.length})
-                        </p>
-                      ) : (
-                        <p className="text-[10px] text-slate-400 mt-1">
-                          Ingrese los 8 dígitos del comprobante bancario
-                        </p>
-                      )}
+                      <div className="space-y-1.5">
+                        {transferenciasAgregadas.map((tr, idx) => (
+                          <div
+                            key={tr.id}
+                            className="bg-white border border-indigo-200 rounded-lg px-2.5 py-2 flex items-center justify-between gap-2 text-xs"
+                          >
+                            <div className="min-w-0">
+                              <div className="font-bold text-slate-800 flex items-center gap-1.5 flex-wrap">
+                                <span className="bg-indigo-100 text-indigo-800 px-1.5 py-0.2 rounded text-[10px] font-black">
+                                  #{idx + 1}
+                                </span>
+                                <span className="font-mono">Ref: {tr.referencia}</span>
+                                <span className="text-emerald-700 font-black">Bs. {formatBs(tr.monto)}</span>
+                              </div>
+                              <div className="text-[10px] text-slate-500 truncate mt-0.5">
+                                {tr.bancoOrigen} → {tr.bancoDestino.includes('0134') ? 'Banesco (0134)' : 'Bancamiga (0172)'} • {tr.fecha}
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleQuitarTransferenciaLista(tr.id)}
+                              className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors shrink-0"
+                              title="Quitar esta transferencia"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="pt-1.5 border-t border-indigo-200/80 flex items-center justify-between text-[11px]">
+                        <span className="font-semibold text-indigo-900">
+                          {montoRestanteTransferir > 0.01 ? 'Restante por cubrir:' : 'Total cubierto:'}
+                        </span>
+                        <span className={`font-black ${montoRestanteTransferir > 0.01 ? 'text-amber-700' : 'text-emerald-700'}`}>
+                          {montoRestanteTransferir > 0.01
+                            ? `Bs. ${formatBs(montoRestanteTransferir)}`
+                            : `✓ Bs. ${formatBs(totalTransferenciasAgregadas)} / Bs. ${formatBs(montoTotal)}`}
+                        </span>
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                        Fecha de Pago <span className="text-red-500">*</span>
-                      </label>
-                      <input 
-                        type="date"
-                        value={formData.fecha}
-                        max={new Date().toISOString().split('T')[0]}
-                        onChange={(e) => setFormData({...formData, fecha: e.target.value})}
-                        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-800 outline-none focus:border-emerald-500"
-                        required
-                      />
-                    </div>
-                  </div>
+                  )}
 
-                  <div>
-                    <ComprobantePickerWithCamera
-                      file={formData.comprobante}
-                      onSelectFile={(f) => setFormData({ ...formData, comprobante: f })}
-                      compressImage={compressImage}
-                      label="Comprobante de Transferencia"
-                      required
-                    />
-                  </div>
+                  { (transferenciasAgregadas.length === 0 || montoRestanteTransferir > 0.01 || formData.referencia.length > 0 || formData.comprobante) && (
+                    <>
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-[11px] font-bold text-slate-700 uppercase">
+                            {transferenciasAgregadas.length > 0
+                              ? `Monto Transferencia #${transferenciasAgregadas.length + 1} (Bs)`
+                              : 'Monto a Transferir (Bs)'}{' '}
+                            <span className="text-red-500">*</span>
+                          </label>
+                          {montoEditadoManual && montoRestanteTransferir > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setMontoEditadoManual(false);
+                                setFormData(prev => ({ ...prev, monto: formatBs(montoRestanteTransferir) }));
+                              }}
+                              className="text-[10px] font-bold text-blue-600 hover:text-blue-800 underline"
+                            >
+                              Usar restante (Bs. {formatBs(montoRestanteTransferir)})
+                            </button>
+                          )}
+                        </div>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-bold text-xs">Bs.</span>
+                          <input 
+                            type="text"
+                            inputMode="decimal"
+                            value={formData.monto}
+                            onChange={(e) => {
+                              setMontoEditadoManual(true);
+                              setFormData({ ...formData, monto: e.target.value.replace(/[^0-9.,]/g, '') });
+                            }}
+                            placeholder={formatBs(montoRestanteTransferir)}
+                            className="w-full border border-slate-300 bg-white focus:border-emerald-500 rounded-lg pl-9 pr-3 py-2 text-xs font-mono font-bold text-slate-800 outline-none"
+                          />
+                        </div>
+                        <p className="text-[10px] text-slate-500 mt-1">
+                          💡 Si pagó con <strong>varias transferencias (pago múltiple)</strong>, indique aquí el monto de la primera transferencia y pulse <strong>&ldquo;+ Agregar otra transferencia&rdquo;</strong> abajo.
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                          Cuenta Receptora Oficial IAMEC <span className="text-red-500">*</span>
+                        </label>
+                        <select 
+                          value={formData.bancoDestino}
+                          onChange={(e) => setFormData({...formData, bancoDestino: e.target.value})}
+                          className="w-full border border-blue-300 rounded-lg px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-blue-500 bg-blue-50/40"
+                        >
+                          <option value="BANCAMIGA - 0172 - 0717">Bancamiga (0172) - 01720110711101340717 (IAMEC BANCAMIGA)</option>
+                          <option value="BANESCO - 0134 - 8636">Banesco (0134) - 01341089590001008636 (IAMEC)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                          Banco Emisor Origen (Su Banco) <span className="text-red-500">*</span>
+                        </label>
+                        <select 
+                          value={formData.bancoOrigen}
+                          onChange={(e) => {
+                            const nuevoOrigen = e.target.value;
+                            const autoDestino = nuevoOrigen.includes('0134')
+                              ? 'BANESCO - 0134 - 8636'
+                              : nuevoOrigen.includes('0172')
+                                ? 'BANCAMIGA - 0172 - 0717'
+                                : formData.bancoDestino;
+                            setFormData({...formData, bancoOrigen: nuevoOrigen, bancoDestino: autoDestino});
+                          }}
+                          className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-800 outline-none focus:border-emerald-500 bg-white"
+                        >
+                          <option value="">-- Seleccione su banco --</option>
+                          {bancos.map(b => <option key={b} value={b}>{b}</option>)}
+                          <option value="OTRO">OTRO BANCO</option>
+                        </select>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="block text-[11px] font-bold text-slate-700 uppercase">
+                              Nro. de Referencia (8 dígitos) <span className="text-red-500">*</span>
+                            </label>
+                            <span className={`text-[10px] font-mono font-semibold ${formData.referencia.length === 8 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                              {formData.referencia.length}/8
+                            </span>
+                          </div>
+                          <input 
+                            type="text"
+                            inputMode="numeric"
+                            maxLength={8}
+                            placeholder="Ej. 12345678"
+                            value={formData.referencia}
+                            onChange={(e) => setFormData({...formData, referencia: e.target.value.replace(/\D/g, '').slice(0, 8)})}
+                            className={`w-full border rounded-lg px-3 py-2 text-xs text-slate-800 outline-none font-mono ${
+                              formData.referencia.length > 0 && formData.referencia.length !== 8
+                                ? 'border-amber-400 focus:border-amber-500 bg-amber-50/30'
+                                : 'border-slate-300 focus:border-emerald-500'
+                            }`}
+                          />
+                          {formData.referencia.length > 0 && formData.referencia.length !== 8 ? (
+                            <p className="text-[10px] text-amber-600 mt-1 font-medium">
+                              Debe contener exactamente 8 dígitos numéricos (faltan {8 - formData.referencia.length})
+                            </p>
+                          ) : (
+                            <p className="text-[10px] text-slate-400 mt-1">
+                              Ingrese los 8 dígitos del comprobante bancario
+                            </p>
+                          )}
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                            Fecha de Pago <span className="text-red-500">*</span>
+                          </label>
+                          <input 
+                            type="date"
+                            value={formData.fecha}
+                            max={new Date().toISOString().split('T')[0]}
+                            onChange={(e) => setFormData({...formData, fecha: e.target.value})}
+                            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-800 outline-none focus:border-emerald-500"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <ComprobantePickerWithCamera
+                          file={formData.comprobante}
+                          onSelectFile={(f) => setFormData({ ...formData, comprobante: f })}
+                          compressImage={compressImage}
+                          label={transferenciasAgregadas.length > 0 ? `Comprobante Transferencia #${transferenciasAgregadas.length + 1}` : 'Comprobante de Transferencia'}
+                          required={transferenciasAgregadas.length === 0}
+                        />
+                      </div>
+
+                      {/* Botón para agregar esta transferencia y cargar otra (Pago Múltiple) */}
+                      <button
+                        type="button"
+                        onClick={handleAgregarTransferenciaLista}
+                        className="w-full py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 border-2 border-dashed border-indigo-300 text-indigo-700 bg-indigo-50/50 hover:bg-indigo-100/70 transition-colors"
+                      >
+                        <Plus className="w-4 h-4" />
+                        {transferenciasAgregadas.length === 0
+                          ? 'Agregar esta transferencia y anexar otra (Pago Múltiple)'
+                          : 'Agregar transferencia a la lista'}
+                      </button>
+                    </>
+                  )}
 
                   {/* Botón de Enviar */}
-                  <div className="pt-2">
-                    <button 
-                      type="submit"
-                      disabled={
-                        isSubmitting || 
-                        montoTotal === 0 || 
-                        (metodo === 'transferencia' && (!formData.comprobante || formData.referencia.length !== 8))
-                      }
-                      className="w-full py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 disabled:opacity-50 shadow-sm transition-all text-white bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99]"
-                    >
-                      {isSubmitting ? (
-                        'Procesando reporte...'
-                      ) : (metodo === 'transferencia' && formData.referencia.length !== 8) ? (
-                        'Ingrese la referencia de 8 dígitos para enviar'
-                      ) : (metodo === 'transferencia' && !formData.comprobante) ? (
-                        'Adjunte el comprobante para enviar'
-                      ) : (
-                        <>
-                          <Send className="w-3.5 h-3.5" />
-                          Enviar Comprobante (Bs. {formatBs(montoTotal)})
-                        </>
-                      )}
-                    </button>
-                    {metodo === 'transferencia' && formData.referencia.length !== 8 && (
-                      <p className="text-[11px] text-amber-600 font-semibold text-center mt-1.5">
-                        * La referencia debe tener exactamente 8 dígitos numéricos ({formData.referencia.length}/8)
-                      </p>
-                    )}
-                    {metodo === 'transferencia' && formData.referencia.length === 8 && !formData.comprobante && (
-                      <p className="text-[11px] text-amber-600 font-semibold text-center mt-1.5">
-                        * Es obligatorio adjuntar el archivo o foto del comprobante de transferencia para enviar
-                      </p>
-                    )}
-                  </div>
+                  {(() => {
+                    const tieneActualCompleta =
+                      formData.referencia.length === 8 &&
+                      Boolean(formData.comprobante) &&
+                      Boolean(formData.bancoOrigen) &&
+                      Boolean(formData.fecha) &&
+                      montoActualInputNum > 0;
+                    const tieneActualParcial =
+                      formData.referencia.length > 0 || Boolean(formData.comprobante);
+                    const totalAcumulado = r2(
+                      totalTransferenciasAgregadas + (tieneActualCompleta ? montoActualInputNum : 0)
+                    );
+                    const cubreDeuda = totalAcumulado + 0.05 >= montoTotal;
+                    const puedeEnviar =
+                      !isSubmitting &&
+                      montoTotal > 0 &&
+                      cubreDeuda &&
+                      (tieneActualCompleta || (transferenciasAgregadas.length > 0 && !tieneActualParcial));
+                    const cantEnvio =
+                      transferenciasAgregadas.length + (tieneActualCompleta ? 1 : 0);
+
+                    return (
+                      <div className="pt-2">
+                        <button 
+                          type="submit"
+                          disabled={!puedeEnviar}
+                          className="w-full py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 disabled:opacity-50 shadow-sm transition-all text-white bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99]"
+                        >
+                          {isSubmitting ? (
+                            'Procesando reporte...'
+                          ) : !cubreDeuda && (tieneActualCompleta || transferenciasAgregadas.length > 0) ? (
+                            `Faltan Bs. ${formatBs(Math.max(0, r2(montoTotal - totalAcumulado)))} — Agregue otra transferencia`
+                          ) : (transferenciasAgregadas.length === 0 && formData.referencia.length !== 8) ? (
+                            'Ingrese la referencia de 8 dígitos para enviar'
+                          ) : (transferenciasAgregadas.length === 0 && !formData.comprobante) ? (
+                            'Adjunte el comprobante para enviar'
+                          ) : (
+                            <>
+                              <Send className="w-3.5 h-3.5" />
+                              {cantEnvio > 1
+                                ? `Enviar Pago Múltiple (${cantEnvio} transferencias · Bs. ${formatBs(totalAcumulado)})`
+                                : `Enviar Comprobante (Bs. ${formatBs(totalAcumulado || montoTotal)})`}
+                            </>
+                          )}
+                        </button>
+                        {!cubreDeuda && (tieneActualCompleta || transferenciasAgregadas.length > 0) && (
+                          <p className="text-[11px] text-indigo-700 font-semibold text-center mt-1.5">
+                            * Ha cubierto Bs. {formatBs(totalAcumulado)} de Bs. {formatBs(montoTotal)}. Pulse el botón punteado de arriba para agregar otra transferencia.
+                          </p>
+                        )}
+                        {transferenciasAgregadas.length === 0 && formData.referencia.length !== 8 && (
+                          <p className="text-[11px] text-amber-600 font-semibold text-center mt-1.5">
+                            * La referencia debe tener exactamente 8 dígitos numéricos ({formData.referencia.length}/8)
+                          </p>
+                        )}
+                        {transferenciasAgregadas.length === 0 && formData.referencia.length === 8 && !formData.comprobante && (
+                          <p className="text-[11px] text-amber-600 font-semibold text-center mt-1.5">
+                            * Es obligatorio adjuntar el archivo o foto del comprobante de transferencia para enviar
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                 </div>
               )}

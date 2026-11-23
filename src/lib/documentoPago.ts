@@ -65,7 +65,8 @@ export function parseDetalles(det: any): any {
  * @param det     detalles del pago (para heurística de IVA cuando no hay código)
  */
 export function clasificarPago(recibos: string[], inmMap: Map<string, any>, det: any = {}): ClasificacionPago {
-  const sinMultaFlag = Boolean(
+  const esSoloMultas = Boolean(det?.soloMultas || det?.solo_multas || det?.condominio?.solo_multas);
+  const sinMultaFlag = !esSoloMultas && Boolean(
     det?.llevaMulta === false ||
     det?.sin_multas === true ||
     det?.solo_aseo === true ||

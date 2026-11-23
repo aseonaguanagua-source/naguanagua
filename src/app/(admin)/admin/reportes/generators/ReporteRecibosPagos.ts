@@ -228,7 +228,14 @@ export async function obtenerRecibosPagosUnificados(
   let recibosList: any[] = [];
 
   if (itemsApi) {
-    recibosList = itemsApi;
+    recibosList = itemsApi.filter((p) => {
+      const det = parseDet(p);
+      const cod = resolverCodigo(p, det);
+      const inm = (cod !== '-' ? inmMap.get(cod) : null) || inmByIdentidad.get(cleanId(p.identidad)) || null;
+      if (inm && !isResidencialInm(inm)) return false;
+      const clasif = clasificarPago(det.recibos || [], inmMap, det);
+      return clasif.documento === 'recibo';
+    });
   } else {
     const candidatosRecibos = pagos
       .filter((p) => {
@@ -248,8 +255,8 @@ export async function obtenerRecibosPagosUnificados(
 
         const cod = resolverCodigo(p, det);
         const inm = (cod !== '-' ? inmMap.get(cod) : null) || inmByIdentidad.get(cleanId(p.identidad)) || null;
-        const cnd = (cod !== '-' ? condoByCodigo.get(cod) : null) || condoByIdentidad.get(cleanId(p.identidad)) || null;
-        const clasif = clasificarPago(p, inm, cnd);
+        if (inm && !isResidencialInm(inm)) return false;
+        const clasif = clasificarPago(det.recibos || [], inmMap, det);
         return clasif.documento === 'recibo';
       })
       .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
