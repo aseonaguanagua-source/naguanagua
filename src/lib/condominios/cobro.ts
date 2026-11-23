@@ -226,8 +226,8 @@ export async function prepararCobro(sol: SolicitudCobro): Promise<Cobro & { _dat
             : (sol.meses && sol.meses > 0 ? Math.min(nMesesMax, Math.floor(sol.meses)) : nMesesMax);
         const meses = r.deuda.porMes.slice(0, nMeses);
         const s = (k: 'baseBs' | 'multaBs' | 'ivaBs' | 'retencionBs') => r2(meses.reduce((a, m) => a + m[k], 0));
-        // ¿Las multas van en este cobro? En condominios residenciales centralizados (!porAct) y cobros individuales van incluidas por defecto
-        const defaultIncluirMultas = modo === 'CONTRIBUYENTE' || !porAct;
+        // ¿Las multas van en este cobro? En condominios residenciales centralizados (!porAct) van incluidas por defecto; en condominios por actividad/comerciales el aseo va sin multa salvo que se marque incluirMultas o sea soloMultas
+        const defaultIncluirMultas = !porAct;
         const permitirMultas = Boolean(
             sol.soloMultas ||
             (typeof sol.incluirMultas === 'boolean' ? sol.incluirMultas : defaultIncluirMultas)
@@ -810,7 +810,7 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
         const modoEfectivo: ModoCobro = (sol.soloMultas || modalidadCobroActiva === 'individual' || modalidadCobroActiva === 'multas_separadas')
             ? 'CONTRIBUYENTE'
             : 'CONDOMINIO';
-        const defaultIncluirMultasReg = modoEfectivo === 'CONTRIBUYENTE' || !cobro.estado.porActividad;
+        const defaultIncluirMultasReg = !cobro.estado.porActividad;
         const incluirMultasEfectivoReg = Boolean(
             sol.soloMultas ||
             (typeof sol.incluirMultas === 'boolean' ? sol.incluirMultas : defaultIncluirMultasReg)

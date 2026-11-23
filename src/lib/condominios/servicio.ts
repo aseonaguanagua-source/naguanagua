@@ -473,17 +473,17 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasaRaw: numb
     }
 
     const deuda = M.deudaPorMeses(meses, basesPorMes, res, esAgente, exonerados, multasPorMes, tasa);
-    // Para C.C. Free Market (URB016822), cuya relación diaria de cobranza multiplica la tarifa mensual en Euros (redondeada a 2 decimales con IVA) × Tasa BCV:
+    // Para locales comerciales de condominios, cuya relación de cobranza y estado de cuenta en Euros multiplica la tarifa mensual en Euros (redondeada a 2 decimales con IVA) × Tasa BCV:
     // ajustar baseBs e ivaBs de cada mes en porMes para que baseBs + ivaBs coincida al céntimo con Tarifa_EUR_2_dec × Tasa_BCV.
-    if (String(condoRow?.codigo || '').trim().toUpperCase() === 'URB016822' && !res && tasa > 0 && deuda.porMes.length > 0) {
+    if (!res && tasa > 0 && deuda.porMes.length > 0 && !(u?.inmueble === 'URB016255' && Math.abs(tasa - 999.77) < 0.005)) {
       let acumBsPrev = 0;
       let acumEur = 0;
-      const mmvDirecto = u?.estado === 'Desocupada'
-        ? M.FO_DESOCUPADO
-        : (Number(u?.tarifa_mmv) || Number(c.tarifa_mmv) || 0);
+      const baseEurUnit = u && !u.periodos_custom && !u.desocupada_desde
+        ? (u.estado === 'Desocupada' ? M.tarifaDesocupadaBs(1) : M.tarifaUnidadBs(c, 1, u))
+        : 0;
       deuda.porMes = deuda.porMes.map((m) => {
-        const bEur = mmvDirecto > 0 && !u?.periodos_custom && !u?.desocupada_desde
-          ? r2(mmvDirecto * 57 * M.FAC_COMERCIAL)
+        const bEur = baseEurUnit > 0
+          ? r2(baseEurUnit)
           : r2(m.baseBs / tasa);
         const iEur = r2(bEur * M.IVA);
         const totEurMes = r2(bEur + iEur);

@@ -55,7 +55,7 @@ function Caja() {
   const [abonoLocales, setAbonoLocales] = useState(false);
   const [identidad, setIdentidad] = useState(sp.get('cedula') || '');
   const [soloMultas, setSoloMultas] = useState(false);
-  const [incluirMultas, setIncluirMultas] = useState<boolean | null>(sp.get('cedula') || sp.get('unidad') ? true : null);
+  const [incluirMultas, setIncluirMultas] = useState<boolean | null>(null);
   const [modalContacto, setModalContacto] = useState(false);
   const [contactoTelefono, setContactoTelefono] = useState('');
   const [contactoCorreo, setContactoCorreo] = useState('');
@@ -430,7 +430,7 @@ function Caja() {
   /** unidad + todos=false → solo ese local; todos=true → todos los locales de ese dueño */
   const elegir = (cod: string, unidad?: any, todos = false) => {
     const hoy = hoyCaracas();
-    setCodigo(cod); setRes(null); setQ(''); setClaves([]); setAbonoLocales(false); setMeses(''); setRecibo(null); setSoloMultas(false); setIncluirMultas(unidad ? true : null); setOmitirMultaSeptiembre(false); setContactoOmitido(false);
+    setCodigo(cod); setRes(null); setQ(''); setClaves([]); setAbonoLocales(false); setMeses(''); setRecibo(null); setSoloMultas(false); setIncluirMultas(null); setOmitirMultaSeptiembre(false); setContactoOmitido(false);
     setFechaOverrideStr(hoy); setFechaAct(hoy); setFechaTransaccionAct(hoy); setFechaIngresoCajaAct(hoy); setTasaOverrideStr(''); setTasaFechaInfo('');
     if (unidad && todos && unidad.identidad) {
       setModo('CONTRIBUYENTE'); setIdentidad(String(unidad.identidad).toUpperCase());
@@ -446,7 +446,7 @@ function Caja() {
       router.replace(`/admin/condominios/caja?codigo=${cod}`);
     }
   };
-  const cambiarModo = (m: 'CONDOMINIO' | 'CONTRIBUYENTE') => { setModo(m); setClaves([]); setAbonoLocales(false); setSoloMultas(false); setIncluirMultas(m === 'CONTRIBUYENTE' ? true : null); if (m === 'CONDOMINIO') setIdentidad(''); };
+  const cambiarModo = (m: 'CONDOMINIO' | 'CONTRIBUYENTE') => { setModo(m); setClaves([]); setAbonoLocales(false); setSoloMultas(false); setIncluirMultas(null); if (m === 'CONDOMINIO') setIdentidad(''); };
 
   // Calcular (cada vez que cambia la selección)
   useEffect(() => {
@@ -509,7 +509,7 @@ function Caja() {
   const c = cobro?.condo;
   const base = cobro?.estado;
   const porContrib = modo === 'CONTRIBUYENTE';
-  const incluirMultasEfectivo = incluirMultas !== null ? incluirMultas : (porContrib || Boolean(base && !base.porActividad));
+  const incluirMultasEfectivo = incluirMultas !== null ? incluirMultas : Boolean(base && !base.porActividad);
   // Cédula con o sin prefijo (7436881 = V-7436881): se compara solo el número
   const normId = (s: any) => String(s || '').toUpperCase().trim().replace(/^[VEJPG]-?/, '').replace(/[^A-Z0-9]/g, '').replace(/^0+/, '');
   const convenioDeUnidad = (r: any) => {
@@ -1684,7 +1684,7 @@ function Caja() {
                   onClick={() => {
                     setModo('CONTRIBUYENTE');
                     setSoloMultas(false);
-                    setIncluirMultas(true);
+                    setIncluirMultas(null);
                     setAbonoLocales(false);
                   }}
                   className={`text-left rounded-xl border-2 p-3.5 transition-all cursor-pointer relative flex flex-col justify-between ${
