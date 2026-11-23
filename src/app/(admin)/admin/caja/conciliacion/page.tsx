@@ -668,7 +668,7 @@ function ModalEstadoCuenta({ pago, onClose }: { pago: Pago; onClose: () => void 
 }
 
 // ─── MODAL CONCILIACION ──────────────────────────────────
-function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: () => void; onSuccess: () => void }) {
+function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: () => void; onSuccess: (updatedPago?: Partial<Pago>) => void }) {
   const det = parseDetalles(pago.detalles);
   const desglose = (() => {
     try { return typeof det.desglose === 'string' ? JSON.parse(det.desglose) : det.desglose; } catch { return null; }
@@ -1363,16 +1363,13 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         }
       }
 
-      // Si el pago ya estaba aprobado y se confirma en Aprobado, es una edición de datos / corrección de referencia
+      // Si el pago ya estaba aprobado y se confirma en Aprobado, es una edición de datos / corrección de referencia o fechas
       if (pago.estado === 'Aprobado' && estatus === 'Aprobado') {
-        const createdYmdActual = String(pago.created_at || '').slice(0, 10);
-        const timePartActual = String(pago.created_at || '').split('T')[1] || '14:00:00.000Z';
         const payloadEdicion: any = {
           tipo: tipoPagoEdit || pago.tipo,
           banco: bancoEmisor,
           referencia: refFinal,
           ...(montoConciliadoNum > 0 ? { monto: montoConciliadoNum } : {}),
-          ...(fechaTxConciliada && fechaTxConciliada !== createdYmdActual ? { created_at: `${fechaTxConciliada}T${timePartActual}` } : {}),
           detalles: updatedDet
         };
         await actualizarPago(pago.id, payloadEdicion);
@@ -1395,7 +1392,13 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
           'ALTA'
         );
         alert('¡Datos y referencia del pago actualizados exitosamente!');
-        onSuccess();
+        onSuccess({
+          tipo: tipoPagoEdit || pago.tipo,
+          banco: bancoEmisor,
+          referencia: refFinal,
+          ...(montoConciliadoNum > 0 ? { monto: montoConciliadoNum } : {}),
+          detalles: updatedDet,
+        });
         return;
       }
 
@@ -1988,10 +1991,17 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         // ── FACTURACIÓN DIGITAL THE FACTORY HKA (EN COLA PARA REVISIÓN / EMISIÓN MANUAL) ──
         try {
           const { data: curPago } = await supabase.from('pagos_reportados').select('detalles').eq('id', pago.id).single();
-          let curDet = curPago?.detalles || {};
-          if (typeof curDet === 'string') {
-            try { curDet = JSON.parse(curDet); } catch(e) { curDet = {}; }
+          let curDetDb = curPago?.detalles || {};
+          if (typeof curDetDb === 'string') {
+            try { curDetDb = JSON.parse(curDetDb); } catch(e) { curDetDb = {}; }
           }
+          // Fusionar primero la base de datos y encima updatedDet para garantizar que fecha_transaccion, fecha_banco y banco_destino NUNCA se pierdan
+          let curDet: any = {
+            ...curDetDb,
+            ...updatedDet,
+            ...(fechaTxConciliada ? { fecha_transaccion: fechaTxConciliada } : {}),
+            ...(fechaBancoConciliada ? { fecha_banco: fechaBancoConciliada } : {}),
+          };
           const esAbonoEnEspera = Boolean(curDet.es_abono || det.es_abono) && !curDet.abono_completado;
           if (!esAbonoEnEspera) {
             curDet.factura_digital = curDet.factura_digital || {
@@ -2071,7 +2081,14 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
       }
 
       alert('Conciliacion guardada exitosamente.');
-      onSuccess();
+      onSuccess({
+        estado: estatus,
+        tipo: tipoPagoEdit || pago.tipo,
+        banco: bancoEmisor,
+        referencia: refFinal,
+        ...(montoConciliadoNum > 0 ? { monto: montoConciliadoNum } : {}),
+        detalles: updatedDet,
+      });
     } catch (e: any) { alert('Error al conciliar: ' + e.message); }
     setIsProcessing(false);
   };
@@ -2922,8 +2939,12 @@ export default function ConciliacionPage() {
 
   const abrir = (pago: Pago, m: 'conciliar'|'comprobante'|'edoCuenta') => { setPagoSel(pago); setMode(m); };
   const cerrar = () => { setPagoSel(null); setMode(null); };
-  const onSuccess = async () => {
+  const onSuccess = async (updatedPago?: Partial<Pago>) => {
     const idRefresh = pagoSel?.identidad;
+    const targetId = pagoSel?.id;
+    if (targetId && updatedPago) {
+      setPagos(prev => prev.map(p => p.id === targetId ? { ...p, ...updatedPago } : p));
+    }
     cerrar();
     if (idRefresh && refreshUserData) {
       await refreshUserData(idRefresh).catch(() => {});
