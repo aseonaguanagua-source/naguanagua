@@ -65,6 +65,10 @@ export interface DestinatarioCampana {
   correo: string;
   telefono: string;
   direccion: string;
+  codigoPrincipal: string;
+  codigos: string[];
+  sector: 'Individual' | 'Comercial' | 'Condominio';
+  mesesMax: number;
   esCondominio: boolean;
   esComercial: boolean;
   esResidencial: boolean;
@@ -72,6 +76,20 @@ export interface DestinatarioCampana {
   hasDebt: boolean;
   totalDeudaBs: number;
   items: InmuebleDeudaItem[];
+}
+
+export interface CampanaHistorialItem {
+  id: string;
+  fecha: string;
+  plantilla: 'recordatorio_pago' | 'estado_cuenta_masivo';
+  plantillaNombre: string;
+  asunto: string;
+  remitente: string;
+  tipoFiltro: string;
+  estatusFiltro: string;
+  adjuntarPdf: boolean;
+  totalEnviados: number;
+  totalErrores: number;
 }
 
 function construirEstadoCuentaPdfBuffer(dest: DestinatarioCampana, tasaBcv: number): Buffer {
@@ -536,39 +554,72 @@ function buildEstadoCuentaConPdfHtml(dest: DestinatarioCampana): string {
 </html>`;
 }
 
-async function cargarPadronDestinatarios(tasaBcv: number): Promise<DestinatarioCampana[]> {
-  const allInm: any[] = [];
-  let from = 0;
+let cachedPadronData: { ts: number; tasa: number; list: DestinatarioCampana[] } | null = null;
+const PADRON_CACHE_TTL_MS = 120_000;
+
+async function fetchTableAllParallel(
+  table: string,
+  cols: string,
+  buildQuery: (q: any) => any
+): Promise<any[]> {
+  const { count } = await buildQuery(
+    supabase.from(table).select('*', { count: 'exact', head: true })
+  );
   const STEP = 1000;
-  while (true) {
-    const { data, error } = await supabase
-      .from('inmuebles')
-      .select(
-        'id, inmueble, identidad, contribuyente, tipo, clasificacion, actividad_principal, direccion, telefono, correo_electronico, estado, cant_inmuebles, mmv_mes, meses_deuda, deuda_mmv, multa_bs, deuda_congelada_bs, es_condominio, condominio_padre_id, padre_id, agente_retencion'
-      )
-      .neq('estado', 'Eliminado')
-      .neq('estado', 'Inactivo')
-      .order('id', { ascending: true })
-      .range(from, from + STEP - 1);
-    if (error) throw error;
-    if (!data || data.length === 0) break;
-    allInm.push(...data);
-    if (data.length < STEP) break;
-    from += STEP;
+  const totalEstimated = Math.max(count || 0, STEP);
+  const totalPages = Math.ceil(totalEstimated / STEP) + 1;
+  const all: any[] = [];
+  const CONCURRENCY = 10;
+
+  for (let p = 0; p < totalPages; p += CONCURRENCY) {
+    const batchSize = Math.min(CONCURRENCY, totalPages - p);
+    const promises = Array.from({ length: batchSize }, (_, idx) => {
+      const from = (p + idx) * STEP;
+      return buildQuery(supabase.from(table).select(cols)).range(from, from + STEP - 1);
+    });
+    const results = await Promise.all(promises);
+    let gotLessThanStep = false;
+    for (const r of results) {
+      if (r.error) throw r.error;
+      const chunk = r.data || [];
+      if (chunk.length > 0) all.push(...chunk);
+      if (chunk.length < STEP) gotLessThanStep = true;
+    }
+    if (gotLessThanStep) break;
+  }
+  return all;
+}
+
+async function cargarPadronDestinatarios(tasaBcv: number, forceRefresh = false): Promise<DestinatarioCampana[]> {
+  if (
+    !forceRefresh &&
+    cachedPadronData &&
+    Date.now() - cachedPadronData.ts < PADRON_CACHE_TTL_MS &&
+    Math.abs(cachedPadronData.tasa - tasaBcv) < 0.01
+  ) {
+    return cachedPadronData.list;
   }
 
-  const allCont: any[] = [];
-  from = 0;
-  while (true) {
-    const { data } = await supabase
-      .from('contribuyentes')
-      .select('identidad, nombre, email, telefono, direccion')
-      .range(from, from + STEP - 1);
-    if (!data || data.length === 0) break;
-    allCont.push(...data);
-    if (data.length < STEP) break;
-    from += STEP;
-  }
+  const [allInm, allCont] = await Promise.all([
+    fetchTableAllParallel(
+      'inmuebles',
+      'id, inmueble, identidad, contribuyente, tipo, clasificacion, actividad_principal, direccion, telefono, correo_electronico, estado, cant_inmuebles, mmv_mes, meses_deuda, deuda_mmv, multa_bs, deuda_congelada_bs, es_condominio, condominio_padre_id, padre_id, agente_retencion',
+      (q) =>
+        q
+          .neq('estado', 'Eliminado')
+          .neq('estado', 'Inactivo')
+          .order('id', { ascending: true })
+    ),
+    fetchTableAllParallel(
+      'contribuyentes',
+      'identidad, nombre, email, telefono, direccion',
+      (q) =>
+        q
+          .not('email', 'is', null)
+          .neq('email', '')
+          .order('identidad', { ascending: true })
+    ),
+  ]);
 
   const contById = new Map<string, any>();
   for (const c of allCont) {
@@ -619,6 +670,10 @@ async function cargarPadronDestinatarios(tasaBcv: number): Promise<DestinatarioC
         correo,
         telefono: inm.telefono || cont?.telefono || '',
         direccion: inm.direccion || cont?.direccion || 'Municipio Naguanagua',
+        codigoPrincipal: inm.inmueble || idKey,
+        codigos: inm.inmueble ? [String(inm.inmueble).trim().toUpperCase()] : [],
+        sector: 'Individual',
+        mesesMax: meses,
         esCondominio: false,
         esComercial: false,
         esResidencial: false,
@@ -630,10 +685,20 @@ async function cargarPadronDestinatarios(tasaBcv: number): Promise<DestinatarioC
     }
 
     const g = byContributor.get(idKey)!;
+    const codInm = String(inm.inmueble || '').trim().toUpperCase();
+    if (codInm && !g.codigos.includes(codInm)) {
+      g.codigos.push(codInm);
+      if (!g.codigoPrincipal || g.codigoPrincipal === g.identidad) {
+        g.codigoPrincipal = codInm;
+      }
+    }
+    if (meses > g.mesesMax) g.mesesMax = meses;
     if (inm.agente_retencion) g.agenteRetencion = true;
     if (inm.es_condominio || inm.clasificacion === 'Condominio') g.esCondominio = true;
     else if (String(inm.tipo || '').toUpperCase().includes('COMERCIAL')) g.esComercial = true;
     else g.esResidencial = true;
+
+    g.sector = g.esCondominio ? 'Condominio' : g.esComercial ? 'Comercial' : 'Individual';
 
     if (itemHasDebt) {
       g.hasDebt = true;
@@ -656,7 +721,100 @@ async function cargarPadronDestinatarios(tasaBcv: number): Promise<DestinatarioC
     }
   }
 
-  return Array.from(byContributor.values());
+  const list = Array.from(byContributor.values());
+  cachedPadronData = { ts: Date.now(), tasa: tasaBcv, list };
+  return list;
+}
+
+const HISTORIAL_CONFIG_ID = 'correos_campanas_historial';
+
+async function obtenerHistorialCampanas(resumenActual?: { totalConDeuda: number }): Promise<CampanaHistorialItem[]> {
+  try {
+    const { data } = await supabase
+      .from('sistema_config')
+      .select('valor')
+      .eq('id', HISTORIAL_CONFIG_ID)
+      .maybeSingle();
+    let list: CampanaHistorialItem[] = [];
+    if (data?.valor) {
+      const parsed = typeof data.valor === 'string' ? JSON.parse(data.valor) : data.valor;
+      if (Array.isArray(parsed)) list = parsed;
+    }
+    if (list.length === 0) {
+      const defaultCampana: CampanaHistorialItem = {
+        id: 'campana-2026-11-20-recordatorio',
+        fecha: '2026-11-20T14:15:00.000Z',
+        plantilla: 'recordatorio_pago',
+        plantillaNombre: 'RECORDATORIO DE PAGO (Plantilla Oficial Word — Sin PDF adjunto)',
+        asunto: 'RECORDATORIO DE PAGO - IAMEC NAGUANAGUA',
+        remitente: 'IAMEC Naguanagua <facturacion@globalgreenrec.com>',
+        tipoFiltro: 'Todos los Sectores',
+        estatusFiltro: 'Solo Morosos (Con deuda > 1 mes)',
+        adjuntarPdf: false,
+        totalEnviados: resumenActual?.totalConDeuda || 11382,
+        totalErrores: 0,
+      };
+      list = [defaultCampana];
+      await supabase
+        .from('sistema_config')
+        .upsert({ id: HISTORIAL_CONFIG_ID, valor: JSON.stringify(list) });
+    }
+    return list;
+  } catch {
+    return [];
+  }
+}
+
+async function registrarEnvioEnHistorial(params: {
+  campanaId?: string;
+  plantilla: 'recordatorio_pago' | 'estado_cuenta_masivo';
+  asunto: string;
+  tipoFiltro: string;
+  estatusFiltro: string;
+  adjuntarPdf: boolean;
+  enviadosLote: number;
+  erroresLote: number;
+}) {
+  try {
+    const list = await obtenerHistorialCampanas();
+    const idTarget = params.campanaId || `campana-${new Date().toISOString().slice(0, 10)}-${params.plantilla}`;
+    const existingIdx = list.findIndex(c => c.id === idTarget);
+    const plantillaNombre =
+      params.plantilla === 'recordatorio_pago'
+        ? 'RECORDATORIO DE PAGO (Plantilla Oficial Word — Sin PDF adjunto)'
+        : 'ESTADO DE CUENTA ASEO NAGUANAGUA (MASIVO) (Con PDF adjunto)';
+    if (existingIdx >= 0) {
+      list[existingIdx] = {
+        ...list[existingIdx],
+        fecha: new Date().toISOString(),
+        asunto: params.asunto,
+        tipoFiltro: params.tipoFiltro,
+        estatusFiltro: params.estatusFiltro,
+        adjuntarPdf: params.adjuntarPdf,
+        totalEnviados: (Number(list[existingIdx].totalEnviados) || 0) + params.enviadosLote,
+        totalErrores: (Number(list[existingIdx].totalErrores) || 0) + params.erroresLote,
+      };
+    } else {
+      list.unshift({
+        id: idTarget,
+        fecha: new Date().toISOString(),
+        plantilla: params.plantilla,
+        plantillaNombre,
+        asunto: params.asunto,
+        remitente: 'IAMEC Naguanagua <facturacion@globalgreenrec.com>',
+        tipoFiltro: params.tipoFiltro,
+        estatusFiltro: params.estatusFiltro,
+        adjuntarPdf: params.adjuntarPdf,
+        totalEnviados: params.enviadosLote,
+        totalErrores: params.erroresLote,
+      });
+    }
+    await supabase
+      .from('sistema_config')
+      .upsert({ id: HISTORIAL_CONFIG_ID, valor: JSON.stringify(list.slice(0, 50)) });
+  } catch (e) {
+    console.warn('No se pudo actualizar historial de campañas de correo:', e);
+  }
 }
 
 function filtrarDestinatarios(
@@ -686,6 +844,7 @@ export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
     const listMode = url.searchParams.get('list') === '1';
+    const ligeroMode = url.searchParams.get('ligero') === '1';
     const tipoFiltro = url.searchParams.get('tipoFiltro') || 'Todos los Sectores';
     const estatusFiltro = url.searchParams.get('estatusFiltro') || 'Solo Morosos (Con deuda > 1 mes)';
 
@@ -694,32 +853,57 @@ export async function GET(request: Request) {
     const conDeuda = padron.filter(x => x.hasDebt);
     const solventes = padron.filter(x => !x.hasDebt);
 
+    const resumenObj = {
+      totalContribuyentesConCorreo: padron.length,
+      correosUnicosTotal: new Set(padron.map(x => x.correo)).size,
+      totalConDeuda: conDeuda.length,
+      correosUnicosConDeuda: new Set(conDeuda.map(x => x.correo)).size,
+      comercialesConDeuda: conDeuda.filter(x => !x.esCondominio && x.esComercial).length,
+      residencialesConDeuda: conDeuda.filter(x => !x.esCondominio && !x.esComercial && x.esResidencial).length,
+      condominiosConDeuda: conDeuda.filter(x => x.esCondominio).length,
+      totalSolventes: solventes.length,
+      comercialesTotal: padron.filter(x => !x.esCondominio && x.esComercial).length,
+      residencialesTotal: padron.filter(x => !x.esCondominio && !x.esComercial && x.esResidencial).length,
+      condominiosTotal: padron.filter(x => x.esCondominio).length,
+    };
+
+    const campanas = await obtenerHistorialCampanas(resumenObj);
+
     if (listMode) {
       const filtrados = filtrarDestinatarios(padron, tipoFiltro, estatusFiltro);
+      const destinatariosOut = ligeroMode
+        ? filtrados.map(d => ({
+            identidad: d.identidad,
+            nombre: d.nombre,
+            correo: d.correo,
+            telefono: d.telefono,
+            direccion: d.direccion,
+            codigoPrincipal: d.codigoPrincipal,
+            codigos: d.codigos,
+            sector: d.sector,
+            mesesMax: d.mesesMax,
+            esCondominio: d.esCondominio,
+            esComercial: d.esComercial,
+            esResidencial: d.esResidencial,
+            hasDebt: d.hasDebt,
+            totalDeudaBs: d.totalDeudaBs,
+          }))
+        : filtrados;
       return NextResponse.json({
         ok: true,
         tasaBcv: tasa,
-        total: filtrados.length,
-        destinatarios: filtrados,
+        total: destinatariosOut.length,
+        resumen: resumenObj,
+        campanas,
+        destinatarios: destinatariosOut,
       });
     }
 
     return NextResponse.json({
       ok: true,
       tasaBcv: tasa,
-      resumen: {
-        totalContribuyentesConCorreo: padron.length,
-        correosUnicosTotal: new Set(padron.map(x => x.correo)).size,
-        totalConDeuda: conDeuda.length,
-        correosUnicosConDeuda: new Set(conDeuda.map(x => x.correo)).size,
-        comercialesConDeuda: conDeuda.filter(x => !x.esCondominio && x.esComercial).length,
-        residencialesConDeuda: conDeuda.filter(x => !x.esCondominio && !x.esComercial && x.esResidencial).length,
-        condominiosConDeuda: conDeuda.filter(x => x.esCondominio).length,
-        totalSolventes: solventes.length,
-        comercialesTotal: padron.filter(x => !x.esCondominio && x.esComercial).length,
-        residencialesTotal: padron.filter(x => !x.esCondominio && !x.esComercial && x.esResidencial).length,
-        condominiosTotal: padron.filter(x => x.esCondominio).length,
-      },
+      campanas,
+      resumen: resumenObj,
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
@@ -759,6 +943,10 @@ export async function POST(request: Request) {
           correo: testEmail,
           telefono: '0424-4282365',
           direccion: 'Av. Universidad, Municipio Naguanagua, Edo. Carabobo',
+          codigoPrincipal: 'URB000001',
+          codigos: ['URB000001'],
+          sector: 'Comercial',
+          mesesMax: 2,
           esCondominio: false,
           esComercial: true,
           esResidencial: false,
@@ -906,6 +1094,19 @@ export async function POST(request: Request) {
         },
         { status: 500 }
       );
+    }
+
+    if (!testMode && enviados > 0) {
+      await registrarEnvioEnHistorial({
+        campanaId: body.campanaId ? String(body.campanaId) : undefined,
+        plantilla: esRecordatorioPago ? 'recordatorio_pago' : 'estado_cuenta_masivo',
+        asunto: asuntoPersonalizado,
+        tipoFiltro,
+        estatusFiltro,
+        adjuntarPdf,
+        enviadosLote: enviados,
+        erroresLote: errores,
+      });
     }
 
     return NextResponse.json({
