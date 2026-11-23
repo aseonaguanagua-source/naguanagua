@@ -7,6 +7,9 @@ import { getResendClient } from '@/lib/emailClient';
 import { TheFactoryHKA } from '@/lib/thefactoryhka';
 import { calcularMensualidad, isResidencialInm, isTerrenoInm } from '@/lib/calculos';
 import { tasaVigente } from '@/lib/condominios/servicio';
+import { getIdentidadVariantsExact } from '@/lib/formatters';
+import { enviarRecibo } from '@/lib/reciboMailer';
+import { extraerCodigoInmueble } from '@/lib/documentoPago';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -555,7 +558,246 @@ function buildEstadoCuentaConPdfHtml(dest: DestinatarioCampana): string {
 }
 
 let cachedPadronData: { ts: number; tasa: number; list: DestinatarioCampana[] } | null = null;
+let cachedFacturasRecibosData: { ts: number; list: any[] } | null = null;
 const PADRON_CACHE_TTL_MS = 120_000;
+
+async function cargarFacturasYRecibosEnviados(
+  padron: DestinatarioCampana[],
+  forceRefresh = false
+): Promise<any[]> {
+  if (
+    !forceRefresh &&
+    cachedFacturasRecibosData &&
+    Date.now() - cachedFacturasRecibosData.ts < 60_000
+  ) {
+    return cachedFacturasRecibosData.list;
+  }
+
+  const padronByIdent = new Map<string, DestinatarioCampana>();
+  const padronByCleanId = new Map<string, DestinatarioCampana>();
+  for (const p of padron) {
+    const idUp = String(p.identidad || '').trim().toUpperCase();
+    if (idUp) {
+      padronByIdent.set(idUp, p);
+      padronByCleanId.set(idUp.replace(/[^A-Z0-9]/g, ''), p);
+    }
+  }
+
+  const cols = [
+    'id',
+    'identidad',
+    'monto',
+    'referencia',
+    'tipo',
+    'modulo',
+    'estado',
+    'created_at',
+    'correo:detalles->>correo',
+    'contribuyente:detalles->>contribuyente',
+    'contribuyente_nombre:detalles->>contribuyente_nombre',
+    'codigo_inmueble:detalles->>codigo_inmueble',
+    'cod_inmueble:detalles->>cod_inmueble',
+    'fecha_transaccion:detalles->>fecha_transaccion',
+    'correlativo_recibo:detalles->>correlativo_recibo',
+    'es_pago_adicional:detalles->>es_pago_adicional',
+    'modo:detalles->>modo',
+    'es_condominio:detalles->>es_condominio',
+    'monto_factura:detalles->>monto_factura',
+    'total_seleccionado:detalles->>total_seleccionado',
+    'fd_emitida:detalles->factura_digital->>emitida',
+    'fd_anulada:detalles->factura_digital->>anulada',
+    'fd_ctrl:detalles->factura_digital->>numero_control',
+    'fd_doc:detalles->factura_digital->>numero_documento',
+    'fd_correo:detalles->factura_digital->>correo_utilizado',
+    'fd_fecha:detalles->factura_digital->>fecha_emision',
+    'fd_monto:detalles->factura_digital->>monto_total',
+    'fd_url:detalles->factura_digital->>url',
+    'fd_envio:detalles->factura_digital->envio_correo',
+    'fd_ult_envio:detalles->factura_digital->ultimo_envio_correo',
+    'rd:detalles->recibo_digital',
+    'recibos:detalles->recibos',
+    'condominio_codigo:detalles->condominio->>codigo',
+    'condominio_nombre:detalles->condominio->>nombre',
+    'condominio_tipo:detalles->condominio->>tipo',
+  ].join(', ');
+
+  const rawPagos = await fetchTableAllParallel(
+    'pagos_reportados',
+    cols,
+    (q) =>
+      q
+        .eq('estado', 'Aprobado')
+        .neq('tipo', 'Retencion de IVA')
+        .order('created_at', { ascending: false })
+  );
+
+  const list: any[] = [];
+  for (const p of rawPagos) {
+    if (String(p.es_pago_adicional || '') === 'true') continue;
+    if (String(p.referencia || '').startsWith('RECH-')) continue;
+    if (String(p.fd_anulada || '') === 'true') continue;
+
+    const idUp = String(p.identidad || '').trim().toUpperCase();
+    const idClean = idUp.replace(/[^A-Z0-9]/g, '');
+    const pad = padronByIdent.get(idUp) || padronByCleanId.get(idClean);
+
+    const esFactura =
+      String(p.fd_emitida || '') === 'true' ||
+      Boolean(p.fd_ctrl) ||
+      Boolean(p.fd_doc);
+
+    const codsSet = new Set<string>();
+    const addCod = (raw: any) => {
+      const c = String(raw || '').trim().toUpperCase();
+      if (c && !c.startsWith('CONDO-') && c !== 'N/A') codsSet.add(c);
+    };
+    addCod(p.codigo_inmueble);
+    addCod(p.cod_inmueble);
+    addCod(p.condominio_codigo);
+    if (Array.isArray(p.recibos)) {
+      for (const r of p.recibos) {
+        const ext = extraerCodigoInmueble(String(r || ''));
+        if (ext) addCod(ext);
+      }
+    }
+    if (codsSet.size === 0 && pad?.codigos?.length) {
+      pad.codigos.forEach((c) => addCod(c));
+    }
+    const codigos = Array.from(codsSet);
+    const codigoPrincipal = codigos[0] || pad?.codigoPrincipal || idUp;
+
+    const ultEnvioDest = p.fd_ult_envio?.destinatario;
+    const rdCorreo = p.rd?.correo;
+    const candidatosCorreo = [
+      ultEnvioDest,
+      p.fd_correo,
+      rdCorreo,
+      p.correo,
+      pad?.correo,
+    ];
+    let correoFinal = '';
+    for (const cand of candidatosCorreo) {
+      if (isValidEmail(cand)) {
+        const cLow = String(cand).trim().toLowerCase();
+        if (!correoFinal || correoFinal === 'facturacion.comercial@globalgreenca.com') {
+          correoFinal = cLow;
+        }
+      }
+    }
+    if (!correoFinal && pad?.correo) {
+      correoFinal = pad.correo;
+    }
+
+    const esCondo =
+      p.modulo === 'condominios' ||
+      String(p.es_condominio || '') === 'true' ||
+      Boolean(p.condominio_codigo) ||
+      Boolean(pad?.esCondominio);
+    const esCom =
+      !esCondo &&
+      (esFactura ||
+        Boolean(pad?.esComercial) ||
+        String(p.condominio_tipo || '').toUpperCase().includes('COMERCIAL'));
+    const sector: 'Individual' | 'Comercial' | 'Condominio' = esCondo
+      ? 'Condominio'
+      : esCom
+      ? 'Comercial'
+      : 'Individual';
+
+    const nombre =
+      p.contribuyente ||
+      p.contribuyente_nombre ||
+      p.condominio_nombre ||
+      pad?.nombre ||
+      idUp ||
+      'Contribuyente';
+
+    const montoNum =
+      parseFloat(
+        String(
+          (esFactura ? p.fd_monto : null) ||
+            p.monto_factura ||
+            p.total_seleccionado ||
+            p.monto ||
+            0
+        )
+      ) || 0;
+
+    if (esFactura) {
+      const ctrl = String(p.fd_ctrl || '').trim();
+      const docNum = String(p.fd_doc || '').trim();
+      const fechaEnv = p.fd_ult_envio?.fecha || p.fd_fecha || p.created_at;
+      const enviadoOk = Boolean(
+        p.fd_ult_envio?.exito ??
+          p.fd_envio?.clienteEnviado ??
+          (correoFinal && correoFinal !== 'facturacion.comercial@globalgreenca.com')
+      );
+      list.push({
+        pagoId: p.id,
+        tipoCorreo: 'factura',
+        identidad: idUp,
+        nombre,
+        correo: correoFinal,
+        telefono: pad?.telefono || '',
+        direccion: pad?.direccion || 'Municipio Naguanagua',
+        codigoPrincipal,
+        codigos,
+        sector,
+        mesesMax: 1,
+        esCondominio: esCondo,
+        esComercial: esCom,
+        esResidencial: !esCondo && !esCom,
+        hasDebt: false,
+        totalDeudaBs: montoNum,
+        montoPagadoBs: montoNum,
+        numeroControl: ctrl,
+        numeroDocumento: docNum,
+        facturaUrl: p.fd_url || '',
+        referenciaPago: p.referencia || '',
+        fechaEnvio: fechaEnv,
+        fechaTransaccion: p.fecha_transaccion || String(p.created_at || '').slice(0, 10),
+        enviadoOk,
+        plantillaTitulo: `Factura Fiscal ${ctrl ? `N° Ctrl ${ctrl}` : docNum ? `N° ${docNum}` : ''}`.trim(),
+        asuntoCorreo: `Factura Fiscal Digital ${ctrl || docNum || ''} - IAMEC Naguanagua`.trim(),
+      });
+    } else {
+      const recNum =
+        p.rd?.numero ||
+        (p.correlativo_recibo ? `WEB-${p.correlativo_recibo}` : 'Recibo de Pago');
+      const fechaEnv = p.rd?.fecha || p.created_at;
+      const enviadoOk = Boolean(p.rd?.cliente_enviado || p.rd?.enviado || correoFinal);
+      list.push({
+        pagoId: p.id,
+        tipoCorreo: 'recibo',
+        identidad: idUp,
+        nombre,
+        correo: correoFinal,
+        telefono: pad?.telefono || '',
+        direccion: pad?.direccion || 'Municipio Naguanagua',
+        codigoPrincipal,
+        codigos,
+        sector,
+        mesesMax: 1,
+        esCondominio: esCondo,
+        esComercial: esCom,
+        esResidencial: !esCondo && !esCom,
+        hasDebt: false,
+        totalDeudaBs: montoNum,
+        montoPagadoBs: montoNum,
+        numeroRecibo: recNum,
+        referenciaPago: p.referencia || '',
+        fechaEnvio: fechaEnv,
+        fechaTransaccion: p.fecha_transaccion || String(p.created_at || '').slice(0, 10),
+        enviadoOk,
+        plantillaTitulo: `Recibo de Pago ${recNum}`.trim(),
+        asuntoCorreo: `Recibo de pago ${recNum} - IAMEC Naguanagua`,
+      });
+    }
+  }
+
+  cachedFacturasRecibosData = { ts: Date.now(), list };
+  return list;
+}
 
 async function fetchTableAllParallel(
   table: string,
@@ -845,11 +1087,16 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const listMode = url.searchParams.get('list') === '1';
     const ligeroMode = url.searchParams.get('ligero') === '1';
+    const forceRefresh = url.searchParams.get('refresh') === '1';
+    const alcance = url.searchParams.get('alcance') || '';
     const tipoFiltro = url.searchParams.get('tipoFiltro') || 'Todos los Sectores';
     const estatusFiltro = url.searchParams.get('estatusFiltro') || 'Solo Morosos (Con deuda > 1 mes)';
 
     const tasa = await tasaVigente().catch(() => 1008.31);
-    const padron = await cargarPadronDestinatarios(tasa);
+    const padron = await cargarPadronDestinatarios(tasa, forceRefresh);
+    const facturasRecibos = await cargarFacturasYRecibosEnviados(padron, forceRefresh);
+    const soloFacturas = facturasRecibos.filter((x) => x.tipoCorreo === 'factura');
+    const soloRecibos = facturasRecibos.filter((x) => x.tipoCorreo === 'recibo');
     const conDeuda = padron.filter(x => x.hasDebt);
     const solventes = padron.filter(x => !x.hasDebt);
 
@@ -865,14 +1112,49 @@ export async function GET(request: Request) {
       comercialesTotal: padron.filter(x => !x.esCondominio && x.esComercial).length,
       residencialesTotal: padron.filter(x => !x.esCondominio && !x.esComercial && x.esResidencial).length,
       condominiosTotal: padron.filter(x => x.esCondominio).length,
+      totalFacturasEnviadas: soloFacturas.length,
+      totalRecibosEnviados: soloRecibos.length,
+      totalFacturasYRecibos: facturasRecibos.length,
     };
 
     const campanas = await obtenerHistorialCampanas(resumenObj);
 
     if (listMode) {
+      if (alcance === 'FACTURAS_Y_RECIBOS') {
+        return NextResponse.json({
+          ok: true,
+          tasaBcv: tasa,
+          total: facturasRecibos.length,
+          resumen: resumenObj,
+          campanas,
+          destinatarios: facturasRecibos,
+        });
+      }
+      if (alcance === 'FACTURAS_ENVIADAS') {
+        return NextResponse.json({
+          ok: true,
+          tasaBcv: tasa,
+          total: soloFacturas.length,
+          resumen: resumenObj,
+          campanas,
+          destinatarios: soloFacturas,
+        });
+      }
+      if (alcance === 'RECIBOS_ENVIADOS') {
+        return NextResponse.json({
+          ok: true,
+          tasaBcv: tasa,
+          total: soloRecibos.length,
+          resumen: resumenObj,
+          campanas,
+          destinatarios: soloRecibos,
+        });
+      }
+
       const filtrados = filtrarDestinatarios(padron, tipoFiltro, estatusFiltro);
-      const destinatariosOut = ligeroMode
+      const destinatariosInform = ligeroMode
         ? filtrados.map(d => ({
+            tipoCorreo: 'informativo',
             identidad: d.identidad,
             nombre: d.nombre,
             correo: d.correo,
@@ -887,8 +1169,15 @@ export async function GET(request: Request) {
             esResidencial: d.esResidencial,
             hasDebt: d.hasDebt,
             totalDeudaBs: d.totalDeudaBs,
+            enviadoOk: true,
           }))
         : filtrados;
+
+      const destinatariosOut =
+        alcance === 'TODOS_ENVIADOS'
+          ? [...facturasRecibos, ...destinatariosInform]
+          : destinatariosInform;
+
       return NextResponse.json({
         ok: true,
         tasaBcv: tasa,
@@ -1122,5 +1411,490 @@ export async function POST(request: Request) {
     });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
+  }
+}
+
+async function actualizarCorreoEnCascada(params: {
+  identidad?: string;
+  nombre?: string;
+  codigos?: string[];
+  pagoId?: string;
+  nuevoCorreo: string;
+}) {
+  const emailClean = String(params.nuevoCorreo || '').trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailClean)) {
+    throw new Error('Ingrese una dirección de correo electrónico válida (ejemplo: usuario@dominio.com).');
+  }
+
+  const rawId = String(params.identidad || '').trim().toUpperCase();
+  const idVariants = Array.from(
+    new Set([
+      ...getIdentidadVariantsExact(rawId),
+      rawId,
+      rawId.replace(/[^A-Z0-9]/g, ''),
+    ].filter(Boolean))
+  );
+  const codigosClean = Array.from(
+    new Set(
+      (params.codigos || [])
+        .map((c) => String(c || '').trim().toUpperCase())
+        .filter((c) => c && c !== '—' && c !== '-' && !c.startsWith('CONDO-'))
+    )
+  );
+
+  let inmueblesActualizados = 0;
+  let contribuyentesActualizados = 0;
+  let condominiosActualizados = 0;
+  let pagosActualizados = 0;
+
+  // 1) Actualizar tabla inmuebles por identidad y por códigos de inmueble
+  if (idVariants.length > 0) {
+    const { data: inmsById } = await supabase
+      .from('inmuebles')
+      .update({ correo_electronico: emailClean })
+      .in('identidad', idVariants)
+      .select('id');
+    inmueblesActualizados += (inmsById || []).length;
+  }
+  if (codigosClean.length > 0) {
+    const { data: inmsByCod } = await supabase
+      .from('inmuebles')
+      .update({ correo_electronico: emailClean })
+      .in('inmueble', codigosClean)
+      .select('id');
+    inmueblesActualizados = Math.max(inmueblesActualizados, (inmsByCod || []).length);
+  }
+
+  // 2) Actualizar tabla contribuyentes (y crear registro si no existía)
+  if (idVariants.length > 0) {
+    const { data: contUpd } = await supabase
+      .from('contribuyentes')
+      .update({ email: emailClean })
+      .in('identidad', idVariants)
+      .select('identidad');
+    contribuyentesActualizados = (contUpd || []).length;
+    if (contribuyentesActualizados === 0 && rawId) {
+      const { error: insErr } = await supabase.from('contribuyentes').insert({
+        identidad: rawId,
+        nombre: params.nombre || 'Contribuyente',
+        email: emailClean,
+      });
+      if (!insErr) contribuyentesActualizados = 1;
+    }
+  }
+
+  // 3) Actualizar tabla condominios si aplica por RIF o código
+  if (idVariants.length > 0) {
+    const { data: condById } = await supabase
+      .from('condominios')
+      .update({ correo: emailClean })
+      .in('identidad', idVariants)
+      .select('id');
+    condominiosActualizados += (condById || []).length;
+  }
+  if (codigosClean.length > 0) {
+    const { data: condByCod } = await supabase
+      .from('condominios')
+      .update({ correo: emailClean })
+      .in('codigo', codigosClean)
+      .select('id');
+    condominiosActualizados = Math.max(condominiosActualizados, (condByCod || []).length);
+  }
+
+  // 4) Actualizar en cascada pagos_reportados del contribuyente (y el pagoId específico si se indicó)
+  const pagosMap = new Map<string, any>();
+  if (params.pagoId) {
+    const { data: pOne } = await supabase
+      .from('pagos_reportados')
+      .select('id, detalles')
+      .eq('id', params.pagoId)
+      .maybeSingle();
+    if (pOne) pagosMap.set(pOne.id, pOne);
+  }
+  if (idVariants.length > 0) {
+    const { data: pList } = await supabase
+      .from('pagos_reportados')
+      .select('id, detalles')
+      .in('identidad', idVariants)
+      .order('created_at', { ascending: false })
+      .limit(200);
+    for (const p of pList || []) {
+      pagosMap.set(p.id, p);
+    }
+  }
+
+  const pagosEntries = Array.from(pagosMap.values());
+  for (let i = 0; i < pagosEntries.length; i += 20) {
+    const chunk = pagosEntries.slice(i, i + 20);
+    await Promise.all(
+      chunk.map(async (pg) => {
+        let det: any = pg.detalles || {};
+        if (typeof det === 'string') {
+          try {
+            det = JSON.parse(det);
+          } catch {
+            det = {};
+          }
+        }
+        det.correo = emailClean;
+        if (det.factura_digital && typeof det.factura_digital === 'object') {
+          det.factura_digital.correo_utilizado = emailClean;
+          det.factura_digital.es_correo_comodin = false;
+          det.factura_digital.requiere_actualizacion_correo = false;
+        }
+        if (det.recibo_digital && typeof det.recibo_digital === 'object') {
+          det.recibo_digital.correo = emailClean;
+        }
+        const { error: uErr } = await supabase
+          .from('pagos_reportados')
+          .update({ detalles: det })
+          .eq('id', pg.id);
+        if (!uErr) pagosActualizados++;
+      })
+    );
+  }
+
+  // Invalidar cachés en memoria para reflejar el cambio de inmediato
+  cachedPadronData = null;
+  cachedFacturasRecibosData = null;
+
+  return {
+    correo: emailClean,
+    actualizados: {
+      inmuebles: inmueblesActualizados,
+      contribuyentes: contribuyentesActualizados,
+      condominios: condominiosActualizados,
+      pagos: pagosActualizados,
+    },
+  };
+}
+
+function buildFacturaEmailHtmlIndividual(data: {
+  contribuyente: string;
+  identidad: string;
+  numeroControl: string;
+  numeroDocumento?: string;
+  monto: number;
+  fecha: string;
+}): string {
+  return `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><title>Factura Fiscal Digital - IAMEC Naguanagua</title></head>
+<body style="margin:0;padding:0;background:#f8fafc;font-family:Arial,Helvetica,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:30px 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);max-width:600px;border:1px solid #e2e8f0;">
+          <tr>
+            <td style="background:linear-gradient(135deg,#0a4a2a 0%,#1a7a40 100%);padding:24px;text-align:center;">
+              <h1 style="margin:0;color:#ffffff;font-size:18px;letter-spacing:1px;text-transform:uppercase;">
+                ALCALDÍA DE NAGUANAGUA &bull; IAMEC
+              </h1>
+              <p style="margin:6px 0 0;color:#dcfce7;font-size:13px;font-weight:bold;">
+                COMPROBANTE FISCAL DIGITAL (SENIAT / THE FACTORY HKA)
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:28px;">
+              <p style="margin:0 0 16px;font-size:15px;color:#1e293b;">
+                Estimado(a) <strong>${data.contribuyente}</strong> (R.I.F. / Cédula: <strong>${data.identidad}</strong>),
+              </p>
+              <p style="margin:0 0 20px;font-size:14px;color:#475569;line-height:1.6;">
+                Le informamos que su <strong>Factura Fiscal Digital</strong> correspondiente a las tasas del servicio de aseo urbano y saneamiento ambiental ha sido emitida exitosamente a través de la imprenta digital autorizada.
+              </p>
+              <table width="100%" cellpadding="10" cellspacing="0" style="background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;margin-bottom:24px;font-size:13px;">
+                <tr>
+                  <td style="color:#64748b;border-bottom:1px solid #e2e8f0;">N&uacute;mero de Control SENIAT:</td>
+                  <td style="color:#0f172a;font-weight:bold;text-align:right;border-bottom:1px solid #e2e8f0;">${data.numeroControl}</td>
+                </tr>
+                ${data.numeroDocumento ? `<tr>
+                  <td style="color:#64748b;border-bottom:1px solid #e2e8f0;">N&uacute;mero de Factura:</td>
+                  <td style="color:#0f172a;font-weight:bold;text-align:right;border-bottom:1px solid #e2e8f0;">${data.numeroDocumento}</td>
+                </tr>` : ''}
+                <tr>
+                  <td style="color:#64748b;border-bottom:1px solid #e2e8f0;">Fecha de Emisi&oacute;n:</td>
+                  <td style="color:#0f172a;text-align:right;border-bottom:1px solid #e2e8f0;">${data.fecha}</td>
+                </tr>
+                <tr>
+                  <td style="color:#64748b;font-size:14px;font-weight:bold;">Monto Total de la Factura:</td>
+                  <td style="color:#166534;font-size:15px;font-weight:bold;text-align:right;">Bs ${fmtBs(data.monto)}</td>
+                </tr>
+              </table>
+              <div style="text-align:center;margin:28px 0;padding:14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;color:#166534;font-size:14px;font-weight:bold;">
+                &#128206; Su Factura Fiscal Digital va adjunta a este correo en formato PDF.
+              </div>
+              <p style="margin:20px 0 0;font-size:12px;color:#94a3b8;line-height:1.5;text-align:center;">
+                Documento emitido conforme a las providencias administrativas del SENIAT sobre Facturaci&oacute;n Electr&oacute;nica. El documento cuenta con c&oacute;digo QR y firma digital v&aacute;lida.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="background:#f1f5f9;padding:14px 24px;text-align:center;border-top:1px solid #e2e8f0;font-size:11px;color:#64748b;">
+              Instituto Aut&oacute;nomo Municipal de Ecosocialismo Naguanagua (IAMEC) &bull; Alcald&iacute;a Bolivariana de Naguanagua
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+/** PATCH: Actualiza el correo electrónico de un contribuyente en cascada (inmuebles, contribuyentes, condominios y pagos_reportados). */
+export async function PATCH(request: Request) {
+  try {
+    const body = await request.json().catch(() => ({}));
+    const result = await actualizarCorreoEnCascada({
+      identidad: body.identidad,
+      nombre: body.nombre,
+      codigos: Array.isArray(body.codigos) ? body.codigos : body.codigoPrincipal ? [body.codigoPrincipal] : [],
+      pagoId: body.pagoId,
+      nuevoCorreo: body.nuevoCorreo,
+    });
+    return NextResponse.json({
+      ok: true,
+      ...result,
+      mensaje: `Correo actualizado en cascada a ${result.correo} (${result.actualizados.inmuebles} inmueble(s), ficha de contribuyente y ${result.actualizados.pagos} pago(s)/documento(s)).`,
+    });
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, error: e.message }, { status: 400 });
+  }
+}
+
+/** PUT: Reenvía individualmente un correo (Factura Fiscal, Recibo de Pago o Correo Informativo/Estado de Cuenta), guardando en cascada si se editó el correo. */
+export async function PUT(request: Request) {
+  const resend = getResendClient();
+  try {
+    const body = await request.json().catch(() => ({}));
+    const tipoCorreo: 'factura' | 'recibo' | 'informativo' = body.tipoCorreo || 'informativo';
+    const identidad = String(body.identidad || '').trim().toUpperCase();
+    const nombre = String(body.nombre || 'Contribuyente').trim();
+    const correoDestino = String(body.correo || '').trim().toLowerCase();
+    const pagoId = body.pagoId ? String(body.pagoId).trim() : '';
+    const plantilla: 'recordatorio_pago' | 'estado_cuenta_masivo' =
+      body.plantilla === 'estado_cuenta_masivo' ? 'estado_cuenta_masivo' : 'recordatorio_pago';
+    const asuntoPersonalizado = String(body.asunto || '').trim();
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correoDestino)) {
+      return NextResponse.json(
+        { ok: false, error: 'El contribuyente no tiene un correo válido. Edite primero la dirección de correo.' },
+        { status: 400 }
+      );
+    }
+
+    // Si se solicitó guardar en cascada al reenviar (o siempre garantizar que quede sincronizado)
+    if (body.guardarEnCascada) {
+      await actualizarCorreoEnCascada({
+        identidad,
+        nombre,
+        codigos: Array.isArray(body.codigos) ? body.codigos : body.codigoPrincipal ? [body.codigoPrincipal] : [],
+        pagoId: pagoId || undefined,
+        nuevoCorreo: correoDestino,
+      });
+    }
+
+    const fromEmail = process.env.RESEND_FROM || 'IAMEC Naguanagua <facturacion@globalgreenrec.com>';
+
+    // 1) REENVÍO DE RECIBO DE PAGO
+    if (tipoCorreo === 'recibo' && pagoId) {
+      const rRec = await enviarRecibo(pagoId, correoDestino, { forzar: true });
+      cachedFacturasRecibosData = null;
+      if (!rRec.ok && !rRec.clienteEnviado) {
+        return NextResponse.json(
+          { ok: false, error: rRec.error || rRec.omitido || 'No se pudo reenviar el recibo de pago.' },
+          { status: 500 }
+        );
+      }
+      return NextResponse.json({
+        ok: true,
+        correo: correoDestino,
+        mensaje: `Recibo de pago reenviado exitosamente a ${correoDestino}.`,
+      });
+    }
+
+    // 2) REENVÍO DE FACTURA FISCAL
+    if (tipoCorreo === 'factura' && pagoId) {
+      const { data: pg } = await supabase
+        .from('pagos_reportados')
+        .select('id, identidad, monto, created_at, detalles')
+        .eq('id', pagoId)
+        .maybeSingle();
+      if (!pg) {
+        return NextResponse.json({ ok: false, error: 'No se encontró el registro de la factura.' }, { status: 404 });
+      }
+      let dt: any = pg.detalles || {};
+      if (typeof dt === 'string') {
+        try {
+          dt = JSON.parse(dt);
+        } catch {
+          dt = {};
+        }
+      }
+      const numeroControl =
+        dt?.factura_digital?.numero_control || body.numeroControl || 'PENDIENTE';
+      const numeroDocumento =
+        dt?.factura_digital?.numero_documento ||
+        dt?.factura_digital?.raw_response?.resultado?.numeroDocumento ||
+        body.numeroDocumento ||
+        null;
+      const montoFactura =
+        parseFloat(
+          String(
+            dt?.factura_digital?.retencion?.total ||
+              dt?.factura_digital?.monto_total ||
+              dt?.monto_factura ||
+              pg.monto ||
+              body.monto ||
+              0
+          )
+        ) || 0;
+      const fechaEmisionRaw =
+        dt?.factura_digital?.fecha_emision || dt?.fecha_transaccion || pg.created_at;
+      const fechaFmt = fechaEmisionRaw
+        ? new Date(fechaEmisionRaw).toLocaleDateString('es-VE')
+        : new Date().toLocaleDateString('es-VE');
+
+      let attachments: { filename: string; content: Buffer }[] | undefined;
+      if (numeroDocumento) {
+        const pdf = await TheFactoryHKA.descargarPdf(String(numeroDocumento)).catch(() => null);
+        if (pdf) {
+          attachments = [{ filename: `Factura_${numeroControl || numeroDocumento}.pdf`, content: pdf }];
+        }
+      }
+
+      const htmlFactura = buildFacturaEmailHtmlIndividual({
+        contribuyente: nombre || dt?.contribuyente || pg.identidad,
+        identidad: identidad || pg.identidad,
+        numeroControl,
+        numeroDocumento: numeroDocumento ? String(numeroDocumento) : undefined,
+        monto: montoFactura,
+        fecha: fechaFmt,
+      });
+      const subject = `Factura Fiscal Digital ${numeroControl} - IAMEC Naguanagua`;
+      const textContent = [
+        `ALCALDÍA DE NAGUANAGUA - IAMEC (R.I.F. G-20008614-9)`,
+        `COMPROBANTE FISCAL DIGITAL (SENIAT / THE FACTORY HKA)`,
+        ``,
+        `Estimado(a) ${nombre || dt?.contribuyente || pg.identidad} (R.I.F./Cédula: ${identidad || pg.identidad}),`,
+        `Remitimos su Factura Fiscal Digital correspondiente al servicio de Aseo Urbano.`,
+        `Número de Control SENIAT: ${numeroControl}`,
+        ...(numeroDocumento ? [`Número de Factura: ${numeroDocumento}`] : []),
+        `Fecha de Emisión: ${fechaFmt}`,
+        `Monto Total: Bs ${fmtBs(montoFactura)}`,
+      ].join('\n');
+
+      const sendRes = await resend.emails.send({
+        from: fromEmail,
+        to: [correoDestino],
+        subject,
+        text: textContent,
+        html: htmlFactura,
+        ...(attachments ? { attachments } : {}),
+      });
+
+      if (sendRes.error) {
+        return NextResponse.json(
+          { ok: false, error: sendRes.error.message || 'Error al enviar correo de factura.' },
+          { status: 500 }
+        );
+      }
+
+      dt.correo = correoDestino;
+      dt.factura_digital = dt.factura_digital || {};
+      dt.factura_digital.correo_utilizado = correoDestino;
+      dt.factura_digital.ultimo_envio_correo = {
+        destinatario: correoDestino,
+        fecha: new Date().toISOString(),
+        modo: 'PRODUCCIÓN',
+        exito: true,
+        resend_id: (sendRes as any)?.data?.id || null,
+        error: null,
+      };
+      await supabase.from('pagos_reportados').update({ detalles: dt }).eq('id', pagoId);
+      cachedFacturasRecibosData = null;
+
+      return NextResponse.json({
+        ok: true,
+        correo: correoDestino,
+        mensaje: `Factura Fiscal ${numeroControl} reenviada exitosamente a ${correoDestino}.`,
+      });
+    }
+
+    // 3) REENVÍO DE CORREO INFORMATIVO (RECORDATORIO DE PAGO O ESTADO DE CUENTA CON PDF)
+    const tasa = await tasaVigente().catch(() => 1008.31);
+    const padron = await cargarPadronDestinatarios(tasa);
+    const idClean = identidad.replace(/[^A-Z0-9]/g, '');
+    const foundDest =
+      padron.find(
+        (p) =>
+          p.identidad === identidad ||
+          p.identidad.replace(/[^A-Z0-9]/g, '') === idClean
+      ) || {
+        identidad: identidad || 'N/A',
+        nombre,
+        correo: correoDestino,
+        telefono: body.telefono || '',
+        direccion: body.direccion || 'Municipio Naguanagua',
+        codigoPrincipal: body.codigoPrincipal || identidad,
+        codigos: Array.isArray(body.codigos) ? body.codigos : [body.codigoPrincipal || identidad],
+        sector: body.sector || 'Individual',
+        mesesMax: Number(body.mesesMax || 1),
+        esCondominio: body.sector === 'Condominio',
+        esComercial: body.sector === 'Comercial',
+        esResidencial: body.sector !== 'Condominio' && body.sector !== 'Comercial',
+        agenteRetencion: false,
+        hasDebt: Number(body.totalDeudaBs || 0) > 0,
+        totalDeudaBs: Number(body.totalDeudaBs || 0),
+        items: [],
+      };
+
+    const destEnvio: DestinatarioCampana = {
+      ...foundDest,
+      correo: correoDestino,
+      nombre: nombre || foundDest.nombre,
+    };
+
+    const esRec = plantilla === 'recordatorio_pago';
+    const subject =
+      asuntoPersonalizado ||
+      (esRec
+        ? 'RECORDATORIO DE PAGO - IAMEC NAGUANAGUA'
+        : 'ESTADO DE CUENTA ASEO NAGUANAGUA - FAVOR LEER TEXTO COMPLETO');
+
+    let attachments: { filename: string; content: Buffer }[] | undefined;
+    if (!esRec && destEnvio.items.length > 0) {
+      const pdfBuf = construirEstadoCuentaPdfBuffer(destEnvio, tasa);
+      const safeId = String(destEnvio.identidad || 'CONTRIBUYENTE').replace(/[^A-Z0-9_-]/gi, '_');
+      attachments = [{ filename: `Estado_de_Cuenta_IAMEC_${safeId}.pdf`, content: pdfBuf }];
+    }
+
+    const htmlContent = esRec
+      ? buildRecordatorioPagoHtml(destEnvio)
+      : buildEstadoCuentaMasivoWordHtml(destEnvio);
+
+    const sendRes = await resend.emails.send({
+      from: fromEmail,
+      to: [correoDestino],
+      subject,
+      html: htmlContent,
+      ...(attachments ? { attachments } : {}),
+    });
+
+    if (sendRes.error) {
+      return NextResponse.json(
+        { ok: false, error: sendRes.error.message || 'No se pudo enviar el correo.' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      ok: true,
+      correo: correoDestino,
+      mensaje: `${esRec ? 'Recordatorio de Pago' : 'Estado de Cuenta'} reenviado exitosamente a ${correoDestino}.`,
+    });
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
   }
 }

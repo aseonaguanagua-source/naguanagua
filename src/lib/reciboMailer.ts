@@ -320,12 +320,16 @@ export function construirReciboHtml(d: DatosRecibo, opts: { esCopiaInterna?: boo
 }
 
 /** Envía el recibo al contribuyente (si tiene correo real) y copia al archivo interno. Marca el pago como enviado. */
-export async function enviarRecibo(pagoId: string, correoOverride?: string): Promise<{ ok: boolean; clienteEnviado: boolean; copiaInternaEnviada: boolean; correo: string | null; resendId?: string | null; error?: string; omitido?: string }> {
+export async function enviarRecibo(
+  pagoId: string,
+  correoOverride?: string,
+  opts?: { forzar?: boolean }
+): Promise<{ ok: boolean; clienteEnviado: boolean; copiaInternaEnviada: boolean; correo: string | null; resendId?: string | null; error?: string; omitido?: string }> {
   const d = await cargarDatosRecibo(pagoId);
   if (correoOverride && String(correoOverride).trim().includes('@')) {
     d.correoCliente = String(correoOverride).trim().toLowerCase();
   }
-  if (d.clasif.documento !== 'recibo') {
+  if (d.clasif.documento !== 'recibo' && !opts?.forzar) {
     return { ok: false, clienteEnviado: false, copiaInternaEnviada: false, correo: null, omitido: 'Este pago corresponde a FACTURA comercial, no a recibo.' };
   }
   const resend = getResendClient();

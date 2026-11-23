@@ -19,7 +19,19 @@ import {
   X,
   RefreshCw,
   CheckCircle2,
+  Pencil,
+  Save,
+  Receipt,
 } from 'lucide-react';
+
+type AlcanceTabla =
+  | 'MOROSOS_ENVIADOS'
+  | 'FACTURAS_Y_RECIBOS'
+  | 'FACTURAS_ENVIADAS'
+  | 'RECIBOS_ENVIADOS'
+  | 'TODOS_ENVIADOS'
+  | 'TODOS_PADRON'
+  | 'SOLVENTES';
 
 interface ResumenPadron {
   totalContribuyentesConCorreo: number;
@@ -33,6 +45,9 @@ interface ResumenPadron {
   comercialesTotal: number;
   residencialesTotal: number;
   condominiosTotal: number;
+  totalFacturasEnviadas?: number;
+  totalRecibosEnviados?: number;
+  totalFacturasYRecibos?: number;
 }
 
 interface CampanaHistorial {
@@ -50,6 +65,8 @@ interface CampanaHistorial {
 }
 
 interface DestinatarioRow {
+  pagoId?: string;
+  tipoCorreo?: 'informativo' | 'factura' | 'recibo';
   identidad: string;
   nombre: string;
   correo: string;
@@ -64,6 +81,17 @@ interface DestinatarioRow {
   esResidencial: boolean;
   hasDebt: boolean;
   totalDeudaBs: number;
+  montoPagadoBs?: number;
+  numeroControl?: string;
+  numeroDocumento?: string;
+  numeroRecibo?: string;
+  facturaUrl?: string;
+  referenciaPago?: string;
+  fechaEnvio?: string;
+  fechaTransaccion?: string;
+  enviadoOk?: boolean;
+  plantillaTitulo?: string;
+  asuntoCorreo?: string;
 }
 
 export default function CorreosPage() {
@@ -102,13 +130,154 @@ export default function CorreosPage() {
   const [listaCargadaOnce, setListaCargadaOnce] = useState<boolean>(false);
   const [busqueda, setBusqueda] = useState<string>('');
   const [filtroSectorTabla, setFiltroSectorTabla] = useState<string>('TODOS');
-  const [filtroAlcanceTabla, setFiltroAlcanceTabla] = useState<'MOROSOS_ENVIADOS' | 'TODOS_PADRON' | 'SOLVENTES'>('MOROSOS_ENVIADOS');
+  const [filtroAlcanceTabla, setFiltroAlcanceTabla] = useState<AlcanceTabla>('TODOS_ENVIADOS');
   const [pageSize, setPageSize] = useState<number>(200);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [destinatarioModal, setDestinatarioModal] = useState<DestinatarioRow | null>(null);
   const [exportandoExcel, setExportandoExcel] = useState<boolean>(false);
 
-  const cargarListaDestinatariosCompleta = async (alcance: 'MOROSOS_ENVIADOS' | 'TODOS_PADRON' | 'SOLVENTES' = filtroAlcanceTabla) => {
+  // Edición de correo en cascada y reenvío individual
+  const [editRowKey, setEditRowKey] = useState<string | null>(null);
+  const [editCorreoVal, setEditCorreoVal] = useState<string>('');
+  const [guardandoCorreoKey, setGuardandoCorreoKey] = useState<string | null>(null);
+  const [reenviandoKey, setReenviandoKey] = useState<string | null>(null);
+  const [modalCorreoEdit, setModalCorreoEdit] = useState<string>('');
+
+  const getRowUniqueKey = (d: DestinatarioRow, idx?: number) =>
+    d.pagoId ? `pago_${d.pagoId}` : `inf_${d.identidad}_${idx ?? 0}`;
+
+  const sincronizarCorreoLocal = (identidadTarget: string, codigosTarget: string[], nuevoCorreo: string) => {
+    const idCleanTarget = String(identidadTarget || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const codsSet = new Set((codigosTarget || []).map(c => String(c || '').trim().toUpperCase()).filter(Boolean));
+    setListaDestinatarios(prev =>
+      prev.map(item => {
+        const itemClean = String(item.identidad || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+        const matchId = idCleanTarget && itemClean === idCleanTarget;
+        const matchCod =
+          codsSet.size > 0 &&
+          ((item.codigoPrincipal && codsSet.has(String(item.codigoPrincipal).toUpperCase())) ||
+            (Array.isArray(item.codigos) && item.codigos.some(c => codsSet.has(String(c).toUpperCase()))));
+        if (matchId || matchCod) {
+          return { ...item, correo: nuevoCorreo };
+        }
+        return item;
+      })
+    );
+    setDestinatarioModal(prev => {
+      if (!prev) return null;
+      const prevClean = String(prev.identidad || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (prevClean === idCleanTarget) {
+        return { ...prev, correo: nuevoCorreo };
+      }
+      return prev;
+    });
+  };
+
+  const handleGuardarCorreoEnCascada = async (
+    d: DestinatarioRow,
+    nuevoCorreoRaw: string,
+    rowKey: string,
+    reenviarDespues = false
+  ) => {
+    const emailClean = String(nuevoCorreoRaw || '').trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailClean)) {
+      alert('Por favor ingrese una dirección de correo válida (ejemplo: usuario@dominio.com).');
+      return;
+    }
+    setGuardandoCorreoKey(rowKey);
+    try {
+      const res = await fetch('/api/admin/envio-comunicado', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          identidad: d.identidad,
+          nombre: d.nombre,
+          codigos: d.codigos,
+          codigoPrincipal: d.codigoPrincipal,
+          pagoId: d.pagoId,
+          nuevoCorreo: emailClean,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || 'No se pudo actualizar el correo en cascada.');
+      }
+      sincronizarCorreoLocal(d.identidad, d.codigos || [d.codigoPrincipal], emailClean);
+      setEditRowKey(null);
+      setStatusMessage({
+        type: 'success',
+        text: data.mensaje || `Correo de ${d.nombre} (${d.identidad}) actualizado en cascada a ${emailClean}.`,
+      });
+      if (reenviarDespues) {
+        await handleReenviarIndividual({ ...d, correo: emailClean }, rowKey, false);
+      }
+    } catch (e: any) {
+      alert(e.message || 'Error al guardar correo');
+    } finally {
+      setGuardandoCorreoKey(null);
+    }
+  };
+
+  const handleReenviarIndividual = async (
+    d: DestinatarioRow,
+    rowKey: string,
+    guardarEnCascada = false,
+    correoOverride?: string
+  ) => {
+    const correoFinal = String(correoOverride ?? d.correo ?? '').trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correoFinal)) {
+      alert('El contribuyente no tiene un correo válido. Edite primero la dirección de correo.');
+      return;
+    }
+    setReenviandoKey(rowKey);
+    try {
+      const res = await fetch('/api/admin/envio-comunicado', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tipoCorreo: d.tipoCorreo || 'informativo',
+          pagoId: d.pagoId,
+          identidad: d.identidad,
+          nombre: d.nombre,
+          correo: correoFinal,
+          codigos: d.codigos,
+          codigoPrincipal: d.codigoPrincipal,
+          sector: d.sector,
+          totalDeudaBs: d.totalDeudaBs,
+          numeroControl: d.numeroControl,
+          numeroDocumento: d.numeroDocumento,
+          plantilla: campanaActiva?.plantilla || plantilla,
+          asunto: d.asuntoCorreo || campanaActiva?.asunto || asunto,
+          guardarEnCascada,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || 'No se pudo reenviar el correo.');
+      }
+      if (guardarEnCascada || correoFinal !== d.correo) {
+        sincronizarCorreoLocal(d.identidad, d.codigos || [d.codigoPrincipal], correoFinal);
+      }
+      setEditRowKey(null);
+      setStatusMessage({
+        type: 'success',
+        text: data.mensaje || `Correo reenviado exitosamente a ${correoFinal}.`,
+      });
+    } catch (e: any) {
+      setStatusMessage({
+        type: 'error',
+        text: `Error al reenviar correo a ${correoFinal}: ${e.message}`,
+      });
+      alert(`Error al reenviar correo: ${e.message}`);
+    } finally {
+      setReenviandoKey(null);
+    }
+  };
+
+  const cargarListaDestinatariosCompleta = async (
+    alcance: AlcanceTabla = filtroAlcanceTabla,
+    forceRefresh = false
+  ) => {
     setLoadingLista(true);
     try {
       const estParam =
@@ -118,7 +287,9 @@ export default function CorreosPage() {
           ? 'Solo Solventes'
           : 'Solo Morosos (Con deuda > 1 mes)';
       const res = await fetch(
-        `/api/admin/envio-comunicado?list=1&ligero=1&tipoFiltro=${encodeURIComponent('Todos los Sectores')}&estatusFiltro=${encodeURIComponent(estParam)}`,
+        `/api/admin/envio-comunicado?list=1&ligero=1&alcance=${encodeURIComponent(alcance)}${
+          forceRefresh ? '&refresh=1' : ''
+        }&tipoFiltro=${encodeURIComponent('Todos los Sectores')}&estatusFiltro=${encodeURIComponent(estParam)}`,
         { cache: 'no-store' }
       );
       const d = await res.json();
@@ -143,7 +314,7 @@ export default function CorreosPage() {
   };
 
   useEffect(() => {
-    cargarListaDestinatariosCompleta('MOROSOS_ENVIADOS');
+    cargarListaDestinatariosCompleta('TODOS_ENVIADOS');
   }, []);
 
   const destinatariosSeleccionados = (() => {
@@ -657,11 +828,13 @@ export default function CorreosPage() {
         const idStr = String(d.identidad || '').toLowerCase();
         const idClean = idStr.replace(/[^a-z0-9]/gi, '');
         const codStr = (Array.isArray(d.codigos) && d.codigos.length > 0 ? d.codigos.join(' ') : String(d.codigoPrincipal || '')).toLowerCase();
+        const docStr = `${d.numeroControl || ''} ${d.numeroDocumento || ''} ${d.numeroRecibo || ''} ${d.referenciaPago || ''}`.toLowerCase();
         return (
           nom.includes(q) ||
           cor.includes(q) ||
           idStr.includes(q) ||
           codStr.includes(q) ||
+          docStr.includes(q) ||
           (qClean.length >= 3 && idClean.includes(qClean))
         );
       });
@@ -742,20 +915,30 @@ export default function CorreosPage() {
         const row = ws.getRow(idx + 2);
         const cods = Array.isArray(d.codigos) && d.codigos.length > 0 ? d.codigos.join(', ') : (d.codigoPrincipal || d.identidad);
         const sec = d.sector || (d.esCondominio ? 'Condominio' : d.esComercial ? 'Comercial' : 'Individual');
+        const tipoLabel =
+          d.tipoCorreo === 'factura'
+            ? d.plantillaTitulo || `Factura Fiscal ${d.numeroControl || d.numeroDocumento || ''}`
+            : d.tipoCorreo === 'recibo'
+            ? d.plantillaTitulo || `Recibo de Pago ${d.numeroRecibo || ''}`
+            : plantillaLabel;
+        const asuRow = d.asuntoCorreo || asuntoLabel;
+        const fEnv = d.fechaEnvio
+          ? new Date(d.fechaEnvio).toLocaleString('es-VE', { timeZone: 'America/Caracas' })
+          : fechaCampanaStr;
         row.values = [
           idx + 1,
           cods,
           d.identidad,
           d.nombre,
-          d.correo,
+          d.correo || 'Sin correo',
           d.telefono || 'N/D',
           sec,
-          plantillaLabel,
-          asuntoLabel,
+          tipoLabel,
+          asuRow,
           Number(d.mesesMax || 0),
           Number(d.totalDeudaBs || 0),
-          fechaCampanaStr,
-          'Enviado',
+          fEnv,
+          d.correo ? 'Enviado' : 'Pendiente Correo',
         ];
         row.getCell(11).numFmt = '"Bs." #,##0.00';
       });
@@ -793,7 +976,7 @@ export default function CorreosPage() {
           <div className="flex items-center gap-2 flex-wrap">
             <button
               type="button"
-              onClick={() => cargarListaDestinatariosCompleta(filtroAlcanceTabla)}
+              onClick={() => cargarListaDestinatariosCompleta(filtroAlcanceTabla, true)}
               disabled={loadingLista}
               className="px-3 py-2 rounded-lg text-xs font-bold border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
             >
@@ -814,20 +997,75 @@ export default function CorreosPage() {
           </div>
         </div>
 
+        {/* Pestañas rápidas para filtrar entre Todos, Facturas, Recibos y Correos Informativos */}
+        <div className="flex flex-wrap items-center gap-2">
+          {[
+            {
+              id: 'TODOS_ENVIADOS' as AlcanceTabla,
+              label: `📬 Todos: Informativos + Facturas + Recibos (${(
+                (resumen.totalConDeuda || 0) + (resumen.totalFacturasYRecibos || 0)
+              ).toLocaleString('es-VE')})`,
+            },
+            {
+              id: 'FACTURAS_Y_RECIBOS' as AlcanceTabla,
+              label: `🧾 Facturas y Recibos Enviados (${(resumen.totalFacturasYRecibos || 0).toLocaleString('es-VE')})`,
+            },
+            {
+              id: 'FACTURAS_ENVIADAS' as AlcanceTabla,
+              label: `📄 Solo Facturas Fiscales (${(resumen.totalFacturasEnviadas || 0).toLocaleString('es-VE')})`,
+            },
+            {
+              id: 'RECIBOS_ENVIADOS' as AlcanceTabla,
+              label: `🧾 Solo Recibos de Pago (${(resumen.totalRecibosEnviados || 0).toLocaleString('es-VE')})`,
+            },
+            {
+              id: 'MOROSOS_ENVIADOS' as AlcanceTabla,
+              label: `📢 Recordatorios / Estados de Cuenta (${resumen.totalConDeuda.toLocaleString('es-VE')})`,
+            },
+          ].map(pill => {
+            const active = filtroAlcanceTabla === pill.id;
+            return (
+              <button
+                key={pill.id}
+                type="button"
+                onClick={() => {
+                  setFiltroAlcanceTabla(pill.id);
+                  cargarListaDestinatariosCompleta(pill.id);
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                  active
+                    ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
+                    : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                {pill.label}
+              </button>
+            );
+          })}
+        </div>
+
         {/* Tarjeta de la Campaña / Correo Enviado */}
         <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-3.5 grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
           <div>
-            <span className="text-[10px] font-bold uppercase text-emerald-700 block">Correo / Plantilla Enviada</span>
+            <span className="text-[10px] font-bold uppercase text-emerald-700 block">Vista Activa</span>
             <strong className="text-slate-900 font-black block mt-0.5">
-              {campanaActiva.plantilla === 'recordatorio_pago'
+              {filtroAlcanceTabla === 'FACTURAS_ENVIADAS'
+                ? 'FACTURAS FISCALES DIGITALES (SENIAT)'
+                : filtroAlcanceTabla === 'RECIBOS_ENVIADOS'
+                ? 'RECIBOS DE PAGO DIGITALES (PDF)'
+                : filtroAlcanceTabla === 'FACTURAS_Y_RECIBOS'
+                ? 'FACTURAS FISCALES Y RECIBOS DE PAGO'
+                : filtroAlcanceTabla === 'TODOS_ENVIADOS'
+                ? 'TODOS LOS CORREOS (FACTURAS, RECIBOS E INFORMATIVOS)'
+                : campanaActiva.plantilla === 'recordatorio_pago'
                 ? 'RECORDATORIO DE PAGO (Word Oficial · Sin PDF)'
                 : 'ESTADO DE CUENTA MASIVO (Con PDF Adjunto)'}
             </strong>
           </div>
           <div>
-            <span className="text-[10px] font-bold uppercase text-emerald-700 block">Asunto Enviado</span>
-            <strong className="text-slate-900 font-bold block mt-0.5 truncate" title={campanaActiva.asunto}>
-              {campanaActiva.asunto}
+            <span className="text-[10px] font-bold uppercase text-emerald-700 block">Edición en Cascada y Reenvío</span>
+            <strong className="text-slate-900 font-bold block mt-0.5 truncate">
+              Actualiza Inmuebles + Contribuyente + Condominio + Pagos
             </strong>
           </div>
           <div>
@@ -837,10 +1075,10 @@ export default function CorreosPage() {
             </span>
           </div>
           <div>
-            <span className="text-[10px] font-bold uppercase text-emerald-700 block">Total Destinatarios en Lista</span>
+            <span className="text-[10px] font-bold uppercase text-emerald-700 block">Total Registros en Lista</span>
             <strong className="text-emerald-800 text-sm font-black block mt-0.5">
-              {destinatariosFiltradosTabla.length.toLocaleString('es-VE')} contribuyentes (
-              {new Set(destinatariosFiltradosTabla.map(x => x.correo)).size.toLocaleString('es-VE')} correos únicos)
+              {destinatariosFiltradosTabla.length.toLocaleString('es-VE')} registros (
+              {new Set(destinatariosFiltradosTabla.map(x => x.correo).filter(Boolean)).size.toLocaleString('es-VE')} correos únicos)
             </strong>
           </div>
         </div>
@@ -849,7 +1087,7 @@ export default function CorreosPage() {
         <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
           <div className="md:col-span-5">
             <label className="block text-[11px] font-bold text-slate-600 mb-1">
-              Buscar Contribuyente, RIF/C.I., Código URB/AURI o Correo Electrónico
+              Buscar Contribuyente, RIF/C.I., Código URB/AURI, N° Control/Recibo o Correo
             </label>
             <div className="relative">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -857,7 +1095,7 @@ export default function CorreosPage() {
                 type="text"
                 value={busqueda}
                 onChange={e => setBusqueda(e.target.value)}
-                placeholder="Ej. URB019578, J-305797307, @gmail.com o nombre..."
+                placeholder="Ej. URB019578, J-305797307, 00-00002814, WEB-0008183, @gmail.com..."
                 className="w-full border border-slate-300 rounded-lg pl-9 pr-8 py-2 text-xs text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500"
               />
               {busqueda && (
@@ -873,24 +1111,36 @@ export default function CorreosPage() {
           </div>
 
           <div className="md:col-span-3">
-            <label className="block text-[11px] font-bold text-slate-600 mb-1">Grupo de Destinatarios</label>
+            <label className="block text-[11px] font-bold text-slate-600 mb-1">Grupo / Tipo de Correo Enviado</label>
             <select
               value={filtroAlcanceTabla}
               onChange={e => {
-                const val = e.target.value as 'MOROSOS_ENVIADOS' | 'TODOS_PADRON' | 'SOLVENTES';
+                const val = e.target.value as AlcanceTabla;
                 setFiltroAlcanceTabla(val);
                 cargarListaDestinatariosCompleta(val);
               }}
               className="w-full border border-slate-300 rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-800 bg-white outline-none focus:ring-2 focus:ring-emerald-500"
             >
+              <option value="TODOS_ENVIADOS">
+                📬 Todos (Informativos + Facturas + Recibos)
+              </option>
+              <option value="FACTURAS_Y_RECIBOS">
+                🧾 Facturas y Recibos Enviados ({(resumen.totalFacturasYRecibos || 0).toLocaleString('es-VE')})
+              </option>
+              <option value="FACTURAS_ENVIADAS">
+                📄 Solo Facturas Fiscales ({(resumen.totalFacturasEnviadas || 0).toLocaleString('es-VE')})
+              </option>
+              <option value="RECIBOS_ENVIADOS">
+                🧾 Solo Recibos de Pago ({(resumen.totalRecibosEnviados || 0).toLocaleString('es-VE')})
+              </option>
               <option value="MOROSOS_ENVIADOS">
-                Morosos Enviados ({resumen.totalConDeuda.toLocaleString('es-VE')})
+                📢 Recordatorios / Estados de Cuenta ({resumen.totalConDeuda.toLocaleString('es-VE')})
               </option>
               <option value="TODOS_PADRON">
-                Todos con Correo Válido ({resumen.totalContribuyentesConCorreo.toLocaleString('es-VE')})
+                👥 Padrón Completo con Correo ({resumen.totalContribuyentesConCorreo.toLocaleString('es-VE')})
               </option>
               <option value="SOLVENTES">
-                Solo Solventes ({resumen.totalSolventes.toLocaleString('es-VE')})
+                ✅ Solo Solventes ({resumen.totalSolventes.toLocaleString('es-VE')})
               </option>
             </select>
           </div>
@@ -994,11 +1244,11 @@ export default function CorreosPage() {
                 <th className="py-2.5 px-3 w-28">Código</th>
                 <th className="py-2.5 px-3 w-28">RIF / C.I.</th>
                 <th className="py-2.5 px-3">Contribuyente / Razón Social</th>
-                <th className="py-2.5 px-3">Correo Electrónico Enviado</th>
+                <th className="py-2.5 px-3 min-w-[250px]">Correo Electrónico (Editar en Cascada)</th>
                 <th className="py-2.5 px-3 w-24 text-center">Uso</th>
-                <th className="py-2.5 px-3">Correo / Plantilla Enviada</th>
-                <th className="py-2.5 px-3 text-right w-28">Deuda (Bs.)</th>
-                <th className="py-2.5 px-3 text-center w-28">Ver Correo</th>
+                <th className="py-2.5 px-3">Documento / Correo Enviado</th>
+                <th className="py-2.5 px-3 text-right w-28">Monto / Deuda</th>
+                <th className="py-2.5 px-3 text-center w-44">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -1006,18 +1256,22 @@ export default function CorreosPage() {
                 <tr>
                   <td colSpan={9} className="py-14 text-center text-slate-500">
                     <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-emerald-600" />
-                    Cargando todos los destinatarios de la base de datos (sin truncar en 1.000)...
+                    Cargando todos los registros y documentos enviados de la base de datos (sin truncar en 1.000)...
                   </td>
                 </tr>
               ) : destinatariosPaginados.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="py-12 text-center text-slate-400">
-                    No se encontraron destinatarios con el criterio buscado.
+                    No se encontraron registros con el criterio buscado.
                   </td>
                 </tr>
               ) : (
                 destinatariosPaginados.map((d, idx) => {
                   const globalIdx = (currentPage - 1) * pageSize + idx + 1;
+                  const rowKey = getRowUniqueKey(d, globalIdx);
+                  const isEditingEmail = editRowKey === rowKey;
+                  const isSavingEmail = guardandoCorreoKey === rowKey;
+                  const isResending = reenviandoKey === rowKey;
                   const codPrincipal =
                     (Array.isArray(d.codigos) && d.codigos[0]) || d.codigoPrincipal || '—';
                   const masCodigos =
@@ -1026,7 +1280,7 @@ export default function CorreosPage() {
                     d.sector || (d.esCondominio ? 'Condominio' : d.esComercial ? 'Comercial' : 'Individual');
 
                   return (
-                    <tr key={`${d.identidad}_${globalIdx}`} className="hover:bg-slate-50 transition-colors">
+                    <tr key={rowKey} className="hover:bg-slate-50 transition-colors">
                       <td className="py-2 px-3 text-center font-mono text-slate-400">{globalIdx}</td>
                       <td
                         className="py-2 px-3 font-mono font-bold text-slate-700"
@@ -1037,7 +1291,71 @@ export default function CorreosPage() {
                       </td>
                       <td className="py-2 px-3 font-mono font-semibold text-slate-700">{d.identidad}</td>
                       <td className="py-2 px-3 font-bold text-slate-800">{d.nombre}</td>
-                      <td className="py-2 px-3 font-mono text-emerald-800 font-semibold">{d.correo}</td>
+                      <td className="py-2 px-3">
+                        {isEditingEmail ? (
+                          <div className="space-y-1.5 bg-slate-50 p-2 rounded-lg border border-emerald-300">
+                            <input
+                              type="email"
+                              value={editCorreoVal}
+                              onChange={e => setEditCorreoVal(e.target.value)}
+                              placeholder="nuevo@correo.com"
+                              autoFocus
+                              className="w-full border border-slate-300 rounded px-2 py-1 text-xs font-mono text-slate-900 bg-white outline-none focus:ring-2 focus:ring-emerald-500"
+                            />
+                            <div className="flex items-center gap-1 flex-wrap">
+                              <button
+                                type="button"
+                                disabled={isSavingEmail || isResending}
+                                onClick={() => handleGuardarCorreoEnCascada(d, editCorreoVal, rowKey, false)}
+                                className="px-2 py-1 rounded text-[10px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                                title="Guarda en cascada en Inmuebles, Contribuyentes, Condominios y Pagos"
+                              >
+                                {isSavingEmail ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                                Guardar Cascada
+                              </button>
+                              <button
+                                type="button"
+                                disabled={isSavingEmail || isResending}
+                                onClick={() => handleGuardarCorreoEnCascada(d, editCorreoVal, rowKey, true)}
+                                className="px-2 py-1 rounded text-[10px] font-bold bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                                title="Guarda el nuevo correo en cascada y reenvía inmediatamente este correo"
+                              >
+                                <Send className="w-3 h-3" />
+                                Guardar y Reenviar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditRowKey(null)}
+                                className="px-1.5 py-1 rounded text-[10px] font-bold bg-slate-200 hover:bg-slate-300 text-slate-700 cursor-pointer"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-between gap-1.5 group">
+                            <span
+                              className={`font-mono font-semibold break-all ${
+                                d.correo ? 'text-emerald-800' : 'text-rose-600 italic'
+                              }`}
+                            >
+                              {d.correo || 'Sin correo registrado'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditRowKey(rowKey);
+                                setEditCorreoVal(d.correo || '');
+                              }}
+                              className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 hover:bg-amber-100 text-slate-700 hover:text-amber-900 border border-slate-200 hover:border-amber-300 transition-colors cursor-pointer"
+                              title="Editar dirección de correo y actualizar en cascada en toda la base de datos"
+                            >
+                              <Pencil className="w-3 h-3" />
+                              Editar
+                            </button>
+                          </div>
+                        )}
+                      </td>
                       <td className="py-2 px-3 text-center">
                         <span
                           className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold border ${
@@ -1052,14 +1370,51 @@ export default function CorreosPage() {
                         </span>
                       </td>
                       <td className="py-2 px-3">
-                        <div className="font-bold text-slate-800 text-[11px] truncate max-w-[230px]" title={campanaActiva.asunto}>
-                          {campanaActiva.plantilla === 'recordatorio_pago'
-                            ? 'Recordatorio de Pago'
-                            : 'Estado de Cuenta (PDF)'}
-                        </div>
-                        <div className="text-[10px] text-emerald-700 font-semibold flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3" /> {campanaActiva.asunto}
-                        </div>
+                        {d.tipoCorreo === 'factura' ? (
+                          <div>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-black bg-emerald-100 text-emerald-900 border border-emerald-300">
+                                📄 FACTURA FISCAL
+                              </span>
+                              {d.numeroControl && (
+                                <span className="font-mono font-bold text-slate-800 text-[11px]">
+                                  Ctrl: {d.numeroControl}
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[10px] text-slate-500 font-mono mt-0.5">
+                              {d.numeroDocumento ? `Fact: ${d.numeroDocumento} · ` : ''}
+                              {d.referenciaPago ? `Ref: ${d.referenciaPago}` : ''}
+                              {d.fechaTransaccion ? ` · ${d.fechaTransaccion}` : ''}
+                            </div>
+                          </div>
+                        ) : d.tipoCorreo === 'recibo' ? (
+                          <div>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-black bg-sky-100 text-sky-900 border border-sky-300">
+                                🧾 RECIBO DE PAGO
+                              </span>
+                              <span className="font-mono font-bold text-slate-800 text-[11px]">
+                                {d.numeroRecibo || 'Recibo Digital'}
+                              </span>
+                            </div>
+                            <div className="text-[10px] text-slate-500 font-mono mt-0.5">
+                              {d.referenciaPago ? `Ref: ${d.referenciaPago}` : ''}
+                              {d.fechaTransaccion ? ` · ${d.fechaTransaccion}` : ''}
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            <div className="font-bold text-slate-800 text-[11px] truncate max-w-[230px]" title={campanaActiva.asunto}>
+                              {campanaActiva.plantilla === 'recordatorio_pago'
+                                ? 'Recordatorio de Pago'
+                                : 'Estado de Cuenta (PDF)'}
+                            </div>
+                            <div className="text-[10px] text-emerald-700 font-semibold flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3" /> {campanaActiva.asunto}
+                            </div>
+                          </div>
+                        )}
                       </td>
                       <td className="py-2 px-3 text-right font-mono font-bold text-slate-800">
                         Bs.{' '}
@@ -1069,14 +1424,40 @@ export default function CorreosPage() {
                         })}
                       </td>
                       <td className="py-2 px-3 text-center">
-                        <button
-                          type="button"
-                          onClick={() => setDestinatarioModal(d)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition-colors cursor-pointer"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                          Ver Correo
-                        </button>
+                        <div className="inline-flex items-center justify-center gap-1.5 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDestinatarioModal(d);
+                              setModalCorreoEdit(d.correo || '');
+                            }}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition-colors cursor-pointer"
+                            title="Ver vista previa exacta del correo enviado"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            Ver
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isResending}
+                            onClick={() => handleReenviarIndividual(d, rowKey, false)}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 transition-colors cursor-pointer disabled:opacity-50"
+                            title={`Reenviar individualmente este ${
+                              d.tipoCorreo === 'factura'
+                                ? 'correo de Factura Fiscal'
+                                : d.tipoCorreo === 'recibo'
+                                ? 'correo de Recibo de Pago'
+                                : 'correo informativo'
+                            } a ${d.correo || 'su correo'}`}
+                          >
+                            {isResending ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Send className="w-3.5 h-3.5" />
+                            )}
+                            Reenviar
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -1271,20 +1652,24 @@ export default function CorreosPage() {
         </div>
       </div>
 
-      {/* Modal para ver exactamente qué correo se le envió al contribuyente */}
+      {/* Modal para ver exactamente qué correo se le envió al contribuyente, editar correo en cascada y reenviar */}
       {destinatarioModal && (
         <div
           className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-2xs flex items-center justify-center p-4"
           onClick={() => setDestinatarioModal(null)}
         >
           <div
-            className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden"
+            className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-3xl w-full max-h-[92vh] flex flex-col overflow-hidden"
             onClick={e => e.stopPropagation()}
           >
             <div className="bg-slate-900 text-white px-5 py-4 flex items-center justify-between">
               <div>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 block">
-                  Detalle de Correo Informativo Enviado
+                  {destinatarioModal.tipoCorreo === 'factura'
+                    ? 'Vista Previa de Correo · Factura Fiscal Digital (SENIAT)'
+                    : destinatarioModal.tipoCorreo === 'recibo'
+                    ? 'Vista Previa de Correo · Recibo de Pago Digital'
+                    : 'Detalle de Correo Informativo Enviado'}
                 </span>
                 <h3 className="text-base font-black">
                   {destinatarioModal.nombre} ({destinatarioModal.identidad})
@@ -1299,35 +1684,170 @@ export default function CorreosPage() {
               </button>
             </div>
 
-            <div className="bg-slate-50 px-5 py-3 border-b border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-              <div>
-                <span className="text-slate-500 font-semibold">Para (Correo Enviado):</span>{' '}
-                <strong className="font-mono text-emerald-800">{destinatarioModal.correo}</strong>
+            {/* Barra de edición de correo en cascada y reenvío individual dentro del modal */}
+            <div className="bg-slate-50 px-5 py-3 border-b border-slate-200 space-y-2.5 text-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                <span className="text-slate-600 font-bold shrink-0">Correo del Contribuyente:</span>
+                <input
+                  type="email"
+                  value={modalCorreoEdit}
+                  onChange={e => setModalCorreoEdit(e.target.value)}
+                  placeholder="ejemplo@correo.com"
+                  className="flex-1 border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-mono text-slate-900 bg-white outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    disabled={guardandoCorreoKey === 'modal' || reenviandoKey === 'modal'}
+                    onClick={() => handleGuardarCorreoEnCascada(destinatarioModal, modalCorreoEdit, 'modal', false)}
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                    title="Actualiza el correo en cascada en Inmuebles, Contribuyentes, Condominios y Pagos"
+                  >
+                    {guardandoCorreoKey === 'modal' ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Save className="w-3.5 h-3.5" />
+                    )}
+                    Guardar en Cascada
+                  </button>
+                  <button
+                    type="button"
+                    disabled={guardandoCorreoKey === 'modal' || reenviandoKey === 'modal'}
+                    onClick={() =>
+                      handleReenviarIndividual(
+                        destinatarioModal,
+                        'modal',
+                        modalCorreoEdit.trim().toLowerCase() !== (destinatarioModal.correo || '').toLowerCase(),
+                        modalCorreoEdit
+                      )
+                    }
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                    title="Guarda cualquier cambio de correo en cascada y reenvía este correo inmediatamente"
+                  >
+                    {reenviandoKey === 'modal' ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Send className="w-3.5 h-3.5" />
+                    )}
+                    Reenviar Correo Ahora
+                  </button>
+                </div>
               </div>
-              <div>
-                <span className="text-slate-500 font-semibold">De (Remitente):</span>{' '}
-                <strong className="font-mono text-slate-800">IAMEC Naguanagua &lt;facturacion@globalgreenrec.com&gt;</strong>
-              </div>
-              <div>
-                <span className="text-slate-500 font-semibold">Código(s) Inmueble:</span>{' '}
-                <strong className="font-mono text-slate-800">
-                  {Array.isArray(destinatarioModal.codigos) && destinatarioModal.codigos.length > 0
-                    ? destinatarioModal.codigos.join(', ')
-                    : destinatarioModal.codigoPrincipal || destinatarioModal.identidad}
-                </strong>
-              </div>
-              <div>
-                <span className="text-slate-500 font-semibold">Uso / Sector:</span>{' '}
-                <strong className="text-slate-800">{destinatarioModal.sector || 'Individual'}</strong>
-              </div>
-              <div className="sm:col-span-2">
-                <span className="text-slate-500 font-semibold">Asunto del Correo:</span>{' '}
-                <strong className="text-slate-900">{campanaActiva.asunto}</strong>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1 border-t border-slate-200/80">
+                <div>
+                  <span className="text-slate-500 font-semibold">Código(s) Inmueble:</span>{' '}
+                  <strong className="font-mono text-slate-800">
+                    {Array.isArray(destinatarioModal.codigos) && destinatarioModal.codigos.length > 0
+                      ? destinatarioModal.codigos.join(', ')
+                      : destinatarioModal.codigoPrincipal || destinatarioModal.identidad}
+                  </strong>
+                </div>
+                <div>
+                  <span className="text-slate-500 font-semibold">Uso / Sector:</span>{' '}
+                  <strong className="text-slate-800">{destinatarioModal.sector || 'Individual'}</strong>
+                </div>
+                <div className="sm:col-span-2">
+                  <span className="text-slate-500 font-semibold">Asunto del Correo:</span>{' '}
+                  <strong className="text-slate-900">
+                    {destinatarioModal.asuntoCorreo || campanaActiva.asunto}
+                  </strong>
+                </div>
               </div>
             </div>
 
             <div className="p-6 overflow-y-auto flex-1 bg-slate-100">
-              {campanaActiva.plantilla === 'recordatorio_pago' ? (
+              {destinatarioModal.tipoCorreo === 'factura' ? (
+                <div className="bg-white border border-slate-200 rounded-xl overflow-hidden max-w-xl mx-auto shadow-sm">
+                  <div className="bg-gradient-to-r from-[#0a4a2a] to-[#1a7a40] p-6 text-center text-white">
+                    <h4 className="text-base font-black tracking-wide uppercase">
+                      ALCALDÍA DE NAGUANAGUA &bull; IAMEC
+                    </h4>
+                    <p className="text-xs text-emerald-100 font-bold mt-1">
+                      COMPROBANTE FISCAL DIGITAL (SENIAT / THE FACTORY HKA)
+                    </p>
+                  </div>
+                  <div className="p-6 space-y-4 text-sm text-slate-700">
+                    <p>
+                      Estimado(a) <strong>{destinatarioModal.nombre}</strong> (R.I.F. / Cédula:{' '}
+                      <strong>{destinatarioModal.identidad}</strong>),
+                    </p>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      Le informamos que su <strong>Factura Fiscal Digital</strong> correspondiente a las tasas del servicio de aseo urbano y saneamiento ambiental ha sido emitida exitosamente a través de la imprenta digital autorizada.
+                    </p>
+                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-2 text-xs">
+                      <div className="flex justify-between border-b border-slate-200 pb-1.5">
+                        <span className="text-slate-500">Número de Control SENIAT:</span>
+                        <strong className="font-mono text-slate-900">
+                          {destinatarioModal.numeroControl || 'N/A'}
+                        </strong>
+                      </div>
+                      {destinatarioModal.numeroDocumento && (
+                        <div className="flex justify-between border-b border-slate-200 pb-1.5">
+                          <span className="text-slate-500">Número de Factura:</span>
+                          <strong className="font-mono text-slate-900">
+                            {destinatarioModal.numeroDocumento}
+                          </strong>
+                        </div>
+                      )}
+                      {destinatarioModal.referenciaPago && (
+                        <div className="flex justify-between border-b border-slate-200 pb-1.5">
+                          <span className="text-slate-500">Referencia Bancaria:</span>
+                          <strong className="font-mono text-slate-900">
+                            {destinatarioModal.referenciaPago}
+                          </strong>
+                        </div>
+                      )}
+                      <div className="flex justify-between border-b border-slate-200 pb-1.5">
+                        <span className="text-slate-500">Fecha de Emisión:</span>
+                        <strong className="text-slate-900">
+                          {destinatarioModal.fechaTransaccion ||
+                            (destinatarioModal.fechaEnvio
+                              ? new Date(destinatarioModal.fechaEnvio).toLocaleDateString('es-VE')
+                              : '—')}
+                        </strong>
+                      </div>
+                      <div className="flex justify-between pt-1 text-sm">
+                        <span className="font-bold text-slate-700">Monto Total de la Factura:</span>
+                        <strong className="font-mono text-emerald-700 font-black">
+                          Bs.{' '}
+                          {(Number(destinatarioModal.totalDeudaBs) || 0).toLocaleString('es-VE', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
+                        </strong>
+                      </div>
+                    </div>
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-center text-xs font-bold text-emerald-800">
+                      📎 Su Factura Fiscal Digital va adjunta a este correo en formato PDF (Factura_
+                      {destinatarioModal.numeroControl || destinatarioModal.numeroDocumento || 'SENIAT'}.pdf).
+                    </div>
+                  </div>
+                </div>
+              ) : destinatarioModal.tipoCorreo === 'recibo' && destinatarioModal.pagoId ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between bg-white border border-slate-200 rounded-lg px-4 py-2.5 text-xs">
+                    <span className="font-bold text-slate-700 flex items-center gap-1.5">
+                      <Receipt className="w-4 h-4 text-sky-600" />
+                      Recibo Digital: <strong className="font-mono">{destinatarioModal.numeroRecibo}</strong>
+                    </span>
+                    <a
+                      href={`/api/admin/recibos-digitales/pdf?pagoId=${encodeURIComponent(destinatarioModal.pagoId)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs inline-flex items-center gap-1"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      Descargar PDF del Recibo
+                    </a>
+                  </div>
+                  <iframe
+                    title="Vista Previa Recibo de Pago"
+                    src={`/api/admin/recibos-digitales/preview?pagoId=${encodeURIComponent(destinatarioModal.pagoId)}`}
+                    className="w-full h-[460px] bg-white border border-slate-200 rounded-xl shadow-2xs"
+                  />
+                </div>
+              ) : campanaActiva.plantilla === 'recordatorio_pago' ? (
                 <div
                   className="bg-white border border-slate-200 rounded-lg p-7 text-black max-w-2xl mx-auto shadow-xs"
                   style={{ fontFamily: 'Calibri, Arial, Helvetica, sans-serif', fontSize: '11pt', lineHeight: 1.45 }}
