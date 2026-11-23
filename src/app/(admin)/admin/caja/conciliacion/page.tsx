@@ -711,11 +711,25 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
   const [correoResponsable, setCorreoResponsable] = useState(det.correo || '');
   const [telefonoResponsable, setTelefonoResponsable] = useState(det.telefono || '');
   const hoyCaracasStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' }).format(new Date());
-  const fechaInicialTx = fechaTransaccionDe(det, pago.created_at, pago.referencia) || hoyCaracasStr;
-  const fechaInicialBanco =
-    (det.fecha_banco ? normalizarFechaYMD(det.fecha_banco) : '') ||
-    (det.fecha_ingreso_caja ? normalizarFechaYMD(det.fecha_ingreso_caja) : '') ||
-    hoyCaracasStr;
+  const rawTxDet = det.fecha_transaccion ? normalizarFechaYMD(det.fecha_transaccion) : '';
+  const rawBancoDet = det.fecha_banco ? normalizarFechaYMD(det.fecha_banco) : '';
+  const rawIngresoCajaDet = det.fecha_ingreso_caja ? normalizarFechaYMD(det.fecha_ingreso_caja) : '';
+  const createdYmdModal = pago.created_at ? normalizarFechaYMD(pago.created_at) : '';
+  // Si el pago fue registrado en Caja sin fecha_banco explícita y puso la fecha del depósito (anterior) en fecha_transaccion
+  // mientras fecha_ingreso_caja tiene la fecha de registro en Caja, mapear correctamente:
+  // Fecha Transacción = fecha de ingreso a Caja / registro, y Fecha en Banco = fecha del depósito / comprobante bancario.
+  const esInvertidoDeCaja = Boolean(
+    !rawBancoDet &&
+    rawIngresoCajaDet &&
+    rawTxDet &&
+    rawTxDet !== rawIngresoCajaDet
+  );
+  const fechaInicialTx = esInvertidoDeCaja
+    ? rawIngresoCajaDet
+    : (rawTxDet || rawIngresoCajaDet || createdYmdModal || hoyCaracasStr);
+  const fechaInicialBanco = esInvertidoDeCaja
+    ? rawTxDet
+    : (rawBancoDet || fechaTransaccionDe(det, pago.created_at, pago.referencia) || hoyCaracasStr);
   const [fechaTransaccion, setFechaTransaccion] = useState(fechaInicialTx);
   const [fechaBanco, setFechaBanco] = useState(fechaInicialBanco);
   const [enviarCorreo, setEnviarCorreo] = useState(false);
@@ -1325,7 +1339,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
 
       if (Array.isArray(updatedDet.formasPago) && updatedDet.formasPago.length > 0) {
         const esDeb = /d[eé]bito|punto/i.test(String(tipoPagoEdit || ''));
-        const fForma = fechaTxConciliada || fechaBancoConciliada;
+        const fForma = fechaBancoConciliada || fechaTxConciliada;
         if (updatedDet.formasPago.length === 1) {
           updatedDet.formasPago = [{
             ...updatedDet.formasPago[0],
@@ -1347,7 +1361,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         }
       }
       if (Array.isArray(updatedDet.pagos_agregados) && updatedDet.pagos_agregados.length > 0) {
-        const fPa = fechaTxConciliada || fechaBancoConciliada;
+        const fPa = fechaBancoConciliada || fechaTxConciliada;
         if (updatedDet.pagos_agregados.length === 1) {
           updatedDet.pagos_agregados = [{
             ...updatedDet.pagos_agregados[0],
@@ -2059,7 +2073,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
           curDet.identidad = pago.identidad;
           if (fechaTxConciliada) curDet.fecha_transaccion = fechaTxConciliada;
           if (fechaBancoConciliada) curDet.fecha_banco = fechaBancoConciliada;
-          const fechaFacturaFinal = fechaTxConciliada || fechaBancoConciliada;
+          const fechaFacturaFinal = fechaBancoConciliada || fechaTxConciliada;
           const tieneMultiFormasPago = (Array.isArray(curDet.formasPago) && curDet.formasPago.length > 1) || (Array.isArray(curDet.pagos_agregados) && curDet.pagos_agregados.length > 1);
           if (!tieneMultiFormasPago && (!esCondo || !Array.isArray(curDet.formasPago) || curDet.formasPago.length === 0)) {
             curDet.formasPago = [{
