@@ -25,27 +25,20 @@ const MESES = [
 ];
 
 const CAJAS_OFICIALES_SISTEMA: { caja: string; cajero: string; alias: string[] }[] = [
-  { caja: 'CAJA A', cajero: 'ARIANNY', alias: ['a-arianny', 'arianny', 'caja a'] },
-  { caja: 'CAJA B', cajero: 'MAIRA', alias: ['b-maira', 'maira', 'caja b'] },
-  { caja: 'CAJA C', cajero: 'DANIELA', alias: ['c-daniela', 'daniela', 'caja c'] },
-  { caja: 'CAJA D', cajero: 'OTTO', alias: ['d-otto', 'otto', 'caja d'] },
-  { caja: 'CAJA E', cajero: 'EVELYN', alias: ['e-evelyn', 'evelyn', 'caja e'] },
-  { caja: 'CAJA F', cajero: 'FRANCIS', alias: ['f-francis', 'francis', 'caja f'] },
-  { caja: 'CAJA G', cajero: 'GENESIS', alias: ['g-genesis', 'genesis', 'caja g'] },
-  { caja: 'CAJA H', cajero: 'MARIANNY', alias: ['h-marianny', 'marianny', 'caja h'] },
-  { caja: 'CAJA I', cajero: 'ISA', alias: ['i-isa', 'isa', 'caja i'] },
-  { caja: 'CAJA J', cajero: 'JOHANA', alias: ['j-johana', 'johana', 'caja j'] },
-  { caja: 'CAJA K', cajero: 'KARLA', alias: ['k-karla', 'karla', 'caja k'] },
-  { caja: 'CAJA L', cajero: 'LUIS', alias: ['l-luis', 'luis', 'caja l'] },
-  { caja: 'CAJA M', cajero: 'VALENTINA', alias: ['m-valentina', 'valentina', 'caja m'] },
-  { caja: 'CAJA N', cajero: 'NANCY', alias: ['n-nancy', 'nancy', 'caja n'] },
-  { caja: 'CAJA O', cajero: 'CARLIETH', alias: ['o-carlieth', 'carlieth', 'caja o'] },
-  { caja: 'CAJA P', cajero: 'PAOLA', alias: ['p-paola', 'paola', 'caja p'] },
-  { caja: 'CAJA R', cajero: 'DAMARY', alias: ['r-damary', 'damary', 'caja r'] },
-  { caja: 'CAJA S', cajero: 'SARAI', alias: ['s-sarai', 'sarai', 'caja s'] },
-  { caja: 'CAJA T', cajero: 'TATIANA', alias: ['t-tatiana', 'tatiana', 'caja t'] },
-  { caja: 'CAJA V', cajero: 'VERONICA', alias: ['v-veronica', 'veronica', 'caja v'] },
-  { caja: 'CAJA Y', cajero: 'YARITZA', alias: ['y-yaritza', 'yaritza', 'caja y'] },
+  { caja: 'CAJA A', cajero: 'ARIANNY', alias: ['arianny', 'a-arianny', 'arianny seijas', 'caja a'] },
+  { caja: 'CAJA B', cajero: 'MAIRA', alias: ['maira', 'b-maira', 'maira castellano', 'caja b'] },
+  { caja: 'CAJA C', cajero: 'DANIELA', alias: ['daniela', 'c-daniela', 'daniela gonzalez', 'caja c'] },
+  { caja: 'CAJA D', cajero: 'OTTO', alias: ['otto', 'd-otto', 'otto schram', 'caja d'] },
+  { caja: 'CAJA E', cajero: 'LUIS', alias: ['luis', 'e-luis', 'luis vivas', 'caja e'] },
+  { caja: 'CAJA F', cajero: 'OMAR', alias: ['omar', 'f-omar', 'omar lopez', 'caja f'] },
+  { caja: 'CAJA H', cajero: 'MARIANNY', alias: ['marianny', 'h-marianny', 'marianny orta', 'caja h'] },
+  { caja: 'CAJA J', cajero: 'NANY', alias: ['nany', 'j-nany', 'nany lovera', 'caja j'] },
+  { caja: 'CAJA K', cajero: 'JOHANA', alias: ['johana', 'k-johana', 'johana peña', 'johana pena', 'caja k'] },
+  { caja: 'CAJA M', cajero: 'VALENTINA', alias: ['valentina', 'm-valentina', 'valentina castellanos', 'caja m'] },
+  { caja: 'CAJA N', cajero: 'PATRICIA', alias: ['patricia', 'n-patricia', 'patricia povis', 'caja n'] },
+  { caja: 'CAJA O', cajero: 'CARLIETH', alias: ['carlieth', 'o-carlieth', 'carlieth palencia', 'caja o'] },
+  { caja: 'CAJA P', cajero: 'MARIANGEL', alias: ['mariangel', 'p-mariangel', 'mariangel adarmes', 'caja p'] },
+  { caja: 'CAJA R', cajero: 'DAMARY', alias: ['damary', 'damaris', 'r-damary', 'r-damaris', 'damary viña', 'damary vina', 'caja r'] },
 ];
 
 const r2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
@@ -680,8 +673,8 @@ export default function ConciliacionDiariaPanel({
         autoUcd: r2(autoTasa),
         autoPuntoBs: r2(dData.puntoBs),
         autoTransfBs: r2(dData.transfBs),
-        autoBanescoBs: r2(dData.banescoBs),
-        autoBancamigaBs: r2(dData.bancamigaBs),
+        autoBanescoBs: 0,
+        autoBancamigaBs: 0,
       };
     });
   }, [rawPagos, fechaInicio, fechaFin, tcmmv, consolidadoOverrides]);
@@ -690,13 +683,15 @@ export default function ConciliacionDiariaPanel({
     const next: Record<string, { euro: string; ucd: string; puntoBs: string; transfBs: string; banescoBs: string; bancamigaBs: string }> = {};
     filasConsolidadoDiario.forEach((f) => {
       const ov = consolidadoOverrides[f.dia];
+      const hasBanOv = ov?.banescoBs !== undefined && ov?.banescoBs !== null && String(ov.banescoBs).trim() !== '';
+      const hasBgaOv = ov?.bancamigaBs !== undefined && ov?.bancamigaBs !== null && String(ov.bancamigaBs).trim() !== '';
       next[f.dia] = {
         euro: String(ov?.euro !== undefined && ov?.euro !== null ? r2(Number(ov.euro)) : f.autoEuro),
         ucd: String(ov?.ucd !== undefined && ov?.ucd !== null ? r2(Number(ov.ucd)) : f.autoUcd),
         puntoBs: String(f.autoPuntoBs),
         transfBs: String(f.autoTransfBs),
-        banescoBs: String(ov?.banescoBs !== undefined && ov?.banescoBs !== null ? r2(Number(ov.banescoBs)) : f.autoBanescoBs),
-        bancamigaBs: String(ov?.bancamigaBs !== undefined && ov?.bancamigaBs !== null ? r2(Number(ov.bancamigaBs)) : f.autoBancamigaBs),
+        banescoBs: hasBanOv ? String(r2(Number(ov!.banescoBs))) : '',
+        bancamigaBs: hasBgaOv ? String(r2(Number(ov!.bancamigaBs))) : '',
       };
     });
     setConsInputs(next);
@@ -725,8 +720,8 @@ export default function ConciliacionDiariaPanel({
         ucd: String(f.autoUcd),
         puntoBs: String(f.autoPuntoBs),
         transfBs: String(f.autoTransfBs),
-        banescoBs: String(f.autoBanescoBs),
-        bancamigaBs: String(f.autoBancamigaBs),
+        banescoBs: '',
+        bancamigaBs: '',
       },
     }));
   };
@@ -743,16 +738,16 @@ export default function ConciliacionDiariaPanel({
         if (!inp) return;
         const euroVal = r2(parseMontoNumero(inp.euro) || f.autoEuro);
         const ucdVal = r2(parseMontoNumero(inp.ucd) || euroVal);
-        const puntoVal = r2(parseMontoNumero(inp.puntoBs));
-        const transfVal = r2(parseMontoNumero(inp.transfBs));
-        const banescoVal = r2(parseMontoNumero(inp.banescoBs));
-        const bancamigaVal = r2(parseMontoNumero(inp.bancamigaBs));
+        const hasBanInput = String(inp.banescoBs ?? '').trim() !== '';
+        const hasBgaInput = String(inp.bancamigaBs ?? '').trim() !== '';
+        const banescoVal = hasBanInput ? r2(parseMontoNumero(inp.banescoBs)) : null;
+        const bancamigaVal = hasBgaInput ? r2(parseMontoNumero(inp.bancamigaBs)) : null;
 
         const isSameAsAuto =
           Math.abs(euroVal - f.autoEuro) < 0.01 &&
           Math.abs(ucdVal - f.autoUcd) < 0.01 &&
-          Math.abs(banescoVal - f.autoBanescoBs) < 0.01 &&
-          Math.abs(bancamigaVal - f.autoBancamigaBs) < 0.01;
+          banescoVal === null &&
+          bancamigaVal === null;
 
         if (isSameAsAuto) {
           delete merged[f.dia];
@@ -1279,8 +1274,8 @@ export default function ConciliacionDiariaPanel({
                     ucd: String(f.autoUcd),
                     puntoBs: String(f.autoPuntoBs),
                     transfBs: String(f.autoTransfBs),
-                    banescoBs: String(f.autoBanescoBs),
-                    bancamigaBs: String(f.autoBancamigaBs),
+                    banescoBs: '',
+                    bancamigaBs: '',
                   };
 
                   const tasa = r2(parseMontoNumero(inp.euro)) || f.autoEuro || 1;
@@ -1368,6 +1363,7 @@ export default function ConciliacionDiariaPanel({
                           type="text"
                           inputMode="decimal"
                           value={inp.banescoBs}
+                          placeholder="0,00"
                           onChange={(e) => handleConsInputChange(f.dia, 'banescoBs', e.target.value)}
                           className="w-full text-right font-mono text-[11px] font-bold text-emerald-950 bg-white border border-amber-300 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
                         />
@@ -1382,6 +1378,7 @@ export default function ConciliacionDiariaPanel({
                           type="text"
                           inputMode="decimal"
                           value={inp.bancamigaBs}
+                          placeholder="0,00"
                           onChange={(e) => handleConsInputChange(f.dia, 'bancamigaBs', e.target.value)}
                           className="w-full text-right font-mono text-[11px] font-bold text-sky-950 bg-white border border-amber-300 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
                         />

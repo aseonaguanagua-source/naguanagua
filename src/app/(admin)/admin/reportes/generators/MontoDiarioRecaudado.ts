@@ -351,8 +351,8 @@ export async function generarMontoDiarioRecaudado({
       const ov = ajustesDiariosGuardados[d];
       const pBs = obj.puntoBs;
       const tBs = obj.transfBs;
-      const banBs = ov?.banescoBs !== undefined && ov?.banescoBs !== null ? Number(ov.banescoBs) : obj.banescoBs;
-      const bgaBs = ov?.bancamigaBs !== undefined && ov?.bancamigaBs !== null ? Number(ov.bancamigaBs) : obj.bancamigaBs;
+      const banBs = ov?.banescoBs !== undefined && ov?.banescoBs !== null && String(ov.banescoBs).trim() !== '' ? Number(ov.banescoBs) : 0;
+      const bgaBs = ov?.bancamigaBs !== undefined && ov?.bancamigaBs !== null && String(ov.bancamigaBs).trim() !== '' ? Number(ov.bancamigaBs) : 0;
       return r2(pBs) > 0 || r2(tBs) > 0 || r2(banBs) > 0 || r2(bgaBs) > 0;
     })
     .sort();
@@ -525,9 +525,12 @@ export async function generarMontoDiarioRecaudado({
     const pEur = tasaBcvDia > 0 ? r2(pBs / tasaBcvDia) : 0;
     const tBs = r2(dData.transfBs);
     const tEur = tasaBcvDia > 0 ? r2(tBs / tasaBcvDia) : 0;
-    const banBs = (ov.banescoBs !== undefined && ov.banescoBs !== null) ? r2(Number(ov.banescoBs)) : r2(dData.banescoBs);
+    // Estado de Cuenta Banesco y Bancamiga solo muestran los montos cargados manualmente por las analistas (en 0,00 / "-" hasta que se carguen manualmente)
+    const hasBanescoManual = ov.banescoBs !== undefined && ov.banescoBs !== null && String(ov.banescoBs).trim() !== '';
+    const hasBancamigaManual = ov.bancamigaBs !== undefined && ov.bancamigaBs !== null && String(ov.bancamigaBs).trim() !== '';
+    const banBs = hasBanescoManual ? r2(Number(ov.banescoBs)) : 0;
     const banEur = tasaBcvDia > 0 ? r2(banBs / tasaBcvDia) : 0;
-    const bgaBs = (ov.bancamigaBs !== undefined && ov.bancamigaBs !== null) ? r2(Number(ov.bancamigaBs)) : r2(dData.bancamigaBs);
+    const bgaBs = hasBancamigaManual ? r2(Number(ov.bancamigaBs)) : 0;
     const bgaEur = tasaBcvDia > 0 ? r2(bgaBs / tasaBcvDia) : 0;
 
     sumPuntoBs += pBs;

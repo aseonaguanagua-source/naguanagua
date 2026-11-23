@@ -200,14 +200,23 @@ export async function generarMontoDiarioRecaudadoPDF({
       row.transfBs += montoBs;
       row.transfEur += montoEur;
     }
-
-    const bClass = clasificarBancoDestino(p);
-    if (bClass === 'Bancamiga' || esDebito(p)) {
-      row.bancamigaBs += montoBs;
-    } else {
-      row.banescoBs += montoBs;
-    }
   });
+
+  try {
+    const { data: cfgMd } = await supabase
+      .from('sistema_config')
+      .select('valor')
+      .eq('id', 'monto_diario_recaudado_diario')
+      .maybeSingle();
+    if (cfgMd?.valor) {
+      const ajustes = typeof cfgMd.valor === 'string' ? JSON.parse(cfgMd.valor) : cfgMd.valor;
+      agrupado.forEach((row, diaKey) => {
+        const ov = ajustes?.[diaKey];
+        row.banescoBs = ov?.banescoBs !== undefined && ov?.banescoBs !== null && String(ov.banescoBs).trim() !== '' ? r2(Number(ov.banescoBs)) : 0;
+        row.bancamigaBs = ov?.bancamigaBs !== undefined && ov?.bancamigaBs !== null && String(ov.bancamigaBs).trim() !== '' ? r2(Number(ov.bancamigaBs)) : 0;
+      });
+    }
+  } catch {}
 
   const diasOrdenados = Array.from(agrupado.values()).sort((a, b) =>
     a.fecha.localeCompare(b.fecha)
