@@ -715,8 +715,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
   const fechaInicialBanco =
     (det.fecha_banco ? normalizarFechaYMD(det.fecha_banco) : '') ||
     (det.fecha_ingreso_caja ? normalizarFechaYMD(det.fecha_ingreso_caja) : '') ||
-    (pago.created_at ? normalizarFechaYMD(pago.created_at) : '') ||
-    fechaInicialTx;
+    hoyCaracasStr;
   const [fechaTransaccion, setFechaTransaccion] = useState(fechaInicialTx);
   const [fechaBanco, setFechaBanco] = useState(fechaInicialBanco);
   const [enviarCorreo, setEnviarCorreo] = useState(false);
@@ -2048,7 +2047,9 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
             curDet.contribuyente = curDet.contribuyente || det.contribuyente || det.recibo_caja?.[0]?.razonSocial || contribInfo?.contribuyente || contribInfo?.Contribuyente || contribInfo?.nombre || pago.contribuyente || pago.identidad;
           }
           curDet.identidad = pago.identidad;
-          const fechaFacturaFinal = fechaBanco || fechaTransaccion;
+          if (fechaTxConciliada) curDet.fecha_transaccion = fechaTxConciliada;
+          if (fechaBancoConciliada) curDet.fecha_banco = fechaBancoConciliada;
+          const fechaFacturaFinal = fechaTxConciliada || fechaBancoConciliada;
           const tieneMultiFormasPago = (Array.isArray(curDet.formasPago) && curDet.formasPago.length > 1) || (Array.isArray(curDet.pagos_agregados) && curDet.pagos_agregados.length > 1);
           if (!tieneMultiFormasPago && (!esCondo || !Array.isArray(curDet.formasPago) || curDet.formasPago.length === 0)) {
             curDet.formasPago = [{
@@ -3189,7 +3190,14 @@ export default function ConciliacionPage() {
           </div>
         </td>
         <td className="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">{fmtFecha(pago.created_at)}</td>
-        <td className="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">{fechaTransaccionDe(det, pago.created_at, pago.referencia) || '---'}</td>
+        <td className="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">
+          <div>{fechaTransaccionDe(det, pago.created_at, pago.referencia) || '---'}</div>
+          {det.fecha_banco && normalizarFechaYMD(det.fecha_banco) !== fechaTransaccionDe(det, pago.created_at, pago.referencia) && (
+            <div className="text-[10px] font-bold text-blue-700" title="Fecha en Banco">
+              Banco: {normalizarFechaYMD(det.fecha_banco)}
+            </div>
+          )}
+        </td>
         <td className="px-3 py-2 text-xs text-slate-600">
           {pago.tipo === 'Retencion de IVA' ? (
             <span className="bg-purple-100 text-purple-800 text-[10px] font-black px-2 py-0.5 rounded border border-purple-200 inline-block">

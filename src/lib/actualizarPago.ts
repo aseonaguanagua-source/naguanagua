@@ -5,7 +5,7 @@
  */
 export async function actualizarPago(
   pagoId: string,
-  cambios: { estado?: string; banco?: string; tipo?: string; detalles?: any; created_at?: string },
+  cambios: { estado?: string; banco?: string; tipo?: string; referencia?: string; monto?: number | string; detalles?: any; created_at?: string; skipServerDebtSync?: boolean },
   opciones: { soloSiEstado?: string } = {},
 ): Promise<void> {
   const ls = typeof window !== 'undefined' ? window.localStorage : null;

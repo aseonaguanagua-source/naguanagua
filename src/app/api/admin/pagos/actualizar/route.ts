@@ -17,7 +17,7 @@ const inFlightPaymentIds = new Set<string>();
  *  - soloSiEstado: el cambio solo se aplica si el pago sigue en ese estado (evita aprobar dos veces).
  *  Responde { ok: true } o { error } con 409 si el pago ya fue procesado.
  */
-const PERMITIDOS = ['estado', 'banco', 'tipo', 'detalles', 'created_at', 'referencia'] as const;
+const PERMITIDOS = ['estado', 'banco', 'tipo', 'detalles', 'created_at', 'referencia', 'monto'] as const;
 const ESTADOS = ['Aprobado', 'Rechazado', 'Por Verificar', 'Con Diferencia', 'Pendiente'];
 
 export async function POST(req: Request) {
