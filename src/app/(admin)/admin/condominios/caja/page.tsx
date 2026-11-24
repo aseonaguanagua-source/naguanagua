@@ -469,7 +469,7 @@ function Caja() {
           meses: meses || null,
           mesesPorUnidad: Object.keys(mesesPorUnidad).length > 0 ? mesesPorUnidad : undefined,
           soloMultas,
-          incluirMultas: incluirMultas !== null ? incluirMultas : (base ? Boolean(!base.porActividad) : undefined),
+          incluirMultas: incluirMultas !== null ? incluirMultas : (modo === 'CONTRIBUYENTE' ? true : (base ? Boolean(!base.porActividad) : undefined)),
           omitirMultaSeptiembre,
           retencionPorcentajeOverride: retencionIVA,
           tasaOverride: tasaParsed > 0 ? tasaParsed : undefined,
@@ -506,7 +506,7 @@ function Caja() {
   const c = cobro?.condo;
   const base = cobro?.estado;
   const porContrib = modo === 'CONTRIBUYENTE';
-  const incluirMultasEfectivo = incluirMultas !== null ? incluirMultas : Boolean(base && !base.porActividad);
+  const incluirMultasEfectivo = incluirMultas !== null ? incluirMultas : (porContrib ? true : Boolean(base && !base.porActividad));
   // Cédula con o sin prefijo (7436881 = V-7436881): se compara solo el número
   const normId = (s: any) => String(s || '').toUpperCase().trim().replace(/^[VEJPG]-?/, '').replace(/[^A-Z0-9]/g, '').replace(/^0+/, '');
   const convenioDeUnidad = (r: any) => {

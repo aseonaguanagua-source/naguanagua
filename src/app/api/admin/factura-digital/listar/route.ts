@@ -894,22 +894,31 @@ export async function GET(request: Request) {
 
       // Si se eliminó o exoneró la multa del inmueble/condominio o en el propio pago, asegurar que no vuelva a aparecer
       const inmsDelPago = clasif.inmuebles.map(c => inmMap.get(c)).filter(Boolean);
-      const inmExoneradoTotal = inmsDelPago.length > 0 && inmsDelPago.every((i: any) => {
-        const notasStr = String(i.notas || '');
-        const tieneTagExo = notasStr.includes('Caso especial: Exonerado de multas') || (notasStr.includes('EXONERACIÓN DE MULTAS') && Number(i.multa_bs || 0) <= 0);
-        return tieneTagExo;
-      });
-      const condoExonerado = Boolean(condo && (condo as any).multa_meses === 0 && (condo as any).multa_exonerada_hasta);
+      const rc0Check = Array.isArray(det.recibo_caja) && det.recibo_caja[0] ? det.recibo_caja[0] : null;
+      const rcDiffMulta = rc0Check && Number(rc0Check.baseImponible || 0) > 0 && Number(rc0Check.subTotal || 0) > Number(rc0Check.baseImponible || 0) + 0.05
+        ? Math.round((Number(rc0Check.subTotal) - Number(rc0Check.baseImponible)) * 100) / 100
+        : 0;
+      const rcConceptoMulta = rc0Check && Array.isArray(rc0Check.conceptos)
+        ? rc0Check.conceptos.reduce((acc: number, c: any) => /multa|mora|sanci[oó]n/i.test(String(c?.descripcion || c?.concepto || '')) ? acc + (Number(c?.total || c?.precioUnit || 0) || 0) : acc, 0)
+        : 0;
       const lineasCondoDet = Array.isArray(det.condominio?.lineas) ? det.condominio.lineas : [];
       const aseoLineasTotal = lineasCondoDet.reduce((s: number, l: any) => s + (Number(l?.aseoBs) || 0), 0);
       const multaLineasTotal = lineasCondoDet.reduce((s: number, l: any) => s + (Number(l?.multaBs) || 0), 0);
+      const tieneMultaCobradaEnRecibo = multaLineasTotal > 0.05 || rcConceptoMulta > 0.05 || rcDiffMulta > 0.05;
+
+      const inmExoneradoTotal = !tieneMultaCobradaEnRecibo && inmsDelPago.length > 0 && inmsDelPago.every((i: any) => {
+        const notasStr = String(i.notas || '');
+        const tieneTagExo = notasStr.includes('Caso especial: Exonerado de multas') || (notasStr.includes('EXONERACIÓN DE MULTAS') && !notasStr.includes('[EXONERADO:') && Number(i.multa_bs || 0) <= 0);
+        return tieneTagExo;
+      });
+      const condoExonerado = !tieneMultaCobradaEnRecibo && Boolean(condo && (condo as any).multa_meses === 0 && (condo as any).multa_exonerada_hasta);
       const esPagoExclusivoMulta =
         clasif.subtipo === 'factura_multa_comercial' ||
         (lineasCondoDet.length > 0 && aseoLineasTotal <= 0 && multaLineasTotal > 0) ||
         (Number(det.base_bs || det.montoServicio || 0) <= 0 && Number(det.multa_bs || det.montoMulta || det.monto_multa || 0) > 0 && String(det.concepto || '').toLowerCase().includes('multa'));
 
       const sinMultaExplicito =
-        !esPagoExclusivoMulta && (
+        !esPagoExclusivoMulta && !tieneMultaCobradaEnRecibo && (
           det.llevaMulta === false ||
           det.sin_multas === true ||
           det.solo_aseo === true ||

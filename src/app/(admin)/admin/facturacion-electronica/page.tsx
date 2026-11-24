@@ -906,6 +906,13 @@ export default function FacturacionElectronicaPage() {
     if (Array.isArray(pago.detalles?.condominio?.lineas)) {
       multaCondo = pago.detalles.condominio.lineas.reduce((acc: number, l: any) => acc + (parseFloat(String(l?.multaBs || 0)) || 0), 0);
     }
+    const rc0Modal = Array.isArray(pago.detalles?.recibo_caja) && pago.detalles.recibo_caja[0] ? pago.detalles.recibo_caja[0] : null;
+    const rcDiffMultaModal = rc0Modal && Number(rc0Modal.baseImponible || 0) > 0 && Number(rc0Modal.subTotal || 0) > Number(rc0Modal.baseImponible || 0) + 0.05
+      ? Math.round((Number(rc0Modal.subTotal) - Number(rc0Modal.baseImponible)) * 100) / 100
+      : 0;
+    if (multaCondo <= 0 && rcDiffMultaModal > 0.05) {
+      multaCondo = rcDiffMultaModal;
+    }
 
     const recibosArr = Array.isArray(pago.detalles?.recibos) ? pago.detalles.recibos : (Array.isArray(pago.recibos) ? pago.recibos : []);
     const esExclusivoMulta = Boolean(
@@ -916,7 +923,7 @@ export default function FacturacionElectronicaPage() {
       (/multa/i.test(String(pago.detalles?.concepto || pago.concepto || '')) && !/aseo|servicio|recolecci[oó]n/i.test(String(pago.detalles?.concepto || pago.concepto || '').replace(/multa[^-–·]*[-–·]?\s*aseo\s*urbano/gi, 'multa')))
     );
 
-    const sinMultaEliminada = !esExclusivoMulta && Boolean(
+    const sinMultaEliminada = !esExclusivoMulta && multaCondo <= 0.05 && Boolean(
       pago.tieneMulta === false ||
       pago.llevaMulta === false ||
       pago.detalles?.llevaMulta === false ||

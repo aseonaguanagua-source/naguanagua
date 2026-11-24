@@ -226,8 +226,8 @@ export async function prepararCobro(sol: SolicitudCobro): Promise<Cobro & { _dat
             : (sol.meses && sol.meses > 0 ? Math.min(nMesesMax, Math.floor(sol.meses)) : nMesesMax);
         const meses = r.deuda.porMes.slice(0, nMeses);
         const s = (k: 'baseBs' | 'multaBs' | 'ivaBs' | 'retencionBs') => r2(meses.reduce((a, m) => a + m[k], 0));
-        // ¿Las multas van en este cobro? En condominios residenciales centralizados (!porAct) van incluidas por defecto; en condominios por actividad/comerciales el aseo va sin multa salvo que se marque incluirMultas o sea soloMultas
-        const defaultIncluirMultas = !porAct;
+        // ¿Las multas van en este cobro? En condominios residenciales centralizados (!porAct) y en modo CONTRIBUYENTE (Dueño Individual) van incluidas por defecto; en cobro del CONDOMINIO comercial van sin multa por defecto salvo que se marque incluirMultas.
+        const defaultIncluirMultas = !porAct || modo === 'CONTRIBUYENTE';
         const permitirMultas = Boolean(
             sol.soloMultas ||
             (typeof sol.incluirMultas === 'boolean' ? sol.incluirMultas : defaultIncluirMultas)
@@ -810,9 +810,11 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
         const modoEfectivo: ModoCobro = (sol.soloMultas || modalidadCobroActiva === 'individual' || modalidadCobroActiva === 'multas_separadas')
             ? 'CONTRIBUYENTE'
             : 'CONDOMINIO';
-        const defaultIncluirMultasReg = !cobro.estado.porActividad;
+        const defaultIncluirMultasReg = !cobro.estado.porActividad || modoEfectivo === 'CONTRIBUYENTE';
+        const tieneMultaEnFactura = fMulta > 0.01;
         const incluirMultasEfectivoReg = Boolean(
             sol.soloMultas ||
+            tieneMultaEnFactura ||
             (typeof sol.incluirMultas === 'boolean' ? sol.incluirMultas : defaultIncluirMultasReg)
         );
         const detalles = {
@@ -1098,7 +1100,8 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
                     upd.multa_exonerada_hasta = `${ultimoPer}-01`;
                 }
             } else {
-                const permitirMultas = sol.incluirMultas === true;
+                const defaultIncluirM = !cobro.estado.porActividad || cobro.modo === 'CONTRIBUYENTE';
+                const permitirMultas = (l.multaBs + l.multasAparteBs) > 0.01 || (typeof sol.incluirMultas === 'boolean' ? sol.incluirMultas : defaultIncluirM);
                 const desdeActual = u.aseo_pendiente_desde || c.aseo_pendiente_desde;
                 const mesesRealesHoy = desdeActual ? M.mesesPendientes(desdeActual, hoy) : l.mesesDeuda;
                 const liquidaHastaHoy = l.meses >= mesesRealesHoy;
@@ -1126,7 +1129,8 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
                 const mesesRealesHoy = desdeActual ? M.mesesPendientes(desdeActual, hoy) : l.mesesDeuda;
                 const nMesesRest = l.meses >= mesesRealesHoy ? 0 : Math.max(0, mesesRealesHoy - l.meses);
                 const tarifaMmvUnit = Number(u.tarifa_mmv || curInm?.mmv_mes || 0) || 0;
-                const permitirMultasInm = sol.incluirMultas === true;
+                const defaultIncluirMInm = !cobro.estado.porActividad || cobro.modo === 'CONTRIBUYENTE';
+                const permitirMultasInm = (l.multaBs + l.multasAparteBs) > 0.01 || (typeof sol.incluirMultas === 'boolean' ? sol.incluirMultas : defaultIncluirMInm);
                 const updInmLocal: any = {
                     meses_deuda: nMesesRest,
                     deuda_mmv: nMesesRest === 0 ? 0 : (tarifaMmvUnit > 0 ? r2(nMesesRest * tarifaMmvUnit) : (curInm?.deuda_mmv || 0)),

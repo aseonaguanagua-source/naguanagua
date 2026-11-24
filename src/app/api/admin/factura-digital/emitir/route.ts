@@ -1039,10 +1039,16 @@ export async function POST(request: Request) {
     }
     const esPagoExclusivoMulta = multaCondoDirecta > 0 && aseoCondoDirecto <= 0;
 
-    const inmActiveExonerado = !esPagoExclusivoMulta && activeProps.length > 0 && activeProps.every((p: any) =>
-      isExoneradoTotalMultas(p?.notas) || (Number(p?.multa_bs || 0) <= 0 && String(p?.notas || '').includes('EXONERACIÓN DE MULTAS'))
+    const rc0CheckEmit = Array.isArray(detPago?.recibo_caja) && detPago.recibo_caja[0] ? detPago.recibo_caja[0] : null;
+    const rcDiffMultaEmit = rc0CheckEmit && Number(rc0CheckEmit.baseImponible || 0) > 0 && Number(rc0CheckEmit.subTotal || 0) > Number(rc0CheckEmit.baseImponible || 0) + 0.05
+      ? r2(Number(rc0CheckEmit.subTotal) - Number(rc0CheckEmit.baseImponible))
+      : 0;
+    const tieneMultaCobradaReal = multaCondoDirecta > 0.05 || rcExento > 0.05 || rcDiffMultaEmit > 0.05;
+
+    const inmActiveExonerado = !esPagoExclusivoMulta && !tieneMultaCobradaReal && activeProps.length > 0 && activeProps.every((p: any) =>
+      isExoneradoTotalMultas(p?.notas) || (Number(p?.multa_bs || 0) <= 0 && String(p?.notas || '').includes('EXONERACIÓN DE MULTAS') && !String(p?.notas || '').includes('[EXONERADO:'))
     );
-    const esSoloAseoDet = !esPagoExclusivoMulta && Boolean(
+    const esSoloAseoDet = !esPagoExclusivoMulta && !tieneMultaCobradaReal && Boolean(
       llevaMulta === false ||
       detPago?.llevaMulta === false ||
       detPago?.solo_aseo ||
@@ -1050,13 +1056,15 @@ export async function POST(request: Request) {
       detPago?.incluir_multas === false ||
       inmActiveExonerado
     );
-    if (!esPagoExclusivoMulta && (llevaMulta === false || detPago?.llevaMulta === false || detPago?.sin_multas === true || inmActiveExonerado || (esSoloAseoDet && multaCondoDirecta === 0 && !tieneMontoMultaExplicito))) {
+    if (!esPagoExclusivoMulta && (llevaMulta === false || (!tieneMultaCobradaReal && (detPago?.llevaMulta === false || detPago?.sin_multas === true || inmActiveExonerado || (esSoloAseoDet && multaCondoDirecta === 0 && !tieneMontoMultaExplicito))))) {
       baseExenta = 0;
-    } else if (tieneMontoMultaExplicito && (!esPagoExclusivoMulta || explicitMulta > 0)) {
-      // Si el operador o payload indicó explícitamente el monto de multa (incluso 0)
+    } else if (tieneMontoMultaExplicito && (explicitMulta > 0 || !tieneMultaCobradaReal)) {
+      // Si el operador o payload indicó explícitamente el monto de multa
       baseExenta = explicitMulta > 0 ? r2(explicitMulta) : 0;
     } else if (multaCondoDirecta > 0) {
       baseExenta = multaCondoDirecta;
+    } else if (rcDiffMultaEmit > 0.05) {
+      baseExenta = rcDiffMultaEmit;
     } else if (detPago.recibo_caja) {
       // Si hay recibo de caja emitido, manda el exento cobrado en caja (si es 0, no hay multa)
       baseExenta = rcExento > 0 ? rcExento : 0;
