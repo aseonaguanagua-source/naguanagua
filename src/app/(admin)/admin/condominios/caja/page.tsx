@@ -469,7 +469,7 @@ function Caja() {
           meses: meses || null,
           mesesPorUnidad: Object.keys(mesesPorUnidad).length > 0 ? mesesPorUnidad : undefined,
           soloMultas,
-          incluirMultas: incluirMultas !== null ? incluirMultas : Boolean(base && !base.porActividad),
+          incluirMultas: incluirMultas !== null ? incluirMultas : (base ? Boolean(!base.porActividad) : undefined),
           omitirMultaSeptiembre,
           retencionPorcentajeOverride: retencionIVA,
           tasaOverride: tasaParsed > 0 ? tasaParsed : undefined,
