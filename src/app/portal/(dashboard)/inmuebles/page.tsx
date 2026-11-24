@@ -323,12 +323,24 @@ export default function InmueblesPage() {
                 {cluster.esCondominio && (
                   <div className="px-4 py-3 bg-amber-50/90 border-b border-amber-200 text-xs text-amber-950 flex items-start gap-2.5">
                     <Building2 className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-                    <div className="space-y-0.5">
-                      <strong className="text-amber-900">Inmueble / Local dentro de Condominio:</strong> Este inmueble pertenece a{' '}
-                      <span className="font-bold text-amber-900 underline">{condoNames[cluster.condominioPadreId || ''] || cluster.condominioPadreId || 'su Condominio'}</span>.
+                    <div className="space-y-1.5 flex-1">
+                      <div>
+                        <strong className="text-amber-900">Inmueble / Local dentro de Condominio:</strong> Este inmueble pertenece a{' '}
+                        <span className="font-bold text-amber-900 underline">{condoNames[cluster.condominioPadreId || ''] || cluster.condominioPadreId || 'su Condominio'}</span>.
+                      </div>
                       <p className="text-[11px] text-amber-900/90 leading-relaxed">
-                        Para consultar su estado de cuenta oficial, verificar solvencia o gestionar <strong>multas y cuotas correspondientes al condominio</strong>, debe <strong>comunicarse y coordinar directamente con la Directiva o Administración de su Condominio</strong>, quien representa al inmueble matriz ante el IAMEC.
+                        Para <strong>verificar posibles multas, consultar su estado de cuenta o realizar cualquier pago pendiente</strong> correspondiente a esta unidad, comuníquese directamente con nuestro <strong>Call Center de Atención al Contribuyente vía WhatsApp al +58 424-4282365</strong>.
                       </p>
+                      <div>
+                        <a
+                          href={`https://wa.me/584244282365?text=${encodeURIComponent(`Hola, deseo verificar multas o pagos pendientes de mi unidad ${cluster.localId} en ${condoNames[cluster.condominioPadreId || ''] || cluster.condominioPadreId || 'condominio'}.`)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg text-[11px] shadow-2xs transition-colors"
+                        >
+                          <span>💬 Verificar Multa / Pago en Call Center (+58 424-4282365)</span>
+                        </a>
+                      </div>
                     </div>
                   </div>
                 )}

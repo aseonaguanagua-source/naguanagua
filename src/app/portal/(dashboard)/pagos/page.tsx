@@ -497,7 +497,7 @@ export default function DondePagarPage() {
             }
             return false;
           };
-          const safeRecibos = rc.recibos.filter((r: any) => String(r.referencia || '').toUpperCase().startsWith('MULTA-') || !isCondoRef(r.referencia));
+          const safeRecibos = rc.recibos.filter((r: any) => !isCondoRef(r.referencia));
           setBloqueadoPorCondominio(rc.soloCondominio && safeRecibos.length === 0);
           setRawRecibos(safeRecibos);
         }
@@ -717,9 +717,8 @@ export default function DondePagarPage() {
         ((condoPadreInm as any)?.es_condominio ? condoPadreInm?.inmueble : null);
       const condoNombre = condoPadreId ? (condoNames[condoPadreId] || condoPadreId) : null;
 
-      // Si pertenece a un régimen de condominio centralizado Y NO tiene multas individuales pendientes, queda bloqueado.
-      // Si tiene multas pendientes (MULTA-...), permitirle ver y pagar únicamente las multas.
-      if (isCondo && c.receipts.length === 0) {
+      // Si pertenece a un régimen de condominio centralizado (no es uno de los 4 de pago individual), no muestra ni aseo ni multa en el portal
+      if (isCondo) {
         const hasChildren = c.inms.some((i: any) => i.padre_id === clusterId || (condoPadreInm && i.inmueble !== condoPadreInm.inmueble));
         const displayInms = (hasChildren && condoPadreInm)
           ? c.inms.filter((i: any) => i.inmueble !== condoPadreInm.inmueble)
@@ -1916,11 +1915,21 @@ export default function DondePagarPage() {
                                   Este inmueble pertenece al condominio:{' '}
                                   <strong>{(group as any).condoNombre || (group as any).condoPadreId}</strong>{' '}
                                   {(group as any).condoPadreId ? `(${(group as any).condoPadreId})` : ''}.
-                                  El pago del servicio de aseo urbano se liquida y cancela de forma centralizada por la administración de dicho condominio.
+                                  El pago del servicio de aseo urbano se liquida de forma centralizada por la administración de dicho condominio.
                                 </p>
-                                <p className="mt-1 font-semibold text-purple-900">
-                                  🔒 Inmueble bloqueado para pagos individuales en este módulo. No genera cobranza ni requiere realizar pagos individuales por acá.
+                                <p className="mt-1.5 font-semibold text-purple-950">
+                                  Para verificar posibles multas de esta unidad o gestionar cualquier pago pendiente, por favor comuníquese con nuestro Call Center de Atención al Contribuyente vía WhatsApp al <strong>+58 424-4282365</strong>:
                                 </p>
+                                <div className="mt-2.5">
+                                  <a
+                                    href={`https://wa.me/584244282365?text=${encodeURIComponent(`Hola, deseo verificar multas o pagos pendientes de mi unidad ${group.localId} en ${(group as any).condoNombre || (group as any).condoPadreId || 'condominio'}.`)}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3.5 py-2 rounded-lg text-xs shadow-xs transition-colors"
+                                  >
+                                    <span>💬 Contactar Call Center por WhatsApp (+58 424-4282365)</span>
+                                  </a>
+                                </div>
                               </div>
                             </div>
                             {/* Lista informativa de actividades */}

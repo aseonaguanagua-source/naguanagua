@@ -6,7 +6,7 @@ import { CONDOMINIOS_PAGO_INDIVIDUAL, isCondominioPagoIndividual } from '@/lib/c
  * Valor por defecto para el interruptor del portal "Soy Contribuyente".
  * Si la tabla system_config existe, se usará el valor de ahí en lugar de este.
  */
-export const PORTAL_EN_MANTENIMIENTO = true;
+export const PORTAL_EN_MANTENIMIENTO = false;
 
 export const MENSAJE_MANTENIMIENTO_PORTAL =
   'El portal Soy Contribuyente se encuentra en mantenimiento. Por favor intente más tarde o diríjase a nuestras oficinas de Aseo Urbano.';
@@ -40,8 +40,10 @@ export async function checkPortalMantenimiento(): Promise<boolean> {
   return checkSystemConfig('PORTAL_EN_MANTENIMIENTO', PORTAL_EN_MANTENIMIENTO);
 }
 
+export const PORTAL_WHATSAPP_URL = 'https://wa.me/584244282365?text=Hola%2C%20deseo%20verificar%20mi%20estado%20de%20cuenta%20y%20multas%20pendientes%20de%20mi%20inmueble%20en%20condominio.';
+
 export const MENSAJE_CONDOMINIO_BLOQUEADO =
-  'Error de conexión (ERR-CONN-R). Por favor revise su conexión a internet. Si persiste la falla por favor comunicarse con los números de atención del IAMEC:\n• Aseo Comercial: 0424-4282365\n• Aseo Residencial: 0424-4282364\n• Atención Mixta (Residencial y Comercial): 0424-4526080 / 0414-5952927';
+  'Estimado Contribuyente: Su inmueble pertenece a un Régimen de Condominio. Para verificar posibles multas, consultar su estado de cuenta o gestionar cualquier pago pendiente correspondiente a su unidad, por favor comuníquese directamente con nuestro Call Center de Atención al Contribuyente vía WhatsApp al +58 424-4282365 (https://wa.me/584244282365), donde un ejecutivo le asistirá de forma inmediata.';
 
 export async function esCondominioDoc(doc: string): Promise<boolean> {
   if (!doc) return false;
@@ -240,17 +242,8 @@ export async function esCondominioDoc(doc: string): Promise<boolean> {
         return true;
       });
 
-      const tieneMultaEnInmuebleCondo = activos.some(i => {
-        if (!esInmDeCondominio(i)) return false;
-        // La matriz de condominio no entra por esta vía, solo unidades hijas con multa individual
-        const code = String(i.inmueble || '').trim().toUpperCase();
-        const esMatriz = condominiosActivosReales.some(c => String(c.codigo || '').trim().toUpperCase() === code) || (i.es_condominio === true && !i.condominio_padre_id && !unitParentMap.has(code));
-        if (esMatriz) return false;
-        return (parseFloat(String(i.multa_bs || '0')) || 0) > 0.01;
-      }) || tieneMultaEnUnidadCondo;
-
       const tieneAlgunCondominio = activos.some(esInmDeCondominio) || Array.from(unitParentMap.values()).some(p => !CONDOMINIOS_PAGO_INDIVIDUAL.includes(p));
-      if (tieneAlgunCondominio && !tieneInmuebleIndividualIndependiente && !tieneMultaEnInmuebleCondo) {
+      if (tieneAlgunCondominio && !tieneInmuebleIndividualIndependiente) {
         return true;
       }
       return false;
@@ -260,7 +253,7 @@ export async function esCondominioDoc(doc: string): Promise<boolean> {
       const todosSonExcepcion = uMatches.every((u: any) =>
         CONDOMINIOS_PAGO_INDIVIDUAL.includes(String(u.condominios?.codigo || '').trim().toUpperCase())
       );
-      if (todosSonExcepcion || tieneMultaEnUnidadCondo) return false;
+      if (todosSonExcepcion) return false;
       return true;
     }
   } catch (err) {

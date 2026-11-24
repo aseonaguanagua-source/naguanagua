@@ -381,7 +381,19 @@ export async function GET(request: Request) {
     let retencionesIvaTotalBs = 0;
     let pagosConRetencionCount = 0;
 
-    const pagosEnriquecidos = pagosAll.map((p: any) => {
+    const pagosFiltradosValidos = pagosAll.filter((p: any) => {
+      const t = String(p.tipo || '').trim();
+      if (/retenci|saldo a favor|nota de cr[eé]dito/i.test(t)) return false;
+      let det: any = {};
+      try {
+        det = typeof p.detalles === 'object' && p.detalles !== null ? p.detalles : JSON.parse(p.detalles || '{}');
+      } catch {}
+      const caj = String(det?.cajero || det?.analista || '').trim();
+      if (/^(dz-)?dzara$|^c-dzara$/i.test(caj)) return false;
+      return true;
+    });
+
+    const pagosEnriquecidos = pagosFiltradosValidos.map((p: any) => {
       let det: any = {};
       try {
         det = typeof p.detalles === 'object' && p.detalles !== null ? p.detalles : JSON.parse(p.detalles || '{}');

@@ -601,10 +601,8 @@ export default function EstadoCuentaPage() {
   const isCondoReceipt = (f: any): boolean => {
     if (f?.esReciboCondominioMatriz) return false;
     const ref = String(f?.referencia || '').toUpperCase();
-    // Las multas individuales (MULTA-) SIEMPRE se muestran para que el hijo de condominio pueda cancelarlas
-    if (ref.startsWith('MULTA-')) return false;
     const inmId = String(f?.inmueble || '').toUpperCase();
-    // Excluir recibos de aseo mensual de cualquier inmueble que pertenezca a régimen de condominio centralizado
+    // Excluir recibos y multas de cualquier inmueble que pertenezca a régimen de condominio centralizado (salvo los 4 condominios con excepción)
     const matched = misInmuebles.find((i: any) => i.inmueble && (ref.includes(String(i.inmueble).toUpperCase()) || inmId === String(i.inmueble).toUpperCase()));
     if (matched && !matched.esSesionCondominioMatriz && isCondominioInm(matched, misInmuebles)) {
       return true;
@@ -860,10 +858,8 @@ export default function EstadoCuentaPage() {
         }
 
         // Si el inmueble pertenece a un condominio centralizado (no es uno de los 4 condominios con pago individual):
-        // Su servicio de aseo mensual lo cancela el condominio matriz; en el portal solo aparece su multa a cancelar.
+        // En el portal no se liquida ni aseo ni multa para esta unidad (se verifica vía Call Center +58 424-4282365).
         if (cluster.esCondominio && !condoMatrizFicha && !isCondominioPagoIndividual(inm)) {
-          const multaFijaCondo = Math.round((parseFloat(String(inm.multa_bs || '0')) || 0) * 100) / 100;
-          subtotalMultasLocal += multaFijaCondo;
           return {
             inmueble: inm.inmueble,
             actividad: stripNivel(inm.actividad_principal || 'Unidad en Condominio'),
@@ -872,9 +868,9 @@ export default function EstadoCuentaPage() {
             iMes: 0,
             baseTotal: 0,
             ivaTotal: 0,
-            multaTotal: multaFijaCondo,
-            total: multaFijaCondo,
-            esCasoSinMulta: multaFijaCondo <= 0
+            multaTotal: 0,
+            total: 0,
+            esCasoSinMulta: true
           };
         }
 
@@ -1591,11 +1587,23 @@ export default function EstadoCuentaPage() {
                 {cluster.esCondominio && !condoMatrizFicha && (
                   <div className="px-4 py-3 bg-amber-50 border-b border-amber-200 text-xs text-amber-950 flex items-start gap-2.5">
                     <Building className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-                    <div className="space-y-0.5">
-                      <strong className="text-amber-900">Inmueble / Local dentro de Condominio:</strong> Este inmueble forma parte de un régimen de condominio centralizado.
+                    <div className="space-y-1.5 flex-1">
+                      <div>
+                        <strong className="text-amber-900">Inmueble / Local dentro de Condominio:</strong> Este inmueble forma parte de un régimen de condominio centralizado.
+                      </div>
                       <p className="text-[11px] text-amber-900/90 leading-relaxed">
-                        Para consultar el detalle de su estado de cuenta, solvencia tributaria o aclarar <strong>multas y cuotas correspondientes al condominio</strong>, debe <strong>comunicarse y coordinar directamente con la Junta o Directiva de su Condominio</strong>, la cual administra el servicio y pagos centralizados ante el IAMEC.
+                        Para <strong>verificar posibles multas, consultar su estado de cuenta o gestionar cualquier pago pendiente</strong> correspondiente a esta unidad, comuníquese directamente con nuestro <strong>Call Center de Atención al Contribuyente vía WhatsApp al +58 424-4282365</strong>.
                       </p>
+                      <div>
+                        <a
+                          href={`https://wa.me/584244282365?text=${encodeURIComponent(`Hola, deseo verificar multas o pagos pendientes de mi unidad ${cluster.localId} en condominio.`)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg text-[11px] shadow-2xs transition-colors"
+                        >
+                          <span>💬 Verificar Multa / Pago en Call Center (+58 424-4282365)</span>
+                        </a>
+                      </div>
                     </div>
                   </div>
                 )}

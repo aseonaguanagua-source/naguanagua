@@ -68,7 +68,7 @@ const COLORS_METODO = ['#10b981', '#38bdf8', '#a855f7'];
 const COLORS_MOROSIDAD = ['#10b981', '#eab308', '#f97316', '#ef4444', '#991b1b'];
 
 const isDebitoPago = (p: any) =>
-  p.tipo === 'Debito' || p.tipo === 'REC' || p.tipo === 'Punto de Venta';
+  /^(d[eé]bito|cr[eé]dito|tmd|tvd)\b|punto|tarjeta|^rec$/i.test(String(p?.tipo || '').trim());
 
 export default function PresidenciaDashboard() {
   const router = useRouter();
@@ -253,24 +253,32 @@ export default function PresidenciaDashboard() {
       maximumFractionDigits: 2,
     })}`;
 
-  // Pagos con aplicarMontoReporte
+  // Pagos con aplicarMontoReporte (filtrando retenciones, notas de crédito y pruebas idéntico a RecaudacionWidget y Reportes de Caja)
   const pagosNormalizados = useMemo(() => {
     const raw = statsData?.pagos || [];
-    return raw.map((p: any) => aplicarMontoReporte(p));
+    return raw
+      .map((p: any) => aplicarMontoReporte(p))
+      .filter((p: any) => {
+        const t = String(p.tipo || '').trim();
+        if (/retenci|saldo a favor|nota de cr[eé]dito/i.test(t)) return false;
+        const caj = String(p.cajero || p.detalles?.cajero || p.detalles?.analista || '').trim();
+        if (/^(dz-)?dzara$|^c-dzara$/i.test(caj)) return false;
+        return (parseFloat(p.monto) || 0) > 0;
+      });
   }, [statsData]);
 
-  // Pagos filtrados por rango de fecha seleccionado
+  // Pagos filtrados por rango de fecha seleccionado (en zona horaria Venezuela UTC-4, idéntico a RecaudacionWidget)
   const pagosPeriodo = useMemo(() => {
     if (!pagosNormalizados.length) return [];
-    const start = fechaDesde ? new Date(`${fechaDesde}T00:00:00`) : new Date('2020-01-01');
-    const end = fechaHasta ? new Date(`${fechaHasta}T23:59:59.999`) : new Date('2099-12-31');
+    const start = fechaDesde ? new Date(`${fechaDesde}T00:00:00-04:00`) : new Date('2020-01-01T00:00:00-04:00');
+    const end = fechaHasta ? new Date(`${fechaHasta}T23:59:59.999-04:00`) : new Date('2099-12-31T23:59:59.999-04:00');
     return pagosNormalizados.filter((p: any) => {
       const d = new Date(p.created_at);
       return d >= start && d <= end;
     });
   }, [pagosNormalizados, fechaDesde, fechaHasta]);
 
-  // Métricas financieras del período
+  // Métricas financieras del período (suma estrictamente pagos Aprobados como recaudación real, idéntico al Widget de Inicio y Cuadre de Caja)
   const finanzasPeriodo = useMemo(() => {
     let totalBs = 0;
     let debitoBs = 0;
@@ -294,10 +302,17 @@ export default function PresidenciaDashboard() {
 
     pagosPeriodo.forEach((p: any) => {
       const m = parseFloat(p.monto) || 0;
-      totalBs += m;
 
-      if (p.estado === 'Aprobado') aprobadosCount++;
-      else porVerificarCount++;
+      if (p.estado === 'Aprobado') {
+        aprobadosCount++;
+      } else {
+        if (p.estado === 'Por Verificar' || p.estado === 'Pendiente') {
+          porVerificarCount++;
+        }
+        return; // Solo los pagos Aprobados se suman a la Recaudación Oficial
+      }
+
+      totalBs += m;
 
       const esDeb = isDebitoPago(p);
       if (esDeb) {
@@ -410,10 +425,10 @@ export default function PresidenciaDashboard() {
       debitoCount,
       transfBs,
       transfCount,
-      totalOps: pagosPeriodo.length,
+      totalOps: aprobadosCount,
       aprobadosCount,
       porVerificarCount,
-      ticketPromedioBs: pagosPeriodo.length > 0 ? totalBs / pagosPeriodo.length : 0,
+      ticketPromedioBs: aprobadosCount > 0 ? totalBs / aprobadosCount : 0,
       bancamigaBs,
       banescoBs,
       serieDiaria,
@@ -424,9 +439,10 @@ export default function PresidenciaDashboard() {
     };
   }, [pagosPeriodo, convertirMonto]);
 
-  // Pagos filtrados para la tabla interactiva
+  // Pagos filtrados para la tabla interactiva (solo pagos Aprobados por defecto para coincidir con el total recaudado)
   const pagosTabla = useMemo(() => {
     return pagosPeriodo.filter((p: any) => {
+      if (p.estado !== 'Aprobado') return false;
       if (filtroMetodo === 'DEBITO' && !isDebitoPago(p)) return false;
       if (filtroMetodo === 'TRANSFERENCIA' && isDebitoPago(p)) return false;
       if (filtroSector !== 'TODOS' && p.sector !== filtroSector) return false;

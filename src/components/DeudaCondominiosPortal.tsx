@@ -200,27 +200,25 @@ export default function DeudaCondominiosPortal({ identidad }: { identidad: strin
               );
             })}
 
-          <div className="bg-white/80 border border-amber-200 rounded-xl p-3 text-xs text-amber-950 space-y-1.5 mt-2">
+          <div className="bg-white/90 border border-amber-200 rounded-xl p-3.5 text-xs text-amber-950 space-y-2.5 mt-2">
             <div className="flex items-start gap-2 font-bold text-amber-900">
               <Users className="w-4 h-4 text-orange-600 shrink-0 mt-0.5" />
-              <span>Aviso Importante sobre su Estado de Cuenta y Multas de Condominio:</span>
+              <span>Verificación de Multas y Gestión de Pagos de Unidad en Condominio:</span>
             </div>
             <p className="text-[11px] text-slate-700 leading-normal pl-6">
-              De acuerdo a la ordenanza municipal tributaria, la facturación general, solvencia y liquidación del servicio de aseo urbano de las áreas del condominio se gestiona <strong>de manera centralizada a través de la Junta o Directiva de su Condominio</strong> ante el IAMEC.
+              De acuerdo a la normativa municipal tributaria, el servicio ordinario de aseo urbano de las unidades dentro de este condominio se gestiona de manera centralizada. Para <strong>verificar posibles multas, consultar el estado de cuenta de su unidad o realizar un pago pendiente</strong>, comuníquese directamente con nuestro <strong>Call Center de Atención al Contribuyente</strong>:
             </p>
-            <p className="text-[11px] text-slate-700 leading-normal pl-6">
-              Para consultar su estado de cuenta, solicitar aclaratorias de solvencia o gestionar <strong>multas y cuotas correspondientes al condominio</strong>, le recordamos <strong>comunicarse y coordinar directamente con la Directiva o Administradora de su Condominio</strong>, quien representa al inmueble matriz ante la administración tributaria municipal.
-            </p>
+            <div className="pl-6 pt-1">
+              <a
+                href="https://wa.me/584244282365?text=Hola%2C%20deseo%20verificar%20mi%20estado%20de%20cuenta%20y%20multas%20pendientes%20de%20mi%20inmueble%20en%20condominio."
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3.5 py-2 rounded-lg text-xs shadow-xs transition-colors"
+              >
+                <span>💬 Comunícate con el Call Center vía WhatsApp (+58 424-4282365)</span>
+              </a>
+            </div>
           </div>
-
-          {tieneMultas && (
-            <div className="flex items-center gap-2 bg-rose-50 border border-rose-200 text-rose-900 px-3 py-2 rounded-xl text-xs font-semibold mt-2">
-              <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0" />
-              <span>
-                Nota sobre multas: Cualquier recargo o multa derivado de períodos pendientes del condominio debe ser regularizado mediante la Directiva de su Condominio en la Dirección de Condominios del IAMEC.
-              </span>
-            </div>
-          )}
         </div>
       </div>
 
@@ -231,7 +229,7 @@ export default function DeudaCondominiosPortal({ identidad }: { identidad: strin
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {condoUnits.map((u, idx) => (
-              <div key={idx} className="bg-white/90 border border-amber-200 rounded-lg p-2.5 text-xs flex justify-between items-center">
+              <div key={idx} className="bg-white/90 border border-amber-200 rounded-lg p-2.5 text-xs flex justify-between items-center gap-2">
                 <div>
                   <div className="font-mono font-bold text-slate-800">
                     {u.inmueble} {u.numeroLocal ? `· Local ${u.numeroLocal}` : ''}
@@ -245,21 +243,15 @@ export default function DeudaCondominiosPortal({ identidad }: { identidad: strin
                     </div>
                   )}
                 </div>
-                <div className="text-right">
-                  {u.multaBs && u.multaBs > 0 ? (
-                    <span className="text-[10px] font-black text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200 block">
-                      Multa: Bs. {formatBs(u.multaBs)}
-                    </span>
-                  ) : u.multaMeses && u.multaMeses > 0 ? (
-                    <span className="text-[10px] font-black text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200 block">
-                      {u.multaMeses} mes(es) mora
-                    </span>
-                  ) : (
-                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 block">
-                      Al día
-                    </span>
-                  )}
-                  <span className="text-[9px] text-slate-400 block mt-0.5">Directiva Condominio</span>
+                <div className="text-right shrink-0">
+                  <a
+                    href={`https://wa.me/584244282365?text=${encodeURIComponent(`Hola, deseo verificar multas o pagos pendientes de mi unidad ${u.inmueble} en ${u.condominioNombre}.`)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[10px] font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded border border-emerald-300 inline-block transition-colors"
+                  >
+                    Verificar en Call Center →
+                  </a>
                 </div>
               </div>
             ))}

@@ -305,8 +305,22 @@ export default function PortalLogin() {
             </p>
 
             {error && (
-              <div className="mb-4 p-3.5 bg-red-50 border border-red-200 text-red-600 rounded-xl text-xs text-left font-medium whitespace-pre-line leading-relaxed">
-                {error}
+              <div className={`mb-4 p-4 rounded-xl text-xs text-left font-medium whitespace-pre-line leading-relaxed border ${
+                error.includes('424-4282365') || error.includes('wa.me/584244282365')
+                  ? 'bg-emerald-50 border-emerald-300 text-emerald-950'
+                  : 'bg-red-50 border-red-200 text-red-600'
+              }`}>
+                <p>{error.replace(' (https://wa.me/584244282365)', '')}</p>
+                {(error.includes('424-4282365') || error.includes('wa.me/584244282365')) && (
+                  <a
+                    href="https://wa.me/584244282365?text=Hola%2C%20deseo%20verificar%20mi%20estado%20de%20cuenta%20y%20multas%20pendientes%20de%20mi%20inmueble%20en%20condominio."
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-3 w-full inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-3 rounded-lg text-xs shadow-sm transition-colors"
+                  >
+                    <span>💬 Contactar Call Center por WhatsApp (+58 424-4282365)</span>
+                  </a>
+                )}
               </div>
             )}
 
