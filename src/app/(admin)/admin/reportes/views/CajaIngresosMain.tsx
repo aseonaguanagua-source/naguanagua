@@ -246,7 +246,7 @@ function coincideBusqueda(p: any, term: string, contribuyentes: any[] | Map<stri
 
 import { LISTA_BANCOS } from '@/lib/bancos';
 
-const SUB_TIPOS: SubTipo[] = ['General de Ingresos', 'Corte de Caja', 'Ingresos por Banco', 'Libro de Ventas', 'Resumen Libro de Ventas'];
+const SUB_TIPOS: SubTipo[] = ['General de Ingresos', 'Corte de Caja', 'Ingresos por Banco'];
 const BANCOS = LISTA_BANCOS;
 
 export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser, tcmmv, contribuyentes, onBack, onPagoActualizado }: Props) {

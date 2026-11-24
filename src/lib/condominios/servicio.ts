@@ -366,10 +366,13 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasaRaw: numb
     const res = M.unidadResidencial(c, mu || null);
     const tMulta = res ? M.TASA_MULTA_RES : M.TASA_MULTA_COM;
     // Unidad registrada: usa siempre sus propios meses y multas. Solo las unidades declaradas sin registrar (!u) heredan del condominio.
+    // En condominios residenciales centralizados (!M.porActividad(c)), cuando el condominio matriz ya fue cancelado al día (condoRow.aseo_pendiente_desde === null), todas sus unidades quedan solventes.
     const esGrupoOuNA = Boolean(mu?.es_grupo || (String(u?.actividad || '').trim().toUpperCase() === 'N/A' && !(Number(u?.tarifa_mmv) > 0)));
-    const desde = u
-      ? (u.aseo_pendiente_desde !== undefined ? u.aseo_pendiente_desde : (padre ? padre.aseo_pendiente_desde : (esGrupoOuNA ? null : condoRow.aseo_pendiente_desde)))
-      : condoRow.aseo_pendiente_desde;
+    const desde = (!M.porActividad(c) && !condoRow.aseo_pendiente_desde)
+      ? null
+      : (u
+        ? (u.aseo_pendiente_desde !== undefined ? u.aseo_pendiente_desde : (padre ? padre.aseo_pendiente_desde : (esGrupoOuNA ? null : condoRow.aseo_pendiente_desde)))
+        : condoRow.aseo_pendiente_desde);
     const notasInmCheck = String((u && !esGrupoOuNA) ? (u.notas_inmueble || padre?.notas_inmueble || '') : (condoRow.notas_inmueble || condoRow.notas || ''));
     const rawPeriodos = M.periodosPendientes(r.montoBs > 0 ? desde : null, hoy);
     const pagadosUnidadSet = new Set<string>();

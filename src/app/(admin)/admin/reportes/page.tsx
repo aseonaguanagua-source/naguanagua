@@ -33,7 +33,6 @@ const CARDS = [
   { id: 'recibos-pagos' as ActiveView,         label: 'Reporte de Recibos de Pagos',    emoji: '🧾',  desc: 'Excel de recibos de pago emitidos',                    adminOnly: false },
   { id: 'conciliacion-bancaria' as ActiveView, label: 'Conciliación Bancaria',          emoji: '🏦',  desc: 'Transferencias por mes y banco (Banesco / Bancamiga)', adminOnly: false },
   { id: 'puntos-venta' as ActiveView,          label: 'Total Puntos de Venta',          emoji: '💳',  desc: 'Débitos por caja, totales por caja y general',         adminOnly: false },
-  { id: 'servicios' as ActiveView,             label: 'Servicios Esp. y Ext.',          emoji: '🛠️',  desc: 'Reporte oficial de Servicios Especiales y Extraordinarios', adminOnly: false },
   { id: 'corte' as ActiveView,                 label: 'Cuadre de Caja',                 emoji: '🗂️',  desc: 'Cuadre diario por cajero y forma de pago',            adminOnly: false },
   { id: 'transferencias' as ActiveView,        label: 'Monitoreo Transferencias',       emoji: '🔍',  desc: 'Por Verificar, Pendiente, Débito y Aprobadas',         adminOnly: true  },
   { id: 'morosos' as ActiveView,               label: 'Reporte Morosos',                emoji: '🔴',  desc: 'Contribuyentes con deuda pendiente',                  adminOnly: false },
@@ -588,7 +587,19 @@ export default function ReportesPage() {
 
   if (activeView === 'transferencias') {
     const fmtBsR = (n: number) => n.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const fmtDateR = (d: string) => { try { return new Date(d).toLocaleDateString('es-VE'); } catch { return d; } };
+    const fmtDateR = (d: string) => {
+      if (!d) return '-';
+      const s = String(d).trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+        const [y, m, day] = s.split('-');
+        return `${Number(day)}/${Number(m)}/${y}`;
+      }
+      try {
+        return new Date(s).toLocaleDateString('es-VE', { timeZone: 'America/Caracas' });
+      } catch {
+        return d;
+      }
+    };
     const getNombreR = (p: any) => {
       if (!p.identidad) return p.contribuyente || '';
       const clean = (s: string) => (s||'').replace(/[-.\s]/g,'').toUpperCase();
@@ -597,29 +608,139 @@ export default function ReportesPage() {
       return f?.contribuyente||f?.Contribuyente||p.contribuyente||'';
     };
     const getDetR = (p: any) => { try { return typeof p.detalles==='object'?p.detalles:JSON.parse(p.detalles||'{}'); } catch { return {}; } };
-    const isDebitoR = (p: any) => p.tipo==='Debito'||p.tipo==='REC'||p.tipo==='Punto de Venta';
-    const pagosR = pagos.filter(p => {
+    const isSaldoR = (p: any) => {
+      const t = String(p.tipo || '').toUpperCase().trim();
       const det = getDetR(p);
-      const d = new Date(p.created_at);
-      const dFac = det.factura_digital?.fecha_emision ? new Date(det.factura_digital.fecha_emision) : null;
-      const dConc = det.fecha_conciliado ? new Date(det.fecha_conciliado) : null;
-      const dTx = det.fecha_transaccion ? new Date(String(det.fecha_transaccion).slice(0, 10) + 'T12:00:00-04:00') : null;
-      const dBco = det.fecha_banco ? new Date(String(det.fecha_banco).slice(0, 10) + 'T12:00:00-04:00') : null;
-      const dOver = det.fecha_emision_override ? new Date(String(det.fecha_emision_override).slice(0, 10) + 'T12:00:00-04:00') : null;
-      const s = new Date(tfecha+'T00:00:00.000-04:00'); const e = new Date(tfechaFin+'T23:59:59.999-04:00');
-      const enRango =
-        (d >= s && d <= e) ||
-        (dFac && !isNaN(dFac.getTime()) && dFac >= s && dFac <= e) ||
-        (dConc && !isNaN(dConc.getTime()) && dConc >= s && dConc <= e) ||
-        (dTx && !isNaN(dTx.getTime()) && dTx >= s && dTx <= e) ||
-        (dBco && !isNaN(dBco.getTime()) && dBco >= s && dBco <= e) ||
-        (dOver && !isNaN(dOver.getTime()) && dOver >= s && dOver <= e);
-      if (!enRango) return false;
+      if (t && !t.includes('SALDO') && !t.includes('NOTA DE CREDITO') && !t.includes('NOTA DE CRÉDITO')) return false;
+      const paList = Array.isArray(det.pagos_agregados) ? det.pagos_agregados : [];
+      if (paList.some((x: any) => x?.metodo && !String(x.metodo).toUpperCase().includes('SALDO'))) return false;
+      const detTipo = String(det.tipo || '').toUpperCase();
+      return t.includes('SALDO') || t.includes('NOTA DE CREDITO') || t.includes('NOTA DE CRÉDITO') ||
+             detTipo.includes('SALDO') || detTipo.includes('NOTA DE CREDITO') || detTipo.includes('NOTA DE CRÉDITO') ||
+             Boolean(det.es_saldo_a_favor || det.es_nota_credito);
+    };
+    const isRetencionR = (p: any) => {
+      const t = String(p.tipo || '').toUpperCase().trim();
+      const det = getDetR(p);
+      return t.includes('RETENCION') || t.includes('RETENCIÓN') || Boolean(det?.es_retencion && !t.includes('TRANSFERENCIA') && !t.includes('DEBITO') && !t.includes('DÉBITO') && !t.includes('CREDITO') && !t.includes('CRÉDITO') && !t.includes('TMD') && !t.includes('TVD'));
+    };
+    const isDebitoPOSR = (p: any) => {
+      if (isSaldoR(p)) return false;
+      const t = String(p.tipo || '').toUpperCase().trim();
+      return (t.includes('DEBITO') || t.includes('DÉBITO') || t === 'REC' || t === 'PUNTO DE VENTA') && !t.includes('CREDITO') && !t.includes('CRÉDITO') && !t.includes('TMD') && !t.includes('TVD');
+    };
+    const isCreditoPOSR = (p: any) => {
+      if (isSaldoR(p)) return false;
+      const t = String(p.tipo || '').toUpperCase().trim();
+      return (t.includes('CREDITO') || t.includes('CRÉDITO') || t.includes('TMD') || t.includes('TVD')) && !t.includes('NOTA');
+    };
+    const isTarjetaR = (p: any) => isDebitoPOSR(p) || isCreditoPOSR(p);
+    const parseMontoNumR = (v: any): number => {
+      if (typeof v === 'number') return isNaN(v) ? 0 : v;
+      if (!v) return 0;
+      const s = String(v).trim();
+      if (s.includes(',') && s.includes('.')) {
+        return Number(s.lastIndexOf(',') > s.lastIndexOf('.') ? s.replace(/\./g, '').replace(',', '.') : s.replace(/,/g, '')) || 0;
+      }
+      if (s.includes(',')) return Number(s.replace(',', '.')) || 0;
+      return Number(s) || 0;
+    };
+    const obtenerMontoEfectivoR = (p: any): number => {
+      if (isTarjetaR(p)) return parseFloat(p.monto) || 0;
+      const d = getDetR(p);
+      if (d?.monto_reporte != null) return parseMontoNumR(d.monto_reporte);
+      const mBase = parseMontoNumR(p?.monto);
+      const tUpper = String(p.tipo || '').toUpperCase().trim();
+      if (tUpper.includes('DEPOSITO') || tUpper.includes('DEPÓSITO')) return mBase;
+      const mConc = parseMontoNumR(d?.monto_conciliado);
+      const esMultiple = Boolean(
+        d?.es_pago_adicional ||
+        d?.abono_completado ||
+        (Array.isArray(d?.pagos_agregados) && d.pagos_agregados.filter((x: any) => !/saldo\s*a\s*favor|nota\s*de\s*cr[eé]dito|desc\.?\s*saldo/i.test(String(x?.metodo || x?.tipo || x?.referencia || ''))).length > 1) ||
+        (Array.isArray(d?.formasPago) && d.formasPago.filter((x: any) => !/saldo\s*a\s*favor|nota\s*de\s*cr[eé]dito|desc\.?\s*saldo/i.test(String(x?.metodo || x?.tipo || x?.referencia || ''))).length > 1)
+      );
+      if (esMultiple && mBase > 0 && mConc > mBase + 1) return mBase;
+      if (mConc > 0 && (!Array.isArray(d?.pagos_agregados) || !d.pagos_agregados.some((x: any) => /saldo\s*a\s*favor/i.test(String(x?.referencia || x?.metodo || ''))))) return mConc;
+      return mBase || mConc;
+    };
+    const pagoPorIdR = new Map<string, any>();
+    for (const p of pagos) {
+      if (p?.id) pagoPorIdR.set(String(p.id), p);
+    }
+    const parseFechaCaracasR = (val: any): Date | null => {
+      if (!val) return null;
+      const s = String(val).trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+        const d = new Date(`${s}T12:00:00-04:00`);
+        return !isNaN(d.getTime()) ? d : null;
+      }
+      const d = new Date(s);
+      return !isNaN(d.getTime()) ? d : null;
+    };
+    const obtenerFechaEfectivaR = (p: any, det: any): Date => {
+      const corrList = Array.isArray(det.correcciones_reporte) ? det.correcciones_reporte : [];
+      const lastCorr = corrList.length > 0 ? corrList[corrList.length - 1] : null;
+      const corrTieneFecha = Boolean(
+        lastCorr?.fecha_nueva &&
+        String(lastCorr.fecha_anterior || '').slice(0, 10) !== String(lastCorr.fecha_nueva).slice(0, 10)
+      );
+      if (corrTieneFecha && lastCorr?.fecha_nueva) {
+        const dCorr = parseFechaCaracasR(lastCorr.fecha_nueva);
+        if (dCorr) return dCorr;
+      }
+      if (!isTarjetaR(p)) {
+        const fd = det.factura_digital || {};
+        const pagoPadre = det.pago_principal_id ? pagoPorIdR.get(String(det.pago_principal_id)) : null;
+        const detPadre = pagoPadre ? getDetR(pagoPadre) : null;
+        const fdPadre = detPadre?.factura_digital || {};
+        const rc0 = Array.isArray(det.recibo_caja) ? det.recibo_caja[0] : det.recibo_caja;
+        const rcPadre0 = Array.isArray(detPadre?.recibo_caja) ? detPadre.recibo_caja[0] : detPadre?.recibo_caja;
+        const candidatos = [
+          det.fecha_emision_override,
+          (fd.emitida || fd.numero_documento || fd.numero_control) ? fd.fecha_emision : '',
+          detPadre?.fecha_emision_override,
+          (fdPadre?.emitida || fdPadre?.numero_documento || fdPadre?.numero_control) ? fdPadre.fecha_emision : '',
+          rc0?.fechaEmision,
+          rcPadre0?.fechaEmision,
+          det.fecha_transaccion,
+          rc0?.fechaIngresoCaja,
+          rcPadre0?.fechaIngresoCaja,
+          det.fecha_ingreso_caja,
+        ];
+        for (const c of candidatos) {
+          const dCand = parseFechaCaracasR(c);
+          if (dCand) return dCand;
+        }
+        const createdStr = String(p.created_at || '');
+        if (createdStr.includes('T16:00:00') && det.recibo_caja_at) {
+          const dReal = new Date(det.recibo_caja_at);
+          if (!isNaN(dReal.getTime())) return dReal;
+        }
+      }
+      return new Date(p.created_at);
+    };
+    const pagosR = pagos.filter(p => {
+      if (p.estado === 'Anulado' || p.estado === 'Reversado' || p.estado === 'Condonado' || p.estado === 'Rechazado') return false;
+      if (isSaldoR(p) || isRetencionR(p)) return false;
+      const det = getDetR(p);
+      const cajTest = String(det?.cajero || det?.analista || '').trim();
+      if (/^(dz-)?dzara$|^c-dzara$/i.test(cajTest)) return false;
+      if (det?.monto_reporte != null && Number(det.monto_reporte) <= 0 && (Number(p?.monto) || 0) <= 0) return false;
+      const d = obtenerFechaEfectivaR(p, det);
+      let dYmd = '';
+      try {
+        dYmd = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' }).format(d);
+      } catch {
+        dYmd = !isNaN(d.getTime()) ? d.toISOString().slice(0, 10) : String(p.created_at || '').slice(0, 10);
+      }
+      if (!dYmd || dYmd < tfecha || dYmd > tfechaFin) return false;
       if (testado !== 'Todos' && p.estado !== testado) return false;
       return true;
     }).sort((a,b) => new Date(b.created_at).getTime()-new Date(a.created_at).getTime());
-    const totalD = pagosR.filter(isDebitoR).reduce((s,p)=>s+(parseFloat(p.monto)||0),0);
-    const totalT = pagosR.filter(p=>!isDebitoR(p)).reduce((s,p)=>s+(parseFloat(p.monto)||0),0);
+    const totalDebitoPOS = pagosR.filter(isDebitoPOSR).reduce((s,p)=>s+obtenerMontoEfectivoR(p),0);
+    const totalCreditoPOS = pagosR.filter(isCreditoPOSR).reduce((s,p)=>s+obtenerMontoEfectivoR(p),0);
+    const totalD = totalDebitoPOS + totalCreditoPOS;
+    const totalT = pagosR.filter(p=>!isTarjetaR(p)).reduce((s,p)=>s+obtenerMontoEfectivoR(p),0);
     const estados = ['Todos','Por Verificar','Aprobado','Con Diferencia','Pendiente'];
     const getColor = (e: string) => e==='Aprobado'?'#166534':e==='Por Verificar'?'#92400e':e==='Con Diferencia'?'#5b21b6':e==='Pendiente'?'#991b1b':'#555';
     return (
@@ -639,7 +760,7 @@ export default function ReportesPage() {
               </select>
             </div>
             <div className="text-xs text-slate-500 self-end pb-2">
-              Débito: <b className="text-emerald-700">Bs. {fmtBsR(totalD)}</b> | Transferencia: <b className="text-blue-700">Bs. {fmtBsR(totalT)}</b> | Total registros: <b>{pagosR.length}</b>
+              Punto (Débito + Crédito): <b className="text-emerald-700">Bs. {fmtBsR(totalD)}</b> <span className="text-[11px] text-slate-400">(Débito: Bs. {fmtBsR(totalDebitoPOS)} · Crédito TMD/TVD: Bs. {fmtBsR(totalCreditoPOS)})</span> | Transferencia: <b className="text-blue-700">Bs. {fmtBsR(totalT)}</b> | Total registros: <b>{pagosR.length}</b>
             </div>
           </div>
           <div className="overflow-x-auto">
@@ -657,11 +778,13 @@ export default function ReportesPage() {
                   let recs: string[] = [];
                   try { recs = det.recibos||[]; } catch{}
                   const cajero = det.cajero||det.analista||'-';
+                  const fechaEf = obtenerFechaEfectivaR(p, det);
+                  const tipoLabel = isDebitoPOSR(p) ? 'Débito' : isCreditoPOSR(p) ? `Crédito (${p.tipo})` : 'Transf.';
                   return (
                     <tr key={p.id} style={{background:i%2===0?'#fff':'#f9fafe'}}>
                       <td style={{padding:'5px 8px',borderBottom:'1px solid #f0f0f0'}}>{i+1}</td>
-                      <td style={{padding:'5px 8px',borderBottom:'1px solid #f0f0f0',whiteSpace:'nowrap'}}>{fmtDateR(p.created_at)}</td>
-                      <td style={{padding:'5px 8px',borderBottom:'1px solid #f0f0f0',fontWeight:700}}>{isDebitoR(p)?'Débito':'Transf.'}</td>
+                      <td style={{padding:'5px 8px',borderBottom:'1px solid #f0f0f0',whiteSpace:'nowrap'}}>{fmtDateR(fechaEf.toISOString())}</td>
+                      <td style={{padding:'5px 8px',borderBottom:'1px solid #f0f0f0',fontWeight:700}}>{tipoLabel}</td>
                       <td style={{padding:'5px 8px',borderBottom:'1px solid #f0f0f0',color:'#444'}}>{cajero}</td>
                       <td style={{padding:'5px 8px',borderBottom:'1px solid #f0f0f0',color:'#2a5298',fontWeight:600}}>{p.identidad||'-'}</td>
                       <td style={{padding:'5px 8px',borderBottom:'1px solid #f0f0f0',maxWidth:160,overflow:'hidden',textOverflow:'ellipsis'}}>{getNombreR(p)||'-'}</td>
@@ -669,7 +792,7 @@ export default function ReportesPage() {
                       <td style={{padding:'5px 8px',borderBottom:'1px solid #f0f0f0'}}>{p.banco||'-'}</td>
                       <td style={{padding:'5px 8px',borderBottom:'1px solid #f0f0f0'}}>{p.referencia||'-'}</td>
                       <td style={{padding:'5px 8px',borderBottom:'1px solid #f0f0f0',fontWeight:700,color:getColor(p.estado)}}>{p.estado||'-'}</td>
-                      <td style={{padding:'5px 8px',borderBottom:'1px solid #f0f0f0',textAlign:'right',fontWeight:700}}>{fmtBsR(parseFloat(p.monto)||0)}</td>
+                      <td style={{padding:'5px 8px',borderBottom:'1px solid #f0f0f0',textAlign:'right',fontWeight:700}}>{fmtBsR(obtenerMontoEfectivoR(p))}</td>
                     </tr>
                   );
                 })}
