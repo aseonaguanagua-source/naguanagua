@@ -960,7 +960,8 @@ export async function POST(request: Request) {
 
     const saldoFavorGeneradoRaw = parseFloat(String(detPago.saldo_a_favor_nuevo || detPago.monto_sobrante || detPago.saldo_favor || detPago.saldo_favor_generado || 0)) || 0;
     const saldoFavorGenerado = (() => {
-      if (saldoFavorGeneradoRaw > 0) return saldoFavorGeneradoRaw;
+      // Un redondeo de 1 a 5 céntimos (<= 0.05 Bs) por cambio de tasa BCV NUNCA es un saldo a favor ni Nota de Crédito
+      if (saldoFavorGeneradoRaw > 0.05) return saldoFavorGeneradoRaw;
       const tieneSaldoFavorCeroExplicito = detPago.saldo_favor === 0 || detPago.saldo_favor_generado === 0;
       if (tieneSaldoFavorCeroExplicito && Array.isArray(detPago.condominio?.lineas) && detPago.condominio.lineas.length > 5) {
         return 0;
@@ -979,7 +980,10 @@ export async function POST(request: Request) {
       (mNetoPagoGuardado > 0 && Math.abs(montoFacturaGuardadoRaw - mNetoPagoGuardado) < 1) ||
       (Math.abs(montoFacturaGuardadoRaw - totalEfectivoPagado) < 1 && Math.abs(montoFacturaGuardadoRaw - (montoRetencionGuardada * 26 / 3)) < 25)
     );
-    const montoFacturaGuardado = esMFacGuardadoNeto ? r2(montoFacturaGuardadoRaw + montoRetencionGuardada) : montoFacturaGuardadoRaw;
+    const montoFacturaGuardadoBase = esMFacGuardadoNeto ? r2(montoFacturaGuardadoRaw + montoRetencionGuardada) : montoFacturaGuardadoRaw;
+    const montoFacturaGuardado = (!conRetencion && totalEfectivoPagado > 0 && montoFacturaGuardadoBase > 0 && Math.abs(totalEfectivoPagado - montoFacturaGuardadoBase) <= 0.05)
+      ? totalEfectivoPagado
+      : montoFacturaGuardadoBase;
 
     const explicitBase = parseFloat(String(montoServicio ?? montos?.servicio ?? 0)) || 0;
     const explicitMulta = parseFloat(String(montoMulta ?? montos?.multa ?? 0)) || 0;
@@ -1237,12 +1241,15 @@ export async function POST(request: Request) {
     // Si los items calculados ya totalizan el servicio real (totalCalculado > 0)
     // y lo pagado/cobrado es igual o mayor (pagaron completo o por encima),
     // el objetivo de la factura electrónica es estrictamente el total del servicio (totalCalculado).
-    // Lo que esté por encima NO se traslada a la factura digital; solo va a la nota de crédito.
+    // Excepción: cuando la diferencia entre montoCobrado y totalCalculado es de 1 a 5 céntimos (<= 0.05 Bs, por redondeo de tasa BCV),
+    // igualar al montoCobrado para que el Total Documento coincida al céntimo con el Monto Conciliado.
     const objetivo = totalManualNum > 0
       ? totalManualNum
       : (conRetencion && montoRetencionGuardada > 0 && montoCobrado > totalCalculado + 1 && Math.abs(totalCalculado + montoRetencionGuardada - montoCobrado) < 5
           ? montoCobrado
-          : (totalCalculado > 0 && montoCobrado >= totalCalculado - 0.05 ? totalCalculado : montoCobrado));
+          : (totalCalculado > 0 && Math.abs(montoCobrado - totalCalculado) <= 0.05
+              ? montoCobrado
+              : (totalCalculado > 0 && montoCobrado > totalCalculado + 0.05 ? totalCalculado : montoCobrado)));
 
     // Caja de Condominios: los renglones ya son exactos (si hubo residenciales, lo cobrado incluye esa parte)
     const aplicarCuadre = totalManualNum > 0 || (lineasCondo ? excluidosResidenciales === 0 : (!esMixto && excluidosResidenciales === 0));
@@ -2047,9 +2054,10 @@ export async function POST(request: Request) {
 
               // Monto registrado en la conciliación del pago (sumando multi-transferencias si aplica)
               const montoConciliado = totalEfectivoPagado > 0 ? totalEfectivoPagado : (parseFloat(String(detPago.monto_conciliado || pagoRow?.monto || 0)) || 0);
-              const saldoFavorGen = saldoFavorGenerado > 0
+              const rawSfg = saldoFavorGenerado > 0
                 ? saldoFavorGenerado
                 : (parseFloat(String(detPago.saldo_a_favor_nuevo || detPago.monto_sobrante || detPago.saldo_favor || 0)) || 0);
+              const saldoFavorGen = rawSfg > 0.05 ? rawSfg : 0;
 
               const fuenteObsMulti: any[] =
                 Array.isArray(formasPago) && formasPago.length > 1

@@ -35,7 +35,8 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
   );
 
   const montoPagado = parseFloat(String(pago?.monto || det.montoTotal || 0));
-  const sFavor = parseFloat(String(det.saldo_a_favor_nuevo || det.monto_sobrante || det.saldo_favor || det.saldo_favor_generado || 0)) || 0;
+  const sFavorRaw = parseFloat(String(det.saldo_a_favor_nuevo || det.monto_sobrante || det.saldo_favor || det.saldo_favor_generado || 0)) || 0;
+  const sFavor = sFavorRaw > 0.05 ? sFavorRaw : 0;
   let retGuardada = parseFloat(String(det.monto_retencion_iva || det.retencion_iva || det.factura_digital?.retencion?.retenido || pago?.montoRetencion || 0)) || 0;
   const sFavorReal = (esRetencion && Math.abs(sFavor - retGuardada) < 0.05) ? 0 : sFavor;
 
@@ -186,8 +187,14 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
   }
 
   const fdTotalGuardado = parseFloat(String(det.factura_digital?.retencion?.total || det.factura_digital?.monto_total || 0)) || 0;
-  const mFacGuardado = parseFloat(String(det.monto_factura || 0)) || 0;
-  const mNetoGuardado = parseFloat(String(det.monto_neto_factura || 0)) || 0;
+  const mFacGuardadoRaw = parseFloat(String(det.monto_factura || 0)) || 0;
+  const mNetoGuardadoRaw = parseFloat(String(det.monto_neto_factura || 0)) || 0;
+  const mFacGuardado = (!esRetencion && montoPagado > 0 && mFacGuardadoRaw > 0 && Math.abs(montoPagado - mFacGuardadoRaw) <= 0.05)
+    ? montoPagado
+    : mFacGuardadoRaw;
+  const mNetoGuardado = (!esRetencion && montoPagado > 0 && mNetoGuardadoRaw > 0 && Math.abs(montoPagado - mNetoGuardadoRaw) <= 0.05)
+    ? montoPagado
+    : mNetoGuardadoRaw;
   const netFromRetEst = retGuardada > 0 ? Math.round((retGuardada * 26 / 3) * 100) / 100 : 0;
 
   if (pago?.totalManual && parseFloat(String(pago.totalManual)) > 0) {

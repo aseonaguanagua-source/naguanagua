@@ -117,29 +117,73 @@ export default function ReportesPage() {
       if (allPagos.length > 0) {
         setPagos(allPagos.map(aplicarMontoReporte));
         if (adminCheck || canViewAllReports) {
+          const CAJEROS_CANONICOS: Record<string, string> = {
+            'arianny': 'A-arianny', 'a-arianny': 'A-arianny', 'arianny seijas': 'A-arianny', 'a-arianny seijas': 'A-arianny',
+            'maira': 'B-maira', 'b-maira': 'B-maira', 'maira castellano': 'B-maira', 'b-maira castellano': 'B-maira',
+            'daniela': 'C-daniela', 'c-daniela': 'C-daniela', 'daniela gonzalez': 'C-daniela', 'c-daniela gonzalez': 'C-daniela',
+            'otto': 'D-otto', 'd-otto': 'D-otto', 'otto schram': 'D-otto', 'd-otto schram': 'D-otto',
+            'luis': 'E-luis', 'e-luis': 'E-luis', 'luis vivas': 'E-luis', 'e-luis vivas': 'E-luis',
+            'omar': 'F-omar', 'f-omar': 'F-omar', 'omar lopez': 'F-omar', 'f-omar lopez': 'F-omar',
+            'marianny': 'H-marianny', 'h-marianny': 'H-marianny', 'marianny orta': 'H-marianny', 'h-marianny orta': 'H-marianny',
+            'nany': 'J-nany', 'j-nany': 'J-nany', 'nany lovera': 'J-nany', 'j-nany lovera': 'J-nany',
+            'johana': 'K-johana', 'k-johana': 'K-johana', 'johana pena': 'K-johana', 'johana peña': 'K-johana', 'k-johana pena': 'K-johana', 'k-johana peña': 'K-johana',
+            'valentina': 'M-valentina', 'm-valentina': 'M-valentina', 'valentina castellanos': 'M-valentina', 'm-valentina castellanos': 'M-valentina',
+            'patricia': 'N-patricia', 'n-patricia': 'N-patricia', 'patricia povis': 'N-patricia', 'n-patricia povis': 'N-patricia',
+            'carlieth': 'O-carlieth', 'o-carlieth': 'O-carlieth', 'carlieth palencia': 'O-carlieth', 'o-carlieth palencia': 'O-carlieth',
+            'mariangel': 'P-mariangel', 'p-mariangel': 'P-mariangel', 'mariangel adarmes': 'P-mariangel', 'p-mariangel adarmes': 'P-mariangel',
+            'nell': 'Q-nell', 'q-nell': 'Q-nell',
+            'damary': 'R-damary', 'damaris': 'R-damary', 'r-damary': 'R-damary', 'r-damaris': 'R-damary', 'damary vina': 'R-damary', 'damary viña': 'R-damary', 'r-damary vina': 'R-damary', 'r-damary viña': 'R-damary',
+            'isamar': 'isamar', 'isamar cortell': 'isamar',
+            'raquel': 'raquel', 'raquel carmona': 'raquel',
+          };
+          const EXCLUIDOS = new Set(['dzara', 'dz-dzara', 'c-dzara', 'damary2', 'x-damary2', 'david', 'z-david', 'zelda', 'z-zelda']);
+          const normalizarCajeroOpcion = (raw: any): string | null => {
+            const s = String(raw || '').trim();
+            if (!s) return null;
+            const lower = s.toLowerCase().replace(/\s+/g, ' ');
+            if (EXCLUIDOS.has(lower)) return null;
+            if (CAJEROS_CANONICOS[lower]) return CAJEROS_CANONICOS[lower];
+            const prefMatch = lower.match(/^([a-z]{1,2})\s*-\s*(.+)$/);
+            if (prefMatch) {
+              const letra = prefMatch[1];
+              const resto = prefMatch[2].trim();
+              if (EXCLUIDOS.has(`${letra}-${resto}`) || EXCLUIDOS.has(resto)) return null;
+              if (CAJEROS_CANONICOS[resto]) return CAJEROS_CANONICOS[resto];
+              const primerNombre = resto.split(' ')[0];
+              if (CAJEROS_CANONICOS[`${letra}-${primerNombre}`]) return CAJEROS_CANONICOS[`${letra}-${primerNombre}`];
+            }
+            return s;
+          };
+
           const cajerosSet = new Set<string>();
           allPagos.forEach((p: any) => {
             try {
               const dets = typeof p.detalles === 'object' ? p.detalles : JSON.parse(p.detalles || '{}');
-              if (dets.cajero) cajerosSet.add(dets.cajero);
-              if (dets.analista) cajerosSet.add(dets.analista);
+              const c1 = normalizarCajeroOpcion(dets.cajero);
+              const c2 = normalizarCajeroOpcion(dets.analista);
+              if (c1) cajerosSet.add(c1);
+              if (c2) cajerosSet.add(c2);
             } catch(e) {}
           });
           // Asegurar inclusión de todos los cajeros activos con letra registrados
           try {
             const { data: trabs } = await supabase
               .from('trabajadores')
-              .select('usuario, letra')
+              .select('usuario, letra, estado')
               .not('letra', 'is', null);
             if (trabs) {
               trabs.forEach((t: any) => {
+                if (String(t.estado || '').toLowerCase() === 'suspendido') return;
                 const u = (t.usuario || '').trim();
                 const l = (t.letra || '').trim().toUpperCase();
-                if (l && u) cajerosSet.add(`${l}-${u}`);
+                if (l && u) {
+                  const norm = normalizarCajeroOpcion(`${l}-${u}`);
+                  if (norm) cajerosSet.add(norm);
+                }
               });
             }
           } catch(e) {}
-          setCajeros(Array.from(cajerosSet).filter(Boolean).sort());
+          setCajeros(Array.from(cajerosSet).filter(Boolean).sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' })));
         } else {
           const myOptions = new Set<string>();
           if (cajeroIdentifier) myOptions.add(cajeroIdentifier);

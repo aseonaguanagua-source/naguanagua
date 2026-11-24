@@ -1075,10 +1075,19 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
   // Total Documento (monto bruto de la deuda/factura seleccionada en Caja)
   const totalDocumentoCalc = (() => {
     if (usaTotalGrupoRepartido) return totalGrupoRepartido;
-    if (det.monto_factura && Number(det.monto_factura) > 0) return Number(det.monto_factura);
-    if (det.total_seleccionado && Number(det.total_seleccionado) > 0) return Number(det.total_seleccionado);
+    const targetRef = montoConciliadoNum > 0 ? montoConciliadoNum : montoReportadoNum;
+    if (det.monto_factura && Number(det.monto_factura) > 0) {
+      const mf = Number(det.monto_factura);
+      if (!tieneRetencion && targetRef > 0 && Math.abs(targetRef - mf) <= 0.05) return targetRef;
+      return mf;
+    }
+    if (det.total_seleccionado && Number(det.total_seleccionado) > 0) {
+      const ts = Number(det.total_seleccionado);
+      if (!tieneRetencion && targetRef > 0 && Math.abs(targetRef - ts) <= 0.05) return targetRef;
+      return ts;
+    }
     if (tieneRetencion && montoRetencionDoc > 0) return Math.round((montoReportadoNum + montoRetencionDoc) * 100) / 100;
-    return montoReportadoNum;
+    return targetRef || montoReportadoNum;
   })();
 
   // IVA Total de la operación
@@ -1099,12 +1108,19 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
   );
   const totalAPagarCalc = (() => {
     if (usaTotalGrupoRepartido) return totalGrupoRepartido;
+    const targetRef = montoConciliadoNum > 0 ? montoConciliadoNum : montoReportadoNum;
     if (esAbonoOCompletado) return montoReportadoNum;
-    if (det.monto_neto_factura && Number(det.monto_neto_factura) > 0) return Number(det.monto_neto_factura);
-    if (det.total_seleccionado && Number(det.total_seleccionado) > 0) {
-      return Math.max(0, Math.round((Number(det.total_seleccionado) - montoRetencionDoc) * 100) / 100);
+    if (det.monto_neto_factura && Number(det.monto_neto_factura) > 0) {
+      const mn = Number(det.monto_neto_factura);
+      if (targetRef > 0 && Math.abs(targetRef - mn) <= 0.05) return targetRef;
+      return mn;
     }
-    return montoReportadoNum;
+    if (det.total_seleccionado && Number(det.total_seleccionado) > 0) {
+      const tsNeto = Math.max(0, Math.round((Number(det.total_seleccionado) - montoRetencionDoc) * 100) / 100);
+      if (targetRef > 0 && Math.abs(targetRef - tsNeto) <= 0.05) return targetRef;
+      return tsNeto;
+    }
+    return targetRef || montoReportadoNum;
   })();
 
   // Saldo a Favor / Nota de Crédito previa aplicada en la operación
@@ -2047,13 +2063,23 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
           if (excedenteBrutoConcil >= 0.01) {
             curDet.saldo_favor = excedenteBrutoConcil;
             curDet.saldo_favor_acreditado = true;
+          } else {
+            // Si la diferencia con monto_factura es solo redondeo de céntimos (<= 0.05), limpiar cualquier residuo de 0.01 y ajustar monto_factura
+            if (Number(curDet.monto_sobrante || 0) <= 0.05) curDet.monto_sobrante = 0;
+            if (Number(curDet.saldo_a_favor_nuevo || 0) <= 0.05) curDet.saldo_a_favor_nuevo = 0;
+            if (Number(curDet.saldo_favor || 0) <= 0.05) curDet.saldo_favor = 0;
           }
           if (!esCondo && !esAbonoEnEspera) {
-            if (!curDet.monto_factura) {
+            if (!curDet.monto_factura || Math.abs(Number(curDet.monto_factura) - montoBrutoConcil) <= 0.05) {
               curDet.monto_factura = montoBrutoConcil;
             }
             if (!curDet.monto_neto_factura && retDocConcil > 0) {
               curDet.monto_neto_factura = Math.round((montoNetoSinExcedente + sfUsadoConcil + abonoPrevConcil) * 100) / 100;
+            } else if (curDet.monto_neto_factura && retDocConcil === 0 && Math.abs(Number(curDet.monto_neto_factura) - montoNetoSinExcedente) <= 0.05) {
+              curDet.monto_neto_factura = montoNetoSinExcedente;
+            }
+            if (curDet.total_seleccionado && Math.abs(Number(curDet.total_seleccionado) - montoBrutoConcil) <= 0.05) {
+              curDet.total_seleccionado = montoBrutoConcil;
             }
           }
           if (!esCondo && !esAbonoEnEspera && excedenteBrutoConcil < 0.01) {

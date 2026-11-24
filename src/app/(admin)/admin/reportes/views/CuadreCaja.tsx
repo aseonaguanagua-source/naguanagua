@@ -455,19 +455,47 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
       if (!fechaCoincide && !(buscarEnTodoHistorial && hasSearch)) return false;
 
       const pCajero = det.cajero || det.analista || '';
+      const canonizarCajeroFiltro = (val: string): string => {
+        const s = String(val || '').trim().toLowerCase().replace(/\s+/g, ' ');
+        if (!s) return '';
+        if (s.startsWith('a-') || s.includes('arianny')) return 'a-arianny';
+        if (s.startsWith('b-') || s.includes('maira')) return 'b-maira';
+        if (s.startsWith('c-') || s.includes('daniela')) return 'c-daniela';
+        if (s.startsWith('d-') || s.includes('otto')) return 'd-otto';
+        if (s.startsWith('e-') || s.includes('luis')) return 'e-luis';
+        if (s.startsWith('f-') || s.includes('omar')) return 'f-omar';
+        if (s.startsWith('h-') || s.includes('marianny')) return 'h-marianny';
+        if (s.startsWith('j-') || s.includes('nany')) return 'j-nany';
+        if (s.startsWith('k-') || s.includes('johana')) return 'k-johana';
+        if (s.startsWith('m-') || s.includes('valentina')) return 'm-valentina';
+        if (s.startsWith('n-') || s.includes('patricia')) return 'n-patricia';
+        if (s.startsWith('o-') || s.includes('carlieth')) return 'o-carlieth';
+        if (s.startsWith('p-') || s.includes('mariangel')) return 'p-mariangel';
+        if (s.startsWith('q-') || s.includes('nell')) return 'q-nell';
+        if (s.startsWith('r-') || s.includes('damary') || s.includes('damaris')) return 'r-damary';
+        if (s.includes('isamar')) return 'isamar';
+        if (s.includes('raquel')) return 'raquel';
+        return s;
+      };
       if (!effectiveIsAdmin) {
         const myName = currentUser.toLowerCase();
         const pCajLower = pCajero.toLowerCase();
-        const matches = pCajLower === myName ||
+        const myCanon = canonizarCajeroFiltro(myName);
+        const pCanon = canonizarCajeroFiltro(pCajLower);
+        const matches = (myCanon && pCanon && myCanon === pCanon) ||
+                        pCajLower === myName ||
                         pCajLower.endsWith(`-${myName}`) ||
                         pCajLower.includes(myName) ||
                         myName.includes(pCajLower) ||
-                        (cajero && pCajLower === cajero.toLowerCase());
+                        (cajero && (pCanon === canonizarCajeroFiltro(cajero) || pCajLower === cajero.toLowerCase()));
         if (!matches) return false;
       } else if (cajero) {
         const cLower = cajero.toLowerCase().trim();
         const pCajLower = pCajero.toLowerCase().trim();
-        const matches = pCajLower === cLower ||
+        const cCanon = canonizarCajeroFiltro(cLower);
+        const pCanon = canonizarCajeroFiltro(pCajLower);
+        const matches = (cCanon && pCanon && cCanon === pCanon) ||
+                        pCajLower === cLower ||
                         pCajLower.endsWith(`-${cLower}`) ||
                         cLower.endsWith(`-${pCajLower}`) ||
                         pCajLower.includes(cLower) ||

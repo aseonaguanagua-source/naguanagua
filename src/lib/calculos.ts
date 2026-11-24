@@ -354,6 +354,12 @@ export const calcularMensualidad = (
 
   const far = esRes ? getFAR(actividad) : 0.1280; // FAC = 0.1280 para Comercial/Industrial
 
+  // Normalizar la tasa BCV a 2 decimales para que la tasa en vivo de 5 decimales (ej. 1007.38663)
+  // produzca siempre el mismo monto al céntimo que la tasa visualizada/impresa de 2 decimales (1007.39).
+  if (tasa > 0) {
+    tasa = Math.round((tasa + Number.EPSILON) * 100) / 100;
+  }
+
   // Fórmulas oficiales Art. 61 de la Ordenanza Municipal de Naguanagua:
   // Residencial: TR = F.O. * 57 * TasaBCV * FAR
   // Comercial:   TC = F.O. * 57 * TasaBCV * FAC (FAC = 0.1280)

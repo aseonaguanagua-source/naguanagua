@@ -472,7 +472,7 @@ function Caja() {
           meses: meses || null,
           mesesPorUnidad: Object.keys(mesesPorUnidad).length > 0 ? mesesPorUnidad : undefined,
           soloMultas,
-          incluirMultas: incluirMultas !== null ? incluirMultas : undefined,
+          incluirMultas: incluirMultas !== null ? incluirMultas : Boolean(base && !base.porActividad),
           omitirMultaSeptiembre,
           retencionPorcentajeOverride: retencionIVA,
           tasaOverride: tasaParsed > 0 ? tasaParsed : undefined,
@@ -2769,7 +2769,7 @@ function Caja() {
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <span className="text-[10px] font-semibold text-white/60 mb-0.5 block">F. Transacción (Banco)</span>
-                          <input type="date" value={fechaTransaccionAct} max={hoyCaracas()} onChange={e => { setFechaTransaccionAct(e.target.value); setFechaAct(e.target.value); }} className="w-full rounded-lg bg-slate-800 border border-white/20 px-2 py-1.5 text-xs outline-none text-white [color-scheme:dark]" />
+                          <input type="date" value={fechaTransaccionAct} max={hoyCaracas()} onChange={e => { const f = e.target.value; setFechaTransaccionAct(f); setFechaAct(f); if (f) aplicarTasaDeFecha(f); }} className="w-full rounded-lg bg-slate-800 border border-white/20 px-2 py-1.5 text-xs outline-none text-white [color-scheme:dark]" />
                         </div>
                         <div>
                           <span className="text-[10px] font-semibold text-white/60 mb-0.5 block">F. Ingreso a Caja</span>

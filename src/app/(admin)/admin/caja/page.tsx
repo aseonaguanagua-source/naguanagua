@@ -2736,7 +2736,7 @@ export default function CajaPage() {
       if (diffTransferido < -1.00) {
         esAbono = true;
         montoReal = transferido;
-      } else if (diffTransferido >= 0.01) {
+      } else if (diffTransferido > 0.05) {
         saldoAFavorNuevo = diffTransferido;
         esAbono = false;
         montoReal = transferido;
@@ -2757,7 +2757,7 @@ export default function CajaPage() {
         const diffDeb = Math.round((montoReal - finalTotal) * 100) / 100;
         if (diffDeb < -1.00) {
           esAbono = true;
-        } else if (diffDeb >= 0.01) {
+        } else if (diffDeb > 0.05) {
           saldoAFavorNuevo = diffDeb;
           esAbono = false;
         } else {

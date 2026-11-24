@@ -24,7 +24,7 @@ export async function POST(req: Request) {
       meses: b.meses ? Number(b.meses) : null,
       mesesPorUnidad: (b.mesesPorUnidad && typeof b.mesesPorUnidad === 'object') ? b.mesesPorUnidad : undefined,
       soloMultas: !!b.soloMultas,
-      incluirMultas: b.incluirMultas !== undefined ? !!b.incluirMultas : true,
+      incluirMultas: typeof b.incluirMultas === 'boolean' ? b.incluirMultas : undefined,
       omitirMultaSeptiembre: !!b.omitirMultaSeptiembre,
       retencionPorcentajeOverride: typeof b.retencionPorcentajeOverride === 'number' ? Number(b.retencionPorcentajeOverride) : undefined,
       tasaOverride: b.tasaOverride ? Number(b.tasaOverride) : undefined,

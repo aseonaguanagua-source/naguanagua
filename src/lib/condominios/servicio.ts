@@ -474,9 +474,10 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasaRaw: numb
 
     const deuda = M.deudaPorMeses(meses, basesPorMes, res, esAgente, exonerados, multasPorMes, tasa);
     let mensualEfectivoBs = r.montoBs;
-    // Para C.C. Free Market (URB016822), cuya relación diaria de cobranza en Euros multiplica la tarifa mensual en Euros (redondeada a 2 decimales con IVA) × Tasa BCV:
-    // ajustar baseBs e ivaBs de cada mes en porMes y mensualEfectivoBs para que coincida al céntimo con Tarifa_EUR_2_dec × Tasa_BCV.
-    if (String(condoRow?.codigo || '').trim().toUpperCase() === 'URB016822' && !res && tasa > 0) {
+    // En unidades de condominios comerciales, la relación de cobranza en Euros multiplica la tarifa mensual en Euros
+    // (base e IVA redondeados a 2 decimales) × Tasa BCV; sincronizamos mensualEfectivoBs y deuda.porMes para que
+    // MENSUALIDAD, ASEO y TOTAL coincidan al céntimo (p. ej. CONS-1-07 2.98 MMV -> 25,22 € × 1003,49 = Bs. 25.308,02).
+    if (!res && tasa > 0 && !(u?.inmueble === 'URB016255' && Math.abs(tasa - 999.77) < 0.005)) {
       const baseEurUnit = u && !u.periodos_custom && !u.desocupada_desde
         ? (u.estado === 'Desocupada' ? M.tarifaDesocupadaBs(1) : M.tarifaUnidadBs(c, 1, u))
         : 0;
