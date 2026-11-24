@@ -151,10 +151,13 @@ export default function PortalSidebar({ isOpen = false, setIsOpen }: PortalSideb
       const orCondo = [`identidad.eq.${doc}`, `identidad.eq.${docClean}`, ...(codigo ? [`codigo.eq.${codigo}`] : [])].join(',');
 
       Promise.all([
-        supabase.from('condominios').select('codigo, nombre, tipo').neq('estado', 'Eliminado').or(orCondo).limit(1).maybeSingle(),
+        supabase.from('condominios').select('codigo, nombre, tipo').neq('estado', 'Eliminado').or(orCondo).limit(10),
         supabase.from('contribuyentes').select('nombre').or(`identidad.eq.${doc},identidad.eq.${docClean}`).limit(1).maybeSingle(),
         supabase.from('inmuebles').select('inmueble, contribuyente, agente_retencion, tipo, clasificacion, actividad_principal, es_condominio, condominio_padre_id, padre_id, estado').or(`identidad.eq.${doc},identidad.eq.${docClean}`),
-      ]).then(([{ data: condoRow }, { data: contribRow }, { data: inmsRows }]) => {
+      ]).then(([{ data: condoRows }, { data: contribRow }, { data: inmsRows }]) => {
+        const condoRow = (condoRows && condoRows.length > 0)
+          ? (condoRows.find((r: any) => codigo && String(r.codigo || '').toUpperCase() === codigo.toUpperCase()) || condoRows[0])
+          : null;
         const activos = (inmsRows || []).filter((i: any) => {
           const est = (i.estado || 'Activo').trim().toLowerCase();
           return est !== 'eliminado' && est !== 'inactivo' && est !== 'desactivado';

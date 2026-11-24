@@ -75,10 +75,22 @@ export default function InmueblesPage() {
 
         let inmsFinal: InmuebleBasic[] = allInmsRaw.filter(isActivo);
 
-        // Si es condominio, traer las unidades filiales asociadas
+        // Si es condominio, traer únicamente el condominio activo de la sesión (si hay varios con el mismo RIF) y sus unidades filiales
+        const portalCodigo = typeof window !== 'undefined' ? (localStorage.getItem('portal_codigo') || '').trim().toUpperCase() : '';
         const isCondo = ownCondoCodes.length > 0 || inmsFinal.some(i => i.es_condominio === true || ((i.actividad_principal || '').toLowerCase().includes('condominio') && !(i.actividad_principal || '').toLowerCase().includes('oficina')));
         if (isCondo) {
-          const condoCodes = Array.from(new Set([...ownCondoCodes, ...inmsFinal.filter(i => i.es_condominio).map(i => i.inmueble).filter(Boolean)]));
+          const allCondoCodes = Array.from(new Set([...ownCondoCodes, ...inmsFinal.filter(i => i.es_condominio).map(i => String(i.inmueble || '').toUpperCase()).filter(Boolean)]));
+          const activeCondoCode = (portalCodigo && allCondoCodes.includes(portalCodigo)) ? portalCodigo : allCondoCodes[0];
+          const condoCodes = activeCondoCode ? [activeCondoCode] : allCondoCodes;
+          if (activeCondoCode && allCondoCodes.length > 1) {
+            inmsFinal = inmsFinal.filter(i => {
+              const iCod = String(i.inmueble || '').toUpperCase();
+              const pCod = String((i as any).condominio_padre_id || '').toUpperCase();
+              if (i.es_condominio && iCod !== activeCondoCode) return false;
+              if (pCod && allCondoCodes.includes(pCod) && pCod !== activeCondoCode) return false;
+              return true;
+            });
+          }
           if (condoCodes.length > 0) {
             const { data: hijos } = await supabase
               .from('inmuebles')
