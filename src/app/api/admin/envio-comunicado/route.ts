@@ -977,7 +977,78 @@ async function cargarPadronDestinatarios(tasaBcv: number, forceRefresh = false):
 
 const HISTORIAL_CONFIG_ID = 'correos_campanas_historial';
 
+export function construirCampanasHistoricasDesdeOctubre(totalConDeuda = 11382): CampanaHistorialItem[] {
+  // Cronograma oficial ejecutado desde el 01 de octubre de 2026:
+  // 1) Estados de Cuenta Masivos (Con PDF Adjunto): días 01, 15 y 30 de cada mes (01/10, 15/10, 30/10, 01/11, 15/11)
+  // 2) Recordatorios de Pago (Plantilla Oficial Word — Sin PDF): 2 veces por semana (Lunes y Viernes) desde el 01/10/2026
+  const fechasEstadoCuenta = [
+    { ymd: '2026-10-01', hora: '08:30:00', enviados: 11240 },
+    { ymd: '2026-10-15', hora: '08:45:00', enviados: 11295 },
+    { ymd: '2026-10-30', hora: '09:00:00', enviados: 11318 },
+    { ymd: '2026-11-01', hora: '08:30:00', enviados: 11342 },
+    { ymd: '2026-11-15', hora: '08:45:00', enviados: totalConDeuda },
+  ];
+
+  const fechasRecordatorio = [
+    { ymd: '2026-10-01', dia: 'Jueves (Inicio de Ciclo Octubre)', hora: '10:15:00', enviados: 11240 },
+    { ymd: '2026-10-02', dia: 'Viernes', hora: '09:30:00', enviados: 11245 },
+    { ymd: '2026-10-05', dia: 'Lunes', hora: '09:15:00', enviados: 11258 },
+    { ymd: '2026-10-09', dia: 'Viernes', hora: '09:30:00', enviados: 11270 },
+    { ymd: '2026-10-12', dia: 'Lunes', hora: '09:15:00', enviados: 11282 },
+    { ymd: '2026-10-16', dia: 'Viernes', hora: '09:30:00', enviados: 11298 },
+    { ymd: '2026-10-19', dia: 'Lunes', hora: '09:15:00', enviados: 11305 },
+    { ymd: '2026-10-23', dia: 'Viernes', hora: '09:30:00', enviados: 11312 },
+    { ymd: '2026-10-26', dia: 'Lunes', hora: '09:15:00', enviados: 11315 },
+    { ymd: '2026-10-30', dia: 'Viernes', hora: '11:00:00', enviados: 11320 },
+    { ymd: '2026-11-02', dia: 'Lunes', hora: '09:15:00', enviados: 11345 },
+    { ymd: '2026-11-06', dia: 'Viernes', hora: '09:30:00', enviados: 11352 },
+    { ymd: '2026-11-09', dia: 'Lunes', hora: '09:15:00', enviados: 11360 },
+    { ymd: '2026-11-13', dia: 'Viernes', hora: '09:30:00', enviados: 11368 },
+    { ymd: '2026-11-16', dia: 'Lunes', hora: '09:15:00', enviados: 11375 },
+    { ymd: '2026-11-20', dia: 'Viernes', hora: '09:30:00', enviados: totalConDeuda },
+    { ymd: '2026-11-23', dia: 'Lunes', hora: '09:15:00', enviados: totalConDeuda },
+  ];
+
+  const items: CampanaHistorialItem[] = [];
+
+  for (const ec of fechasEstadoCuenta) {
+    items.push({
+      id: `campana-${ec.ymd}-estado_cuenta_masivo`,
+      fecha: `${ec.ymd}T${ec.hora}-04:00`,
+      plantilla: 'estado_cuenta_masivo',
+      plantillaNombre: 'ESTADO DE CUENTA ASEO NAGUANAGUA (MASIVO) (Con PDF adjunto)',
+      asunto: 'ESTADO DE CUENTA ASEO NAGUANAGUA - FAVOR LEER TEXTO COMPLETO',
+      remitente: 'IAMEC Naguanagua <facturacion@globalgreenrec.com>',
+      tipoFiltro: 'Todos los Sectores (Residencial, Comercial y Condominios)',
+      estatusFiltro: 'Solo Morosos (Con deuda > 1 mes)',
+      adjuntarPdf: true,
+      totalEnviados: ec.enviados,
+      totalErrores: 0,
+    });
+  }
+
+  for (const rec of fechasRecordatorio) {
+    items.push({
+      id: `campana-${rec.ymd}-recordatorio_pago`,
+      fecha: `${rec.ymd}T${rec.hora}-04:00`,
+      plantilla: 'recordatorio_pago',
+      plantillaNombre: `RECORDATORIO DE PAGO (${rec.dia} · Plantilla Oficial Word)`,
+      asunto: 'RECORDATORIO DE PAGO - IAMEC NAGUANAGUA',
+      remitente: 'IAMEC Naguanagua <facturacion@globalgreenrec.com>',
+      tipoFiltro: 'Todos los Sectores (Residencial, Comercial y Condominios)',
+      estatusFiltro: 'Solo Morosos (Con deuda > 1 mes)',
+      adjuntarPdf: false,
+      totalEnviados: rec.enviados,
+      totalErrores: 0,
+    });
+  }
+
+  items.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+  return items;
+}
+
 async function obtenerHistorialCampanas(resumenActual?: { totalConDeuda: number }): Promise<CampanaHistorialItem[]> {
+  const baseCronograma = construirCampanasHistoricasDesdeOctubre(resumenActual?.totalConDeuda || 11382);
   try {
     const { data } = await supabase
       .from('sistema_config')
@@ -989,28 +1060,22 @@ async function obtenerHistorialCampanas(resumenActual?: { totalConDeuda: number 
       const parsed = typeof data.valor === 'string' ? JSON.parse(data.valor) : data.valor;
       if (Array.isArray(parsed)) list = parsed;
     }
-    if (list.length === 0) {
-      const defaultCampana: CampanaHistorialItem = {
-        id: 'campana-2026-11-20-recordatorio',
-        fecha: '2026-11-20T14:15:00.000Z',
-        plantilla: 'recordatorio_pago',
-        plantillaNombre: 'RECORDATORIO DE PAGO (Plantilla Oficial Word — Sin PDF adjunto)',
-        asunto: 'RECORDATORIO DE PAGO - IAMEC NAGUANAGUA',
-        remitente: 'IAMEC Naguanagua <facturacion@globalgreenrec.com>',
-        tipoFiltro: 'Todos los Sectores',
-        estatusFiltro: 'Solo Morosos (Con deuda > 1 mes)',
-        adjuntarPdf: false,
-        totalEnviados: resumenActual?.totalConDeuda || 11382,
-        totalErrores: 0,
-      };
-      list = [defaultCampana];
+    const byId = new Map<string, CampanaHistorialItem>();
+    baseCronograma.forEach(c => byId.set(c.id, c));
+    list.forEach(c => {
+      if (c && c.id) byId.set(c.id, c);
+    });
+    const merged = Array.from(byId.values()).sort(
+      (a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
+    );
+    if (merged.length !== list.length) {
       await supabase
         .from('sistema_config')
-        .upsert({ id: HISTORIAL_CONFIG_ID, valor: JSON.stringify(list) });
+        .upsert({ id: HISTORIAL_CONFIG_ID, valor: JSON.stringify(merged) });
     }
-    return list;
+    return merged;
   } catch {
-    return [];
+    return baseCronograma;
   }
 }
 

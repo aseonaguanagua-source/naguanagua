@@ -387,7 +387,13 @@ export default function DondePagarPage() {
 
           const sortedPeriodos = [...periodosMap.keys()].sort();
           const extraMultasTotal = Math.round((multaExtraAcumBs + multasManualesAcumBs) * 100) / 100;
-          if (extraMultasTotal > 0 && sortedPeriodos.length > 0) {
+          const esCondoAbonoOIndividual = Boolean(
+            cObj.permite_abonos !== false ||
+            cObj.permite_pago_por_unidad ||
+            String(cObj.modalidad || '').toUpperCase() === 'INDIVIDUAL' ||
+            String(cObj.modalidad || '').toUpperCase() === 'MIXTO_COMERCIAL'
+          );
+          if (extraMultasTotal > 0 && sortedPeriodos.length > 0 && !esCondoAbonoOIndividual) {
             const oldestKey = sortedPeriodos[0];
             const oldestObj = periodosMap.get(oldestKey)!;
             oldestObj.multa = Math.round((oldestObj.multa + extraMultasTotal) * 100) / 100;
@@ -397,6 +403,10 @@ export default function DondePagarPage() {
 
           const condoRecibos = sortedPeriodos.map((pKey, idx) => {
             const mObj = periodosMap.get(pKey)!;
+            const multaEfectiva = esCondoAbonoOIndividual ? 0 : mObj.multa;
+            const totalEfectivo = esCondoAbonoOIndividual
+              ? Math.round((mObj.total - mObj.multa) * 100) / 100
+              : mObj.total;
             return {
               id: `condo-rec-${cObj.codigo}-${pKey}`,
               referencia: `RECIB-HIST-${cObj.codigo}-M${idx + 1}`,
@@ -405,17 +415,17 @@ export default function DondePagarPage() {
               inmueble: cObj.codigo,
               emision: `${pKey}-01`,
               vencimiento: `${pKey}-01`,
-              monto: String(mObj.total.toFixed(2)),
+              monto: String(Math.max(0, totalEfectivo).toFixed(2)),
               base: mObj.base,
               iva: mObj.iva,
-              multa: mObj.multa,
+              multa: multaEfectiva,
               retencion: mObj.ret,
               estado: 'Pendiente',
               esReciboCondominioMatriz: true,
               mesIndex: idx + 1,
             };
           });
-          if (extraMultasTotal > 0 && sortedPeriodos.length === 0) {
+          if (extraMultasTotal > 0 && sortedPeriodos.length === 0 && !esCondoAbonoOIndividual) {
             const fMultaIso = new Date().toISOString().slice(0, 10);
             condoRecibos.push({
               id: `condo-multa-${cObj.codigo}`,

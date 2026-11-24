@@ -117,16 +117,29 @@ export default function DeudaCondominiosPortal({ identidad }: { identidad: strin
           }
         });
 
-        // Completar nombres de condominios que falten
-        if (condoCodesToFetch.size > 0) {
+        // Completar nombres y modalidades de condominios que falten
+        const mapModalidad: Record<string, { modalidad: string; permite_abonos: boolean; permite_pago_por_unidad: boolean }> = {};
+        const allCodesToCheck = Array.from(new Set([
+          ...Array.from(condoCodesToFetch),
+          ...items.map(it => String(it.condominioCodigo || '').trim().toUpperCase()).filter(Boolean)
+        ]));
+        if (allCodesToCheck.length > 0) {
           const { data: condosDb } = await supabase
             .from('condominios')
-            .select('codigo, nombre')
-            .in('codigo', Array.from(condoCodesToFetch));
+            .select('codigo, nombre, modalidad, permite_abonos, permite_pago_por_unidad')
+            .in('codigo', allCodesToCheck);
 
           if (condosDb) {
             const mapName: Record<string, string> = {};
-            condosDb.forEach(c => { mapName[c.codigo.toUpperCase()] = c.nombre; });
+            condosDb.forEach((c: any) => {
+              const cu = String(c.codigo || '').toUpperCase();
+              mapName[cu] = c.nombre;
+              mapModalidad[cu] = {
+                modalidad: String(c.modalidad || '').toUpperCase(),
+                permite_abonos: c.permite_abonos !== false,
+                permite_pago_por_unidad: Boolean(c.permite_pago_por_unidad),
+              };
+            });
             items.forEach(it => {
               const k = it.condominioCodigo.toUpperCase();
               if (mapName[k]) it.condominioNombre = mapName[k];
@@ -134,7 +147,15 @@ export default function DeudaCondominiosPortal({ identidad }: { identidad: strin
           }
         }
 
-        setCondoUnits(items);
+        // Mostrar el aviso con enlace a WhatsApp únicamente para condominios que se cancelan por abono o por individual y a los hijos de ellos
+        const itemsFiltrados = items.filter(it => {
+          const k = String(it.condominioCodigo || '').toUpperCase();
+          const cfg = mapModalidad[k];
+          if (!cfg) return true;
+          return cfg.permite_abonos || cfg.modalidad === 'INDIVIDUAL' || cfg.modalidad === 'MIXTO_COMERCIAL' || cfg.permite_pago_por_unidad;
+        });
+
+        setCondoUnits(itemsFiltrados);
         const allCondoCodes = Array.from(new Set(items.map(it => String(it.condominioCodigo || '').trim().toUpperCase()).filter(Boolean)));
         if (allCondoCodes.length > 0) {
           try {

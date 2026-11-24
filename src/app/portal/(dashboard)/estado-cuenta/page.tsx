@@ -231,7 +231,14 @@ export default function EstadoCuentaPage() {
 
             const sortedKeys = [...periodosMap.keys()].sort();
             const extraMultasTotal = Math.round((multaExtraAcumBs + multasManualesAcumBs) * 100) / 100;
-            if (extraMultasTotal > 0 && sortedKeys.length > 0) {
+            const esCondoAbonoOIndividual = Boolean(
+              cObj.permite_abonos !== false ||
+              cObj.permite_pago_por_unidad ||
+              String(cObj.modalidad || '').toUpperCase() === 'INDIVIDUAL' ||
+              String(cObj.modalidad || '').toUpperCase() === 'MIXTO_COMERCIAL'
+            );
+            // Si el condominio se cancela por abono o por individual, NO mostrar recibo de multa para pagar en el portal (se verifica vía WhatsApp +58 424-4282365)
+            if (extraMultasTotal > 0 && sortedKeys.length > 0 && !esCondoAbonoOIndividual) {
               const oldestKey = sortedKeys[0];
               const oldestObj = periodosMap.get(oldestKey)!;
               oldestObj.multa = Math.round((oldestObj.multa + extraMultasTotal) * 100) / 100;
@@ -241,6 +248,10 @@ export default function EstadoCuentaPage() {
 
             const condoRecibos = sortedKeys.map((pKey, idx) => {
               const mObj = periodosMap.get(pKey)!;
+              const multaEfectiva = esCondoAbonoOIndividual ? 0 : mObj.multa;
+              const totalEfectivo = esCondoAbonoOIndividual
+                ? Math.round((mObj.total - mObj.multa) * 100) / 100
+                : mObj.total;
               return {
                 id: `condo-rec-${cObj.codigo}-${pKey}`,
                 referencia: `CONDO-${cObj.codigo}-${pKey}`,
@@ -249,17 +260,17 @@ export default function EstadoCuentaPage() {
                 inmueble: cObj.codigo,
                 emision: `${pKey}-01`,
                 vencimiento: `${pKey}-01`,
-                monto: String(mObj.total.toFixed(2)),
+                monto: String(Math.max(0, totalEfectivo).toFixed(2)),
                 base: mObj.base,
                 iva: mObj.iva,
-                multa: mObj.multa,
+                multa: multaEfectiva,
                 retencion: mObj.ret,
                 estado: 'Pendiente',
                 esReciboCondominioMatriz: true,
                 mesIndex: idx + 1,
               };
             });
-            if (extraMultasTotal > 0 && sortedKeys.length === 0) {
+            if (extraMultasTotal > 0 && sortedKeys.length === 0 && !esCondoAbonoOIndividual) {
               const fMultaIso = new Date().toISOString().slice(0, 10);
               condoRecibos.push({
                 id: `condo-multa-${cObj.codigo}`,
@@ -1583,20 +1594,20 @@ export default function EstadoCuentaPage() {
                   </div>
                 </div>
 
-                {/* Banner de Condominio Informativo */}
-                {cluster.esCondominio && !condoMatrizFicha && (
+                {/* Banner de Condominio Informativo (para condominios por abono o individual y sus hijos) */}
+                {(cluster.esCondominio || (condoMatrizFicha?.condo && (condoMatrizFicha.condo.permite_abonos !== false || condoMatrizFicha.condo.permite_pago_por_unidad || String(condoMatrizFicha.condo.modalidad || '').toUpperCase() === 'INDIVIDUAL' || String(condoMatrizFicha.condo.modalidad || '').toUpperCase() === 'MIXTO_COMERCIAL'))) && (
                   <div className="px-4 py-3 bg-amber-50 border-b border-amber-200 text-xs text-amber-950 flex items-start gap-2.5">
                     <Building className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
                     <div className="space-y-1.5 flex-1">
                       <div>
-                        <strong className="text-amber-900">Inmueble / Local dentro de Condominio:</strong> Este inmueble forma parte de un régimen de condominio centralizado.
+                        <strong className="text-amber-900">Verificación de Multas en Régimen de Condominio (Pago por Abono / Individual):</strong>
                       </div>
                       <p className="text-[11px] text-amber-900/90 leading-relaxed">
-                        Para <strong>verificar posibles multas, consultar su estado de cuenta o gestionar cualquier pago pendiente</strong> correspondiente a esta unidad, comuníquese directamente con nuestro <strong>Call Center de Atención al Contribuyente vía WhatsApp al +58 424-4282365</strong>.
+                        Para <strong>verificar posibles multas, consultar el estado de cuenta de multas o gestionar cualquier pago pendiente</strong> correspondiente a este condominio o sus unidades filiales, comuníquese directamente con nuestro <strong>Call Center de Atención al Contribuyente vía WhatsApp al +58 424-4282365</strong>.
                       </p>
                       <div>
                         <a
-                          href={`https://wa.me/584244282365?text=${encodeURIComponent(`Hola, deseo verificar multas o pagos pendientes de mi unidad ${cluster.localId} en condominio.`)}`}
+                          href={`https://wa.me/584244282365?text=${encodeURIComponent(`Hola, deseo verificar multas o pagos pendientes del código ${cluster.localId} en condominio.`)}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg text-[11px] shadow-2xs transition-colors"
