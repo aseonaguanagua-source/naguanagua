@@ -1718,7 +1718,9 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
               const comparteCod = Boolean(hCod && propertyCodesFromRefs.has(hCod) && recsUpper.length === 0 && hRecs.length === 0);
               const esVinculadoExplicito = dh?.completado_con_pago_id === pago.id || det?.completado_con_pago_id === h.id || dh?.pago_principal_id === pago.id;
               const diffDias = Math.abs(new Date(h.created_at || 0).getTime() - new Date(pago.created_at || Date.now()).getTime()) / (86400 * 1000);
-              if (esVinculadoExplicito || ((comparteRec || comparteCod) && (dh?.es_abono === true || det?.es_abono === true) && !dh?.factura_digital?.emitida && diffDias <= 25)) {
+              const tieneFacturaEmitidaHermano = Boolean(dh?.factura_digital?.emitida || dh?.factura_digital?.numero_documento || dh?.factura_digital?.numero_control);
+              const esHermanoAbonoAbierto = !tieneFacturaEmitidaHermano && !dh?.abono_completado && (dh?.es_abono === true || dh?.pago_parcial === true);
+              if (esVinculadoExplicito || ((comparteRec || comparteCod) && esHermanoAbonoAbierto && diffDias <= 25)) {
                 sumaAbonosHermanos += parseFloat(String(h.monto || dh?.monto_abonado || 0)) || 0;
                 abonosHermanosToMark.push({ id: h.id, detalles: dh });
               }
@@ -2032,7 +2034,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
             ...(fechaTxConciliada ? { fecha_transaccion: fechaTxConciliada } : {}),
             ...(fechaBancoConciliada ? { fecha_banco: fechaBancoConciliada } : {}),
           };
-          const esAbonoEnEspera = Boolean(curDet.es_abono || det.es_abono) && !curDet.abono_completado;
+          const esAbonoEnEspera = Boolean(esAbonoParcialConcil || ((curDet.es_abono || det.es_abono) && !abonoCompletadoConHermanos));
           if (!esAbonoEnEspera) {
             curDet.factura_digital = curDet.factura_digital || {
               emitida: false,
@@ -2042,6 +2044,9 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
           } else {
             curDet.es_abono = true;
             curDet.abono_completado = false;
+            if (!curDet.factura_digital?.emitida && !curDet.factura_digital?.numero_documento && !curDet.factura_digital?.numero_control) {
+              delete curDet.factura_digital;
+            }
           }
           curDet.recibos = recibos;
           // Pagos de la Caja de Condominios o con saldo a favor: NO alterar montos originales de la factura

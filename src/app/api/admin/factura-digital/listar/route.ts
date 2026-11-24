@@ -618,20 +618,22 @@ export async function GET(request: Request) {
       // REGLA: Los abonos o pagos parciales que NO han completado el pago total del mes y NO tienen factura ya emitida
       // NUNCA deben salir como facturables por el mes completo (ni siquiera si abono_completado quedó en true por error cuando falta diferencia)
       const infoAbPrev = abonosInfoPorPagoPrincipal.get(p.id);
-      const sumSfPrev = Array.isArray(d?.deuda_previa)
-        ? d.deuda_previa.reduce((acc: number, x: any) => acc + (parseFloat(String(x?.saldo_favor_bs || 0)) || 0), 0)
-        : 0;
-      const abonoPrevDesc = Math.max(sumSfPrev, parseFloat(String(d?.abono_previo_descontado || 0)) || 0);
+      const abonoPrevDesc = parseFloat(String(d?.abono_previo_descontado || 0)) || 0;
       const sfAplicadoP = parseFloat(String(d?.saldo_usado ?? d?.descuentoSaldoFavor ?? d?.descuento_saldo_favor ?? d?.saldo_favor_usado ?? d?.nota_credito_usada ?? d?.monto_saldo_favor ?? 0)) || 0;
       const retGuardadaP = parseFloat(String(d?.monto_retencion_iva || d?.retencion_iva || d?.factura_digital?.retencion?.retenido || 0)) || 0;
       const montoPagoBaseP = parseFloat(String(p.monto || 0)) || 0;
+      const sumPaGuardP = Array.isArray(d?.pagos_agregados) && d.pagos_agregados.length > 1
+        ? d.pagos_agregados
+            .filter((pa: any) => !String(pa?.descripcion || pa?.tipo || pa?.metodo || '').toLowerCase().includes('saldo a favor') && !String(pa?.descripcion || pa?.tipo || pa?.metodo || '').toLowerCase().includes('nota de credito'))
+            .reduce((s: number, pa: any) => s + (parseFloat(String(pa?.monto || 0)) || 0), 0)
+        : 0;
       const sumFpBancP = Array.isArray(d?.formasPago) && d.formasPago.length > 1
         ? d.formasPago
             .filter((fp: any) => !String(fp?.descripcion || fp?.tipo || fp?.metodo || '').toLowerCase().includes('saldo a favor') && !String(fp?.descripcion || fp?.tipo || fp?.metodo || '').toLowerCase().includes('nota de credito'))
             .reduce((s: number, fp: any) => s + (parseFloat(String(fp?.monto || 0)) || 0), 0)
         : 0;
-      const montoPagadoMasAbonos = Math.max(montoPagoBaseP + (infoAbPrev?.montoTotal || 0), sumFpBancP);
-      const totalCubiertoPreCheck = montoPagadoMasAbonos + retGuardadaP + sfAplicadoP + (infoAbPrev ? 0 : abonoPrevDesc);
+      const montoPagadoMasAbonos = Math.max(montoPagoBaseP + (infoAbPrev?.montoTotal || 0), sumPaGuardP, sumFpBancP);
+      const totalCubiertoPreCheck = montoPagadoMasAbonos + retGuardadaP + sfAplicadoP + (infoAbPrev || sumPaGuardP > montoPagoBaseP ? 0 : abonoPrevDesc);
       const montoFacObjetivoP = parseFloat(String(d?.monto_factura || d?.total_seleccionado || 0)) || 0;
       const esRetCheckP = Boolean(d?.es_retencion || d?.conRetencion || d?.agente_retencion || retGuardadaP > 0);
       const retEstimadaCheckP = esRetCheckP && retGuardadaP === 0 && montoFacObjetivoP > 0

@@ -1204,6 +1204,22 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
             {onProcederEmitir && !(pago?.facturaEmitida && !pago?.facturaAnulada) && (
               <button
                 onClick={() => {
+                  const sumPaDemo = Array.isArray(det?.pagos_agregados) && det.pagos_agregados.length > 1
+                    ? det.pagos_agregados
+                        .filter((x: any) => !String(x?.metodo || x?.tipo || x?.descripcion || '').toLowerCase().includes('saldo a favor') && !String(x?.metodo || x?.tipo || x?.descripcion || '').toLowerCase().includes('nota de credito'))
+                        .reduce((s: number, x: any) => s + (parseFloat(String(x?.monto || 0)) || 0), 0)
+                    : 0;
+                  const mBancarioDemo = Math.max(montoConciliado || montoPagado || 0, sumPaDemo);
+                  const mCubiertoDemo = Math.round((mBancarioDemo + (esRetencion ? retencionIva : 0) + saldoFavorUsado + (sumPaDemo > (montoConciliado || montoPagado || 0) ? 0 : (parseFloat(String(det?.abono_previo_descontado || 0)) || 0))) * 100) / 100;
+                  const difFaltanteDemo = Math.round((totalFacturaFinal - mCubiertoDemo) * 100) / 100;
+                  if (mBancarioDemo > 0 && difFaltanteDemo > 1.00) {
+                    alert(
+                      `⚠️ BLOQUEADO: No se puede emitir factura fiscal porque el monto pagado/cubierto (Bs. ${formatBs(mCubiertoDemo)}) es menor al Total Documento (Bs. ${formatBs(totalFacturaFinal)}).\n\n` +
+                      `Diferencia faltante por pagar: Bs. ${formatBs(difFaltanteDemo)}.\n` +
+                      `El contribuyente debe cancelar la diferencia antes de poder facturar.`
+                    );
+                    return;
+                  }
                   onClose();
                   onProcederEmitir({
                     ...pago,

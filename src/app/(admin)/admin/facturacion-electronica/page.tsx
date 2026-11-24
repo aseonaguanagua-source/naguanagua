@@ -766,19 +766,25 @@ export default function FacturacionElectronicaPage() {
 
   // 2. Abrir Modal de Emisión Manual
   const handleOpenEmitModal = (pago: any, totalOverride?: number, totalRef?: number) => {
-    const yaEmitida = Boolean(pago?.facturaEmitida || pago?.facturaAnulada || pago?.notaCredito || pago?.estado === 'Anulado');
-    if (!yaEmitida) {
-      const mPagado = parseFloat(String(pago?.montoPagado ?? pago?.monto ?? 0)) || 0;
+    {
+      const mPagado = parseFloat(String(pago?.montoPagado ?? pago?.detalles?.monto_conciliado ?? pago?.monto ?? 0)) || 0;
       const mRet = parseFloat(String(pago?.montoRetencion ?? pago?.detalles?.monto_retencion_iva ?? pago?.detalles?.retencion_iva ?? 0)) || 0;
       const mSfUsado = parseFloat(String(pago?.saldoFavorUsado ?? pago?.detalles?.saldo_usado ?? pago?.detalles?.descuentoSaldoFavor ?? 0)) || 0;
-      const sumSfPrev = Array.isArray(pago?.detalles?.deuda_previa)
-        ? pago.detalles.deuda_previa.reduce((acc: number, x: any) => acc + (parseFloat(String(x?.saldo_favor_bs || 0)) || 0), 0)
+      const mAbonoPrev = parseFloat(String(pago?.detalles?.abono_previo_descontado || 0)) || 0;
+      const sumPa = Array.isArray(pago?.detalles?.pagos_agregados) && pago.detalles.pagos_agregados.length > 1
+        ? pago.detalles.pagos_agregados
+            .filter((x: any) => !String(x?.metodo || x?.tipo || x?.descripcion || '').toLowerCase().includes('saldo a favor') && !String(x?.metodo || x?.tipo || x?.descripcion || '').toLowerCase().includes('nota de credito'))
+            .reduce((s: number, x: any) => s + (parseFloat(String(x?.monto || 0)) || 0), 0)
         : 0;
-      const mAbonoPrev = Math.max(sumSfPrev, parseFloat(String(pago?.detalles?.abono_previo_descontado || 0)) || 0);
-      const mFacturaObj = parseFloat(String(pago?.monto ?? pago?.detalles?.monto_factura ?? pago?.detalles?.total_seleccionado ?? 0)) || 0;
-      const mCubierto = Math.round((mPagado + mRet + mSfUsado + mAbonoPrev) * 100) / 100;
+      const mFacturaObj = parseFloat(String(totalOverride || totalRef || pago?.monto || pago?.detalles?.monto_factura || pago?.detalles?.total_seleccionado || 0)) || 0;
+      const esRetCheck = Boolean(pago?.esRetencion || pago?.conRetencion || pago?.detalles?.es_retencion || pago?.detalles?.agente_retencion || mRet > 0);
+      const retEst = esRetCheck && mRet <= 0 && mFacturaObj > 0
+        ? Math.round((mFacturaObj - (mFacturaObj / 1.16)) * 0.75 * 100) / 100
+        : mRet;
+      const mBancario = Math.max(mPagado, sumPa);
+      const mCubierto = Math.round((mBancario + retEst + mSfUsado + (sumPa > mPagado ? 0 : mAbonoPrev)) * 100) / 100;
       const difFaltante = Math.round((mFacturaObj - mCubierto) * 100) / 100;
-      if (mFacturaObj > 0 && mPagado > 0 && difFaltante > 1.00) {
+      if (mFacturaObj > 0 && mBancario > 0 && difFaltante > 1.00) {
         const fmt = (n: number) => n.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         alert(
           `⚠️ BLOQUEADO: No se puede emitir factura fiscal porque este pago tiene una diferencia pendiente por cubrir de Bs. ${fmt(difFaltante)}.\n\n` +
@@ -1248,6 +1254,35 @@ export default function FacturacionElectronicaPage() {
         alert('El total de la factura es distinto a lo cobrado en Caja. Escriba el motivo del ajuste.');
         setIsEmitting(false);
         return;
+      }
+      // Validación estricta: el total de la factura no puede superar lo efectivamente pagado + retención + saldo a favor + abonos
+      if (!totalForzado && !editado) {
+        const mPagadoEmit = parseFloat(String(selectedPagoForEmit?.montoPagado ?? selectedPagoForEmit?.detalles?.monto_conciliado ?? selectedPagoForEmit?.monto ?? 0)) || 0;
+        const sumPaEmit = Array.isArray(selectedPagoForEmit?.detalles?.pagos_agregados) && selectedPagoForEmit.detalles.pagos_agregados.length > 1
+          ? selectedPagoForEmit.detalles.pagos_agregados
+              .filter((x: any) => !String(x?.metodo || x?.tipo || x?.descripcion || '').toLowerCase().includes('saldo a favor') && !String(x?.metodo || x?.tipo || x?.descripcion || '').toLowerCase().includes('nota de credito'))
+              .reduce((s: number, x: any) => s + (parseFloat(String(x?.monto || 0)) || 0), 0)
+          : 0;
+        const sumFpMultiEmit = emitFormasPagoMultiples.length > 1
+          ? emitFormasPagoMultiples.reduce((s, x) => s + (parseFloat(String(x.monto || '0').replace(',', '.')) || 0), 0)
+          : 0;
+        const mRetEmit = emitEsRetencion
+          ? (parseFloat(String(selectedPagoForEmit?.montoRetencion ?? selectedPagoForEmit?.detalles?.monto_retencion_iva ?? selectedPagoForEmit?.detalles?.retencion_iva ?? 0)) || Math.round(iva * 0.75 * 100) / 100)
+          : 0;
+        const mSfUsadoEmit = parseFloat(String(selectedPagoForEmit?.saldoFavorUsado ?? selectedPagoForEmit?.detalles?.saldo_usado ?? selectedPagoForEmit?.detalles?.descuentoSaldoFavor ?? 0)) || 0;
+        const mAbonoPrevEmit = parseFloat(String(selectedPagoForEmit?.detalles?.abono_previo_descontado || 0)) || 0;
+        const mBancarioEmit = Math.max(mPagadoEmit, sumPaEmit, sumFpMultiEmit > 0 && sumPaEmit > 0 ? sumFpMultiEmit : 0);
+        const mCubiertoEmit = Math.round((mBancarioEmit + mRetEmit + mSfUsadoEmit + (sumPaEmit > mPagadoEmit ? 0 : mAbonoPrevEmit)) * 100) / 100;
+        const difFaltanteEmit = Math.round((total - mCubiertoEmit) * 100) / 100;
+        if (mBancarioEmit > 0 && difFaltanteEmit > 1.00) {
+          alert(
+            `⚠️ EMISIÓN BLOQUEADA: El Total de la Factura (Bs. ${fmtBs(total)}) supera el monto realmente pagado/cubierto (Bs. ${fmtBs(mCubiertoEmit)}).\n\n` +
+            `Diferencia faltante por pagar: Bs. ${fmtBs(difFaltanteEmit)}.\n` +
+            `El contribuyente debe cancelar la diferencia completa antes de emitir la factura.`
+          );
+          setIsEmitting(false);
+          return;
+        }
       }
       let usuarioActual = '';
       try { const u = JSON.parse(localStorage.getItem('admin_user_data') || 'null'); usuarioActual = u ? `${u.nombre || u.usuario} (${u.usuario})` : ''; } catch {}

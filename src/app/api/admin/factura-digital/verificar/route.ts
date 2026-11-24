@@ -371,13 +371,22 @@ export async function POST(request: Request) {
         const sim = await r.json();
         simPayload = sim;
         const t = sim?.payload?.documentoElectronico?.Encabezado?.Totales;
+        if (!r.ok || sim?.success === false) {
+          if (Array.isArray(sim?.errores) && sim.errores.length > 0) {
+            sim.errores.forEach((e: string) => errores.push(e));
+          } else if (sim?.error) {
+            errores.push(sim.error);
+          }
+        }
         if (t && sim.totalAPagar > 0) {
           baseImponible = parseFloat(t.MontoGravadoTotal || '0') || 0;
           ivaEstimado = parseFloat(t.TotalIVA || '0') || 0;
           exento = parseFloat(t.MontoExentoTotal || '0') || 0;
           totalFactura = Math.round(sim.totalAPagar * 100) / 100;
           retencionIva = parseFloat(String(det.monto_retencion_iva || 0)) || 0;
-          (sim.errores || []).forEach((e: string) => advertencias.push(e));
+          if (r.ok && sim?.success !== false) {
+            (sim.errores || []).forEach((e: string) => advertencias.push(e));
+          }
         } else if (sim?.skipped) {
           advertencias.push(sim.message || 'Este pago no genera factura fiscal.');
         }

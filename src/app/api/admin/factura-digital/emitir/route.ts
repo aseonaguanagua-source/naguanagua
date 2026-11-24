@@ -187,17 +187,19 @@ export async function POST(request: Request) {
     }
 
     // Verificar que el monto pagado + abonos vinculados + saldo a favor + retención cubra el total de la factura (sin diferencias faltantes)
-    if (!dryRun && !reemitir) {
+    {
       const montoPropioPago = parseFloat(String(pm?.monto || dm?.monto_abonado || 0)) || 0;
+      const sumPaGuardados = Array.isArray(dm?.pagos_agregados) && dm.pagos_agregados.length > 1
+        ? dm.pagos_agregados
+            .filter((pa: any) => !String(pa?.metodo || pa?.tipo || pa?.descripcion || '').toLowerCase().includes('saldo a favor') && !String(pa?.metodo || pa?.tipo || pa?.descripcion || '').toLowerCase().includes('nota de credito'))
+            .reduce((s: number, pa: any) => s + (parseFloat(String(pa?.monto || 0)) || 0), 0)
+        : 0;
       const sumFpBancarias = Array.isArray(formasPago) && formasPago.length > 1
         ? formasPago
             .filter((fp: any) => !String(fp?.descripcion || fp?.tipo || fp?.metodo || '').toLowerCase().includes('saldo a favor') && !String(fp?.descripcion || fp?.tipo || fp?.metodo || '').toLowerCase().includes('nota de credito'))
             .reduce((s: number, fp: any) => s + (parseFloat(String(fp?.monto || 0)) || 0), 0)
         : 0;
-      const sumSfDeudaPrevia = Array.isArray(dm?.deuda_previa)
-        ? dm.deuda_previa.reduce((acc: number, x: any) => acc + (parseFloat(String(x?.saldo_favor_bs || 0)) || 0), 0)
-        : 0;
-      const abonoPrevioDescontado = Math.max(sumSfDeudaPrevia, parseFloat(String(dm?.abono_previo_descontado || 0)) || 0);
+      const abonoPrevioDescontado = parseFloat(String(dm?.abono_previo_descontado || 0)) || 0;
       const sfUsadoEnPago = parseFloat(String(dm?.saldo_usado ?? dm?.descuentoSaldoFavor ?? dm?.descuento_saldo_favor ?? dm?.saldo_favor_usado ?? dm?.nota_credito_usada ?? dm?.monto_saldo_favor ?? 0)) || 0;
       const retIvaEnPago = parseFloat(String(dm?.monto_retencion_iva || dm?.retencion_iva || 0)) || 0;
 
@@ -222,7 +224,11 @@ export async function POST(request: Request) {
         }
       }
 
-      const montoBancarioCubierto = Math.max(montoPropioPago + sumaPagosHermanos, sumFpBancarias > 0 && sumaPagosHermanos > 0 ? sumFpBancarias : montoPropioPago + sumaPagosHermanos);
+      const montoBancarioCubierto = Math.max(
+        montoPropioPago + sumaPagosHermanos,
+        sumPaGuardados,
+        sumFpBancarias > 0 && (sumaPagosHermanos > 0 || sumPaGuardados > 0) ? sumFpBancarias : montoPropioPago + sumaPagosHermanos
+      );
       const montoFacturaRegistrado = Math.max(
         parseFloat(String(dm?.monto_factura || 0)) || 0,
         parseFloat(String(dm?.total_seleccionado || 0)) || 0
@@ -233,14 +239,22 @@ export async function POST(request: Request) {
       const retEstimada = esPagoConRetencion && retIvaEnPago <= 0 && objetivoFactura > 0
         ? r2((objetivoFactura - (objetivoFactura / 1.16)) * 0.75)
         : retIvaEnPago;
-      const totalCubierto = r2(montoBancarioCubierto + abonoPrevioDescontado + sfUsadoEnPago + retEstimada);
+      const totalCubierto = r2(montoBancarioCubierto + (sumaPagosHermanos > 0 || sumPaGuardados > montoPropioPago ? 0 : abonoPrevioDescontado) + sfUsadoEnPago + retEstimada);
       const diferenciaFaltante = r2(objetivoFactura - totalCubierto);
 
       if (objetivoFactura > 0 && montoPropioPago > 0 && diferenciaFaltante > 1.00) {
         const fmt = (n: number) => n.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        return NextResponse.json({
-          error: `No se puede emitir la factura fiscal porque el pago tiene una diferencia faltante por cubrir de Bs. ${fmt(diferenciaFaltante)} (Total factura: Bs. ${fmt(objetivoFactura)} vs. Monto pagado/cubierto: Bs. ${fmt(totalCubierto)}). El contribuyente debe cancelar la diferencia antes de facturar.`
-        }, { status: 400 });
+        const msgFaltante = `No se puede emitir la factura fiscal porque el pago tiene una diferencia faltante por cubrir de Bs. ${fmt(diferenciaFaltante)} (Total factura: Bs. ${fmt(objetivoFactura)} vs. Monto pagado/cubierto: Bs. ${fmt(totalCubierto)}). El contribuyente debe cancelar la diferencia antes de facturar.`;
+        if (dryRun) {
+          return NextResponse.json({
+            success: false,
+            dryRun: true,
+            errores: [msgFaltante],
+            montoCobrado: totalCubierto,
+            totalAPagar: objetivoFactura
+          }, { status: 400 });
+        }
+        return NextResponse.json({ error: msgFaltante, errores: [msgFaltante] }, { status: 400 });
       }
     }
     if ((pm?.modulo === 'condominios' || dm?.modulo === 'condominios') && Array.isArray(dm?.condominio?.lineas)) {
@@ -2144,29 +2158,20 @@ export async function POST(request: Request) {
       const retCalculada = r2(totalIVA * (porcRet / 100));
       const montoRet = conRetencion ? (retCalculada || parseFloat(String(detPago?.monto_retencion_iva || detPago?.retencion_iva || 0))) : 0;
       const efectivoTotal = (() => {
-        const sfDescontar = saldoFavorGeneradoRaw > 0 ? saldoFavorGeneradoRaw : 0;
+        const sfDescontar = saldoFavorGeneradoRaw > 0.05 ? saldoFavorGeneradoRaw : 0;
         if (Array.isArray(detPago?.pagos_agregados) && detPago.pagos_agregados.length > 0) {
           const sumPagos = detPago.pagos_agregados.reduce((s: number, p: any) => s + (parseFloat(String(p?.monto || 0)) || 0), 0);
-          return Math.max(0, sumPagos - sfDescontar);
+          return Math.max(0, sumPagos + saldoFavorUsado - sfDescontar);
         }
         if (Array.isArray(detPago?.formasPago) && detPago.formasPago.length > 0) {
           const sumFormas = detPago.formasPago.reduce((s: number, p: any) => s + (parseFloat(String(p?.monto || 0)) || 0), 0);
           return Math.max(0, sumFormas - sfDescontar);
         }
-        if (montoFacturaGuardado > 0) {
-          return Math.max(totalEfectivoPagado - sfDescontar, montoFacturaGuardado - (conRetencion ? montoRet : 0));
-        }
-        if (parseFloat(String(detPago?.monto_neto_factura || 0)) > 0) {
-          return Math.max(totalEfectivoPagado - sfDescontar, parseFloat(String(detPago.monto_neto_factura)));
-        }
-        if (parseFloat(String(detPago?.total_seleccionado || 0)) > 0) {
-          return Math.max(totalEfectivoPagado - sfDescontar, parseFloat(String(detPago.total_seleccionado)) - (conRetencion ? montoRet : 0));
-        }
-        return totalEfectivoPagado + saldoFavorUsado - sfDescontar;
+        return Math.max(0, totalEfectivoPagado + saldoFavorUsado - sfDescontar);
       })();
-      const montoCobradoNeto = Math.max(efectivoTotal, (montoCobrado > 0 ? (conRetencion ? montoCobrado - montoRet : montoCobrado) : 0));
+      const montoCobradoNeto = efectivoTotal;
       const cobradoTotal = montoCobradoNeto + montoRet;
-      if (montoCobradoNeto > 0 && !conRetencion && totalAPagar > montoCobradoNeto + tol)
+      if (montoCobradoNeto > 0 && !conRetencion && totalAPagar > montoCobradoNeto + tol + 1.0)
         erroresFiscales.push(`Total factura (${totalAPagar.toFixed(2)}) MAYOR a lo cobrado en caja + nota de crédito (${montoCobradoNeto.toFixed(2)}).`);
       if (montoCobradoNeto > 0 && conRetencion && totalAPagar > cobradoTotal + tol + 1.0)
         erroresFiscales.push(`Total factura (${totalAPagar.toFixed(2)}) MAYOR a lo cobrado en caja + retención + nota de crédito (${cobradoTotal.toFixed(2)}).`);
