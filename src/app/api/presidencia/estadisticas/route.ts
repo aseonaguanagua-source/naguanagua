@@ -381,23 +381,144 @@ export async function GET(request: Request) {
     let retencionesIvaTotalBs = 0;
     let pagosConRetencionCount = 0;
 
+    const pagoPorId = new Map<string, any>();
+    for (const p of pagosAll) {
+      if (p?.id) pagoPorId.set(String(p.id), p);
+    }
+
+    const parseDetObj = (p: any): any => {
+      if (!p?.detalles) return {};
+      if (typeof p.detalles === 'object') return p.detalles;
+      try { return JSON.parse(p.detalles); } catch { return {}; }
+    };
+
+    const parseMontoNum = (v: any): number => {
+      if (typeof v === 'number') return isNaN(v) ? 0 : v;
+      if (!v) return 0;
+      const s = String(v).trim();
+      if (s.includes(',') && s.includes('.')) {
+        return Number(s.lastIndexOf(',') > s.lastIndexOf('.') ? s.replace(/\./g, '').replace(',', '.') : s.replace(/,/g, '')) || 0;
+      }
+      if (s.includes(',')) return Number(s.replace(',', '.')) || 0;
+      return Number(s) || 0;
+    };
+
+    const isSaldoPago = (p: any, det: any): boolean => {
+      const t = String(p.tipo || '').toUpperCase().trim();
+      if (t && !t.includes('SALDO') && !t.includes('NOTA DE CREDITO') && !t.includes('NOTA DE CRÉDITO')) return false;
+      const paList = Array.isArray(det.pagos_agregados) ? det.pagos_agregados : [];
+      if (paList.some((x: any) => x?.metodo && !String(x.metodo).toUpperCase().includes('SALDO'))) return false;
+      const detTipo = String(det.tipo || '').toUpperCase();
+      return t.includes('SALDO') || t.includes('NOTA DE CREDITO') || t.includes('NOTA DE CRÉDITO') ||
+             detTipo.includes('SALDO') || detTipo.includes('NOTA DE CREDITO') || detTipo.includes('NOTA DE CRÉDITO') ||
+             Boolean(det.es_saldo_a_favor || det.es_nota_credito);
+    };
+
+    const esDebitoPago = (p: any, det: any) =>
+      !isSaldoPago(p, det) && /^(d[eé]bito|cr[eé]dito|tmd|tvd)\b|punto|tarjeta|^rec$/i.test(String(p.tipo || '').trim());
+
+    const parseFechaCaracas = (raw: any): Date | null => {
+      if (!raw) return null;
+      const str = String(raw).trim();
+      const dmyMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+      if (dmyMatch) {
+        const ymd = `${dmyMatch[3]}-${dmyMatch[2].padStart(2, '0')}-${dmyMatch[1].padStart(2, '0')}`;
+        const d = new Date(`${ymd}T12:00:00-04:00`);
+        return isNaN(d.getTime()) ? null : d;
+      }
+      if (/^\d{4}-\d{2}-\d{2}(T00:00:00(\.000)?(Z|\+00:00)?)?$/i.test(str)) {
+        const d = new Date(`${str.slice(0, 10)}T12:00:00-04:00`);
+        return isNaN(d.getTime()) ? null : d;
+      }
+      const d = new Date(str);
+      return isNaN(d.getTime()) ? null : d;
+    };
+
+    const obtenerFechaEfectivaCuadre = (p: any, det: any): Date => {
+      const corrList = Array.isArray(det.correcciones_reporte) ? det.correcciones_reporte : [];
+      const lastCorr = corrList.length > 0 ? corrList[corrList.length - 1] : null;
+      const corrTieneFecha = Boolean(
+        lastCorr?.fecha_nueva &&
+        String(lastCorr.fecha_anterior || '').slice(0, 10) !== String(lastCorr.fecha_nueva).slice(0, 10)
+      );
+      if (corrTieneFecha && lastCorr?.fecha_nueva) {
+        const dCorr = parseFechaCaracas(lastCorr.fecha_nueva);
+        if (dCorr) return dCorr;
+      }
+      if (!esDebitoPago(p, det)) {
+        const fd = det.factura_digital || {};
+        const pagoPadre = det.pago_principal_id ? pagoPorId.get(String(det.pago_principal_id)) : null;
+        const detPadre = pagoPadre ? parseDetObj(pagoPadre) : null;
+        const fdPadre = detPadre?.factura_digital || {};
+        const rc0 = Array.isArray(det.recibo_caja) ? det.recibo_caja[0] : det.recibo_caja;
+        const rcPadre0 = Array.isArray(detPadre?.recibo_caja) ? detPadre.recibo_caja[0] : detPadre?.recibo_caja;
+
+        const candidatos = [
+          det.fecha_emision_override,
+          (fd.emitida || fd.numero_documento || fd.numero_control) ? fd.fecha_emision : '',
+          detPadre?.fecha_emision_override,
+          (fdPadre?.emitida || fdPadre?.numero_documento || fdPadre?.numero_control) ? fdPadre.fecha_emision : '',
+          rc0?.fechaEmision,
+          rcPadre0?.fechaEmision,
+          det.fecha_transaccion,
+          rc0?.fechaIngresoCaja,
+          rcPadre0?.fechaIngresoCaja,
+          det.fecha_ingreso_caja,
+        ];
+        for (const c of candidatos) {
+          const dCand = parseFechaCaracas(c);
+          if (dCand) return dCand;
+        }
+        const createdStr = String(p.created_at || '');
+        if (createdStr.includes('T16:00:00') && det.recibo_caja_at) {
+          const dReal = new Date(det.recibo_caja_at);
+          if (!isNaN(dReal.getTime())) return dReal;
+        }
+      }
+      return new Date(p.created_at);
+    };
+
+    const obtenerMontoEfectivoCuadre = (p: any, det: any): number => {
+      if (det?.monto_reporte != null) {
+        return parseMontoNum(det.monto_reporte);
+      }
+      const mBase = parseMontoNum(p?.monto);
+      if (esDebitoPago(p, det)) return mBase;
+      const tUpper = String(p.tipo || '').toUpperCase().trim();
+      if (tUpper.includes('DEPOSITO') || tUpper.includes('DEPÓSITO')) return mBase;
+      const mConc = parseMontoNum(det?.monto_conciliado);
+      const esMultiple = Boolean(
+        det?.es_pago_adicional ||
+        det?.abono_completado ||
+        (Array.isArray(det?.pagos_agregados) && det.pagos_agregados.filter((x: any) => !/saldo\s*a\s*favor|nota\s*de\s*cr[eé]dito/i.test(String(x?.metodo || x?.tipo || x?.referencia || ''))).length > 1) ||
+        (Array.isArray(det?.formasPago) && det.formasPago.filter((x: any) => !/saldo\s*a\s*favor|nota\s*de\s*cr[eé]dito/i.test(String(x?.metodo || x?.tipo || x?.referencia || ''))).length > 1)
+      );
+      if (esMultiple && mBase > 0 && mConc > mBase + 1) return mBase;
+      if (mConc > 0 && (!Array.isArray(det?.pagos_agregados) || !det.pagos_agregados.some((x: any) => /saldo\s*a\s*favor/i.test(String(x?.referencia || x?.metodo || ''))))) {
+        return mConc;
+      }
+      return mBase || mConc;
+    };
+
     const pagosFiltradosValidos = pagosAll.filter((p: any) => {
       const t = String(p.tipo || '').trim();
-      if (/retenci|saldo a favor|nota de cr[eé]dito/i.test(t)) return false;
-      let det: any = {};
-      try {
-        det = typeof p.detalles === 'object' && p.detalles !== null ? p.detalles : JSON.parse(p.detalles || '{}');
-      } catch {}
+      const det = parseDetObj(p);
+      if (/retenci|saldo a favor|nota de cr[eé]dito/i.test(t) || isSaldoPago(p, det)) return false;
       const caj = String(det?.cajero || det?.analista || '').trim();
       if (/^(dz-)?dzara$|^c-dzara$/i.test(caj)) return false;
       return true;
     });
 
     const pagosEnriquecidos = pagosFiltradosValidos.map((p: any) => {
-      let det: any = {};
+      const det = parseDetObj(p);
+      const dEf = obtenerFechaEfectivaCuadre(p, det);
+      let fechaEfectivaYmd = '';
       try {
-        det = typeof p.detalles === 'object' && p.detalles !== null ? p.detalles : JSON.parse(p.detalles || '{}');
-      } catch {}
+        fechaEfectivaYmd = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' }).format(dEf);
+      } catch {
+        fechaEfectivaYmd = String(p.created_at || '').slice(0, 10);
+      }
+      const montoEfectivo = obtenerMontoEfectivoCuadre(p, det);
 
       const idClean = String(p.identidad || '').replace(/[-.\s]/g, '').toUpperCase();
       const sector = sectorByIdentidad.get(idClean) || (idClean.startsWith('J') || idClean.startsWith('G') ? 'Comercial' : 'Residencial');
@@ -436,6 +557,10 @@ export async function GET(request: Request) {
 
       return {
         ...p,
+        monto: montoEfectivo,
+        fechaEfectiva: fechaEfectivaYmd,
+        created_at: fechaEfectivaYmd ? `${fechaEfectivaYmd}T12:00:00-04:00` : p.created_at,
+        created_at_original: p.created_at,
         sector,
         contribuyenteNombre: nombreContrib,
         codInmueble: codInm,

@@ -267,14 +267,14 @@ export default function PresidenciaDashboard() {
       });
   }, [statsData]);
 
-  // Pagos filtrados por rango de fecha seleccionado (en zona horaria Venezuela UTC-4, idéntico a RecaudacionWidget)
+  // Pagos filtrados por rango de fecha seleccionado (usando la Fecha Efectiva de Cuadre de Caja / Monto Diario Recaudado)
   const pagosPeriodo = useMemo(() => {
     if (!pagosNormalizados.length) return [];
-    const start = fechaDesde ? new Date(`${fechaDesde}T00:00:00-04:00`) : new Date('2020-01-01T00:00:00-04:00');
-    const end = fechaHasta ? new Date(`${fechaHasta}T23:59:59.999-04:00`) : new Date('2099-12-31T23:59:59.999-04:00');
+    const dFrom = fechaDesde || '2020-01-01';
+    const dTo = fechaHasta || '2099-12-31';
     return pagosNormalizados.filter((p: any) => {
-      const d = new Date(p.created_at);
-      return d >= start && d <= end;
+      const ymd = String(p.fechaEfectiva || p.created_at || '').slice(0, 10);
+      return ymd >= dFrom && ymd <= dTo;
     });
   }, [pagosNormalizados, fechaDesde, fechaHasta]);
 
