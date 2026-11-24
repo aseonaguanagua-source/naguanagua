@@ -100,12 +100,27 @@ export default function FacturacionPortalPage() {
           : getIdentidadVariants(doc);
         const orFilter = variants.map(v => `identidad.eq.${v}`).join(',');
 
-        // 1. Obtener pagos con factura digital
-        const { data: pagos } = await supabase
-          .from('pagos_reportados')
-          .select('id, identidad, monto, banco, detalles, created_at')
-          .or(orFilter)
-          .order('created_at', { ascending: false });
+        // 1. Obtener pagos con factura digital (por RIF y también por código de condominio en sesión)
+        const portalCodigo = typeof window !== 'undefined' ? (localStorage.getItem('portal_codigo') || '').trim().toUpperCase() : '';
+        const [{ data: pagosPorRif }, { data: pagosPorCodCondo }] = await Promise.all([
+          supabase
+            .from('pagos_reportados')
+            .select('id, identidad, monto, banco, detalles, created_at')
+            .or(orFilter)
+            .order('created_at', { ascending: false }),
+          portalCodigo && /^(URB|AURI)\d+$/i.test(portalCodigo)
+            ? supabase
+                .from('pagos_reportados')
+                .select('id, identidad, monto, banco, detalles, created_at')
+                .filter('detalles->condominio->>codigo', 'eq', portalCodigo)
+                .order('created_at', { ascending: false })
+            : Promise.resolve({ data: [] as any[] }),
+        ]);
+        const pagosDedupMap = new Map<string, any>();
+        [...(pagosPorRif || []), ...(pagosPorCodCondo || [])].forEach(p => {
+          if (p?.id && !pagosDedupMap.has(p.id)) pagosDedupMap.set(p.id, p);
+        });
+        const pagos = Array.from(pagosDedupMap.values());
 
         // 2. Obtener retenciones_iva para corroborar aprobaciones
         const { data: retenciones } = await supabase

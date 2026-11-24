@@ -77,15 +77,17 @@ export default function EstadoCuentaPage() {
           const portalCodigo = typeof window !== 'undefined' ? (localStorage.getItem('portal_codigo') || '') : '';
           const isCondoMasterSession = typeof window !== 'undefined' && sessionStorage.getItem('portal_condo_key') === 'Sehile18-';
 
-          // 0. Verificar si la sesión es de un Condominio Matriz
+          // 0. Verificar si la sesión es de un Condominio Matriz (priorizando el código exacto de la sesión si comparten RIF)
           const orCondoMatriz = [orFilter, ...(portalCodigo ? [`codigo.eq.${portalCodigo}`] : [])].filter(Boolean).join(',');
-          const { data: ownCondoRow } = await supabase
+          const { data: ownCondoRows } = await supabase
             .from('condominios')
             .select('id, codigo, nombre, identidad, tipo, modalidad, cant_declarada')
             .neq('estado', 'Eliminado')
             .or(orCondoMatriz)
-            .limit(1)
-            .maybeSingle();
+            .limit(10);
+          const ownCondoRow = (ownCondoRows && ownCondoRows.length > 0)
+            ? (ownCondoRows.find((r: any) => portalCodigo && String(r.codigo || '').toUpperCase() === portalCodigo.toUpperCase()) || ownCondoRows[0])
+            : null;
 
           // 1. Inmuebles, Facturas y Contribuyente en tiempo real
           const { data: inmsDB } = await supabase.from('inmuebles').select('*').or(orFilter);
@@ -193,8 +195,10 @@ export default function EstadoCuentaPage() {
             setMisInmueblesDb([condoMasterInm]);
             setMisNaCodes([]);
 
-            // Construir los recibos mensuales del condominio a partir de los renglones de calcularEstado
+            // Construir los recibos mensuales del condominio a partir de los renglones de calcularEstado (incluyendo multas extra/manuales)
             const periodosMap = new Map<string, { base: number; iva: number; multa: number; ret: number; total: number }>();
+            let multaExtraAcumBs = 0;
+            let multasManualesAcumBs = 0;
             (eObj?.renglones || []).forEach((r: any) => {
               const pList: string[] = Array.isArray(r.periodos) ? r.periodos : [];
               const pmList: any[] = Array.isArray(r.deuda?.porMes) ? r.deuda.porMes : [];
@@ -209,9 +213,25 @@ export default function EstadoCuentaPage() {
                 cur.total = Math.round((cur.total + (Number(pm.totalBs) || 0)) * 100) / 100;
                 periodosMap.set(pKey, cur);
               });
+              if (Number(r.multaExtraBs) > 0) {
+                multaExtraAcumBs = Math.round((multaExtraAcumBs + Number(r.multaExtraBs)) * 100) / 100;
+              }
+              if (Number(r.multasManualesBs) > 0) {
+                multasManualesAcumBs = Math.round((multasManualesAcumBs + Number(r.multasManualesBs)) * 100) / 100;
+              }
             });
 
-            const condoRecibos = [...periodosMap.keys()].sort().map((pKey, idx) => {
+            const sortedKeys = [...periodosMap.keys()].sort();
+            const extraMultasTotal = Math.round((multaExtraAcumBs + multasManualesAcumBs) * 100) / 100;
+            if (extraMultasTotal > 0 && sortedKeys.length > 0) {
+              const oldestKey = sortedKeys[0];
+              const oldestObj = periodosMap.get(oldestKey)!;
+              oldestObj.multa = Math.round((oldestObj.multa + extraMultasTotal) * 100) / 100;
+              oldestObj.total = Math.round((oldestObj.total + extraMultasTotal) * 100) / 100;
+              periodosMap.set(oldestKey, oldestObj);
+            }
+
+            const condoRecibos = sortedKeys.map((pKey, idx) => {
               const mObj = periodosMap.get(pKey)!;
               return {
                 id: `condo-rec-${cObj.codigo}-${pKey}`,
@@ -231,7 +251,47 @@ export default function EstadoCuentaPage() {
                 mesIndex: idx + 1,
               };
             });
-            setMisFactDb(condoRecibos);
+            if (extraMultasTotal > 0 && sortedKeys.length === 0) {
+              const fMultaIso = new Date().toISOString().slice(0, 10);
+              condoRecibos.push({
+                id: `condo-multa-${cObj.codigo}`,
+                referencia: `MULTA-${cObj.codigo}`,
+                identidad: cObj.identidad || fullDoc,
+                contribuyente: cleanCondoName,
+                inmueble: cObj.codigo,
+                emision: fMultaIso,
+                vencimiento: fMultaIso,
+                monto: String(extraMultasTotal.toFixed(2)),
+                base: 0,
+                iva: 0,
+                multa: extraMultasTotal,
+                retencion: 0,
+                estado: 'Pendiente',
+                esReciboCondominioMatriz: true,
+                mesIndex: 1,
+              });
+            }
+            // Poblar también los últimos pagos confirmados del condominio desde la ficha oficial
+            const pagosCondoAprobados = (loadedCondoFicha.pagos || [])
+              .filter((p: any) => p.estado === 'Aprobado')
+              .slice(0, 10)
+              .map((p: any) => {
+                let pDet: any = {};
+                try { pDet = typeof p.detalles === 'string' ? JSON.parse(p.detalles) : (p.detalles || {}); } catch {}
+                return {
+                  id: `pago-condo-${p.id}`,
+                  referencia: pDet?.recibo_caja?.[0]?.reciboNo || p.referencia || `PAGO-${p.id.slice(0, 6)}`,
+                  identidad: cObj.identidad || fullDoc,
+                  contribuyente: cleanCondoName,
+                  inmueble: cObj.codigo,
+                  emision: pDet?.periodos_pagados || pDet?.fecha_transaccion || p.created_at?.slice(0, 10) || '',
+                  fecha_pago: pDet?.fecha_transaccion || p.created_at?.slice(0, 10) || 'N/A',
+                  monto: `Bs. ${formatBs(parseFloat(String(p.monto || 0)) || 0)}`,
+                  estado: 'Pagado',
+                  esReciboCondominioMatriz: true,
+                };
+              });
+            setMisFactDb([...condoRecibos, ...pagosCondoAprobados]);
           } else {
             // FUENTE ÚNICA (idéntica a Caja y Cobro Móvil): inmuebles cobrables, facturas pendientes y meses históricos
             const rc = construirRecibosContribuyente({ inmuebles: allInms, facturas: facturasDB || [], identidad: fullDoc });
@@ -304,9 +364,13 @@ export default function EstadoCuentaPage() {
           setPagosPorVerificar(pagosVerif || []);
 
           // 6. Notas de Crédito / Saldo a Favor Vigentes (deduplicadas por ID)
+          const orFilterNC = [...variants, ...(ownCondoCode ? [ownCondoCode] : []), ...(portalCodigo ? [portalCodigo] : [])]
+            .filter(Boolean)
+            .map(v => `identidad.eq.${v}`)
+            .join(',');
           const { data: docsNC } = await supabase.from('documentos')
             .select('*')
-            .or(orFilter)
+            .or(orFilterNC || orFilter)
             .eq('estado', 'Vigente')
             .order('created_at', { ascending: false });
           const seenDocIds = new Set<string>();
@@ -314,8 +378,16 @@ export default function EstadoCuentaPage() {
             if (!doc?.id || seenDocIds.has(String(doc.id))) return false;
             const tipoLower = String(doc.tipo || '').toLowerCase();
             if (!tipoLower.includes('nota') && !tipoLower.includes('crédito') && !tipoLower.includes('credito') && !tipoLower.includes('saldo')) return false;
-            const monto = parseFloat(String(doc.monto_bs || 0)) || 0;
-            if (monto <= 0) return false;
+            let detNC: any = {};
+            try { detNC = typeof doc.detalles === 'string' ? JSON.parse(doc.detalles) : (doc.detalles || {}); } catch {}
+            if (ownCondoCode) {
+              const codCondoDoc = String(detNC?.codigo_condominio || detNC?.codigo_inmueble || '').trim().toUpperCase();
+              if (codCondoDoc && codCondoDoc !== ownCondoCode) return false;
+            }
+            const monto = parseFloat(String(doc.monto_bs ?? detNC?.monto_bs ?? detNC?.monto ?? 0).replace(',', '.')) || 0;
+            if (monto <= 0.01) return false;
+            doc._parsedMontoBs = Math.round(monto * 100) / 100;
+            doc._parsedDet = detNC;
             seenDocIds.add(String(doc.id));
             return true;
           });
@@ -360,7 +432,10 @@ export default function EstadoCuentaPage() {
 
     const assignedDocIds = new Set<string>();
     const extractInmFromDoc = (doc: any): string => {
-      const m = String(doc?.motivo || '').match(/\[INMUEBLE:\s*([^\]]+)\]/i);
+      const det = doc?._parsedDet || (typeof doc?.detalles === 'object' ? doc.detalles : {});
+      const codDirect = String(det?.codigo_inmueble || det?.cod_inmueble || det?.codigo_condominio || '').trim().toUpperCase();
+      if (codDirect) return codDirect;
+      const m = String(doc?.motivo || det?.motivo || '').match(/\[INMUEBLE:\s*([^\]]+)\]/i);
       if (m && m[1]) return m[1].trim().toUpperCase();
       return '';
     };
@@ -368,7 +443,8 @@ export default function EstadoCuentaPage() {
     for (const doc of notasCreditoVigentes) {
       const docId = String(doc.id);
       if (assignedDocIds.has(docId)) continue;
-      const monto = Math.round((parseFloat(String(doc.monto_bs || 0)) || 0) * 100) / 100;
+      const det = doc?._parsedDet || (typeof doc?.detalles === 'object' ? doc.detalles : {});
+      const monto = Math.round((parseFloat(String(doc._parsedMontoBs ?? doc.monto_bs ?? det?.monto_bs ?? det?.monto ?? 0)) || 0) * 100) / 100;
       if (monto <= 0) continue;
 
       const tagInm = extractInmFromDoc(doc);

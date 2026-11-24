@@ -49,13 +49,29 @@ export default function DocumentosPage() {
           .in('estado', ['Pagada', 'Pagado'])
           .order('emision', { ascending: false });
 
-        // 2. Pagos Reportados Aprobados
-        const { data: pagos } = await supabase
-          .from('pagos_reportados')
-          .select('id, referencia, monto, banco, estado, detalles, created_at')
-          .or(orFilter)
-          .eq('estado', 'Aprobado')
-          .order('created_at', { ascending: false });
+        // 2. Pagos Reportados Aprobados (por RIF y también por código de inmueble/condominio en sesión)
+        const portalCodigo = typeof window !== 'undefined' ? (localStorage.getItem('portal_codigo') || '').trim().toUpperCase() : '';
+        const [{ data: pagosPorRif }, { data: pagosPorCodCondo }] = await Promise.all([
+          supabase
+            .from('pagos_reportados')
+            .select('id, referencia, monto, banco, estado, detalles, created_at')
+            .or(orFilter)
+            .eq('estado', 'Aprobado')
+            .order('created_at', { ascending: false }),
+          portalCodigo && /^(URB|AURI)\d+$/i.test(portalCodigo)
+            ? supabase
+                .from('pagos_reportados')
+                .select('id, referencia, monto, banco, estado, detalles, created_at')
+                .filter('detalles->condominio->>codigo', 'eq', portalCodigo)
+                .eq('estado', 'Aprobado')
+                .order('created_at', { ascending: false })
+            : Promise.resolve({ data: [] as any[] }),
+        ]);
+        const pagosDedupMap = new Map<string, any>();
+        [...(pagosPorRif || []), ...(pagosPorCodCondo || [])].forEach(p => {
+          if (p?.id && !pagosDedupMap.has(p.id)) pagosDedupMap.set(p.id, p);
+        });
+        const pagos = Array.from(pagosDedupMap.values());
 
         const items: DocumentoItem[] = [];
 

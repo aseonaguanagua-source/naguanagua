@@ -37,17 +37,19 @@ export default function SolvenciaPage() {
       const portalCodigo = typeof window !== 'undefined' ? (localStorage.getItem('portal_codigo') || '') : '';
       const isCondoMasterSession = typeof window !== 'undefined' && sessionStorage.getItem('portal_condo_key') === 'Sehile18-';
 
-      // 0. Verificar si la sesión corresponde a un Condominio Matriz
+      // 0. Verificar si la sesión corresponde a un Condominio Matriz (priorizando el código exacto de la sesión si comparten RIF)
       const orCondoMatriz = [...variants.map(v => `identidad.eq.${v}`), ...(portalCodigo ? [`codigo.eq.${portalCodigo}`] : [])].filter(Boolean).join(',');
-      const { data: ownCondoRow } = orCondoMatriz
+      const { data: ownCondoRows } = orCondoMatriz
         ? await supabase
             .from('condominios')
             .select('id, codigo, nombre, identidad, tipo, modalidad, cant_declarada, tarifa_mmv, direccion, correo, telefono, aseo_pendiente_desde, multa_meses')
             .neq('estado', 'Eliminado')
             .or(orCondoMatriz)
-            .limit(1)
-            .maybeSingle()
+            .limit(10)
         : { data: null };
+      const ownCondoRow = (ownCondoRows && ownCondoRows.length > 0)
+        ? (ownCondoRows.find((r: any) => portalCodigo && String(r.codigo || '').toUpperCase() === portalCodigo.toUpperCase()) || ownCondoRows[0])
+        : null;
 
       // 1. Cargar inmuebles directamente de Supabase (garantiza datos en tiempo real)
       const { data: inms } = await supabase

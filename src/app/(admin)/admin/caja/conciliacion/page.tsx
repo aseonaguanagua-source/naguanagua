@@ -1809,11 +1809,31 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
                   ...(nuevoMeses === 0 ? { deuda_congelada_bs: 0 } : {})
                 }).eq('id', inm.id);
                 if (inmCod) {
-                  const { pendienteDesdeParaMeses } = await import('@/lib/condominios/motor');
+                  const { pendienteDesdeParaMeses, avanzarPendiente, mesesPendientes } = await import('@/lib/condominios/motor');
+                  const nuevoDesdeTarget = pendienteDesdeParaMeses(nuevoMeses);
                   await supabase.from('condominio_unidades').update({
-                    aseo_pendiente_desde: pendienteDesdeParaMeses(nuevoMeses),
+                    aseo_pendiente_desde: nuevoDesdeTarget,
                     ...(nuevaMultaBs <= 0.01 ? { multa_meses: Math.max(0, nuevoMeses - 1) } : {})
                   }).ilike('inmueble', inmCod);
+
+                  // Si inmCod es un Condominio Matriz (pagado desde Soy Contribuyente o Caja General), sincronizar condominios y sus unidades centralizadas
+                  const { data: condoMat } = await supabase.from('condominios').select('id, codigo, tipo, modalidad, cobro_tarifa_por_unidad, aseo_pendiente_desde').eq('codigo', inmCod).neq('estado', 'Eliminado').maybeSingle();
+                  if (condoMat) {
+                    const nuevoDesdeCondo = condoMat.aseo_pendiente_desde ? avanzarPendiente(condoMat.aseo_pendiente_desde, mesesPagados) : nuevoDesdeTarget;
+                    const mRestCondo = mesesPendientes(nuevoDesdeCondo);
+                    const multasRestCondo = Math.max(0, mRestCondo - 1);
+                    await supabase.from('condominios').update({
+                      aseo_pendiente_desde: nuevoDesdeCondo,
+                      multa_meses: multasRestCondo,
+                    }).eq('id', condoMat.id);
+                    const esPorAct = condoMat.modalidad === 'INDIVIDUAL' || !!condoMat.cobro_tarifa_por_unidad || condoMat.tipo !== 'RESIDENCIAL';
+                    if (!esPorAct) {
+                      await supabase.from('condominio_unidades').update({
+                        aseo_pendiente_desde: nuevoDesdeCondo,
+                        multa_meses: multasRestCondo,
+                      }).eq('condominio_id', condoMat.id).neq('estado', 'Eliminada');
+                    }
+                  }
                 }
               } else if (esAbonoParcialConcil && numMesesInm > 0 && dineroConcil > 0) {
                 // PAGO MÚLTIPLE / ABONO PARCIAL:

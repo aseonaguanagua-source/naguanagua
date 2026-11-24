@@ -247,15 +247,17 @@ export default function DondePagarPage() {
         const portalCodigo = typeof window !== 'undefined' ? (localStorage.getItem('portal_codigo') || '') : '';
         const isCondoMasterSession = typeof window !== 'undefined' && sessionStorage.getItem('portal_condo_key') === 'Sehile18-';
 
-        // 0. Verificar si la sesión es de un Condominio Matriz
+        // 0. Verificar si la sesión es de un Condominio Matriz (priorizando el código exacto de la sesión si comparten RIF)
         const orCondoMatriz = [orFilter, ...(portalCodigo ? [`codigo.eq.${portalCodigo}`] : [])].filter(Boolean).join(',');
-        const { data: ownCondoRow } = await supabase
+        const { data: ownCondoRows } = await supabase
           .from('condominios')
           .select('id, codigo, nombre, identidad, tipo, modalidad, cant_declarada')
           .neq('estado', 'Eliminado')
           .or(orCondoMatriz)
-          .limit(1)
-          .maybeSingle();
+          .limit(10);
+        const ownCondoRow = (ownCondoRows && ownCondoRows.length > 0)
+          ? (ownCondoRows.find((r: any) => portalCodigo && String(r.codigo || '').toUpperCase() === portalCodigo.toUpperCase()) || ownCondoRows[0])
+          : null;
 
         // A. Inmuebles y facturas pendientes
         const { data: inmsDB } = await supabase.from('inmuebles').select('*').or(orFilter);
@@ -349,8 +351,10 @@ export default function DondePagarPage() {
           setUserInms([condoMasterInm]);
           await fetchNotasCreditoVigentes(portalDoc, [condoMasterInm]);
 
-          // Construir recibos mensuales del condominio a partir de los renglones de calcularEstado
+          // Construir recibos mensuales del condominio a partir de los renglones de calcularEstado (incluyendo multas extra/manuales)
           const periodosMap = new Map<string, { base: number; iva: number; multa: number; ret: number; total: number }>();
+          let multaExtraAcumBs = 0;
+          let multasManualesAcumBs = 0;
           (eObj?.renglones || []).forEach((r: any) => {
             const pList: string[] = Array.isArray(r.periodos) ? r.periodos : [];
             const pmList: any[] = Array.isArray(r.deuda?.porMes) ? r.deuda.porMes : [];
@@ -365,9 +369,24 @@ export default function DondePagarPage() {
               cur.total = Math.round((cur.total + (Number(pm.totalBs) || 0)) * 100) / 100;
               periodosMap.set(pKey, cur);
             });
+            if (Number(r.multaExtraBs) > 0) {
+              multaExtraAcumBs = Math.round((multaExtraAcumBs + Number(r.multaExtraBs)) * 100) / 100;
+            }
+            if (Number(r.multasManualesBs) > 0) {
+              multasManualesAcumBs = Math.round((multasManualesAcumBs + Number(r.multasManualesBs)) * 100) / 100;
+            }
           });
 
           const sortedPeriodos = [...periodosMap.keys()].sort();
+          const extraMultasTotal = Math.round((multaExtraAcumBs + multasManualesAcumBs) * 100) / 100;
+          if (extraMultasTotal > 0 && sortedPeriodos.length > 0) {
+            const oldestKey = sortedPeriodos[0];
+            const oldestObj = periodosMap.get(oldestKey)!;
+            oldestObj.multa = Math.round((oldestObj.multa + extraMultasTotal) * 100) / 100;
+            oldestObj.total = Math.round((oldestObj.total + extraMultasTotal) * 100) / 100;
+            periodosMap.set(oldestKey, oldestObj);
+          }
+
           const condoRecibos = sortedPeriodos.map((pKey, idx) => {
             const mObj = periodosMap.get(pKey)!;
             return {
@@ -388,6 +407,26 @@ export default function DondePagarPage() {
               mesIndex: idx + 1,
             };
           });
+          if (extraMultasTotal > 0 && sortedPeriodos.length === 0) {
+            const fMultaIso = new Date().toISOString().slice(0, 10);
+            condoRecibos.push({
+              id: `condo-multa-${cObj.codigo}`,
+              referencia: `MULTA-${cObj.codigo}`,
+              identidad: cObj.identidad || portalDoc,
+              contribuyente: cleanCondoName,
+              inmueble: cObj.codigo,
+              emision: fMultaIso,
+              vencimiento: fMultaIso,
+              monto: String(extraMultasTotal.toFixed(2)),
+              base: 0,
+              iva: 0,
+              multa: extraMultasTotal,
+              retencion: 0,
+              estado: 'Pendiente',
+              esReciboCondominioMatriz: true,
+              mesIndex: 1,
+            });
+          }
           setReglasCobro({ [cObj.codigo]: 'completo' });
           setBloqueadoPorCondominio(false);
           setRawRecibos(condoRecibos);
@@ -1042,11 +1081,17 @@ export default function DondePagarPage() {
         det = typeof doc.detalles === 'string' ? JSON.parse(doc.detalles) : (doc.detalles || {});
       } catch {}
 
-      if (String(det?.ambito || '').toUpperCase() === 'CONDOMINIO') return;
+      const esSesionCondoMatriz = nonCondoGroups.some(g => g.inms.some((i: any) => i?.esSesionCondominioMatriz));
+      if (String(det?.ambito || '').toUpperCase() === 'CONDOMINIO' && !esSesionCondoMatriz) return;
+      if (esSesionCondoMatriz && String(det?.ambito || '').toUpperCase() === 'LOCAL') return;
       const montoBs = r2(parseMontoNC(det?.monto_bs ?? det?.monto ?? 0));
       if (montoBs <= 0) return;
 
-      const rawCod = String(det?.codigo_inmueble || det?.cod_inmueble || det?.inmueble || '').trim().toUpperCase();
+      const rawCod = String(det?.codigo_inmueble || det?.cod_inmueble || det?.codigo_condominio || det?.inmueble || '').trim().toUpperCase();
+      if (esSesionCondoMatriz && rawCod) {
+        const matchOwnCondo = nonCondoGroups.some(g => g.localId.toUpperCase() === rawCod);
+        if (!matchOwnCondo) return;
+      }
       const matchRef = String(det?.origen_referencia || det?.motivo || doc?.concepto || '').toUpperCase().match(/\b((?:URB|AURI)\d+)\b/);
       const matchIdentInm = /^(?:URB|AURI)\d+$/i.test(String(doc?.identidad || '').trim())
         ? String(doc.identidad).trim().toUpperCase()

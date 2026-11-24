@@ -86,14 +86,15 @@ export default function DatosContribuyentePage() {
         const soloEsCondominio = !inmsData || inmsData.length === 0 || !tieneInmIndep || inmsData.every(i => i.es_condominio || i.condominio_padre_id);
         if (isCondoMasterSession || rInm?.es_condominio || soloEsCondominio) {
           const orCondoFilter = [orFilter, ...(codigo ? [`codigo.eq.${codigo}`] : [])].filter(Boolean).join(',');
-          const { data: cMat } = await supabase
+          const { data: cMats } = await supabase
             .from('condominios')
             .select('id, codigo, nombre, identidad, tipo, modalidad, cant_declarada, correo, telefono, direccion')
             .neq('estado', 'Eliminado')
             .or(orCondoFilter)
-            .limit(1)
-            .maybeSingle();
-          condoMatriz = cMat;
+            .limit(10);
+          condoMatriz = (cMats && cMats.length > 0)
+            ? (cMats.find((r: any) => codigo && String(r.codigo || '').toUpperCase() === codigo.toUpperCase()) || cMats[0])
+            : null;
 
           if (condoMatriz?.id) {
             try {

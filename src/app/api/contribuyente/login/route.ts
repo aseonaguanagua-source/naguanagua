@@ -79,15 +79,17 @@ export async function POST(request: Request) {
       }
     }
 
-    // Buscar también si existe como condominio matriz en la tabla `condominios`
-    const orCondoTbl = [...variantes.map(v => `identidad.eq.${v}`), `codigo.eq.${String(identidad).trim().toUpperCase()}`].join(',');
-    const { data: cMatriz } = await supabase
+    // Buscar también si existe como condominio matriz en la tabla `condominios` (priorizando coincidencia exacta por código URB/AURI si hay varios con el mismo RIF)
+    const orCondoTbl = [...variantes.map(v => `identidad.eq.${v}`), `codigo.eq.${rawIdentUpper}`].join(',');
+    const { data: cMatrizList } = await supabase
       .from("condominios")
       .select("id, codigo, nombre, identidad, estado, correo, telefono")
       .or(orCondoTbl)
       .neq("estado", "Eliminado")
-      .limit(1);
-    const condoMatrizRow = cMatriz && cMatriz.length > 0 ? cMatriz[0] : null;
+      .limit(10);
+    const condoMatrizRow = (cMatrizList && cMatrizList.length > 0)
+      ? (cMatrizList.find((c: any) => String(c.codigo || '').toUpperCase() === rawIdentUpper) || cMatrizList[0])
+      : null;
 
     // Si no está en inmuebles ni en contribuyentes, buscar en condominios o condominio_unidades
     let condoRec: any = null;
