@@ -1061,8 +1061,10 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
     return unifiedInmuebles.some(g => {
       const isCondo = (g.inm.condominio_padre_id || g.inm.es_condominio) && !g.isNAParent;
       if (isCondo) return false;
-      return g.inm.agente_retencion === true || String(g.inm.agente_retencion) === 'true' ||
-        (g.hijos || []).some((h: any) => h.agente_retencion === true || String(h.agente_retencion) === 'true');
+      if (g.isNAParent && Array.isArray(g.hijos) && g.hijos.length > 0) {
+        return g.hijos.some((h: any) => h.agente_retencion === true || String(h.agente_retencion) === 'true');
+      }
+      return g.inm.agente_retencion === true || String(g.inm.agente_retencion) === 'true';
     });
   }, [unifiedInmuebles]);
 
@@ -1138,7 +1140,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
           const hMulta = esExon ? 0 : Math.round((hBase * hMora) * 100) / 100;
           baseMes += hBase;
           ivaMes += hIva;
-          if (!hRes && (h.agente_retencion === true || String(h.agente_retencion) === 'true' || inm.agente_retencion === true || String(inm.agente_retencion) === 'true')) {
+          if (!hRes && (h.agente_retencion === true || String(h.agente_retencion) === 'true')) {
             ivaMesRetencionable += hIva;
           }
           multaMes += hMulta;

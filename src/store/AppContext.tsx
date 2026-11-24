@@ -920,9 +920,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       if (freshContrib || (freshInms && freshInms.length > 0)) {
         const rateNow = tcmmvRef.current || tcmmv || 1;
+        const naParentsWithActiveChildren = new Set(
+          (freshInms || [])
+            .filter((i: any) => !['eliminado', 'inactivo', 'desactivado'].includes(String(i.estado || '').trim().toLowerCase()) && i.padre_id)
+            .map((i: any) => String(i.padre_id).trim().toUpperCase())
+        );
         const calcSingleInmDebt = (row: any) => {
           const esElim = ['eliminado', 'inactivo', 'desactivado'].includes(String(row.estado || '').trim().toLowerCase());
           const esTerreno = isTerrenoInm(row);
+          const isNaWithChildren = !row.padre_id && naParentsWithActiveChildren.has(String(row.inmueble || '').trim().toUpperCase());
+          if (isNaWithChildren) {
+            return { deudaMMV: 0, multaBs: 0, congelada: 0, saldoFavor: parseFloat(String(row.saldo_favor_bs || 0)) || 0, meses: 0, deudaBs: 0 };
+          }
           const isCondoChild = Boolean(row.condominio_padre_id);
           const isCommercialChild = isCondoChild && (row.tipo || '').toUpperCase().includes('COMERCIAL');
           const isParentCondo = Boolean(row.es_condominio || row.clasificacion === 'Condominio');
@@ -1607,6 +1616,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
               es_condominio: false,
               deuda_mmv: 0,
               cant_inmuebles: hijosLocales.length,
+              agente_retencion: hijosLocales.some((h: any) => h.agente_retencion === true),
             };
             if (nombreUnificado) updNa.contribuyente = nombreUnificado;
             if (idUnificada) updNa.identidad = idUnificada;

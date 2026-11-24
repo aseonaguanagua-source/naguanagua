@@ -2943,8 +2943,8 @@ function ContribuyentesPageContent() {
       return !mInm?.condominio_padre_id;
     });
     const effectiveEsAgente = nonCondoLocales.length > 0
-      ? nonCondoLocales.every((l: any) => l.agente_retencion === true)
-      : (locales.length > 0 ? locales.every((l: any) => l.agente_retencion === true) : Boolean(row.esAgenteRetencion));
+      ? nonCondoLocales.some((l: any) => l.agente_retencion === true)
+      : (locales.length > 0 ? locales.some((l: any) => l.agente_retencion === true) : Boolean(row.esAgenteRetencion));
 
     setFormData({ 
       ...row,
@@ -3444,10 +3444,15 @@ function ContribuyentesPageContent() {
         : dataToSave.locales;
 
       const esCondoFinal = Boolean(dataToSave.isCondominio);
+      const esAgenteFinal = Array.isArray(updatedLocalesWithOrig) && updatedLocalesWithOrig.length > 0
+        ? updatedLocalesWithOrig.some((l: any) => l.agente_retencion === true)
+        : Boolean(dataToSave.esAgenteRetencion);
       const finalSavedState = {
         ...dataToSave,
         Contribuyente: contribUnificado,
         Identidad: identidadUnificada || dataToSave.Identidad,
+        esAgenteRetencion: esAgenteFinal,
+        agente_retencion: esAgenteFinal,
         isCondominio: esCondoFinal,
         es_condominio: esCondoFinal,
         ...(esCondoFinal ? { Clasificacion: 'Condominio' } : {}),
@@ -3481,6 +3486,8 @@ function ContribuyentesPageContent() {
               Telefono: finalTelefono,
               Correo: finalCorreo,
               Direccion: dataToSave.Direccion,
+              esAgenteRetencion: esAgenteFinal,
+              agente_retencion: esAgenteFinal,
               isCondominio: esCondoFinal,
               es_condominio: esCondoFinal,
               Clasificacion: esCondoFinal ? 'Condominio' : dataToSave.Clasificacion,
@@ -4189,7 +4196,8 @@ function ContribuyentesPageContent() {
                             <input type="checkbox" checked={local.agente_retencion === true} onChange={e => {
                               const newLocales = [...formData.locales];
                               newLocales[index].agente_retencion = e.target.checked;
-                              setFormData({...formData, locales: newLocales});
+                              const anyAgente = newLocales.some((l: any) => l.agente_retencion === true);
+                              setFormData({...formData, locales: newLocales, esAgenteRetencion: anyAgente});
                             }} className="w-3.5 h-3.5 accent-blue-600" />
                             <span className="text-[10px] font-bold text-blue-900 leading-tight">Agente Retención (75% IVA)</span>
                           </label>
