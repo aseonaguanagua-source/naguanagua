@@ -638,16 +638,35 @@ function ContribuyentesPageContent() {
 
       if (mainCode) {
         // Operación quirúrgica: sólo se elimina/desactiva este inmueble específico
-        // (y sus actividades hijas directas por padre_id si es una matriz con sucursales/actividades hijas)
+        // (y sus actividades hijas directas por padre_id o condominio_padre_id si es una matriz)
         const { error } = await supabase
           .from('inmuebles')
           .update({ estado: nuevoEstado })
-          .or(`inmueble.eq.${mainCode},padre_id.eq.${mainCode}`);
+          .or(`inmueble.eq.${mainCode},padre_id.eq.${mainCode},condominio_padre_id.eq.${mainCode}`);
         if (error) throw error;
+        // Sincronizar también en la tabla condominios si era un condominio (usando 'Inactivo' o eliminándolo si es Eliminar)
+        try {
+          const { data: cRow } = await supabase.from('condominios').select('id').eq('codigo', mainCode).maybeSingle();
+          if (cRow?.id) {
+            if (type === 'Eliminar') {
+              await supabase.from('condominio_multas').delete().eq('condominio_id', cRow.id);
+              await supabase.from('condominio_movimientos').delete().eq('condominio_id', cRow.id);
+              await supabase.from('condominio_unidades').delete().eq('condominio_id', cRow.id);
+              await supabase.from('condominios').delete().eq('id', cRow.id);
+            } else {
+              await supabase.from('condominios').update({ estado: 'Inactivo' }).eq('id', cRow.id);
+            }
+          }
+        } catch (_) {}
       } else if (idList.length > 0) {
         // Si no tiene código de inmueble (ej. "Pendiente" / "Sin Inmueble"), se aplica a la identidad en inmuebles y contribuyentes
         const { error } = await supabase.from('inmuebles').update({ estado: nuevoEstado }).in('identidad', idList);
         if (error) throw error;
+        try {
+          if (type === 'Desactivar') {
+            await supabase.from('condominios').update({ estado: 'Inactivo' }).in('identidad', idList);
+          }
+        } catch (_) {}
 
         const tagEstado = `[ESTADO:${nuevoEstado.toUpperCase()}]`;
         const { data: cRows } = await supabase.from('contribuyentes').select('id, observaciones').in('identidad', idList);

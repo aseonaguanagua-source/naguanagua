@@ -440,6 +440,78 @@ function Ficha() {
 
   const [eliminandoCondo, setEliminandoCondo] = useState(false);
 
+  const handleDesvincularCondominioANa = async () => {
+    if (!c?.codigo) return;
+    const numUnidades = (d?.unidades || []).length;
+    if (!window.confirm(
+      `¿Desea DESMARCAR "${c.nombre}" (${c.codigo}) como Condominio y pasarlo a Contribuyente N/A (Padre e Hijos) o Individual?\n\n• Se quitará del módulo de Condominios.\n• Sus ${numUnidades} inmueble(s)/actividad(es) se conservarán activos en Contribuyentes y Caja General bajo el código padre ${c.codigo}.`
+    )) return;
+    const motivoDesv = window.prompt('Indique el motivo para desmarcar como condominio (mínimo 5 caracteres):', 'En sistema anterior figura como N/A comercial / individual, no como condominio');
+    if (!motivoDesv || motivoDesv.trim().length < 5) {
+      alert('Debe indicar un motivo válido.');
+      return;
+    }
+    setEliminandoCondo(true);
+    try {
+      const res = await fetch('/api/admin/condominios', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accion: 'desmarcar_condominio',
+          codigoPadre: c.codigo,
+          identidad: c.identidad,
+          nombre: c.nombre,
+          clasificacion: c.tipo === 'RESIDENCIAL' ? 'Residencial' : 'Comercial',
+          codigosLocales: (d?.unidades || []).map((u: any) => u.inmueble).filter(Boolean),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al desmarcar condominio');
+      await clearAllIndexedDB().catch(() => {});
+      alert(`✅ "${c.nombre}" (${c.codigo}) ha sido desmarcado de Condominio y pasado a Contribuyente N/A / Individual exitosamente.`);
+      window.location.href = '/admin/condominios';
+    } catch (err: any) {
+      alert('Error: ' + err.message);
+    } finally {
+      setEliminandoCondo(false);
+    }
+  };
+
+  const handleDesactivarCondominio = async () => {
+    if (!c?.codigo) return;
+    if (!window.confirm(
+      `¿Desea DESACTIVAR (estado Inactivo) el registro "${c.nombre}" (${c.codigo})?\n\nQuedará inactivo tanto en el módulo de Condominios como en Contribuyentes.`
+    )) return;
+    const motivoDesact = window.prompt('Indique el motivo de la desactivación (mínimo 5 caracteres):', 'Inactivo en sistema anterior');
+    if (!motivoDesact || motivoDesact.trim().length < 5) {
+      alert('Debe indicar un motivo válido.');
+      return;
+    }
+    setEliminandoCondo(true);
+    try {
+      const res = await fetch('/api/admin/condominios', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          codigo: c.codigo,
+          cambios: { estado: 'Inactivo' },
+          usuario: usuarioActual() || 'Administrador',
+          motivo: motivoDesact.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al desactivar condominio');
+      await supabase.from('inmuebles').update({ estado: 'Inactivo', es_condominio: false }).eq('inmueble', c.codigo);
+      await clearAllIndexedDB().catch(() => {});
+      alert(`✅ "${c.nombre}" (${c.codigo}) ha sido desactivado exitosamente.`);
+      window.location.href = '/admin/condominios';
+    } catch (err: any) {
+      alert('Error: ' + err.message);
+    } finally {
+      setEliminandoCondo(false);
+    }
+  };
+
   const handleEliminarCondominioCompleto = async () => {
     if (!c?.codigo) return;
     const numUnidades = (d?.unidades || []).length;
@@ -818,16 +890,36 @@ function Ficha() {
                   <FileText className="w-3.5 h-3.5" /> Multas
                 </button>
                 {admin && (
-                  <button
-                    id="btn-eliminar-condominio-completo"
-                    onClick={handleEliminarCondominioCompleto}
-                    disabled={eliminandoCondo}
-                    className="px-3.5 py-2 rounded-xl border border-rose-300 bg-rose-100 hover:bg-rose-200 text-rose-900 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs disabled:opacity-50"
-                    title="Eliminar este condominio y todas sus unidades asociadas de una sola vez"
-                  >
-                    <Trash2 className="w-3.5 h-3.5 text-rose-700" />
-                    <span>{eliminandoCondo ? 'Eliminando...' : 'Eliminar'}</span>
-                  </button>
+                  <>
+                    <button
+                      id="btn-desmarcar-condominio-na"
+                      onClick={handleDesvincularCondominioANa}
+                      disabled={eliminandoCondo}
+                      className="px-3.5 py-2 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs disabled:opacity-50"
+                      title="Quitar etiqueta de Condominio y pasar a Contribuyente N/A (Padre e Hijos) o Individual conservando sus locales activos"
+                    >
+                      <span>↗ Pasar a N/A</span>
+                    </button>
+                    <button
+                      id="btn-desactivar-condominio"
+                      onClick={handleDesactivarCondominio}
+                      disabled={eliminandoCondo}
+                      className="px-3.5 py-2 rounded-xl border border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs disabled:opacity-50"
+                      title="Desactivar este registro (estado Inactivo)"
+                    >
+                      <span>Desactivar</span>
+                    </button>
+                    <button
+                      id="btn-eliminar-condominio-completo"
+                      onClick={handleEliminarCondominioCompleto}
+                      disabled={eliminandoCondo}
+                      className="px-3.5 py-2 rounded-xl border border-rose-300 bg-rose-100 hover:bg-rose-200 text-rose-900 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs disabled:opacity-50"
+                      title="Eliminar este condominio y todas sus unidades asociadas de una sola vez"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-rose-700" />
+                      <span>{eliminandoCondo ? 'Eliminando...' : 'Eliminar'}</span>
+                    </button>
+                  </>
                 )}
               </div>
             </div>

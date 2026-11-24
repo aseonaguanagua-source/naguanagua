@@ -63,8 +63,7 @@ export function construirListaMorosos(
         if (['eliminado', 'inactivo', 'desactivado'].includes(estado)) return false;
         if (c.isChildNormal || c.padre_id) return false;
         if (c.condominio_padre_id && !c.isCondominio && !c.es_condominio) {
-          const claseLower = String(c.Clasificacion || c.clasificacion || c.tipo || '').toLowerCase();
-          if (!claseLower.includes('comercial')) return false;
+          return false;
         }
         const meses = Math.max(0, parseInt(String(c.MesesDeuda ?? c.meses_deuda ?? 0), 10) || 0);
         const deudaBs =

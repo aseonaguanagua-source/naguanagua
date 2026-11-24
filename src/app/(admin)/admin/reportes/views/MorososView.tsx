@@ -109,6 +109,7 @@ export default function MorososView({ contribuyentes = [], tcmmv = 0, onBack }: 
           String(row.estado || '').trim().toLowerCase()
         );
         if (esEliminado || isTerrenoInm(row)) continue;
+        if (row.condominio_padre_id && !row.es_condominio) continue;
 
         const cod = row.inmueble || row.id;
         const groupKey = row.padre_id || cod || row.id;

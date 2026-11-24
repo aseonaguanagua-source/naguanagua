@@ -22,7 +22,7 @@ export async function GET(req: Request) {
 
     // Lista ligera (Conciliación / Facturación): para reconocer pagos de condominios por su RIF
     if (url.searchParams.get('ligero')) {
-      const { data, error } = await sb.from('condominios').select('codigo,identidad,nombre,tipo').neq('estado', 'Eliminado').limit(5000);
+      const { data, error } = await sb.from('condominios').select('codigo,identidad,nombre,tipo').neq('estado', 'Eliminado').neq('estado', 'Inactivo').limit(5000);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
       return NextResponse.json({ condominios: data || [] });
     }
@@ -34,10 +34,10 @@ export async function GET(req: Request) {
       const digitos = t.replace(/[^0-9]/g, '');
       const ors = [`nombre.ilike.%${t}%`, `codigo.ilike.%${t}%`, `identidad.ilike.%${t}%`];
       if (digitos.length >= 5) ors.push(`identidad.ilike.%${digitos}%`);
-      const { data: cs } = await sb.from('condominios').select('codigo,nombre,identidad,modalidad,tipo,cant_declarada').neq('estado', 'Eliminado').or(ors.join(',')).limit(25);
+      const { data: cs } = await sb.from('condominios').select('codigo,nombre,identidad,modalidad,tipo,cant_declarada').neq('estado', 'Eliminado').neq('estado', 'Inactivo').or(ors.join(',')).limit(25);
       const uors = [`inmueble.ilike.%${t}%`, `numero.ilike.%${t}%`, `propietario.ilike.%${t}%`];
       if (digitos.length >= 5) uors.push(`identidad.ilike.%${digitos}%`);
-      const { data: us } = await sb.from('condominio_unidades').select('id,inmueble,numero,propietario,identidad,actividad,tarifa_mmv,estado,padre_unidad_id,es_grupo,condominios!inner(codigo,nombre,estado)').neq('estado', 'Eliminada').neq('condominios.estado', 'Eliminado').or(uors.join(',')).limit(50);
+      const { data: us } = await sb.from('condominio_unidades').select('id,inmueble,numero,propietario,identidad,actividad,tarifa_mmv,estado,padre_unidad_id,es_grupo,condominios!inner(codigo,nombre,estado)').neq('estado', 'Eliminada').neq('condominios.estado', 'Eliminado').neq('condominios.estado', 'Inactivo').or(uors.join(',')).limit(50);
       const padresPresentes = new Set((us || []).filter((u: any) => u.es_grupo || String(u.actividad || '').trim().toUpperCase() === 'N/A').map((u: any) => u.id));
       const usFiltradas = (us || []).filter((u: any) => {
         if (u.padre_unidad_id && padresPresentes.has(u.padre_unidad_id)) {
@@ -192,7 +192,11 @@ export async function POST(req: Request) {
 
       const { data: existingCondo } = await sb.from('condominios').select('id').eq('codigo', codigoPadre).maybeSingle();
       if (existingCondo?.id) {
-        await sb.from('condominios').update({ estado: 'Eliminado' }).eq('id', existingCondo.id);
+        // Eliminar el registro de la tabla condominios (evita violar el check constraint condominios_estado_check que solo admite 'Activo'/'Inactivo')
+        await sb.from('condominio_multas').delete().eq('condominio_id', existingCondo.id);
+        await sb.from('condominio_movimientos').delete().eq('condominio_id', existingCondo.id);
+        await sb.from('condominio_unidades').delete().eq('condominio_id', existingCondo.id);
+        await sb.from('condominios').delete().eq('id', existingCondo.id);
       }
 
       return NextResponse.json({

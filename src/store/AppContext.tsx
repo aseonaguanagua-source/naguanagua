@@ -920,6 +920,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       if (freshContrib || (freshInms && freshInms.length > 0)) {
         const rateNow = tcmmvRef.current || tcmmv || 1;
+        const condoChildrenMap = new Map<string, number>();
+        (freshInms || []).forEach((i: any) => {
+          if (i.condominio_padre_id && !['eliminado', 'inactivo', 'desactivado'].includes(String(i.estado || '').trim().toLowerCase())) {
+            const pCod = String(i.condominio_padre_id).trim().toUpperCase();
+            condoChildrenMap.set(pCod, (condoChildrenMap.get(pCod) || 0) + 1);
+          }
+        });
         const naParentsWithActiveChildren = new Set(
           (freshInms || [])
             .filter((i: any) => !['eliminado', 'inactivo', 'desactivado'].includes(String(i.estado || '').trim().toLowerCase()) && i.padre_id)
@@ -992,8 +999,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 sumSaldoFavor = stats.reduce((acc, s) => acc + s.saldoFavor, 0);
               }
 
-              const matchedPrimaryInm = targetInms.find((i: any) => i.es_condominio === true || i.clasificacion === 'Condominio') || targetInms[0];
-              const isParentCondoNow = targetInms.some((i: any) => i.es_condominio === true || i.clasificacion === 'Condominio');
+              const matchedPrimaryInm = targetInms.find((i: any) => i.es_condominio === true || i.clasificacion === 'Condominio' || (condoChildrenMap.get(String(i.inmueble || '').toUpperCase()) || 0) > 0) || targetInms[0];
+              const isParentCondoNow = targetInms.some((i: any) => i.es_condominio === true || i.clasificacion === 'Condominio' || (condoChildrenMap.get(String(i.inmueble || '').toUpperCase()) || 0) > 0);
               const condoChildrenCount = (freshInms || []).filter((i: any) => i.condominio_padre_id).length;
               const obsLower = String(freshContrib?.observaciones || '').toLowerCase();
               const estFromObs = obsLower.includes('[estado:eliminado]') ? 'Eliminado' : (obsLower.includes('[estado:inactivo]') ? 'Inactivo' : null);
@@ -1003,6 +1010,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
               const nextEstado = hasActiveTarget
                 ? 'Activo'
                 : (allTargetElim ? 'Eliminado' : (allTargetInact ? 'Inactivo' : (estFromObs || 'Activo')));
+              const nonCondoClass = matchedPrimaryInm?.clasificacion && matchedPrimaryInm.clasificacion !== 'Condominio'
+                ? matchedPrimaryInm.clasificacion
+                : (String(matchedPrimaryInm?.tipo || '').toUpperCase().includes('COMERCIAL') ? 'Comercial' : 'Residencial');
               return {
                 ...c,
                 Estado: nextEstado,
@@ -1011,7 +1021,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 Telefono: freshContrib?.telefono || matchedPrimaryInm?.telefono || c.Telefono,
                 Contribuyente: matchedPrimaryInm?.contribuyente || freshContrib?.nombre || c.Contribuyente,
                 Direccion: matchedPrimaryInm?.direccion || freshContrib?.direccion || c.Direccion,
-                Clasificacion: isParentCondoNow ? 'Condominio' : (c.Clasificacion || matchedPrimaryInm?.clasificacion),
+                Clasificacion: isParentCondoNow ? 'Condominio' : nonCondoClass,
                 isCondominio: isParentCondoNow,
                 es_condominio: isParentCondoNow,
                 ...(isParentCondoNow && condoChildrenCount > 0 ? { cant_inmuebles: condoChildrenCount, unidadesCount: condoChildrenCount } : {}),
@@ -1543,6 +1553,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
               cambios.push(`${local.codigo}: ${o.actividad || o.tipoResidencia || '-'} → ${act} (${mmv} MMV)`);
             }
 
+            if (data.isCondominio === false && !esContenedorNA) {
+              updatePayload.es_condominio = false;
+              updatePayload.clasificacion = local.uso === 'Residencial' ? 'Individual' : 'Comercial';
+            }
             if (Object.keys(updatePayload).length > 0) {
               const { error: eU } = await supabase.from('inmuebles')
                 .update(updatePayload)
@@ -1614,6 +1628,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
               padre_id: null,
               condominio_padre_id: null,
               es_condominio: false,
+              clasificacion: nuevaClasificacion === 'Residencial' ? 'Individual' : 'Comercial',
               deuda_mmv: 0,
               cant_inmuebles: hijosLocales.length,
               agente_retencion: hijosLocales.some((h: any) => h.agente_retencion === true),
@@ -1705,6 +1720,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (data.esAgenteRetencion !== undefined) {
           upd.agente_retencion = data.esAgenteRetencion === true;
         }
+        if (data.isCondominio === false) {
+          upd.es_condominio = false;
+          upd.clasificacion = nuevaClasificacion === 'Residencial' ? 'Individual' : 'Comercial';
+        }
         const targetCode = objetivo || (codigosPropios.length > 0 ? codigosPropios[0] : null);
         if (Object.keys(upd).length > 0 && targetCode) {
           const { error: eU } = await supabase.from('inmuebles').update(upd).eq('inmueble', targetCode);
@@ -1747,10 +1766,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         } catch (_) {}
       }
 
-      // 4. Clasificar o desmarcar como Condominio cuando se marque la casilla "Clasificado como Condominio"
+      // 4. Clasificar o desmarcar como Condominio cuando se marque o desmarque la casilla "Clasificado como Condominio"
       const origIsCondo = Boolean(orig.isCondominio || orig.es_condominio || String(orig.Clasificacion || '').toLowerCase() === 'condominio');
       const nowIsCondo = Boolean(data.isCondominio);
-      if (nowIsCondo || (data.isCondominio === false && origIsCondo)) {
+      if (nowIsCondo || data.isCondominio === false || origIsCondo) {
         const naCodesList = Array.isArray(data.__naParentCodes)
           ? data.__naParentCodes.map((c: string) => String(c || '').trim().toUpperCase()).filter(Boolean)
           : [];

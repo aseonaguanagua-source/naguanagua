@@ -932,7 +932,7 @@ export async function resumenGeneral() {
     obtenerMapaTasasCongeladas(),
   ]);
   const hoyYMD = hoyCaracasYMD();
-  const condos = await todas((a, b) => sb.from('condominios').select('*').neq('estado', 'Eliminado').order('nombre').range(a, b));
+  const condos = await todas((a, b) => sb.from('condominios').select('*').neq('estado', 'Eliminado').neq('estado', 'Inactivo').order('nombre').range(a, b));
   const unidades = await todas((a, b) => sb.from('condominio_unidades')
     .select('*').neq('estado', 'Eliminada').order('id').range(a, b));
   const { data: multas } = await sb.from('condominio_multas').select('id,condominio_id,unidad_id,monto_bs,monto_mmv,estado,concepto,periodo,creada_por,created_at').eq('estado', 'Pendiente');
