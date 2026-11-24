@@ -1004,9 +1004,10 @@ export async function POST(request: Request) {
     let explicitTotal = parseFloat(String(montoTotal ?? montos?.total ?? totalManualNum ?? 0)) || 0;
     if (explicitBase > 0 || explicitTotal > 0) {
       // Si el operador especificó montoServicio o montoTotal desde el modal,
-      // el total a facturar debe concordar con lo digitado (base * 1.16 + multa)
+      // preservar explicitTotal cuando la diferencia con (base * 1.16 + multa) sea solo redondeo de céntimos (<= 0.05)
+      // para que el Total a Pagar coincida exactamente con lo cobrado en Caja (ej. 644.878,76 vs 644.878,77).
       const totalCalculado = r2(explicitBase * 1.16 + (llevaMulta === false ? 0 : explicitMulta));
-      if (explicitTotal <= 0 || Math.abs(explicitTotal - totalCalculado) < 0.05) {
+      if (explicitTotal <= 0) {
         explicitTotal = totalCalculado;
       }
     }
@@ -1267,40 +1268,70 @@ export async function POST(request: Request) {
 
     // Caja de Condominios: los renglones ya son exactos (si hubo residenciales, lo cobrado incluye esa parte)
     const aplicarCuadre = totalManualNum > 0 || (lineasCondo ? excluidosResidenciales === 0 : (!esMixto && excluidosResidenciales === 0));
-    if (aplicarCuadre && objetivo > 0 && totalCalculado > 0 && Math.abs(totalCalculado - objetivo) > 0.01) {
-      const f = objetivo / totalCalculado;
-      console.warn(`[TFHKA] Cuadre: calculado ${totalCalculado.toFixed(2)} vs ${totalManualNum > 0 ? 'manual' : 'cobrado'} ${objetivo.toFixed(2)} (factor ${f.toFixed(4)})`);
-      totalGravado = 0; totalExento = 0; totalIVA = 0;
-      for (const it of detallesItems as any[]) {
-        const base = r2(parseFloat(it.PrecioUnitario) * f);
-        const iva = it.CodigoImpuesto === 'G' ? r2(base * 0.16) : 0;
-        it.PrecioUnitario = base.toFixed(2);
-        it.PrecioItem = base.toFixed(2);
-        it.PrecioAntesDescuento = base.toFixed(2);
-        it.ValorIVA = iva.toFixed(2);
-        it.ValorTotalItem = (base + iva).toFixed(2);
-        if (it.CodigoImpuesto === 'G') { totalGravado += base; totalIVA += iva; } else { totalExento += base; }
-      }
-      totalGravado = r2(totalGravado); totalExento = r2(totalExento); totalIVA = r2(totalIVA);
-      // Ajuste de céntimos: el total debe ser EXACTAMENTE el objetivo (se corrige en el último ítem gravado o exento)
-      const dif = r2(objetivo - (totalGravado + totalExento + totalIVA));
-      if (Math.abs(dif) >= 0.01) {
-        const it: any = [...(detallesItems as any[])].reverse().find((x: any) => x.CodigoImpuesto !== 'G') || (detallesItems as any[])[detallesItems.length - 1];
-        if (it.CodigoImpuesto === 'G') {
-          const oldBase = parseFloat(it.PrecioUnitario);
-          const oldIVA = parseFloat(it.ValorIVA);
-          const base = r2((oldBase * 1.16 + dif) / 1.16);
-          const iva = r2(base * 0.16);
-          it.PrecioUnitario = base.toFixed(2); it.PrecioItem = base.toFixed(2); it.PrecioAntesDescuento = base.toFixed(2);
+    if (aplicarCuadre && objetivo > 0 && totalCalculado > 0 && Math.abs(totalCalculado - objetivo) >= 0.01) {
+      if (Math.abs(totalCalculado - objetivo) <= 0.05) {
+        // Diferencia de 1 a 5 céntimos por redondeo Base × 16%: ajustar directamente en el último ítem sin distorsionar por factor
+        const dif = r2(objetivo - (totalGravado + totalExento + totalIVA));
+        if (Math.abs(dif) >= 0.01) {
+          const it: any = (detallesItems as any[])[detallesItems.length - 1];
+          if (it && it.CodigoImpuesto === 'G') {
+            const oldBase = parseFloat(it.PrecioUnitario);
+            const oldIVA = parseFloat(it.ValorIVA);
+            const targetItemTot = r2(oldBase + oldIVA + dif);
+            const base = r2(targetItemTot / 1.16);
+            const iva = r2(targetItemTot - base);
+            it.PrecioUnitario = base.toFixed(2);
+            it.PrecioItem = base.toFixed(2);
+            it.PrecioAntesDescuento = base.toFixed(2);
+            it.ValorIVA = iva.toFixed(2);
+            it.ValorTotalItem = targetItemTot.toFixed(2);
+            totalGravado = r2(totalGravado - oldBase + base);
+            totalIVA = r2(totalIVA - oldIVA + iva);
+          } else if (it) {
+            const base = r2(parseFloat(it.PrecioUnitario) + dif);
+            it.PrecioUnitario = base.toFixed(2);
+            it.PrecioItem = base.toFixed(2);
+            it.PrecioAntesDescuento = base.toFixed(2);
+            it.ValorTotalItem = base.toFixed(2);
+            totalExento = r2(totalExento + dif);
+          }
+        }
+      } else {
+        const f = objetivo / totalCalculado;
+        console.warn(`[TFHKA] Cuadre: calculado ${totalCalculado.toFixed(2)} vs ${totalManualNum > 0 ? 'manual' : 'cobrado'} ${objetivo.toFixed(2)} (factor ${f.toFixed(4)})`);
+        totalGravado = 0; totalExento = 0; totalIVA = 0;
+        for (const it of detallesItems as any[]) {
+          const base = r2(parseFloat(it.PrecioUnitario) * f);
+          const iva = it.CodigoImpuesto === 'G' ? r2(base * 0.16) : 0;
+          it.PrecioUnitario = base.toFixed(2);
+          it.PrecioItem = base.toFixed(2);
+          it.PrecioAntesDescuento = base.toFixed(2);
           it.ValorIVA = iva.toFixed(2);
           it.ValorTotalItem = (base + iva).toFixed(2);
-          totalGravado = r2(totalGravado - oldBase + base);
-          totalIVA = r2(totalIVA - oldIVA + iva);
-        } else {
-          const base = r2(parseFloat(it.PrecioUnitario) + dif);
-          it.PrecioUnitario = base.toFixed(2); it.PrecioItem = base.toFixed(2); it.PrecioAntesDescuento = base.toFixed(2);
-          it.ValorTotalItem = base.toFixed(2);
-          totalExento = r2(totalExento + dif);
+          if (it.CodigoImpuesto === 'G') { totalGravado += base; totalIVA += iva; } else { totalExento += base; }
+        }
+        totalGravado = r2(totalGravado); totalExento = r2(totalExento); totalIVA = r2(totalIVA);
+        // Ajuste de céntimos: el total debe ser EXACTAMENTE el objetivo (se corrige en el último ítem gravado o exento)
+        const dif = r2(objetivo - (totalGravado + totalExento + totalIVA));
+        if (Math.abs(dif) >= 0.01) {
+          const it: any = [...(detallesItems as any[])].reverse().find((x: any) => x.CodigoImpuesto !== 'G') || (detallesItems as any[])[detallesItems.length - 1];
+          if (it.CodigoImpuesto === 'G') {
+            const oldBase = parseFloat(it.PrecioUnitario);
+            const oldIVA = parseFloat(it.ValorIVA);
+            const targetItemTot = r2(oldBase + oldIVA + dif);
+            const base = r2(targetItemTot / 1.16);
+            const iva = r2(targetItemTot - base);
+            it.PrecioUnitario = base.toFixed(2); it.PrecioItem = base.toFixed(2); it.PrecioAntesDescuento = base.toFixed(2);
+            it.ValorIVA = iva.toFixed(2);
+            it.ValorTotalItem = targetItemTot.toFixed(2);
+            totalGravado = r2(totalGravado - oldBase + base);
+            totalIVA = r2(totalIVA - oldIVA + iva);
+          } else {
+            const base = r2(parseFloat(it.PrecioUnitario) + dif);
+            it.PrecioUnitario = base.toFixed(2); it.PrecioItem = base.toFixed(2); it.PrecioAntesDescuento = base.toFixed(2);
+            it.ValorTotalItem = base.toFixed(2);
+            totalExento = r2(totalExento + dif);
+          }
         }
       }
     }

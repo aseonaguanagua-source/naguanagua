@@ -1243,11 +1243,14 @@ export default function FacturacionElectronicaPage() {
     try {
       const base = parseFloat(ajusteMontoServicio) || 0;
       const multa = emitLlevaMulta ? (parseFloat(ajusteMontoMulta) || 0) : 0;
-      const iva = parseFloat((base * 0.16).toFixed(2));
+      let iva = parseFloat((base * 0.16).toFixed(2));
       let total = parseFloat((base + multa + iva).toFixed(2));
-      // Total escrito en la verificación: si no se tocaron base/multa, se usa EXACTO (sin desvío por redondeo)
-      if ((totalForzado || totalReferencia) && multa === 0 && !totalForzado && Math.abs(base - parseFloat((totalReferencia / 1.16).toFixed(2))) < 0.005) total = totalReferencia;
-      if (totalForzado && multa === 0 && Math.abs(base - parseFloat((totalForzado / 1.16).toFixed(2))) < 0.005) total = totalForzado;
+      // Total escrito en la verificación o cobrado en Caja: si no se tocaron base/multa (o difiere en <= 0.05 por redondeo), se usa EXACTO
+      const metaExacta = totalForzado || totalReferencia || 0;
+      if (metaExacta > 0 && Math.abs(total - metaExacta) <= 0.05 && Math.abs(base - parseFloat(((metaExacta - multa) / 1.16).toFixed(2))) <= 0.02) {
+        total = metaExacta;
+        iva = parseFloat((total - base - multa).toFixed(2));
+      }
       // Si el total difiere de lo cobrado, la factura se emite con ESTE total (requiere motivo)
       const editado = Math.abs(total - (totalReferencia || parseFloat(selectedPagoForEmit.monto) || 0)) > 0.02; // 0,02: redondeo base×1,16
       if (editado && motivoAjuste.trim().length < 5) {
@@ -3335,72 +3338,82 @@ export default function FacturacionElectronicaPage() {
                 </div>
 
                 {/* DESGLOSE FISCAL REACTIVO */}
-                <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-3 text-xs space-y-1">
-                  <div className="flex justify-between text-slate-600">
-                    <span>Base Gravada (Servicio):</span>
-                    <span className="font-mono">Bs {(parseFloat(ajusteMontoServicio) || 0).toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between text-blue-700">
-                    <span>IVA (16% sobre servicio):</span>
-                    <span className="font-mono">Bs {((parseFloat(ajusteMontoServicio) || 0) * 0.16).toFixed(2)}</span>
-                  </div>
-                  {emitLlevaMulta && (
-                    <div className="flex justify-between text-amber-800">
-                      <span>Multa por Mora (Exenta):</span>
-                      <span className="font-mono">Bs {(parseFloat(ajusteMontoMulta) || 0).toFixed(2)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between text-slate-900 font-black border-t border-emerald-200 pt-1 text-sm">
-                    <span>Total Factura Fiscal:</span>
-                    <span className="font-mono text-emerald-800">
-                      Bs {(
-                        (parseFloat(ajusteMontoServicio) || 0) * 1.16 +
-                        (emitLlevaMulta ? (parseFloat(ajusteMontoMulta) || 0) : 0)
-                      ).toFixed(2)}
-                    </span>
-                  </div>
-                  {emitEsRetencion && (() => {
-                    const detSel = selectedPagoForEmit?.detalles || {};
-                    const porcRetModal = (
-                      Number(detSel.porcentaje_retencion_iva) === 100 ||
-                      Number(detSel.porcentaje_retencion) === 100 ||
-                      Number(detSel.factura_digital?.retencion?.porcentaje_retencion) === 100
-                    ) ? 100 : 75;
-                    const factorRetModal = porcRetModal / 100;
-                    return (
-                      <div className="pt-1.5 border-t border-emerald-200/80 space-y-1 text-xs">
-                        <div className="flex justify-between text-amber-900 font-semibold">
-                          <span>(-) Retención {porcRetModal}% IVA (SENIAT):</span>
-                          <span className="font-mono">- Bs {(((parseFloat(ajusteMontoServicio) || 0) * 0.16) * factorRetModal).toFixed(2)}</span>
+                {(() => {
+                  const bReact = parseFloat(ajusteMontoServicio) || 0;
+                  const mReact = emitLlevaMulta ? (parseFloat(ajusteMontoMulta) || 0) : 0;
+                  let iReact = parseFloat((bReact * 0.16).toFixed(2));
+                  let totReact = parseFloat((bReact + mReact + iReact).toFixed(2));
+                  const metaReact = totalForzado || totalReferencia || 0;
+                  if (metaReact > 0 && Math.abs(totReact - metaReact) <= 0.05 && Math.abs(bReact - parseFloat(((metaReact - mReact) / 1.16).toFixed(2))) <= 0.02) {
+                    totReact = metaReact;
+                    iReact = parseFloat((totReact - bReact - mReact).toFixed(2));
+                  }
+                  return (
+                    <>
+                      <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-3 text-xs space-y-1">
+                        <div className="flex justify-between text-slate-600">
+                          <span>Base Gravada (Servicio):</span>
+                          <span className="font-mono">Bs {bReact.toFixed(2)}</span>
                         </div>
-                        <div className="flex justify-between text-emerald-950 font-black">
-                          <span>Monto Cancelado por el Cliente (Neto):</span>
-                          <span className="font-mono text-emerald-900">
-                            Bs {(
-                              ((parseFloat(ajusteMontoServicio) || 0) * 1.16 + (emitLlevaMulta ? (parseFloat(ajusteMontoMulta) || 0) : 0)) -
-                              (((parseFloat(ajusteMontoServicio) || 0) * 0.16) * factorRetModal)
-                            ).toFixed(2)}
+                        <div className="flex justify-between text-blue-700">
+                          <span>IVA (16% sobre servicio):</span>
+                          <span className="font-mono">Bs {iReact.toFixed(2)}</span>
+                        </div>
+                        {emitLlevaMulta && (
+                          <div className="flex justify-between text-amber-800">
+                            <span>Multa por Mora (Exenta):</span>
+                            <span className="font-mono">Bs {mReact.toFixed(2)}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between text-slate-900 font-black border-t border-emerald-200 pt-1 text-sm">
+                          <span>Total Factura Fiscal:</span>
+                          <span className="font-mono text-emerald-800">
+                            Bs {totReact.toFixed(2)}
                           </span>
                         </div>
+                        {emitEsRetencion && (() => {
+                          const detSel = selectedPagoForEmit?.detalles || {};
+                          const porcRetModal = (
+                            Number(detSel.porcentaje_retencion_iva) === 100 ||
+                            Number(detSel.porcentaje_retencion) === 100 ||
+                            Number(detSel.factura_digital?.retencion?.porcentaje_retencion) === 100
+                          ) ? 100 : 75;
+                          const factorRetModal = porcRetModal / 100;
+                          const retReact = parseFloat((iReact * factorRetModal).toFixed(2));
+                          return (
+                            <div className="pt-1.5 border-t border-emerald-200/80 space-y-1 text-xs">
+                              <div className="flex justify-between text-amber-900 font-semibold">
+                                <span>(-) Retención {porcRetModal}% IVA (SENIAT):</span>
+                                <span className="font-mono">- Bs {retReact.toFixed(2)}</span>
+                              </div>
+                              <div className="flex justify-between text-emerald-950 font-black">
+                                <span>Monto Cancelado por el Cliente (Neto):</span>
+                                <span className="font-mono text-emerald-900">
+                                  Bs {(totReact - retReact).toFixed(2)}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
-                    );
-                  })()}
-                </div>
-                {Math.abs(((parseFloat(ajusteMontoServicio) || 0) * 1.16 + (emitLlevaMulta ? (parseFloat(ajusteMontoMulta) || 0) : 0)) - (totalReferencia || parseFloat(selectedPagoForEmit.monto) || 0)) > 0.02 && (
-                  <div className="rounded-xl bg-amber-50 border border-amber-300 p-3 space-y-1.5">
-                    <div className="text-[11px] text-amber-900 flex items-start gap-1.5">
-                      <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-                      <span>El total es distinto al de la factura calculada (Bs {(totalReferencia || parseFloat(selectedPagoForEmit.monto) || 0).toFixed(2)}). La factura se emitirá y enviará con el <b>monto nuevo</b> y quedará registrado en la Auditoría.</span>
-                    </div>
-                    <input
-                      id="motivo-ajuste-emision"
-                      value={motivoAjuste}
-                      onChange={e => setMotivoAjuste(e.target.value)}
-                      placeholder="Motivo del ajuste (obligatorio)"
-                      className="w-full rounded-lg border border-amber-300 px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-amber-400"
-                    />
-                  </div>
-                )}
+                      {Math.abs(totReact - (totalReferencia || parseFloat(selectedPagoForEmit.monto) || 0)) > 0.02 && (
+                        <div className="rounded-xl bg-amber-50 border border-amber-300 p-3 space-y-1.5">
+                          <div className="text-[11px] text-amber-900 flex items-start gap-1.5">
+                            <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                            <span>El total es distinto al de la factura calculada (Bs {(totalReferencia || parseFloat(selectedPagoForEmit.monto) || 0).toFixed(2)}). La factura se emitirá y enviará con el <b>monto nuevo</b> y quedará registrado en la Auditoría.</span>
+                          </div>
+                          <input
+                            id="motivo-ajuste-emision"
+                            value={motivoAjuste}
+                            onChange={e => setMotivoAjuste(e.target.value)}
+                            placeholder="Motivo del ajuste (obligatorio)"
+                            className="w-full rounded-lg border border-amber-300 px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-amber-400"
+                          />
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
 
                 {/* CORREO DE ENVÍO */}
                 <div className="border border-slate-200 rounded-xl p-3.5 bg-slate-50 space-y-2">
