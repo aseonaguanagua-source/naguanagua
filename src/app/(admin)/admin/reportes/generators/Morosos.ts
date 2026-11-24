@@ -62,9 +62,6 @@ export function construirListaMorosos(
         const estado = String(c.Estado || c.estado || 'Activo').trim().toLowerCase();
         if (['eliminado', 'inactivo', 'desactivado'].includes(estado)) return false;
         if (c.isChildNormal || c.padre_id) return false;
-        if (c.condominio_padre_id && !c.isCondominio && !c.es_condominio) {
-          return false;
-        }
         const meses = Math.max(0, parseInt(String(c.MesesDeuda ?? c.meses_deuda ?? 0), 10) || 0);
         const deudaBs =
           typeof c.DeudaBs === 'number'
@@ -73,6 +70,9 @@ export function construirListaMorosos(
               parseFloat(String(c.MultaBs || 0)) +
               parseFloat(String(c.DeudaMMV || 0)) * 57 * 0.128 * (tcmmv || 1);
         if (includeZeroMonths && meses === 0) return true;
+        if (c.condominio_padre_id && !c.isCondominio && !c.es_condominio) {
+          return false;
+        }
         return meses > 0 && deudaBs > 0.01;
       })
       .map((c: any) => {
