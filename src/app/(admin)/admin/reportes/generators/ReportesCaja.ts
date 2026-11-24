@@ -901,7 +901,8 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
       ? det.pagos_agregados.filter((pa: any) => {
           if (!pa || !(Number(pa.monto) > 0)) return false;
           const m = String(pa.metodo || pa.tipo || pa.descripcion || '').trim();
-          if (/saldo\s*a\s*favor|nota\s*de\s*cr[eé]dito/i.test(m)) return false;
+          const refPa = String(pa.referencia || '').trim();
+          if (/saldo\s*a\s*favor|nota\s*de\s*cr[eé]dito|desc\.?\s*saldo/i.test(`${m} ${refPa}`)) return false;
           if (/^(d[eé]bito|cr[eé]dito|tmd|tvd)\b|punto|tarjeta/i.test(m)) return false;
           return true;
         })
@@ -929,39 +930,48 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
     const fRcPadre = normalizarFechaYMD(rcPadre0?.fechaEmision);
     const fConciliadoRaw = normalizarFechaYMD(det.fecha_conciliado ? fechaVE(det.fecha_conciliado) : '');
     const fTxDirecta = normalizarFechaYMD(det.fecha_transaccion);
-    const fEmisionPadre =
-      normalizarFechaYMD(detPadre?.fecha_emision_override) ||
-      ((fdPadre?.emitida || fdPadre?.numero_documento || fdPadre?.numero_control) ? normalizarFechaYMD(fdPadre.fecha_emision) : '');
-    const hijoEsDeMesPosteriorAlPadre = Boolean(
-      fEmisionPadre &&
-      fTxDirecta &&
-      fRegistro &&
-      fTxDirecta.slice(0, 7) > fEmisionPadre.slice(0, 7) &&
-      fRegistro.slice(0, 7) > fEmisionPadre.slice(0, 7)
-    );
-    // En Conciliación Bancaria, la fecha de conciliación/recibo (fRc, fTxDirecta, fecha_ingreso_caja, fConciliadoRaw) es inmutable
-    // y NO debe cambiar posteriormente si Facturación Electrónica emite la factura digital en otro día distinto.
+
+    // Usar exactamente la misma jerarquía de Fecha Efectiva (Fecha Factura / Recibo / Cuadre) que CuadreCaja.tsx, CajaIngresosMain.tsx y MontoDiarioRecaudado.ts
+    const corrList = Array.isArray(det.correcciones_reporte) ? det.correcciones_reporte : [];
+    const lastCorr = corrList.length > 0 ? corrList[corrList.length - 1] : null;
+    const fCorr = (
+      lastCorr?.fecha_nueva &&
+      String(lastCorr.fecha_anterior || '').slice(0, 10) !== String(lastCorr.fecha_nueva).slice(0, 10)
+    ) ? normalizarFechaYMD(lastCorr.fecha_nueva) : '';
+
+    const candidatosCuadre = [
+      fCorr,
+      det.fecha_emision_override,
+      (fd.emitida || fd.numero_documento || fd.numero_control) ? fd.fecha_emision : '',
+      detPadre?.fecha_emision_override,
+      (fdPadre?.emitida || fdPadre?.numero_documento || fdPadre?.numero_control) ? fdPadre.fecha_emision : '',
+      rc0?.fechaEmision,
+      rcPadre0?.fechaEmision,
+      det.fecha_transaccion,
+      rc0?.fechaIngresoCaja,
+      rcPadre0?.fechaIngresoCaja,
+      det.fecha_ingreso_caja,
+    ];
+    let fFacturaRaw = '';
+    for (const c of candidatosCuadre) {
+      const ymd = normalizarFechaYMD(c);
+      if (ymd) {
+        fFacturaRaw = ymd;
+        break;
+      }
+    }
+    if (!fFacturaRaw) {
+      const createdStr = String(p.created_at || '');
+      if (createdStr.includes('T16:00:00') && det.recibo_caja_at) {
+        fFacturaRaw = normalizarFechaYMD(fechaVE(det.recibo_caja_at));
+      }
+    }
+    if (!fFacturaRaw) {
+      fFacturaRaw = fRegistro;
+    }
     const fEmisionFactura =
       normalizarFechaYMD(det.fecha_emision_override) ||
-      ((fd.emitida || fd.numero_documento || fd.numero_control) ? normalizarFechaYMD(fd.fecha_emision) : '') ||
-      (!hijoEsDeMesPosteriorAlPadre ? fEmisionPadre : '');
-    let fFacturaRaw =
-      fRc ||
-      (!hijoEsDeMesPosteriorAlPadre ? fRcPadre : '') ||
-      fTxDirecta ||
-      normalizarFechaYMD(rc0?.fechaIngresoCaja) ||
-      (!hijoEsDeMesPosteriorAlPadre ? normalizarFechaYMD(rcPadre0?.fechaIngresoCaja) : '') ||
-      normalizarFechaYMD(det.fecha_ingreso_caja) ||
-      fConciliadoRaw ||
-      fEmisionFactura ||
-      fRegistro;
-    // Si el pago fue registrado en septiembre pero recibió su recibo/conciliación en octubre o después, reflejar la fecha real de conciliación/recibo en Fecha Factura
-    if (fFacturaRaw && fFacturaRaw < '2026-10-01') {
-      if (fRc && fRc >= '2026-10-01') fFacturaRaw = fRc;
-      else if (fRcPadre && fRcPadre >= '2026-10-01') fFacturaRaw = fRcPadre;
-      else if (fTxDirecta && fTxDirecta >= '2026-10-01') fFacturaRaw = fTxDirecta;
-      else if (fConciliadoRaw && fConciliadoRaw >= '2026-10-01') fFacturaRaw = fConciliadoRaw;
-    }
+      ((fd.emitida || fd.numero_documento || fd.numero_control) ? normalizarFechaYMD(fd.fecha_emision) : '');
     const fFactura = fFacturaRaw || fRegistro;
     const fConciliado = fConciliadoRaw || fFactura || fRegistro;
 
@@ -995,8 +1005,9 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
       if (limiteFecha) fPago = limiteFecha;
     }
 
-    // Todo lo facturado o con recibo cuya fecha de emisión (fFactura) o fecha bancaria (fPago) esté en el rango consultado debe salir en la conciliación
-    const dentroDeRangoConciliacion = (!fIni || fFactura >= fIni || fPago >= fIni) && (!fFin || fFactura <= fFin || fPago <= fFin);
+    // Filtrar y agrupar por la misma Fecha Efectiva (fFactura) que Cuadre de Caja y Monto Diario Recaudado,
+    // garantizando que día por día y mes por mes coincidan 100% los registros y totales.
+    const dentroDeRangoConciliacion = (!fIni || fFactura >= fIni) && (!fFin || fFactura <= fFin);
     if (!dentroDeRangoConciliacion) return;
 
     if (pagsAgregados && pagsAgregados.length > 1 && !yaExistenComoFilasSeparadas) {
@@ -1009,7 +1020,7 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
           const limiteFecha = fFactura && fFactura < fRegistro ? fFactura : fRegistro;
           if (limiteFecha) fPagoSub = limiteFecha;
         }
-        const keySub = (fPagoSub && fPagoSub <= (fFin || '9999-99') && (!fIni || fPagoSub >= fIni) ? fPagoSub : (fFactura || fPagoSub)).slice(0, 7);
+        const keySub = (fFactura || fPagoSub).slice(0, 7);
         if (!porMes.has(keySub)) porMes.set(keySub, []);
         const subDet = pa.bancoDestino && !det.banco_receptor
           ? { ...det, banco_destino: pa.bancoDestino }
@@ -1031,7 +1042,7 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
         });
       });
     } else {
-      const key = (fPago && fPago <= (fFin || '9999-99') && (!fIni || fPago >= fIni) ? fPago : (fFactura || fPago)).slice(0, 7);
+      const key = (fFactura || fPago).slice(0, 7);
       if (!porMes.has(key)) porMes.set(key, []);
       porMes.get(key)!.push({ p, det, fPago, fPagoDisplay: det.fecha_pago_excel || fPago, fFactura, esSubPago: false, montoTotalReportado: Number(p.monto) || 1, yaExistenComoFilasSeparadas: !!yaExistenComoFilasSeparadas });
     }
@@ -1113,18 +1124,20 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
         let mPagado = r2(
           esSubPago
             ? (parseNum(paMatch?.monto) || parseNum(fpMatch?.monto) || parseNum(p.monto))
-            : (det.es_pago_adicional || yaExistenComoFilasSeparadas)
-              ? (parseNum(paMatch?.monto) || parseNum(fpMatch?.monto) || parseNum(p.monto))
-              : (parseNum(det.monto_conciliado) || parseNum(paMatch?.monto) || parseNum(fpMatch?.monto) || (Array.isArray(det.formasPago) && det.formasPago.length === 1 ? parseNum(det.formasPago[0]?.monto) : 0) || parseNum(p.monto))
+            : (() => {
+                const mBase = parseNum(p.monto);
+                const mConc = parseNum(det.monto_conciliado);
+                const esMult = Boolean(
+                  det.es_pago_adicional ||
+                  det.abono_completado ||
+                  (Array.isArray(det.pagos_agregados) && det.pagos_agregados.filter((x: any) => !/saldo\s*a\s*favor|nota\s*de\s*cr[eé]dito|desc\.?\s*saldo/i.test(String(x?.metodo || x?.tipo || x?.referencia || ''))).length > 1) ||
+                  (Array.isArray(det.formasPago) && det.formasPago.filter((x: any) => !/saldo\s*a\s*favor|nota\s*de\s*cr[eé]dito|desc\.?\s*saldo/i.test(String(x?.metodo || x?.tipo || x?.referencia || ''))).length > 1)
+                );
+                if (esMult && mBase > 0 && mConc > mBase + 1) return mBase;
+                if (mConc > 0 && (!Array.isArray(det.pagos_agregados) || !det.pagos_agregados.some((x: any) => /saldo\s*a\s*favor/i.test(String(x?.referencia || x?.metodo || ''))))) return mConc;
+                return mBase || mConc;
+              })()
         );
-        if (
-          yaExistenComoFilasSeparadas &&
-          Number(det.monto_abonado) > 0 &&
-          Number(det.abono_previo_descontado) > 0 &&
-          Math.abs(mPagado - (Number(det.monto_abonado) + Number(det.abono_previo_descontado))) < 1
-        ) {
-          mPagado = r2(Number(det.monto_abonado));
-        }
 
         const ret = retPorPago.get(String(p.id)) ?? Number(det.monto_retencion_iva || 0);
         const mtTotal = montosPago(p, det, inmMap, ret);

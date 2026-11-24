@@ -461,7 +461,7 @@ export const generarCorteCajaPDF = (
     const bancoOrigen = String(p.banco || det.banco_origen || det.banco_emisor || 'N/A').substring(0,22);
     const bClass = clasificarBancoDestino(p);
     const bancoDestino = bClass === 'Banesco' ? 'BANESCO' : bClass === 'Bancamiga' ? 'BANCAMIGA' : String(det.banco_destino || det.banco_receptor || 'N/A').substring(0,22);
-    const montoNum = parseFloat(det.monto_conciliado || p.monto || '0') || 0;
+    const montoNum = obtenerMontoTransf(p);
     const tasaPagoEuro = det.tasa_euro || det.tasa_bcv_conciliacion || tasaEuro || 0;
     const montoEur = tasaPagoEuro > 0 ? (montoNum / tasaPagoEuro).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : 'N/A';
     const fEfectiva = det.fecha_emision_override

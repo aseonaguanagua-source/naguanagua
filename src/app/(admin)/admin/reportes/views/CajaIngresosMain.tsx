@@ -488,12 +488,26 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
     const b = clasificarBancoDestino(p);
     return b !== 'Banesco' && b !== 'Bancamiga';
   });
+  const obtenerMontoTransf = (p: any): number => {
+    const d = parseDet(p);
+    const mBase = parseFloat(p?.monto) || 0;
+    const mConc = parseFloat(d?.monto_conciliado) || 0;
+    const esMultiple = Boolean(
+      d?.es_pago_adicional ||
+      d?.abono_completado ||
+      (Array.isArray(d?.pagos_agregados) && d.pagos_agregados.filter((x: any) => !/saldo\s*a\s*favor|nota\s*de\s*cr[eé]dito|desc\.?\s*saldo/i.test(String(x?.metodo || x?.tipo || x?.referencia || ''))).length > 1) ||
+      (Array.isArray(d?.formasPago) && d.formasPago.filter((x: any) => !/saldo\s*a\s*favor|nota\s*de\s*cr[eé]dito|desc\.?\s*saldo/i.test(String(x?.metodo || x?.tipo || x?.referencia || ''))).length > 1)
+    );
+    if (esMultiple && mBase > 0 && mConc > mBase + 1) return mBase;
+    if (mConc > 0 && (!Array.isArray(d?.pagos_agregados) || !d.pagos_agregados.some((x: any) => /saldo\s*a\s*favor/i.test(String(x?.referencia || x?.metodo || ''))))) return mConc;
+    return mBase || mConc;
+  };
   const totalDebito = debitos.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
   const totalCredito = creditos.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
-  const totalTransf = transferencias.reduce((s, p) => { const d = parseDet(p); return s + (parseFloat(d.monto_conciliado || p.monto) || 0); }, 0);
-  const totalTransfBanesco = transfBanesco.reduce((s, p) => { const d = parseDet(p); return s + (parseFloat(d.monto_conciliado || p.monto) || 0); }, 0);
-  const totalTransfBancamiga = transfBancamiga.reduce((s, p) => { const d = parseDet(p); return s + (parseFloat(d.monto_conciliado || p.monto) || 0); }, 0);
-  const totalTransfOtros = transfOtros.reduce((s, p) => { const d = parseDet(p); return s + (parseFloat(d.monto_conciliado || p.monto) || 0); }, 0);
+  const totalTransf = transferencias.reduce((s, p) => s + obtenerMontoTransf(p), 0);
+  const totalTransfBanesco = transfBanesco.reduce((s, p) => s + obtenerMontoTransf(p), 0);
+  const totalTransfBancamiga = transfBancamiga.reduce((s, p) => s + obtenerMontoTransf(p), 0);
+  const totalTransfOtros = transfOtros.reduce((s, p) => s + obtenerMontoTransf(p), 0);
   const totalRetenciones = retenciones.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
   const totalSaldoAFavor = saldosAFavor.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
   const totalIngresos = totalDebito + totalCredito + totalTransf;
@@ -720,7 +734,7 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
               <thead><tr>{(showDT ? ['#','Fecha/Hora','Fecha Bco','Tipo','Fecha Libro','Operador','Contribuyente','Recibo','Banco Emisor','Referencia','Banco Empresa','Referencia','Estado','Monto'] : ['#','Conciliado','Registro','Tipo','Operador','Contribuyente','Recibo','Banco Emisor','Referencia','Banco Empresa','Referencia','Estado','Monto Reportado','Monto Conciliado']).map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
               <tbody>{items.map((p, i) => {
                 const det = parseDet(p);
-                const mC = parseFloat(det.monto_conciliado || p.monto) || 0;
+                const mC = obtenerMontoTransf(p);
                 const conc = p.estado === 'Aprobado' || p.estado === 'Con Diferencia';
                 const bDest = clasificarBancoDestino(p);
                 return (<tr key={p.id} style={{ background: i % 2 === 0 ? '#fff' : '#f9fafe' }}>

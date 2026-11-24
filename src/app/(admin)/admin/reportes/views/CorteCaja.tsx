@@ -147,15 +147,108 @@ export default function CorteCaja({ pagos, cajeros, isAdmin, currentUser, onBack
     setSelectedCajas(prev => prev.includes(caja) ? prev.filter(c => c !== caja) : [...prev, caja]);
   };
 
+  const pagoPorId = useMemo(() => {
+    const m = new Map<string, any>();
+    for (const p of (pagos || [])) {
+      if (p?.id) m.set(String(p.id), p);
+    }
+    return m;
+  }, [pagos]);
+
+  const parseFechaCaracas = (raw: any): Date | null => {
+    if (!raw) return null;
+    const str = String(raw).trim();
+    const dmyMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+    if (dmyMatch) {
+      const ymd = `${dmyMatch[3]}-${dmyMatch[2].padStart(2, '0')}-${dmyMatch[1].padStart(2, '0')}`;
+      const d = new Date(`${ymd}T12:00:00-04:00`);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    if (/^\d{4}-\d{2}-\d{2}(T00:00:00(\.000)?(Z|\+00:00)?)?$/i.test(str)) {
+      const d = new Date(`${str.slice(0, 10)}T12:00:00-04:00`);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    const d = new Date(str);
+    return isNaN(d.getTime()) ? null : d;
+  };
+
+  const obtenerFechaEfectivaCorte = (p: any, det: any) => {
+    const corrList = Array.isArray(det.correcciones_reporte) ? det.correcciones_reporte : [];
+    const lastCorr = corrList.length > 0 ? corrList[corrList.length - 1] : null;
+    const corrTieneFecha = Boolean(
+      lastCorr?.fecha_nueva &&
+      String(lastCorr.fecha_anterior || '').slice(0, 10) !== String(lastCorr.fecha_nueva).slice(0, 10)
+    );
+    if (corrTieneFecha && lastCorr?.fecha_nueva) {
+      const dCorr = parseFechaCaracas(lastCorr.fecha_nueva);
+      if (dCorr) return dCorr;
+    }
+    if (!isDebito(p)) {
+      const fd = det.factura_digital || {};
+      const pagoPadre = det.pago_principal_id ? pagoPorId.get(String(det.pago_principal_id)) : null;
+      const detPadre = pagoPadre ? parseDet(pagoPadre) : null;
+      const fdPadre = detPadre?.factura_digital || {};
+      const rc0 = Array.isArray(det.recibo_caja) ? det.recibo_caja[0] : det.recibo_caja;
+      const rcPadre0 = Array.isArray(detPadre?.recibo_caja) ? detPadre.recibo_caja[0] : detPadre?.recibo_caja;
+      const candidatos = [
+        det.fecha_emision_override,
+        (fd.emitida || fd.numero_documento || fd.numero_control) ? fd.fecha_emision : '',
+        detPadre?.fecha_emision_override,
+        (fdPadre?.emitida || fdPadre?.numero_documento || fdPadre?.numero_control) ? fdPadre.fecha_emision : '',
+        rc0?.fechaEmision,
+        rcPadre0?.fechaEmision,
+        det.fecha_transaccion,
+        rc0?.fechaIngresoCaja,
+        rcPadre0?.fechaIngresoCaja,
+        det.fecha_ingreso_caja,
+      ];
+      for (const c of candidatos) {
+        const dCand = parseFechaCaracas(c);
+        if (dCand) return dCand;
+      }
+      const createdStr = String(p.created_at || '');
+      if (createdStr.includes('T16:00:00') && det.recibo_caja_at) {
+        const dReal = new Date(det.recibo_caja_at);
+        if (!isNaN(dReal.getTime())) return dReal;
+      }
+    }
+    return new Date(p.created_at);
+  };
+
+  const obtenerMontoTransf = (p: any): number => {
+    const d = parseDet(p);
+    const mBase = parseFloat(p?.monto) || 0;
+    const mConc = parseFloat(d?.monto_conciliado) || 0;
+    const esMultiple = Boolean(
+      d?.es_pago_adicional ||
+      d?.abono_completado ||
+      (Array.isArray(d?.pagos_agregados) && d.pagos_agregados.filter((x: any) => !/saldo\s*a\s*favor|nota\s*de\s*cr[eé]dito|desc\.?\s*saldo/i.test(String(x?.metodo || x?.tipo || x?.referencia || ''))).length > 1) ||
+      (Array.isArray(d?.formasPago) && d.formasPago.filter((x: any) => !/saldo\s*a\s*favor|nota\s*de\s*cr[eé]dito|desc\.?\s*saldo/i.test(String(x?.metodo || x?.tipo || x?.referencia || ''))).length > 1)
+    );
+    if (esMultiple && mBase > 0 && mConc > mBase + 1) return mBase;
+    if (mConc > 0 && (!Array.isArray(d?.pagos_agregados) || !d.pagos_agregados.some((x: any) => /saldo\s*a\s*favor/i.test(String(x?.referencia || x?.metodo || ''))))) return mConc;
+    return mBase || mConc;
+  };
+
   const pagosFiltrados = useMemo(() => {
     if (!showReport) return [];
     const start = new Date(fechaInicio);
     const end = new Date(fechaFin);
+    const sYmd = String(fechaInicio || '').slice(0, 10);
+    const eYmd = String(fechaFin || '').slice(0, 10);
     return pagos.filter(p => {
-      const d = new Date(p.created_at);
-      if (d < start || d > end) return false;
+      if (['Anulado', 'Reversado', 'Condonado', 'Rechazado', 'Por Verificar', 'Pendiente'].includes(p.estado)) return false;
       const det = parseDet(p);
-      const cajero = det.cajero || '';
+      const d = obtenerFechaEfectivaCorte(p, det);
+      let dYmd = '';
+      try {
+        dYmd = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' }).format(d);
+      } catch {
+        dYmd = !isNaN(d.getTime()) ? d.toISOString().slice(0, 10) : String(p.created_at || '').slice(0, 10);
+      }
+      const enRango = (sYmd && eYmd) ? (dYmd >= sYmd && dYmd <= eYmd) : (d >= start && d <= end);
+      if (!enRango) return false;
+      const cajero = det.cajero || det.analista || '';
       if (!isAdmin) {
         const myName = currentUser.toLowerCase();
         const pCajLower = cajero.toLowerCase();
@@ -185,22 +278,10 @@ export default function CorteCaja({ pagos, cajeros, isAdmin, currentUser, onBack
 
   const retenciones = pagosFiltrados.filter(p => isRetencion(p));
   const totalDebito = debitos.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
-  const totalTransf = transferencias.reduce((s, p) => {
-    const det = parseDet(p);
-    return s + (parseFloat(det.monto_conciliado || p.monto) || 0);
-  }, 0);
-  const totalTransfBanesco = transfBanesco.reduce((s, p) => {
-    const det = parseDet(p);
-    return s + (parseFloat(det.monto_conciliado || p.monto) || 0);
-  }, 0);
-  const totalTransfBancamiga = transfBancamiga.reduce((s, p) => {
-    const det = parseDet(p);
-    return s + (parseFloat(det.monto_conciliado || p.monto) || 0);
-  }, 0);
-  const totalTransfOtros = transfOtros.reduce((s, p) => {
-    const det = parseDet(p);
-    return s + (parseFloat(det.monto_conciliado || p.monto) || 0);
-  }, 0);
+  const totalTransf = transferencias.reduce((s, p) => s + obtenerMontoTransf(p), 0);
+  const totalTransfBanesco = transfBanesco.reduce((s, p) => s + obtenerMontoTransf(p), 0);
+  const totalTransfBancamiga = transfBancamiga.reduce((s, p) => s + obtenerMontoTransf(p), 0);
+  const totalTransfOtros = transfOtros.reduce((s, p) => s + obtenerMontoTransf(p), 0);
 
   const totalRetenciones = retenciones.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
   const totalSaldoAFavor = saldosAFavor.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
@@ -343,7 +424,7 @@ export default function CorteCaja({ pagos, cajeros, isAdmin, currentUser, onBack
                   <tbody>
                     {transfBanesco.map((p, i) => {
                       const det = parseDet(p);
-                      const monto = parseFloat(det.monto_conciliado || p.monto) || 0;
+                      const monto = obtenerMontoTransf(p);
                       return (
                         <tr key={p.id} className="hover:bg-emerald-50/30">
                           <td className={tdCls}>{i+1}</td>
@@ -394,7 +475,7 @@ export default function CorteCaja({ pagos, cajeros, isAdmin, currentUser, onBack
                   <tbody>
                     {transfBancamiga.map((p, i) => {
                       const det = parseDet(p);
-                      const monto = parseFloat(det.monto_conciliado || p.monto) || 0;
+                      const monto = obtenerMontoTransf(p);
                       return (
                         <tr key={p.id} className="hover:bg-sky-50/30">
                           <td className={tdCls}>{i+1}</td>
@@ -445,7 +526,7 @@ export default function CorteCaja({ pagos, cajeros, isAdmin, currentUser, onBack
                   <tbody>
                     {transfOtros.map((p, i) => {
                       const det = parseDet(p);
-                      const monto = parseFloat(det.monto_conciliado || p.monto) || 0;
+                      const monto = obtenerMontoTransf(p);
                       return (
                         <tr key={p.id} className="hover:bg-slate-50">
                           <td className={tdCls}>{i+1}</td>
