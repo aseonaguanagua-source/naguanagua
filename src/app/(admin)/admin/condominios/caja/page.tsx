@@ -70,14 +70,11 @@ function Caja() {
   const [fechaOverrideStr, setFechaOverrideStr] = useState(hoyCaracas);
   const [tasaFechaInfo, setTasaFechaInfo] = useState('');
   const [cargandoTasaFecha, setCargandoTasaFecha] = useState(false);
-  /** Carga la tasa oficial BCV del Euro vigente en la fecha elegida (hoy = tasa automática). */
+  /** Carga la tasa oficial BCV del Euro vigente en la fecha elegida en el cuadro de Tasa Euro Aplicada (hoy = tasa automática). */
   const aplicarTasaDeFecha = async (fecha: string) => {
     if (!fecha) return;
     const hoy = hoyCaracas();
     if (fecha > hoy) { alert('No se puede usar una fecha futura.'); return; }
-    setFechaAct(fecha);
-    setFechaTransaccionAct(fecha);
-    setPagosAgregados(prev => prev.map(p => ({ ...p, fecha, fechaTransaccion: fecha })));
     if (fecha === hoy) { setTasaOverrideStr(''); setTasaFechaInfo(''); return; }
     setCargandoTasaFecha(true);
     try {
@@ -880,7 +877,7 @@ function Caja() {
           retencionPorcentajeOverride: retencionIVA,
           usuario: u.usuario,
           tasaOverride: tasaParsed > 0 ? tasaParsed : (cobro?.estado?.tasa ? Number(cobro.estado.tasa) : undefined),
-          fechaOverride: (primerPagoReal?.fechaTransaccion || fechaTxBaseCobro || fechaOverrideStr) || undefined,
+          fechaOverride: fechaOverrideStr || undefined,
           pago: { 
             pagoId: nuevoCobroId, 
             metodo: primerPagoReal?.metodo || 'MÚLTIPLE', 
@@ -2769,7 +2766,7 @@ function Caja() {
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <span className="text-[10px] font-semibold text-white/60 mb-0.5 block">F. Transacción (Banco)</span>
-                          <input type="date" value={fechaTransaccionAct} max={hoyCaracas()} onChange={e => { const f = e.target.value; setFechaTransaccionAct(f); setFechaAct(f); if (f) aplicarTasaDeFecha(f); }} className="w-full rounded-lg bg-slate-800 border border-white/20 px-2 py-1.5 text-xs outline-none text-white [color-scheme:dark]" />
+                          <input type="date" value={fechaTransaccionAct} max={hoyCaracas()} onChange={e => { setFechaTransaccionAct(e.target.value); setFechaAct(e.target.value); }} className="w-full rounded-lg bg-slate-800 border border-white/20 px-2 py-1.5 text-xs outline-none text-white [color-scheme:dark]" />
                         </div>
                         <div>
                           <span className="text-[10px] font-semibold text-white/60 mb-0.5 block">F. Ingreso a Caja</span>
