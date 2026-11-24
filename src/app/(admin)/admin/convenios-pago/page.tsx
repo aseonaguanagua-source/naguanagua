@@ -74,6 +74,10 @@ export default function ConveniosPagoPage() {
       if (j.ok && Array.isArray(j.data)) {
         const formatted = j.data.map((c: any) => {
           const inmMatch = (inmuebles || []).find((i: any) => {
+            if (c.codigo_inmueble && String(i.inmueble || '').toUpperCase() === String(c.codigo_inmueble || '').toUpperCase()) return true;
+            if (c.numero && String(i.notas || '').includes(c.numero)) return true;
+            return false;
+          }) || (inmuebles || []).find((i: any) => {
             const cIdClean = String(c.identidad || '').replace(/\D/g, '');
             const iIdClean = String(i.identidad || i.Identidad || '').replace(/\D/g, '');
             return cIdClean && iIdClean && cIdClean === iIdClean;
@@ -263,52 +267,89 @@ export default function ConveniosPagoPage() {
     try {
       // 1. Normalizar término de búsqueda
       const cleanSearchDoc = raw.replace(/[\s-]/g, '').toUpperCase();
-      const soloNum = cleanSearchDoc.replace(/\D/g, '');
+      const esCodigoInmueble = /^(URB|AURI|IND|COM|RES|CONDO)/i.test(cleanSearchDoc);
+      const soloNum = esCodigoInmueble ? '' : cleanSearchDoc.replace(/\D/g, '');
       const prefix = cleanSearchDoc.match(/^[VEJPG]/)?.[0] || 'V';
-      const idFmt = (soloNum && soloNum.length >= 4) ? `${prefix}-${soloNum}` : '';
+      const idFmt = (!esCodigoInmueble && soloNum && soloNum.length >= 4) ? `${prefix}-${soloNum}` : '';
 
       // 2. Buscar en Supabase para obtener datos frescos y completos
-      const ors: string[] = [
-        `identidad.ilike.%${cleanSearchDoc}%`,
-        `inmueble.ilike.%${raw.toUpperCase()}%`,
-      ];
-      if (idFmt) ors.push(`identidad.eq.${idFmt}`);
-      if (soloNum && soloNum.length >= 4) ors.push(`identidad.ilike.%${soloNum}%`);
-
       let userInmuebles: any[] = [];
-      const { data: dbInms } = await supabase
-        .from('inmuebles')
-        .select('*')
-        .or(ors.join(','));
+      if (esCodigoInmueble) {
+        const { data: exactInms } = await supabase
+          .from('inmuebles')
+          .select('*')
+          .ilike('inmueble', cleanSearchDoc);
+        if (exactInms && exactInms.length > 0) {
+          userInmuebles = exactInms;
+        } else {
+          const { data: partialInms } = await supabase
+            .from('inmuebles')
+            .select('*')
+            .ilike('inmueble', `%${cleanSearchDoc}%`);
+          userInmuebles = partialInms || [];
+        }
+      } else {
+        const ors: string[] = [
+          `identidad.ilike.%${cleanSearchDoc}%`,
+          `inmueble.ilike.%${raw.toUpperCase()}%`,
+        ];
+        if (idFmt) ors.push(`identidad.eq.${idFmt}`);
+        if (soloNum && soloNum.length >= 4) ors.push(`identidad.ilike.%${soloNum}%`);
 
-      if (dbInms && dbInms.length > 0) {
-        userInmuebles = dbInms;
-      } else if (Array.isArray(inmuebles) && inmuebles.length > 0) {
+        const { data: dbInms } = await supabase
+          .from('inmuebles')
+          .select('*')
+          .or(ors.join(','));
+        if (dbInms && dbInms.length > 0) {
+          // Si alguno coincide exactamente por identidad limpia, priorizar solo los de esa identidad exacta
+          const exactIdMatches = dbInms.filter((i: any) => {
+            const iClean = String(i.identidad || '').replace(/[\s-]/g, '').toUpperCase();
+            const iNum = iClean.replace(/\D/g, '');
+            return iClean === cleanSearchDoc || (soloNum && iNum === soloNum);
+          });
+          userInmuebles = exactIdMatches.length > 0 ? exactIdMatches : dbInms;
+        }
+      }
+
+      if (userInmuebles.length === 0 && Array.isArray(inmuebles) && inmuebles.length > 0) {
         userInmuebles = inmuebles.filter((i: any) => {
           const iId = String(i.identidad || '').replace(/[\s-]/g, '').toUpperCase();
           const iCod = String(i.inmueble || i.cod_inmueble || i.cod_cont || '').toUpperCase();
-          return iId === cleanSearchDoc || (soloNum && iId.includes(soloNum)) || iCod === raw.toUpperCase();
+          if (esCodigoInmueble) return iCod === cleanSearchDoc;
+          return iId === cleanSearchDoc || (soloNum && iId.replace(/\D/g, '') === soloNum) || iCod === raw.toUpperCase();
         });
       }
 
-      // Buscar facturas pendientes asociadas (por identidad y variantes)
-      const factOrs: string[] = [
-        `identidad.ilike.%${cleanSearchDoc}%`
-      ];
-      if (idFmt) factOrs.push(`identidad.eq.${idFmt}`);
-      if (soloNum && soloNum.length >= 4) factOrs.push(`identidad.ilike.%${soloNum}%`);
+      // Buscar facturas pendientes asociadas (por identidad del inmueble encontrado o término buscado)
+      const targetIdentidadBusqueda = userInmuebles[0]?.identidad
+        ? String(userInmuebles[0].identidad).trim()
+        : (idFmt || (!esCodigoInmueble ? cleanSearchDoc : ''));
+      const factOrs: string[] = [];
+      if (targetIdentidadBusqueda) {
+        factOrs.push(`identidad.eq.${targetIdentidadBusqueda}`);
+        const tClean = targetIdentidadBusqueda.replace(/[\s-]/g, '').toUpperCase();
+        if (tClean) factOrs.push(`identidad.ilike.%${tClean}%`);
+      }
+      if (!esCodigoInmueble && soloNum && soloNum.length >= 4) {
+        factOrs.push(`identidad.ilike.%${soloNum}%`);
+      }
 
-      const { data: dbFacturas } = await supabase
-        .from('facturas')
-        .select('*')
-        .eq('estado', 'Pendiente')
-        .or(factOrs.join(','));
+      let dbFacturas: any[] = [];
+      if (factOrs.length > 0) {
+        const { data: fData } = await supabase
+          .from('facturas')
+          .select('*')
+          .eq('estado', 'Pendiente')
+          .or(factOrs.join(','));
+        dbFacturas = fData || [];
+      }
 
       let userFacturas = dbFacturas || [];
       if (!userFacturas.length && Array.isArray(recibos)) {
         userFacturas = recibos.filter(f => {
           const idCleanFactura = (f.identidad || '').replace(/[\s-]/g, '').toUpperCase();
-          const belongsToUser = idCleanFactura === cleanSearchDoc || (userInmuebles.length > 0 && f.contribuyente === userInmuebles[0].contribuyente);
+          const targetClean = targetIdentidadBusqueda.replace(/[\s-]/g, '').toUpperCase();
+          const belongsToUser = (targetClean && idCleanFactura === targetClean) || (userInmuebles.length > 0 && f.contribuyente === userInmuebles[0].contribuyente);
           return belongsToUser && f.estado === 'Pendiente';
         });
       }
@@ -322,6 +363,21 @@ export default function ConveniosPagoPage() {
           .select('*')
           .in('inmueble', inmsCodes);
         userCondoUnidades = cUnidades || [];
+      } else if (esCodigoInmueble) {
+        const { data: cUnidades } = await supabase
+          .from('condominio_unidades')
+          .select('*')
+          .ilike('inmueble', cleanSearchDoc);
+        userCondoUnidades = cUnidades || [];
+      }
+      // Si el inmueble ya está en userInmuebles con su propia deuda calculada, no duplicar la deuda desde userCondoUnidades
+      if (userInmuebles.length > 0 && userCondoUnidades.length > 0) {
+        const codsConDeudaEnInmuebles = new Set(
+          userInmuebles
+            .filter((i: any) => (parseInt(i.meses_deuda || '0') || 0) > 0 || (parseFloat(i.deuda_mmv || '0') || 0) > 0 || (parseFloat(i.deuda_congelada_bs || '0') || 0) > 0)
+            .map((i: any) => String(i.inmueble || '').toUpperCase())
+        );
+        userCondoUnidades = userCondoUnidades.filter((u: any) => !codsConDeudaEnInmuebles.has(String(u.inmueble || '').toUpperCase()));
       }
 
       // Obtener tasa efectiva si tcmmv está en 0
@@ -540,6 +596,19 @@ export default function ConveniosPagoPage() {
       // 1. Preparar datos de inmuebles a congelar
       const tasaAplicada = foundUser.tasaEfectiva || tcmmv || 993.18;
       const inmueblesUpdates = [];
+      const totalInmsCalc = foundUser.inmuebles.reduce((acc: number, inm: any) => {
+        const mmv = parseFloat(inm.DeudaMMV || inm.deuda_mmv || '0') || ((parseInt(inm.meses_deuda || '0') || 0) * (parseFloat(inm.mmv_mes || '0') || 0));
+        const currentFrozen = parseFloat(inm.deuda_congelada_bs || inm.DeudaCongelada || '0');
+        if (mmv <= 0 && currentFrozen <= 0) return acc;
+        if (currentFrozen > 0) return acc + currentFrozen;
+        const meses = Math.max(1, parseInt(inm.meses_deuda || '1') || 1);
+        const inmConMeses = { ...inm, meses_deuda: meses };
+        const d = calcularDeudaInmueble(inmConMeses, tasaAplicada, mesesHistoricos(inmConMeses));
+        const multaManual = isExoneradoTotalMultas(inm) ? 0 : (parseFloat(inm.multa_bs || '0') || 0);
+        const multaFinal = isExoneradoTotalMultas(inm) ? 0 : Math.max(d.multa, multaManual);
+        return acc + Math.round((d.base + d.iva + multaFinal) * 100) / 100;
+      }, 0);
+
       for (const inm of foundUser.inmuebles) {
         const mmv = parseFloat(inm.DeudaMMV || inm.deuda_mmv || '0') || ((parseInt(inm.meses_deuda || '0') || 0) * (parseFloat(inm.mmv_mes || '0') || 0));
         const currentFrozen = parseFloat(inm.deuda_congelada_bs || inm.DeudaCongelada || '0');
@@ -550,7 +619,11 @@ export default function ConveniosPagoPage() {
           const multaManual = isExoneradoTotalMultas(inm) ? 0 : (parseFloat(inm.multa_bs || '0') || 0);
           const multaFinal = isExoneradoTotalMultas(inm) ? 0 : Math.max(d.multa, multaManual);
           const calcBs = Math.round((d.base + d.iva + multaFinal) * 100) / 100;
-          const bsToFreeze = currentFrozen > 0 ? currentFrozen : (calcBs > 0 ? calcBs : mmv * tasaAplicada);
+          const rawBs = currentFrozen > 0 ? currentFrozen : (calcBs > 0 ? calcBs : mmv * tasaAplicada);
+          // Si solo hay 1 inmueble con deuda, o el usuario ajustó manualmente el monto a congelar, sincronizar con totalFijado
+          const bsToFreeze = foundUser.inmuebles.length === 1
+            ? totalFijado
+            : (totalInmsCalc > 0 ? Math.round((rawBs / totalInmsCalc) * totalFijado * 100) / 100 : rawBs);
           inmueblesUpdates.push({
             id: inm.id,
             deuda_congelada_bs: bsToFreeze

@@ -98,11 +98,12 @@ export async function GET(req: Request) {
       const montoTotalNum = parseFloat(String(conv.monto_total || 0)) || 0;
       const valorMes = totalMeses > 0 && montoTotalNum > 0 ? montoTotalNum / totalMeses : 0;
 
-      // En convenios creados hasta principios de noviembre 2026 (ciclo septiembre 2026), el último mes vencido refinanciado es Septiembre 2026 (mes 8, 0-indexed)
+      // En convenios creados hasta principios de noviembre 2026 (ciclo septiembre 2026), el último mes vencido refinanciado es Septiembre 2026 (mes 8, 0-indexed).
+      // En convenios creados a partir del 11 de noviembre 2026 (ciclo octubre 2026), el último mes vencido refinanciado es Octubre 2026 (mes 9, 0-indexed).
       const createdDate = conv.created_at ? new Date(conv.created_at) : new Date();
       const createdYmd = createdDate.toISOString().slice(0, 10);
       const endYearBase = createdYmd <= '2026-11-10' ? 2026 : createdDate.getUTCFullYear();
-      const endMonthBase = createdYmd <= '2026-11-10' ? 8 : (createdDate.getUTCMonth() - 1);
+      const endMonthBase = createdYmd <= '2026-11-10' ? 8 : (createdYmd <= '2026-12-10' ? 9 : (createdDate.getUTCMonth() - 1));
       const startTotalDate = new Date(Date.UTC(endYearBase, endMonthBase - totalMeses + 1, 1));
       const endTotalDate = new Date(Date.UTC(endYearBase, endMonthBase, 1));
       const fmtMesAnio = (d: Date) => `${MESES_NOMBRES[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
