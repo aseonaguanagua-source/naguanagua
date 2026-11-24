@@ -215,10 +215,24 @@ export default function CorteCaja({ pagos, cajeros, isAdmin, currentUser, onBack
     return new Date(p.created_at);
   };
 
+  const parseMontoNumero = (v: any): number => {
+    if (typeof v === 'number') return isNaN(v) ? 0 : v;
+    if (!v) return 0;
+    const s = String(v).trim();
+    if (s.includes(',') && s.includes('.')) {
+      return Number(s.lastIndexOf(',') > s.lastIndexOf('.') ? s.replace(/\./g, '').replace(',', '.') : s.replace(/,/g, '')) || 0;
+    }
+    if (s.includes(',')) return Number(s.replace(',', '.')) || 0;
+    return Number(s) || 0;
+  };
+
   const obtenerMontoTransf = (p: any): number => {
     const d = parseDet(p);
-    const mBase = parseFloat(p?.monto) || 0;
-    const mConc = parseFloat(d?.monto_conciliado) || 0;
+    if (d?.monto_reporte != null) return parseMontoNumero(d.monto_reporte);
+    const mBase = parseMontoNumero(p?.monto);
+    const tUpper = String(p.tipo || '').toUpperCase().trim();
+    if (tUpper.includes('DEPOSITO') || tUpper.includes('DEPÓSITO')) return mBase;
+    const mConc = parseMontoNumero(d?.monto_conciliado);
     const esMultiple = Boolean(
       d?.es_pago_adicional ||
       d?.abono_completado ||
@@ -239,6 +253,9 @@ export default function CorteCaja({ pagos, cajeros, isAdmin, currentUser, onBack
     return pagos.filter(p => {
       if (['Anulado', 'Reversado', 'Condonado', 'Rechazado', 'Por Verificar', 'Pendiente'].includes(p.estado)) return false;
       const det = parseDet(p);
+      const cajTest = String(det?.cajero || det?.analista || '').trim();
+      if (/^(dz-)?dzara$|^c-dzara$/i.test(cajTest)) return false;
+      if (det?.monto_reporte != null && Number(det.monto_reporte) <= 0 && (Number(p?.monto) || 0) <= 0) return false;
       const d = obtenerFechaEfectivaCorte(p, det);
       let dYmd = '';
       try {

@@ -399,6 +399,11 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
       // Excluir pagos anulados, reversados, condonados, rechazados o aún pendientes de verificar
       if (p.estado === 'Anulado' || p.estado === 'Reversado' || p.estado === 'Condonado' || p.estado === 'Rechazado' || p.estado === 'Por Verificar' || p.estado === 'Pendiente') return false;
       const det = parseDet(p);
+      // Excluir cajero de prueba (DZ-dzara) para coincidir 100% con Inicio, Presidencia y Reportes Oficiales
+      const cajTest = String(det?.cajero || det?.analista || '').trim();
+      if (/^(dz-)?dzara$|^c-dzara$/i.test(cajTest)) return false;
+      // Excluir pagos duplicados cuyo monto de reporte fue anulado a 0.00 (salvo que se esté buscando explícitamente en el buscador)
+      if (!hasSearch && det?.monto_reporte != null && Number(det.monto_reporte) <= 0 && (Number(p?.monto) || 0) <= 0) return false;
       // Filtrar según el criterio seleccionado:
       // - "registro": Fecha efectiva única del pago en Caja/Cuadre (respeta fecha_emision_override y correcciones de fecha)
       // - "banco": Fecha bancaria del comprobante (salvo que tenga corrección explícita de fecha en reporte/conciliación)
@@ -488,10 +493,23 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
     const b = clasificarBancoDestino(p);
     return b !== 'Banesco' && b !== 'Bancamiga';
   });
+  const parseMontoNumero = (v: any): number => {
+    if (typeof v === 'number') return isNaN(v) ? 0 : v;
+    if (!v) return 0;
+    const s = String(v).trim();
+    if (s.includes(',') && s.includes('.')) {
+      return Number(s.lastIndexOf(',') > s.lastIndexOf('.') ? s.replace(/\./g, '').replace(',', '.') : s.replace(/,/g, '')) || 0;
+    }
+    if (s.includes(',')) return Number(s.replace(',', '.')) || 0;
+    return Number(s) || 0;
+  };
   const obtenerMontoTransf = (p: any): number => {
     const d = parseDet(p);
-    const mBase = parseFloat(p?.monto) || 0;
-    const mConc = parseFloat(d?.monto_conciliado) || 0;
+    if (d?.monto_reporte != null) return parseMontoNumero(d.monto_reporte);
+    const mBase = parseMontoNumero(p?.monto);
+    const tUpper = String(p.tipo || '').toUpperCase().trim();
+    if (tUpper.includes('DEPOSITO') || tUpper.includes('DEPÓSITO')) return mBase;
+    const mConc = parseMontoNumero(d?.monto_conciliado);
     const esMultiple = Boolean(
       d?.es_pago_adicional ||
       d?.abono_completado ||

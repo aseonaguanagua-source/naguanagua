@@ -442,6 +442,10 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
         return false;
       }
       const det = parseDet(p);
+      // Excluir cajero de prueba (DZ-dzara) para coincidir 100% con Inicio, Presidencia y Reportes Oficiales
+      const cajTest = String(det?.cajero || det?.analista || '').trim();
+      if (/^(dz-)?dzara$|^c-dzara$/i.test(cajTest)) return false;
+      if (!hasSearch && det?.monto_reporte != null && Number(det.monto_reporte) <= 0 && (Number(p?.monto) || 0) <= 0) return false;
       const d = obtenerFechaEfectivaCuadre(p, det);
       // En el Cuadre de Caja se audita lo cobrado por el cajero en ese turno/día específico.
       // Se evalúa la fecha de corte en hora de Caracas (America/Caracas).
