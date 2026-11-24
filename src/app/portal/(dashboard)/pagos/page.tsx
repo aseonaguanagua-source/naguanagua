@@ -262,21 +262,29 @@ export default function DondePagarPage() {
         // A. Inmuebles y facturas pendientes
         const { data: inmsDB } = await supabase.from('inmuebles').select('*').or(orFilter);
         // Consultar también unidades de condominios asociadas a esta identidad
-        const { data: condoUnits } = await supabase.from('condominio_unidades').select('inmueble').neq('estado', 'Eliminada').or(orFilter);
+        const { data: condoUnits } = await supabase.from('condominio_unidades').select('inmueble, multa_meses, condominios!inner(codigo, nombre)').neq('estado', 'Eliminada').or(orFilter);
         let allInms = [...(inmsDB || [])];
         if (condoUnits && condoUnits.length > 0) {
           const condoCodes = condoUnits.map(u => u.inmueble).filter(Boolean);
-          const condoSet = new Set(condoCodes.map((c: string) => String(c).trim().toUpperCase()));
+          const condoParentMap = new Map<string, string>();
+          condoUnits.forEach((u: any) => {
+            const c = String(u.inmueble || '').trim().toUpperCase();
+            const pCod = String(u.condominios?.codigo || '').trim().toUpperCase();
+            if (c && pCod) condoParentMap.set(c, pCod);
+          });
           const missingCodes = condoCodes.filter(c => !allInms.some(i => i.inmueble === c));
           if (missingCodes.length > 0) {
             const { data: extraInms } = await supabase.from('inmuebles').select('*').in('inmueble', missingCodes);
             if (extraInms) allInms.push(...extraInms);
           }
-          allInms = allInms.map(i =>
-            condoSet.has(String(i.inmueble || '').trim().toUpperCase()) && !i.condominio_padre_id
-              ? { ...i, es_condominio: true }
-              : i
-          );
+          allInms = allInms.map(i => {
+            const codUp = String(i.inmueble || '').trim().toUpperCase();
+            const pCod = condoParentMap.get(codUp);
+            if (pCod && !i.condominio_padre_id && codUp !== pCod) {
+              return { ...i, condominio_padre_id: pCod };
+            }
+            return i;
+          });
         }
 
         // Consultar también hijos asociados vía padre_id (ej: clusters/locales con múltiples actividades)
@@ -474,12 +482,13 @@ export default function DondePagarPage() {
           validInms.forEach((inm: any) => reglaPorInm.set(inm.inmueble, reglaCobroInmueble(inm, rc.naCodes, portalDoc)));
           setReglasCobro(Object.fromEntries(reglaPorInm));
           const esActCondoPortal = (i: any) => {
+            if (isCondominioPagoIndividual(i)) return false;
             const a = (i?.actividad_principal || '').toLowerCase();
             return (a.includes('condominio') && !a.includes('oficina')) || a.includes('padre en sigyr: urb');
           };
           const allCondoCodes = new Set([
             ...(rc.condoInmCodes || []).map((c: string) => String(c).toUpperCase()),
-            ...validInms.filter((i: any) => i.es_condominio || i.condominio_padre_id || esActCondoPortal(i)).map((i: any) => String(i.inmueble || '').toUpperCase())
+            ...validInms.filter((i: any) => !isCondominioPagoIndividual(i) && (i.es_condominio || i.condominio_padre_id || esActCondoPortal(i))).map((i: any) => String(i.inmueble || '').toUpperCase())
           ]);
           const isCondoRef = (ref: string): boolean => {
             const r = String(ref || '').toUpperCase();
@@ -691,6 +700,7 @@ export default function DondePagarPage() {
       const c = clusterMapData[clusterId];
       const isCondoInm = (i: any) => {
         if (i?.esSesionCondominioMatriz) return false;
+        if (isCondominioPagoIndividual(i)) return false;
         const a = (i?.actividad_principal || '').toLowerCase();
         return Boolean(
           i?.es_condominio ||
@@ -699,16 +709,17 @@ export default function DondePagarPage() {
           a.includes('padre en sigyr: urb')
         );
       };
-      // Cualquier inmueble o filial dentro de régimen de condominio se gestiona centralizado
-      const isCondo = c.inms.some(isCondoInm);
+      // Cualquier inmueble o filial dentro de régimen de condominio centralizado (excepto los 4 con pago individual)
+      const isCondo = c.inms.some(isCondoInm) && !c.inms.some((i: any) => isCondominioPagoIndividual(i));
       const condoPadreInm = c.inms.find(isCondoInm);
       const condoPadreId = (condoPadreInm as any)?.condominio_padre_id ||
         ((condoPadreInm as any)?.actividad_principal?.match(/Padre en SIGYR:\s*(URB\d+)/i)?.[1]) ||
         ((condoPadreInm as any)?.es_condominio ? condoPadreInm?.inmueble : null);
       const condoNombre = condoPadreId ? (condoNames[condoPadreId] || condoPadreId) : null;
 
-      // Si pertenece a un régimen de condominio, no genera recibos individuales en Soy Contribuyente
-      if (isCondo) {
+      // Si pertenece a un régimen de condominio centralizado Y NO tiene multas individuales pendientes, queda bloqueado.
+      // Si tiene multas pendientes (MULTA-...), permitirle ver y pagar únicamente las multas.
+      if (isCondo && c.receipts.length === 0) {
         const hasChildren = c.inms.some((i: any) => i.padre_id === clusterId || (condoPadreInm && i.inmueble !== condoPadreInm.inmueble));
         const displayInms = (hasChildren && condoPadreInm)
           ? c.inms.filter((i: any) => i.inmueble !== condoPadreInm.inmueble)

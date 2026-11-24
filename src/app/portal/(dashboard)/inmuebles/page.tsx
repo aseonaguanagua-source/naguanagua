@@ -53,10 +53,16 @@ export default function InmueblesPage() {
           .neq('estado', 'Eliminado');
 
         // Consultar también unidades de condominios asociadas a esta identidad
-        const { data: condoUnits } = await supabase.from('condominio_unidades').select('inmueble').neq('estado', 'Eliminada').or(orFilter);
+        const { data: condoUnits } = await supabase.from('condominio_unidades').select('inmueble, condominios!inner(codigo)').neq('estado', 'Eliminada').or(orFilter);
         let allInmsRaw = [...(inmsDB || [])];
         if (condoUnits && condoUnits.length > 0) {
           const condoCodes = condoUnits.map((u: any) => u.inmueble).filter(Boolean);
+          const condoParentMap = new Map<string, string>();
+          condoUnits.forEach((u: any) => {
+            const c = String(u.inmueble || '').trim().toUpperCase();
+            const pCod = String(u.condominios?.codigo || '').trim().toUpperCase();
+            if (c && pCod) condoParentMap.set(c, pCod);
+          });
           const missingCodes = condoCodes.filter((c: string) => !allInmsRaw.some(i => i.inmueble === c));
           if (missingCodes.length > 0) {
             const { data: extraInms } = await supabase
@@ -66,6 +72,14 @@ export default function InmueblesPage() {
               .neq('estado', 'Eliminado');
             if (extraInms) allInmsRaw.push(...extraInms);
           }
+          allInmsRaw = allInmsRaw.map(i => {
+            const codUp = String(i.inmueble || '').trim().toUpperCase();
+            const pCod = condoParentMap.get(codUp);
+            if (pCod && !i.condominio_padre_id && codUp !== pCod) {
+              return { ...i, condominio_padre_id: pCod };
+            }
+            return i;
+          });
         }
 
         const isActivo = (i: any) => {

@@ -92,21 +92,29 @@ export default function EstadoCuentaPage() {
           // 1. Inmuebles, Facturas y Contribuyente en tiempo real
           const { data: inmsDB } = await supabase.from('inmuebles').select('*').or(orFilter);
           // Consultar también unidades de condominios asociadas a esta identidad
-          const { data: condoUnits } = await supabase.from('condominio_unidades').select('inmueble').neq('estado', 'Eliminada').or(orFilter);
+          const { data: condoUnits } = await supabase.from('condominio_unidades').select('inmueble, multa_meses, condominios!inner(codigo, nombre)').neq('estado', 'Eliminada').or(orFilter);
           let allInms = [...(inmsDB || [])];
           if (condoUnits && condoUnits.length > 0) {
             const condoCodes = condoUnits.map(u => u.inmueble).filter(Boolean);
-            const condoSet = new Set(condoCodes.map((c: string) => String(c).trim().toUpperCase()));
+            const condoParentMap = new Map<string, string>();
+            condoUnits.forEach((u: any) => {
+              const c = String(u.inmueble || '').trim().toUpperCase();
+              const pCod = String(u.condominios?.codigo || '').trim().toUpperCase();
+              if (c && pCod) condoParentMap.set(c, pCod);
+            });
             const missingCodes = condoCodes.filter(c => !allInms.some(i => i.inmueble === c));
             if (missingCodes.length > 0) {
               const { data: extraInms } = await supabase.from('inmuebles').select('*').in('inmueble', missingCodes);
               if (extraInms) allInms.push(...extraInms);
             }
-            allInms = allInms.map(i =>
-              condoSet.has(String(i.inmueble || '').trim().toUpperCase()) && !i.condominio_padre_id
-                ? { ...i, es_condominio: true }
-                : i
-            );
+            allInms = allInms.map(i => {
+              const codUp = String(i.inmueble || '').trim().toUpperCase();
+              const pCod = condoParentMap.get(codUp);
+              if (pCod && !i.condominio_padre_id && codUp !== pCod) {
+                return { ...i, condominio_padre_id: pCod };
+              }
+              return i;
+            });
           }
 
           // Consultar también hijos asociados vía padre_id (ej: clusters/locales con múltiples actividades)
@@ -593,8 +601,10 @@ export default function EstadoCuentaPage() {
   const isCondoReceipt = (f: any): boolean => {
     if (f?.esReciboCondominioMatriz) return false;
     const ref = String(f?.referencia || '').toUpperCase();
+    // Las multas individuales (MULTA-) SIEMPRE se muestran para que el hijo de condominio pueda cancelarlas
+    if (ref.startsWith('MULTA-')) return false;
     const inmId = String(f?.inmueble || '').toUpperCase();
-    // Excluir cualquier inmueble que pertenezca a régimen de condominio
+    // Excluir recibos de aseo mensual de cualquier inmueble que pertenezca a régimen de condominio centralizado
     const matched = misInmuebles.find((i: any) => i.inmueble && (ref.includes(String(i.inmueble).toUpperCase()) || inmId === String(i.inmueble).toUpperCase()));
     if (matched && !matched.esSesionCondominioMatriz && isCondominioInm(matched, misInmuebles)) {
       return true;
@@ -846,6 +856,25 @@ export default function EstadoCuentaPage() {
             multaTotal: 0,
             total: 0,
             esCasoSinMulta: true
+          };
+        }
+
+        // Si el inmueble pertenece a un condominio centralizado (no es uno de los 4 condominios con pago individual):
+        // Su servicio de aseo mensual lo cancela el condominio matriz; en el portal solo aparece su multa a cancelar.
+        if (cluster.esCondominio && !condoMatrizFicha && !isCondominioPagoIndividual(inm)) {
+          const multaFijaCondo = Math.round((parseFloat(String(inm.multa_bs || '0')) || 0) * 100) / 100;
+          subtotalMultasLocal += multaFijaCondo;
+          return {
+            inmueble: inm.inmueble,
+            actividad: stripNivel(inm.actividad_principal || 'Unidad en Condominio'),
+            meses: 0,
+            bMes: 0,
+            iMes: 0,
+            baseTotal: 0,
+            ivaTotal: 0,
+            multaTotal: multaFijaCondo,
+            total: multaFijaCondo,
+            esCasoSinMulta: multaFijaCondo <= 0
           };
         }
 

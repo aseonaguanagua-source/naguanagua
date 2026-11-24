@@ -1178,31 +1178,7 @@ export default function CajaPage() {
         )
         .map((i: any) => i.inmueble);
 
-      // Consultar modalidad de condominios padres (si existen) para permitir pago individual cuando modalidad === 'INDIVIDUAL' o permite_pago_por_unidad === true
-      const condoParentCodesToCheck = Array.from(new Set(
-        rawActiveInms
-          .map((i: any) => String(i.condominio_padre_id || '').trim().toUpperCase())
-          .filter((c: string) => c.length > 0 && !naParentCodesFresh.includes(c))
-      ));
-      const dynamicIndividualCondos = new Set<string>();
-      if (condoParentCodesToCheck.length > 0) {
-        try {
-          const { data: condosCfg } = await supabase
-            .from('condominios')
-            .select('codigo, modalidad, permite_pago_por_unidad')
-            .in('codigo', condoParentCodesToCheck);
-          (condosCfg || []).forEach((c: any) => {
-            if (c.modalidad === 'INDIVIDUAL' || c.permite_pago_por_unidad === true) {
-              dynamicIndividualCondos.add(String(c.codigo || '').trim().toUpperCase());
-            }
-          });
-        } catch (eCondoCfg) {
-          console.warn('Error consultando modalidad de condominios:', eCondoCfg);
-        }
-      }
-      const isPagoIndInm = (inm: any) =>
-        isCondominioPagoIndividual(inm) ||
-        dynamicIndividualCondos.has(String(inm?.condominio_padre_id || '').trim().toUpperCase());
+      const isPagoIndInm = (inm: any) => isCondominioPagoIndividual(inm);
 
       const hasStandaloneInm = rawActiveInms.some((i: any) => !i.condominio_padre_id);
       const activeInmFresh = rawActiveInms.filter((i: any) => {

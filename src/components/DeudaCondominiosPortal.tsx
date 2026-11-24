@@ -5,6 +5,7 @@ import { Building2, AlertTriangle, Users, ChevronDown, ChevronUp, Info, ShieldAl
 import { supabase } from '@/lib/supabase';
 import { getIdentidadVariantsExact } from '@/lib/formatters';
 import { formatBs } from '@/lib/formatCurrency';
+import { isCondominioPagoIndividual } from '@/lib/calculos';
 
 const fmtDMY = (ymd?: string | null) => {
   const s = String(ymd || '').trim().slice(0, 10);
@@ -80,7 +81,7 @@ export default function DeudaCondominiosPortal({ identidad }: { identidad: strin
         (inms || []).forEach((i: any) => {
           if (i.condominio_padre_id) {
             const pCodUpper = String(i.condominio_padre_id).trim().toUpperCase();
-            if (ownCondoCodesSet.has(pCodUpper)) return;
+            if (ownCondoCodesSet.has(pCodUpper) || isCondominioPagoIndividual(pCodUpper)) return;
             condoCodesToFetch.add(pCodUpper);
             items.push({
               inmueble: i.inmueble,
@@ -97,7 +98,8 @@ export default function DeudaCondominiosPortal({ identidad }: { identidad: strin
 
         (cUnits || []).forEach((u: any) => {
           const cCod = u.condominios?.codigo || '';
-          if (cCod && ownCondoCodesSet.has(String(cCod).trim().toUpperCase())) return;
+          const cCodUpper = String(cCod).trim().toUpperCase();
+          if (cCod && (ownCondoCodesSet.has(cCodUpper) || isCondominioPagoIndividual(cCodUpper))) return;
           const cNom = u.condominios?.nombre || cCod;
           const exist = items.find(it => it.inmueble === u.inmueble);
           if (!exist) {

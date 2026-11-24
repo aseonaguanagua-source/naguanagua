@@ -394,87 +394,18 @@ export const calcularMensualidad = (
 
 /**
  * Condominios especiales donde los usuarios pueden pagar de forma individual
- * tanto sus meses de aseo como sus multas, a pesar de pertenecer a condominios comerciales:
+ * tanto sus meses de aseo como sus multas en el portal y caja, a pesar de pertenecer a condominios:
  * - URB014903: CONDOMINIO CENTRO CRISTAL
  * - URB030783: CONDOMINIO CHIRIKAYEN
- * - URB029866: CONDOMINIO HOSPITAL METROPOLITANO DEL NORTE
+ * - URB029866 / URB026866: CONDOMINIO HOSPITAL METROPOLITANO DEL NORTE
  * - URB015503: CENTRO CIENTIFICO METROPOLITANO DEL NORTE
  */
 export const CONDOMINIOS_PAGO_INDIVIDUAL = [
   'URB014903', // CONDOMINIO CENTRO CRISTAL
   'URB030783', // CONDOMINIO CHIRIKAYEN
   'URB029866', // CONDOMINIO HOSPITAL METROPOLITANO DEL NORTE
+  'URB026866', // ALIAS CONDOMINIO HOSPITAL METROPOLITANO DEL NORTE
   'URB015503', // CENTRO CIENTIFICO METROPOLITANO DEL NORTE
-  'URB010343', // CENTRO INTERNACIONAL DE EVENTOS MULTIPLES (CIEM)
-  'URB008934', // MULTISERVICIO DR. AUTO MAÑONGO C.A
-  'URB033269', // EL PARAMO BAR C.A. / KATRINA
-  'URB020439',
-  'URB031276',
-  'URB030599',
-  'URB028386',
-  'URB031389',
-  'URB020269',
-  'URB033543',
-  'URB023082',
-  'URB011441',
-  'URB035205',
-  'URB033630',
-  'URB003191',
-  'URB033544',
-  'URB033535',
-  'URB035200',
-  'URB026450',
-  'URB034241',
-  'URB030671',
-  'URB019259',
-  'URB033395',
-  'URB025835',
-  'URB027316',
-  'URB025017',
-  'URB033551',
-  'URB033542',
-  'URB001532',
-  'URB033760',
-  'URB003686',
-  'URB033500',
-  'URB023993',
-  'URB033321',
-  'URB028875',
-  'URB033422',
-  'URB021060',
-  'URB000231',
-  'URB033539',
-  'URB026666',
-  'URB000326',
-  'URB003074',
-  'URB003322',
-  'URB024783',
-  'URB011152',
-  'URB028116',
-  'URB028483',
-  'URB029160',
-  'URB031163',
-  'AURI012682',
-  'URB013411',
-  'URB034480',
-  'URB012731',
-  'URB024533',
-  'URB011775',
-  'URB033561',
-  'URB033540',
-  'URB034963',
-  'URB029987',
-  'URB030994',
-  'URB033541',
-  'URB025673',
-  'URB033533',
-  'URB002505',
-  'URB033273',
-  'URB003800',
-  'URB033549',
-  'URB004691',
-  'URB023333',
-  'URB030454',
 ];
 
 export const isCondominioPagoIndividual = (itemOrCode: any): boolean => {
@@ -483,9 +414,13 @@ export const isCondominioPagoIndividual = (itemOrCode: any): boolean => {
   if (typeof itemOrCode === 'string') {
     code = itemOrCode;
   } else {
-    code = itemOrCode.condominio_padre_id || itemOrCode.inmueble || itemOrCode.cod_cont || '';
+    // Si es la fila matriz del condominio en sí (es_condominio === true y sin condominio_padre_id), no es una unidad hija
+    if (itemOrCode.es_condominio === true && !itemOrCode.condominio_padre_id) {
+      return false;
+    }
+    code = itemOrCode.condominio_padre_id || itemOrCode.padre_id || itemOrCode.inmueble || itemOrCode.cod_cont || '';
   }
-  const cleanCode = code.trim().toUpperCase();
+  const cleanCode = String(code || '').trim().toUpperCase();
   return CONDOMINIOS_PAGO_INDIVIDUAL.includes(cleanCode);
 };
 

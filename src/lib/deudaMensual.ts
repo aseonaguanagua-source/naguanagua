@@ -96,6 +96,13 @@ export function calcularDeudaInmueble(inm: any, tasa: number, meses: MesDeuda[],
   const n = meses.length;
   const nMora = flags.filter(Boolean).length;
 
+  const esCondoIndivComercial = !esRes && tasa > 0 && isCondominioPagoIndividual(inm);
+  const baseEurDefault = esCondoIndivComercial && !jNotas?.periodos_custom && !jNotas?.desocupada_desde
+    ? calcularMensualidad(inm, 1)
+    : 0;
+  let acumBsPrev = 0;
+  let acumEur = 0;
+
   const porMes: DesgloseMes[] = meses.map((m, i) => {
     let bMes = bMesDefault;
     const perStr = m.emision ? (typeof m.emision === 'string' ? m.emision.slice(0, 7) : (m.emision.toISOString ? m.emision.toISOString().slice(0, 7) : '')) : '';
@@ -115,9 +122,22 @@ export function calcularDeudaInmueble(inm: any, tasa: number, meses: MesDeuda[],
         bMes = jNotas.tarifa_activa_mmv * 57 * tasa * 0.128;
       }
     }
-    const base2 = r2(bMes);
-    const iva2 = esRes ? 0 : r2(base2 * 0.16);
+    let base2 = r2(bMes);
+    let iva2 = esRes ? 0 : r2(base2 * 0.16);
     const multa2 = tieneMoraMesActual ? r2(base2 * tasaMora) : 0;
+
+    if (esCondoIndivComercial) {
+      const bEur = baseEurDefault > 0 ? r2(baseEurDefault) : r2(base2 / tasa);
+      const iEur = r2(bEur * 0.16);
+      const totEurMes = r2(bEur + iEur);
+      acumEur = r2(acumEur + totEurMes);
+      const acumBsTarget = r2(acumEur * tasa);
+      const totSinMultaBs = r2(acumBsTarget - acumBsPrev);
+      acumBsPrev = acumBsTarget;
+      base2 = r2(totSinMultaBs / 1.16);
+      iva2 = r2(totSinMultaBs - base2);
+    }
+
     const base4 = r4(bMes);
     const iva4 = esRes ? 0 : r4(bMes * 0.16);
     const multa4 = tieneMoraMesActual ? r4(bMes * tasaMora) : 0;

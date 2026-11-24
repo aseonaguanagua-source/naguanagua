@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { getIdentidadVariantsExact } from '@/lib/formatters';
+import { CONDOMINIOS_PAGO_INDIVIDUAL, isCondominioPagoIndividual } from '@/lib/calculos';
 
 /**
  * Valor por defecto para el interruptor del portal "Soy Contribuyente".
@@ -85,13 +86,13 @@ export async function esCondominioDoc(doc: string): Promise<boolean> {
         .limit(20),
       sb
         .from('condominio_unidades')
-        .select('id, inmueble, condominio_id, estado')
+        .select('id, inmueble, condominio_id, estado, multa_meses, condominios!inner(codigo)')
         .or(orUnidades)
         .neq('estado', 'Eliminada')
         .limit(50),
       sb
         .from('inmuebles')
-        .select('inmueble, tipo, clasificacion, actividad_principal, es_condominio, condominio_padre_id, padre_id, contribuyente, estado')
+        .select('inmueble, tipo, clasificacion, actividad_principal, es_condominio, condominio_padre_id, padre_id, contribuyente, estado, multa_bs')
         .or(orInm)
         .limit(100),
     ]);
@@ -120,6 +121,20 @@ export async function esCondominioDoc(doc: string): Promise<boolean> {
       return est !== 'eliminado' && est !== 'inactivo' && est !== 'desactivado';
     });
 
+    // Mapa de unidades de condominio -> código del condominio padre
+    const unitParentMap = new Map<string, string>();
+    let tieneMultaEnUnidadCondo = false;
+    (uMatches || []).forEach((u: any) => {
+      const c = String(u.inmueble || '').trim().toUpperCase();
+      const parentCod = String(u.condominios?.codigo || '').trim().toUpperCase();
+      if (c && !codigosInactivosEnPadron.has(c)) {
+        unitParentMap.set(c, parentCod);
+        if ((Number(u.multa_meses) || 0) > 0 && !CONDOMINIOS_PAGO_INDIVIDUAL.includes(parentCod)) {
+          tieneMultaEnUnidadCondo = true;
+        }
+      }
+    });
+
     if (activos.length > 0) {
       // Recopilar todos los códigos de inmueble y padres para cruzar con condominio_unidades y condominios
       const inmCodes = Array.from(
@@ -135,20 +150,29 @@ export async function esCondominioDoc(doc: string): Promise<boolean> {
         const code = String(c.codigo || '').trim().toUpperCase();
         if (code) condoCodesSet.add(code);
       });
-      (uMatches || []).forEach(u => {
-        const c = String(u.inmueble || '').trim().toUpperCase();
-        if (c && !codigosInactivosEnPadron.has(c)) condoCodesSet.add(c);
+      unitParentMap.forEach((parentCod, c) => {
+        // Las unidades hijas de los 4 condominios de pago individual NO se bloquean como condominio
+        if (!CONDOMINIOS_PAGO_INDIVIDUAL.includes(parentCod)) {
+          condoCodesSet.add(c);
+        }
       });
 
       if (inmCodes.length > 0) {
         const [{ data: unitByInm }, { data: condoByCode }] = await Promise.all([
-          sb.from('condominio_unidades').select('inmueble').in('inmueble', inmCodes).neq('estado', 'Eliminada').limit(100),
+          sb.from('condominio_unidades').select('inmueble, multa_meses, condominios!inner(codigo)').in('inmueble', inmCodes).neq('estado', 'Eliminada').limit(100),
           sb.from('condominios').select('codigo, estado').in('codigo', inmCodes).limit(20),
         ]);
 
-        (unitByInm || []).forEach(u => {
+        (unitByInm || []).forEach((u: any) => {
           const c = String(u.inmueble || '').trim().toUpperCase();
-          if (c && !codigosInactivosEnPadron.has(c)) condoCodesSet.add(c);
+          const parentCod = String(u.condominios?.codigo || '').trim().toUpperCase();
+          if (c && !codigosInactivosEnPadron.has(c)) {
+            unitParentMap.set(c, parentCod);
+            if (!CONDOMINIOS_PAGO_INDIVIDUAL.includes(parentCod)) {
+              condoCodesSet.add(c);
+              if ((Number(u.multa_meses) || 0) > 0) tieneMultaEnUnidadCondo = true;
+            }
+          }
         });
 
         (condoByCode || []).forEach(c => {
@@ -160,16 +184,24 @@ export async function esCondominioDoc(doc: string): Promise<boolean> {
         });
       }
 
-      // Identificar cuáles inmuebles del usuario son condominios o filiales de condominio
+      // Identificar cuáles inmuebles del usuario son condominios o filiales de condominio (excluyendo los 4 de pago individual)
       // NOTA: "OFICINAS DE CONDOMINIO" es una actividad económica comercial individual de la Ordenanza, NO un condominio.
       activos.forEach(i => {
         const code = String(i.inmueble || '').trim().toUpperCase();
         const clasif = String(i.clasificacion || '').toLowerCase();
         const act = String(i.actividad_principal || '').toLowerCase();
         const contrib = String(i.contribuyente || '').toLowerCase();
-        const condoPadre = String(i.condominio_padre_id || '').trim();
+        const condoPadre = String(i.condominio_padre_id || unitParentMap.get(code) || '').trim().toUpperCase();
         const esActOficinaCondominio = act.includes('oficina');
         const esActCondominioMatriz = act.includes('condominio') && !esActOficinaCondominio;
+
+        // Si es unidad hija de uno de los 4 condominios con excepción de pago individual, NO bloquear
+        if (condoPadre && CONDOMINIOS_PAGO_INDIVIDUAL.includes(condoPadre)) {
+          return;
+        }
+        if (isCondominioPagoIndividual(i)) {
+          return;
+        }
 
         if (
           i.es_condominio === true ||
@@ -185,14 +217,18 @@ export async function esCondominioDoc(doc: string): Promise<boolean> {
 
       const esInmDeCondominio = (i: any): boolean => {
         const code = String(i.inmueble || '').trim().toUpperCase();
+        const condoPadre = String(i.condominio_padre_id || unitParentMap.get(code) || '').trim().toUpperCase();
+        if (condoPadre && CONDOMINIOS_PAGO_INDIVIDUAL.includes(condoPadre)) return false;
+        if (isCondominioPagoIndividual(i)) return false;
         const padre = String(i.padre_id || '').trim().toUpperCase();
+        if (padre && CONDOMINIOS_PAGO_INDIVIDUAL.includes(padre)) return false;
         if (code && condoCodesSet.has(code)) return true;
         if (padre && (condoCodesSet.has(padre) || padre.startsWith('CONDO-'))) return true;
         return false;
       };
 
-      // Si el contribuyente tiene al menos un inmueble individual independiente (que NO pertenece a condominio)
-      // y además tiene algún inmueble de condominio: permitir el acceso al portal para que gestione su inmueble individual.
+      // Si el contribuyente tiene al menos un inmueble individual independiente (o hijo de los 4 condominios excepcionales),
+      // O si tiene multa pendiente en su unidad de condominio para cancelar en el portal: permitir el acceso.
       const tieneInmuebleIndividualIndependiente = activos.some(i => {
         if (esInmDeCondominio(i)) return false;
         const code = String(i.inmueble || '').trim().toUpperCase();
@@ -204,14 +240,27 @@ export async function esCondominioDoc(doc: string): Promise<boolean> {
         return true;
       });
 
-      const tieneAlgunCondominio = activos.some(esInmDeCondominio) || (uMatches && uMatches.length > 0);
-      if (tieneAlgunCondominio && !tieneInmuebleIndividualIndependiente) {
+      const tieneMultaEnInmuebleCondo = activos.some(i => {
+        if (!esInmDeCondominio(i)) return false;
+        // La matriz de condominio no entra por esta vía, solo unidades hijas con multa individual
+        const code = String(i.inmueble || '').trim().toUpperCase();
+        const esMatriz = condominiosActivosReales.some(c => String(c.codigo || '').trim().toUpperCase() === code) || (i.es_condominio === true && !i.condominio_padre_id && !unitParentMap.has(code));
+        if (esMatriz) return false;
+        return (parseFloat(String(i.multa_bs || '0')) || 0) > 0.01;
+      }) || tieneMultaEnUnidadCondo;
+
+      const tieneAlgunCondominio = activos.some(esInmDeCondominio) || Array.from(unitParentMap.values()).some(p => !CONDOMINIOS_PAGO_INDIVIDUAL.includes(p));
+      if (tieneAlgunCondominio && !tieneInmuebleIndividualIndependiente && !tieneMultaEnInmuebleCondo) {
         return true;
       }
       return false;
     }
 
     if (uMatches && uMatches.length > 0) {
+      const todosSonExcepcion = uMatches.every((u: any) =>
+        CONDOMINIOS_PAGO_INDIVIDUAL.includes(String(u.condominios?.codigo || '').trim().toUpperCase())
+      );
+      if (todosSonExcepcion || tieneMultaEnUnidadCondo) return false;
       return true;
     }
   } catch (err) {
