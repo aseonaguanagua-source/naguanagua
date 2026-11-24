@@ -36,7 +36,6 @@ const CARDS = [
   { id: 'corte' as ActiveView,                 label: 'Cuadre de Caja',                 emoji: '🗂️',  desc: 'Cuadre diario por cajero y forma de pago',            adminOnly: false },
   { id: 'transferencias' as ActiveView,        label: 'Monitoreo Transferencias',       emoji: '🔍',  desc: 'Por Verificar, Pendiente, Débito y Aprobadas',         adminOnly: true  },
   { id: 'morosos' as ActiveView,               label: 'Reporte Morosos',                emoji: '🔴',  desc: 'Contribuyentes con deuda pendiente',                  adminOnly: false },
-  { id: 'saldos' as ActiveView,                label: 'Saldo a Favor',                  emoji: '💰',  desc: 'Contribuyentes con saldo a favor vigente',            adminOnly: true  },
   { id: 'fiscalizacion' as ActiveView,         label: 'Fiscalizacion',                  emoji: '🛡️',  desc: 'Reporte de contribuyentes fiscalizados',              adminOnly: true  },
   { id: 'empleados' as ActiveView,             label: 'Gestion Empleados',              emoji: '👥',  desc: 'Reporte mensual del personal',                        adminOnly: true  },
 ];
