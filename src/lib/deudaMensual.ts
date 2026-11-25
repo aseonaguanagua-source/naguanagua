@@ -139,6 +139,30 @@ export function calcularDeudaInmueble(inm: any, tasa: number, meses: MesDeuda[],
   const iva = r2(porMes.reduce((s, p) => s + p.iva, 0));
   const multa = r2(porMes.reduce((s, p) => s + p.multa, 0));
 
+  // Caso especial aprobado por Presidencia (Pago Único Punto de Venta del 06/10/2026 por Bs. 1.029.188,45 - 15 meses):
+  const codInmEsp = String(inm?.inmueble || inm?.codigo_inmueble || inm?.id_inmueble || '').trim().toUpperCase();
+  if ((codInmEsp === 'URB014990' || codInmEsp === 'URB016990') && n === 15) {
+    const porMesEsp: DesgloseMes[] = meses.map((_, idx) => {
+      const bM = idx < 14 ? 59148.76 : 59148.77;
+      const iM = idx < 14 ? 9463.80 : 9463.84;
+      const tM = r2(bM + iM);
+      return { base: bM, iva: iM, multa: 0, total: tM, base4: bM, iva4: iM, multa4: 0 };
+    });
+    const baseEsp = 887231.41;
+    const ivaEsp = 141957.04;
+    return {
+      esResidencial: false,
+      mensualidad: 59148.76,
+      base: baseEsp,
+      iva: ivaEsp,
+      multa: 0,
+      total: 1029188.45,
+      mesesConMora: 0,
+      ivaRetenible: inm?.agente_retencion === true ? ivaEsp : 0,
+      porMes: porMesEsp,
+    };
+  }
+
   return {
     esResidencial: esRes,
     mensualidad: n > 0 ? r2(base / n) : r2(bMesDefault),
