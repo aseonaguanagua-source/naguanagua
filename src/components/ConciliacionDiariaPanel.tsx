@@ -66,10 +66,10 @@ function parseDet(p: any): any {
 
 const esAnulado = (p: any) => {
   if (['Anulado', 'Reversado', 'Condonado', 'Rechazado', 'Por Verificar', 'Pendiente'].includes(String(p.estado || ''))) return true;
-  if (String(p.estado || '') === 'Aprobado') return false;
   const det = parseDet(p);
   const caj = String(det?.cajero || det?.analista || '').trim();
   if (/^(dz-)?dzara$|^c-dzara$/i.test(caj)) return true;
+  if (String(p.estado || '') !== 'Aprobado') return true;
   return false;
 };
 

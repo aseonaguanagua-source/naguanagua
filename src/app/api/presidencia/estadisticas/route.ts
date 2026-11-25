@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as sb } from '@/lib/supabaseAdmin';
 import { getTasaBCV } from '@/services/bcv';
+import { clasificarBancoDestino } from '@/lib/cuentasBancarias';
+import { aplicarMontoReporte } from '@/app/(admin)/admin/reportes/montoReporte';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -8,31 +10,40 @@ export const maxDuration = 60;
 async function fetchAllRows(table: string, selectCols: string, filterFn?: (q: any) => any) {
   const STEP = 1000;
   const all: any[] = [];
+  const seenIds = new Set<string>();
+  const hasIdCol = selectCols === '*' || /\bid\b/.test(selectCols);
   let from = 0;
   for (let page = 0; page < 120; page++) {
-    let q = sb.from(table).select(selectCols).order('id', { ascending: true }).range(from, from + STEP - 1);
+    let q = sb.from(table).select(selectCols);
     if (filterFn) q = filterFn(q);
+    if (hasIdCol) q = q.order('id', { ascending: true });
+    q = q.range(from, from + STEP - 1);
     const { data, error } = await q;
     if (error || !data || data.length === 0) break;
-    all.push(...data);
+    for (const row of data as any[]) {
+      const k = row?.id != null ? String(row.id) : '';
+      if (k && seenIds.has(k)) continue;
+      if (k) seenIds.add(k);
+      all.push(row);
+    }
     if (data.length < STEP) break;
     from += STEP;
   }
   return all;
 }
 
-function normSector(actividad?: string, clasificacion?: string, tipo?: string): 'Residencial' | 'Comercial' | 'Industrial' {
+function normSector(actividad?: string, clasificacion?: string, _tipo?: string): 'Residencial' | 'Comercial' | 'Industrial' {
   const a = String(actividad || '').toLowerCase();
   const c = String(clasificacion || '').toLowerCase();
-  const t = String(tipo || '').toLowerCase();
   if (
     a.includes('fabrica') ||
     a.includes('industrial') ||
     a.includes('embotelladora') ||
     a.includes('concretera') ||
     a.includes('manufactura') ||
-    c.includes('industrial') ||
-    t.includes('industrial')
+    a.includes('almacen') ||
+    a.includes('taller') ||
+    c.includes('industrial')
   ) {
     return 'Industrial';
   }
@@ -40,16 +51,12 @@ function normSector(actividad?: string, clasificacion?: string, tipo?: string): 
     a.includes('residencial') ||
     (a.includes('condominio') && !a.includes('oficina')) ||
     a.includes('apartamento') ||
-    a.includes('vivienda') ||
     a.includes('casa') ||
-    a === 'no aplica' ||
-    a === 'n/a' ||
-    c.includes('residencial') ||
-    t.includes('residencial')
+    a.includes('vivienda')
   ) {
     return 'Residencial';
   }
-  if (a.length > 2 || c.includes('comercial') || t.includes('comercial')) {
+  if (a.length > 3) {
     return 'Comercial';
   }
   return 'Residencial';
@@ -383,7 +390,7 @@ export async function GET(request: Request) {
 
     const pagoPorId = new Map<string, any>();
     for (const p of pagosAll) {
-      if (p?.id) pagoPorId.set(String(p.id), p);
+      if (p?.id && p.estado === 'Aprobado') pagoPorId.set(String(p.id), p);
     }
 
     const parseDetObj = (p: any): any => {
@@ -500,14 +507,16 @@ export async function GET(request: Request) {
       return mBase || mConc;
     };
 
-    const pagosFiltradosValidos = pagosAll.filter((p: any) => {
-      const t = String(p.tipo || '').trim();
-      const det = parseDetObj(p);
-      if (/retenci|saldo a favor|nota de cr[eé]dito/i.test(t) || isSaldoPago(p, det)) return false;
-      const caj = String(det?.cajero || det?.analista || '').trim();
-      if (/^(dz-)?dzara$|^c-dzara$/i.test(caj)) return false;
-      return true;
-    });
+    const pagosFiltradosValidos = pagosAll
+      .map((p: any) => aplicarMontoReporte(p))
+      .filter((p: any) => {
+        const t = String(p.tipo || '').trim();
+        const det = parseDetObj(p);
+        if (/retenci|saldo a favor|nota de cr[eé]dito/i.test(t) || isSaldoPago(p, det)) return false;
+        const caj = String(det?.cajero || det?.analista || '').trim();
+        if (/^(dz-)?dzara$|^c-dzara$/i.test(caj)) return false;
+        return true;
+      });
 
     const pagosEnriquecidos = pagosFiltradosValidos.map((p: any) => {
       const det = parseDetObj(p);
@@ -521,7 +530,7 @@ export async function GET(request: Request) {
       const montoEfectivo = obtenerMontoEfectivoCuadre(p, det);
 
       const idClean = String(p.identidad || '').replace(/[-.\s]/g, '').toUpperCase();
-      const sector = sectorByIdentidad.get(idClean) || (idClean.startsWith('J') || idClean.startsWith('G') ? 'Comercial' : 'Residencial');
+      const sector = sectorByIdentidad.get(idClean) || 'Residencial';
       const nombreContrib =
         det.contribuyente ||
         det.contribuyente_nombre ||
@@ -555,6 +564,16 @@ export async function GET(request: Request) {
         }
       }
 
+      const bClass = clasificarBancoDestino(p);
+      const bancoDestinoNormalizado =
+        bClass === 'Banesco'
+          ? 'Banesco (0134)'
+          : bClass === 'Bancamiga'
+            ? 'Bancamiga (0172)'
+            : esDebitoPago(p, det)
+              ? 'Bancamiga (0172)'
+              : det.banco_receptor || det.banco_destino || 'Banesco (0134)';
+
       return {
         ...p,
         monto: montoEfectivo,
@@ -566,7 +585,7 @@ export async function GET(request: Request) {
         codInmueble: codInm,
         cajero: det.cajero || det.analista || 'Sistema / Portal',
         origen: det.origen || (det.cajero ? 'caja' : 'portal'),
-        bancoDestino: det.banco_destino || det.banco_receptor || p.banco || 'Bancamiga',
+        bancoDestino: bancoDestinoNormalizado,
         facturaEmitida: Boolean(det.factura_digital?.numero_factura || det.factura_digital?.numero || det.factura_digital?.emitida),
         numeroFactura: det.factura_digital?.numero_factura || det.factura_digital?.numero || null,
       };

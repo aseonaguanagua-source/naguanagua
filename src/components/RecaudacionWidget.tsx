@@ -51,19 +51,33 @@ function getRange(periodo: Periodo, desde: string, hasta: string) {
 
 export default function RecaudacionWidget() {
   const { inmuebles } = useAppContext();
+  const initialRange = useMemo(() => getRange('mes', '', ''), []);
   const [periodo, setPeriodo] = useState<Periodo>('mes');
-  const [desde, setDesde] = useState('');
-  const [hasta, setHasta] = useState('');
+  const [desde, setDesde] = useState(initialRange.desde);
+  const [hasta, setHasta] = useState(initialRange.hasta);
   const [pagos, setPagos] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [sectorFiltro, setSectorFiltro] = useState<Sector>('Todos');
+
+  const handleSelectPeriodo = (nuevo: Periodo) => {
+    setPeriodo(nuevo);
+    if (nuevo !== 'personalizado') {
+      const r = getRange(nuevo, desde, hasta);
+      setDesde(r.desde);
+      setHasta(r.hasta);
+    } else if (!desde || !hasta) {
+      const r = getRange('mes', '', '');
+      if (!desde) setDesde(r.desde);
+      if (!hasta) setHasta(r.hasta);
+    }
+  };
 
   // Normaliza actividad_principal a sector real (Residencial/Comercial/Industrial)
   const normSector = (actividad: string, clasificacion: string) => {
     const a = (actividad || '').toLowerCase();
     const c = (clasificacion || '').toLowerCase();
     if (a.includes('fabrica') || a.includes('industrial') || a.includes('embotelladora') ||
-        a.includes('concretera') || a.includes('almacen') || a.includes('taller') ||
+        a.includes('concretera') || a.includes('manufactura') || a.includes('almacen') || a.includes('taller') ||
         c.includes('industrial')) return 'Industrial';
     if (a.includes('residencial') || (a.includes('condominio') && !a.includes('oficina')) || a.includes('apartamento') ||
         a.includes('casa') || a.includes('vivienda')) return 'Residencial';
@@ -75,7 +89,8 @@ export default function RecaudacionWidget() {
   const sectorMap = useMemo(() => {
     const m = new Map<string, string>();
     inmuebles.forEach((inm: any) => {
-      const id = (inm.identidad || '').replace(/-/g, '').toUpperCase();
+      if (inm.estado === 'Eliminado' || inm.estado === 'Inactivo') return;
+      const id = String(inm.identidad || '').replace(/[-.\s]/g, '').toUpperCase();
       if (id && !m.has(id)) m.set(id, normSector(
         inm.actividad_principal || inm.ActividadPrincipal || '',
         inm.clasificacion || inm.Clasificacion || ''
@@ -89,6 +104,7 @@ export default function RecaudacionWidget() {
     const range = getRange(periodo, desde, hasta);
     try {
       const all: any[] = [];
+      const seenIds = new Set<string>();
       let from = 0;
       const PAGE = 1000;
       while (true) {
@@ -97,9 +113,15 @@ export default function RecaudacionWidget() {
           .select('id, identidad, monto, tipo, estado, referencia, banco, created_at, detalles')
           .eq('estado', 'Aprobado')
           .order('created_at', { ascending: false })
+          .order('id', { ascending: true })
           .range(from, from + PAGE - 1);
         if (error || !data || data.length === 0) break;
-        all.push(...(data as any[]));
+        for (const row of data as any[]) {
+          const k = String(row?.id || '');
+          if (k && seenIds.has(k)) continue;
+          if (k) seenIds.add(k);
+          all.push(row);
+        }
         if (data.length < PAGE) break;
         from += PAGE;
       }
@@ -248,7 +270,7 @@ export default function RecaudacionWidget() {
 
   // Enriquecer con sector
   const pagosConSector = useMemo(() => pagos.map(p => {
-    const idNorm = (p.identidad || '').replace(/-/g, '').toUpperCase();
+    const idNorm = String(p.identidad || '').replace(/[-.\s]/g, '').toUpperCase();
     return { ...p, sector: sectorMap.get(idNorm) || 'Residencial' };
   }), [pagos, sectorMap]);
 
@@ -263,7 +285,7 @@ export default function RecaudacionWidget() {
     .filter(p => /^(d[eé]bito|cr[eé]dito|tmd|tvd)\b|punto|tarjeta|^rec$/i.test(String(p.tipo || '').trim()))
     .reduce((a, p) => a + parseMonto(p.monto), 0);
   const tra = pagosConSector
-    .filter(p => /transfer|m[oó]vil|pago m|dep[oó]sito/i.test(String(p.tipo || '').trim()))
+    .filter(p => !/^(d[eé]bito|cr[eé]dito|tmd|tvd)\b|punto|tarjeta|^rec$/i.test(String(p.tipo || '').trim()))
     .reduce((a, p) => a + parseMonto(p.monto), 0);
 
   const contadores = useMemo(() => ({
@@ -311,9 +333,9 @@ export default function RecaudacionWidget() {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {(['hoy', 'semana', 'mes', 'mes_pasado'] as Periodo[]).map(p => (
-            <button key={p} onClick={() => setPeriodo(p)} className={btnCls(periodo === p)}>{lbl[p]}</button>
+            <button key={p} onClick={() => handleSelectPeriodo(p)} className={btnCls(periodo === p)}>{lbl[p]}</button>
           ))}
-          <button onClick={() => setPeriodo('personalizado')} className={btnCls(periodo === 'personalizado') + ' flex items-center gap-1'}>
+          <button onClick={() => handleSelectPeriodo('personalizado')} className={btnCls(periodo === 'personalizado') + ' flex items-center gap-1'}>
             <Filter className="w-3 h-3" />Personalizado
           </button>
           <button onClick={fetchPagos} className="p-1.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-600">

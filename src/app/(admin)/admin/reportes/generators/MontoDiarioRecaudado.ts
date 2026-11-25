@@ -48,7 +48,7 @@ const esAnulado = (p: any) => {
   const caj = String(det?.cajero || det?.analista || '').trim();
   if (/^(dz-)?dzara$|^c-dzara$/i.test(caj)) return true;
   if (det?.monto_reporte != null && Number(det.monto_reporte) <= 0 && (Number(p?.monto) || 0) <= 0) return true;
-  if (String(p.estado || '') === 'Aprobado') return false;
+  if (String(p.estado || '') !== 'Aprobado') return true;
   return false;
 };
 
