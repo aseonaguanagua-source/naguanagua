@@ -686,12 +686,12 @@ export default function ConciliacionDiariaPanel({
       const hasBanOv = ov?.banescoBs !== undefined && ov?.banescoBs !== null && String(ov.banescoBs).trim() !== '';
       const hasBgaOv = ov?.bancamigaBs !== undefined && ov?.bancamigaBs !== null && String(ov.bancamigaBs).trim() !== '';
       next[f.dia] = {
-        euro: String(ov?.euro !== undefined && ov?.euro !== null ? r2(Number(ov.euro)) : f.autoEuro),
-        ucd: String(ov?.ucd !== undefined && ov?.ucd !== null ? r2(Number(ov.ucd)) : f.autoUcd),
-        puntoBs: String(f.autoPuntoBs),
-        transfBs: String(f.autoTransfBs),
-        banescoBs: hasBanOv ? String(r2(Number(ov!.banescoBs))) : '',
-        bancamigaBs: hasBgaOv ? String(r2(Number(ov!.bancamigaBs))) : '',
+        euro: String(ov?.euro !== undefined && ov?.euro !== null ? r2(Number(ov.euro)).toFixed(2) : f.autoEuro.toFixed(2)),
+        ucd: String(ov?.ucd !== undefined && ov?.ucd !== null ? r2(Number(ov.ucd)).toFixed(2) : f.autoUcd.toFixed(2)),
+        puntoBs: f.autoPuntoBs.toFixed(2),
+        transfBs: f.autoTransfBs.toFixed(2),
+        banescoBs: hasBanOv ? r2(Number(ov!.banescoBs)).toFixed(2) : '',
+        bancamigaBs: hasBgaOv ? r2(Number(ov!.bancamigaBs)).toFixed(2) : '',
       };
     });
     setConsInputs(next);
