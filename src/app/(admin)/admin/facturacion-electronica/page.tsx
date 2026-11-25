@@ -1096,12 +1096,18 @@ export default function FacturacionElectronicaPage() {
     );
     const hoyYMD = hoyCaracas();
     const yaEmitidaVigente = Boolean(pago.facturaEmitida && !pago.facturaAnulada);
-    const fechaEmisionGuardada = normYMD(
+    let fechaEmisionGuardada = normYMD(
       pago.fechaEmisionOverride ||
       pago.detalles?.fecha_emision_override ||
       (yaEmitidaVigente ? (pago.fechaEmision || pago.detalles?.factura_digital?.fecha_emision) : '') ||
       ''
     ) || hoyYMD;
+    if (!yaEmitidaVigente && fechaEmisionGuardada) {
+      const diffDias = (new Date(`${hoyYMD}T12:00:00Z`).getTime() - new Date(`${fechaEmisionGuardada}T12:00:00Z`).getTime()) / (1000 * 60 * 60 * 24);
+      if (diffDias > 40) {
+        fechaEmisionGuardada = hoyYMD;
+      }
+    }
     setEmitFechaEmision(fechaEmisionGuardada);
     setEmitFechaAsignacion(hoyYMD);
     setEmitFechaPago(fechaPagoOrig || hoyYMD);
@@ -3183,7 +3189,30 @@ export default function FacturacionElectronicaPage() {
                     <input
                       type="checkbox"
                       checked={emitEsRetencion}
-                      onChange={e => setEmitEsRetencion(e.target.checked)}
+                      onChange={e => {
+                        const checked = e.target.checked;
+                        setEmitEsRetencion(checked);
+                        const mReact = emitLlevaMulta ? (parseFloat(ajusteMontoMulta) || 0) : 0;
+                        const netoBase = parseFloat(String(selectedPagoForEmit?.montoPagado || selectedPagoForEmit?.monto || totalReferencia || 0)) || 0;
+                        const porcRetCheck = (
+                          Number(selectedPagoForEmit?.detalles?.porcentaje_retencion_iva) === 100 ||
+                          Number(selectedPagoForEmit?.detalles?.porcentaje_retencion) === 100
+                        ) ? 100 : 75;
+                        const factorNeto = 1 + 0.16 * (1 - porcRetCheck / 100);
+                        if (checked && netoBase > 0) {
+                          const gravNeto = Math.max(0, netoBase - mReact);
+                          const baseConRet = Math.round((gravNeto / factorNeto) * 100) / 100;
+                          const ivaConRet = Math.round(baseConRet * 0.16 * 100) / 100;
+                          const totBruto = Math.round((baseConRet + ivaConRet + mReact) * 100) / 100;
+                          setAjusteMontoServicio(baseConRet.toFixed(2));
+                          setTotalReferencia(totBruto);
+                        } else if (!checked && netoBase > 0) {
+                          const gravBruto = Math.max(0, netoBase - mReact);
+                          const baseSinRet = Math.round((gravBruto / 1.16) * 100) / 100;
+                          setAjusteMontoServicio(baseSinRet.toFixed(2));
+                          setTotalReferencia(netoBase);
+                        }
+                      }}
                       className="rounded border-amber-400 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
                     />
                     <span>¿Es Pago con Retención de IVA (75%)? (Agente de Retención)</span>

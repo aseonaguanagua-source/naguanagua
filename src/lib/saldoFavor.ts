@@ -420,6 +420,8 @@ export async function restaurarSaldoFavorAplicado(
 
         const docInmRaw = String(det.codigo_inmueble || det.cod_inmueble || '').trim().toUpperCase();
         if (codTargetUpper && docInmRaw && !docInmRaw.includes(codTargetUpper)) continue;
+        // NUNCA restaurar una Nota de Crédito cuyo origen sea una Retención de IVA (solo se restauran notas de crédito reales por excedente/pago)
+        if (String(det.modalidad_origen || '').toLowerCase() === 'retencion_iva') continue;
 
         const montoOrig = parseFloat(String(det.monto_original ?? det.monto_bs ?? det.monto ?? '0').replace(/,/g, '.')) || 0;
         const montoActual = doc.estado === 'Aplicada'

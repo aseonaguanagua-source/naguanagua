@@ -1706,9 +1706,16 @@ export async function POST(request: Request) {
     }
 
     const fechaEmisionFinal = fechaEmisionOverride || detPago?.fecha_emision_override || (fecha ? String(fecha).slice(0, 10) : '') || fechaActual.toISOString();
-    const fechaEmisionYMD = /^\d{4}-\d{2}-\d{2}$/.test(String(fechaEmisionFinal).trim())
+    let fechaEmisionYMD = /^\d{4}-\d{2}-\d{2}$/.test(String(fechaEmisionFinal).trim())
       ? String(fechaEmisionFinal).trim()
       : new Date(fechaEmisionFinal).toLocaleDateString('en-CA', { timeZone: 'America/Caracas' });
+    // TFHKA regla [1003]: La Fecha de Emisión no puede superar los 45 días respecto a la fecha de recepción.
+    // Si la fecha solicitada tiene más de 40 días de antigüedad, se emite con la fecha actual de Caracas (mientras la fecha de transacción del pago se conserva intacta en FormasPago).
+    const hoyYMDCaracas = fechaActual.toLocaleDateString('en-CA', { timeZone: 'America/Caracas' });
+    const diffDiasEmision = (new Date(`${hoyYMDCaracas}T12:00:00Z`).getTime() - new Date(`${fechaEmisionYMD}T12:00:00Z`).getTime()) / (1000 * 60 * 60 * 24);
+    if (diffDiasEmision > 40) {
+      fechaEmisionYMD = hoyYMDCaracas;
+    }
     const fechaEmisionISO = `${fechaEmisionYMD}T12:00:00-04:00`;
     const fechaEmisionDDMMYYYY = formatearFecha(fechaEmisionYMD);
 
