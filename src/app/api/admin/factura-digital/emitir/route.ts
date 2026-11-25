@@ -1958,6 +1958,17 @@ export async function POST(request: Request) {
                 for (const idx of indicesCandidatos) {
                   const actual = parseFloat(lista[idx]?.Monto) || 0;
                   if (r2(actual + diff) >= 0.01) {
+                    // Si diff < -0.05 (hubo excedente que fue a Nota de Crédito), anotar el depósito real junto a la referencia
+                    // para que el cajero vea el monto original del comprobante bancario (ej. 117.446,95) y el monto aplicado a esta factura
+                    if (diff < -0.05 && typeof lista[idx].Descripcion === 'string') {
+                      const parts = lista[idx].Descripcion.split('|');
+                      const refOrig = (parts[2] || '').trim();
+                      if (refOrig && !refOrig.includes('Dep:')) {
+                        const depNota = `${refOrig} (Dep: Bs. ${fmtBsRef(actual)})`.slice(0, 45);
+                        parts[2] = depNota;
+                        lista[idx].Descripcion = parts.join('|');
+                      }
+                    }
                     lista[idx].Monto = r2(actual + diff).toFixed(2);
                     return lista;
                   }

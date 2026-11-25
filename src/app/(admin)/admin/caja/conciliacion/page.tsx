@@ -2694,11 +2694,11 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
               )}
 
               {/* Diferencia pendiente cuando el pago es parcial o quedan otros inmuebles con deuda activa */}
-              {estatus === 'Aprobado' && montoConciliadoNum > 0 && Math.max(montoConciliadoNum, montoReportadoNum) < deudaTotalContrib - 0.05 && !esMultiPago && (
+              {estatus === 'Aprobado' && montoConciliadoNum > 0 && (Math.max(montoConciliadoNum, montoReportadoNum) + saldoFavorUsado) < deudaTotalContrib - 0.05 && !esMultiPago && (
                 <div className="border-t pt-2 mt-1">
                   <div className="flex justify-between text-sm">
                     <span className="text-amber-700 font-bold">⚠️ Deuda Restante (Pendiente de Pago)</span>
-                    <span className="text-amber-700 font-bold">- {fmt(deudaTotalContrib - Math.max(montoConciliadoNum, montoReportadoNum))}</span>
+                    <span className="text-amber-700 font-bold">- {fmt(deudaTotalContrib - (Math.max(montoConciliadoNum, montoReportadoNum) + saldoFavorUsado))}</span>
                   </div>
                   {det.nota_cambio_tasa && (
                     <p className="text-xs text-amber-700 mt-1 bg-amber-50 border border-amber-200 rounded px-2 py-1">
