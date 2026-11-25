@@ -2665,7 +2665,13 @@ export async function POST(request: Request) {
         for (const cand of abonosCand || []) {
           let dCand: any = cand.detalles || {};
           if (typeof dCand === 'string') { try { dCand = JSON.parse(dCand); } catch { dCand = {}; } }
-          const yaEmitidoCand = Boolean(dCand?.factura_digital?.emitida || dCand?.factura_digital?.numero_control || dCand?.factura_digital?.numero_documento);
+          const yaEmitidoCand = Boolean(
+            dCand?.factura_digital?.emitida ||
+            dCand?.factura_digital?.numero_control ||
+            dCand?.factura_digital?.numero_documento ||
+            dCand?.abono_cerrado_ciclo_octubre ||
+            (dCand?.abono_completado && dCand?.completado_con_pago_id && dCand.completado_con_pago_id !== pagoId)
+          );
           if (yaEmitidoCand) continue;
           const refCandClean = String(cand.referencia || '').replace(/\s*\(\+.*$/, '').trim();
           const esExplicito = Boolean(refCandClean && refsAbsorbidas.includes(refCandClean)) || dCand?.completado_con_pago_id === pagoId || dCand?.pago_principal_id === pagoId;
