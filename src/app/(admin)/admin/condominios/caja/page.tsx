@@ -10,7 +10,7 @@ import {
 import { SelectorModulo } from '@/components/condominios/SelectorModulo';
 import ModalCongelarTasaCondominio from '@/components/condominios/ModalCongelarTasaCondominio';
 import { getCajeroId } from '@/lib/cajaHelpers';
-import { LISTA_BANCOS } from '@/lib/bancos';
+import { LISTA_BANCOS, BANCO_DEFAULT_EMISOR } from '@/lib/bancos';
 import { supabase } from '@/lib/supabase';
 import { formatBs } from '@/lib/formatCurrency';
 import { acreditarSaldoFavor } from '@/lib/saldoFavor';
@@ -99,7 +99,7 @@ function Caja() {
   // multipago
   const [pagosAgregados, setPagosAgregados] = useState<any[]>([]);
   const [metodoAct, setMetodoAct] = useState('Transferencia');
-  const [bancoAct, setBancoAct] = useState('Banco de Venezuela');
+  const [bancoAct, setBancoAct] = useState(BANCO_DEFAULT_EMISOR);
   const [bancoDestinoAct, setBancoDestinoAct] = useState('BANCAMIGA - 0172 - 0717');
   const [referenciaAct, setReferenciaAct] = useState('');
   const [montoAct, setMontoAct] = useState('');
@@ -700,7 +700,7 @@ function Caja() {
       fechaIngresoCaja: fechaIngresoCajaAct,
     }]);
     const nuevoRestante = Math.max(0, Math.round((faltaPagar - montoParsed) * 100) / 100);
-    setMetodoAct('Transferencia'); setBancoAct('Banco de Venezuela'); setBancoDestinoAct('BANCAMIGA - 0172 - 0717'); setReferenciaAct(''); setMontoAct(nuevoRestante > 0.05 ? fmtBs(nuevoRestante) : ''); setComprobanteAct(null);
+    setMetodoAct('Transferencia'); setBancoAct(BANCO_DEFAULT_EMISOR); setBancoDestinoAct('BANCAMIGA - 0172 - 0717'); setReferenciaAct(''); setMontoAct(nuevoRestante > 0.05 ? fmtBs(nuevoRestante) : ''); setComprobanteAct(null);
   };
 
   const quitarPago = (idx: number) => {

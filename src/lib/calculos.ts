@@ -282,6 +282,57 @@ export function getFAR(actividadFull?: string): number {
   return 0.020366;
 };
 
+// Mapa de tasas BCV históricas (hasta el 23/11/2026) cuyos Estados de Cuenta y pagos en Contribuyentes /
+// Soy Contribuyente / Caja se emitieron con la precisión completa de 8 decimales del BCV.
+// Permite que al seleccionar esas fechas con "Fijar Día" o escribir la tasa de 2 decimales en Caja (ej. 1009,07 o 1009,34),
+// el monto calculado en Caja cuadre al céntimo exacto con los Estados de Cuenta y transferencias emitidos esos días.
+const TASAS_BCV_HISTORICAS_EXACTAS: Record<string, number> = {
+  '976.84': 976.84087593,
+  '973.93': 973.92813268,
+  '981.18': 981.17880877,
+  '977.22': 977.21940683,
+  '984.26': 984.26261811,
+  '979.08': 979.0788922,
+  '980.61': 980.61472543,
+  '982.00': 982.00454402,
+  '982.76': 982.75895071,
+  '977.68': 977.68092347,
+  '985.73': 985.729808,
+  '991.16': 991.16445734,
+  '988.97': 988.97203073,
+  '993.18': 993.1759582,
+  '993.21': 993.21105346,
+  '993.09': 993.08836371,
+  '994.04': 994.03555758,
+  '989.72': 989.71903352,
+  '989.39': 989.38890515,
+  '992.80': 992.80018713,
+  '991.25': 991.25386822,
+  '997.92': 997.92220429,
+  '999.77': 999.76919171,
+  '1006.03': 1006.03263992,
+  '1004.96': 1004.95657762,
+  '1001.19': 1001.18602288,
+  '1006.61': 1006.60742688,
+  '1007.96': 1007.96328412,
+  '1003.49': 1003.49465523,
+  '1009.34': 1009.34130871,
+  '1010.56': 1010.56078251,
+  '1008.31': 1008.3113674,
+  '1007.39': 1007.38665582,
+  '1007.40': 1007.39583851,
+  '1009.07': 1009.07172979,
+};
+
+export const resolverTasaParaCalculoContribuyente = (tasaRaw: number): number => {
+  if (!(tasaRaw > 0)) return 0;
+  const r2Str = (Math.round((tasaRaw + Number.EPSILON) * 100) / 100).toFixed(2);
+  if (TASAS_BCV_HISTORICAS_EXACTAS[r2Str]) {
+    return TASAS_BCV_HISTORICAS_EXACTAS[r2Str];
+  }
+  return Math.round((tasaRaw + Number.EPSILON) * 100) / 100;
+};
+
 export const calcularMensualidad = (
   clasificacionOrInm: any,
   actividadFull?: string | number,
@@ -354,10 +405,11 @@ export const calcularMensualidad = (
 
   const far = esRes ? getFAR(actividad) : 0.1280; // FAC = 0.1280 para Comercial/Industrial
 
-  // Normalizar la tasa BCV a 2 decimales para que la tasa en vivo de 5 decimales (ej. 1007.38663)
-  // produzca siempre el mismo monto al céntimo que la tasa visualizada/impresa de 2 decimales (1007.39).
+  const usarTasa2Dec = typeof clasificacionOrInm === 'object' && clasificacionOrInm?._usarTasa2Dec === true;
   if (tasa > 0) {
-    tasa = Math.round((tasa + Number.EPSILON) * 100) / 100;
+    tasa = usarTasa2Dec
+      ? Math.round((tasa + Number.EPSILON) * 100) / 100
+      : resolverTasaParaCalculoContribuyente(tasa);
   }
 
   // Fórmulas oficiales Art. 61 de la Ordenanza Municipal de Naguanagua:

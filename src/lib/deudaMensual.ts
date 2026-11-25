@@ -1,4 +1,4 @@
-import { calcularMensualidad, isResidencialInm, isTerrenoInm, isMesExoneradoMulta, isCondominioPagoIndividual, getFAR, resolverPeriodosPendientesInmueble } from './calculos';
+import { calcularMensualidad, isResidencialInm, isTerrenoInm, isMesExoneradoMulta, isCondominioPagoIndividual, getFAR, resolverPeriodosPendientesInmueble, resolverTasaParaCalculoContribuyente } from './calculos';
 
 /**
  * CÁLCULO ÚNICO DE DEUDA MENSUAL (referencia: Caja).
@@ -90,7 +90,7 @@ export function calcularDeudaInmueble(inm: any, tasa: number, meses: MesDeuda[],
   let jNotas: any = null;
   try { if (inm?.notas) jNotas = typeof inm.notas === 'string' ? JSON.parse(inm.notas) : inm.notas; } catch {}
 
-  const tasaNorm = tasa > 0 ? r2(tasa) : 0;
+  const tasaNorm = tasa > 0 ? resolverTasaParaCalculoContribuyente(tasa) : 0;
   const bMesDefault = calcularMensualidad(inm, tasaNorm);
   const tasaMora = esRes ? 0.10 : 0.12;
   const flags = meses.map(m => tieneMoraMes(inm, m.emision, m.esUltimo, hoy));

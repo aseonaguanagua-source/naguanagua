@@ -16,7 +16,7 @@ import { getUserInmuebles, getCajeroId, isSameLocal, clusterInmueblesByLocal, ge
 import { acreditarSaldoFavor, descontarSaldoFavor } from '@/lib/saldoFavor';
 import { useCajaCalculations } from './hooks/useCajaCalculations';
 import { useCajaSelection } from './hooks/useCajaSelection';
-import { LISTA_BANCOS } from '@/lib/bancos';
+import { LISTA_BANCOS, BANCO_DEFAULT_EMISOR, normalizarBancoOficial } from '@/lib/bancos';
 import { obtenerTasaEuroFecha, fechaDMY, valorUCD } from '@/lib/tasaHistorica';
 import { generarCorteCajaPDF } from '../reportes/generators/PdfReports';
 
@@ -177,7 +177,7 @@ export default function CajaPage() {
   const [paymentMethod, setPaymentMethod] = useState<'Debito' | 'Credito' | 'TMD' | 'TVD' | 'Transferencia' | 'Deposito' | 'Saldo a Favor'>('Debito');
   const [referenciaDebito, setReferenciaDebito] = useState('');
   const [montoDebito, setMontoDebito] = useState<string>(''); // Monto manual punto de venta
-  const [banco, setBanco] = useState('Banco de Venezuela');
+  const [banco, setBanco] = useState(BANCO_DEFAULT_EMISOR);
   const [bancoDestino, setBancoDestino] = useState('BANCAMIGA - 0172 - 0717');
   const [referencia, setReferencia] = useState('');
   const [montoTransferido, setMontoTransferido] = useState<string>('');

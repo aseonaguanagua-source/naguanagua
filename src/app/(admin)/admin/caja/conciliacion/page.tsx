@@ -9,7 +9,7 @@ import { useAppContext } from '@/store/AppContext';
 import { logAudit } from '@/lib/audit';
 import AdminRetenciones from '@/components/AdminRetenciones';
 import ConciliacionDiariaPanel from '@/components/ConciliacionDiariaPanel';
-import { LISTA_BANCOS } from '@/lib/bancos';
+import { LISTA_BANCOS, normalizarBancoOficial } from '@/lib/bancos';
 import { calcularMensualidad, isResidencialInm, cleanClasificacionActividad } from '@/lib/calculos';
 import { desglosarPago } from '@/lib/desglosePago';
 import { FILTROS_MODULO, FiltroModulo, OR_CONDOMINIOS, infoCondominioPago, pasaFiltroModulo, rifsCondominios, useCondominiosLigero } from '@/lib/condominios/pagosCondominio';
@@ -705,7 +705,16 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
     formatLocalNumberInput(montoConciliadoInicialNum.toFixed(2).replace('.', ','))
   );
   const [tipoPagoEdit, setTipoPagoEdit] = useState(pago.tipo || 'Transferencia');
-  const [bancoEmisor, setBancoEmisor] = useState(pago.banco || '');
+  const [bancoEmisor, setBancoEmisor] = useState(() =>
+    normalizarBancoOficial(
+      pago.banco ||
+      det.banco_emisor ||
+      det.banco ||
+      det.pagos_agregados?.[0]?.banco ||
+      det.formasPago?.[0]?.banco ||
+      ''
+    )
+  );
   const [bancoReceptor, setBancoReceptor] = useState(pago.banco_destino || det.banco_destino || det.banco_receptor || '');
   const [referenciaOrigen, setReferenciaOrigen] = useState(pago.referencia || '');
   const [correoResponsable, setCorreoResponsable] = useState(det.correo || '');
