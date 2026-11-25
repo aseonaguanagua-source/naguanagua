@@ -2873,7 +2873,9 @@ export default function ConciliacionPage() {
             `detalles->>codigo_inmueble.ilike.%${term}%`,
             `detalles->>cod_inmueble.ilike.%${term}%`,
             `detalles->>inmueble.ilike.%${term}%`,
-            `detalles->>recibos.ilike.%${term}%`
+            `detalles->>recibos.ilike.%${term}%`,
+            `detalles->factura_digital->>numero_control.ilike.%${term}%`,
+            `detalles->factura_digital->>numero_documento.ilike.%${term}%`
           ];
           if (allMatchingIds.length > 0) {
             orParts.push(`identidad.in.(${allMatchingIds.slice(0, 50).join(',')})`);
@@ -2959,7 +2961,15 @@ export default function ConciliacionPage() {
           const det = parseDetalles(p.detalles);
           const condo = infoCondominioPago(p, condos);
           const condoNom = (condo?.nombre || det.condominio?.nombre || det.condominio_nombre || '').toLowerCase();
-          const condoCod = (condo?.codigo || det.condominio?.codigo || det.codigo_inmueble || det.cod_inmueble || det.inmueble || '').toLowerCase();
+          const condoCod = [
+            condo?.codigo,
+            det.condominio?.codigo,
+            det.codigo_inmueble,
+            det.cod_inmueble,
+            det.inmueble,
+            det.factura_digital?.numero_control,
+            det.factura_digital?.numero_documento,
+          ].filter(Boolean).join(' ').toLowerCase();
           const cont = (det.contribuyente || det.contribuyente_nombre || p.contribuyente || '').toLowerCase();
           const recibosStr = Array.isArray(det.recibos) ? det.recibos.join(' ').toLowerCase() : '';
           const refsAgregadas = [
