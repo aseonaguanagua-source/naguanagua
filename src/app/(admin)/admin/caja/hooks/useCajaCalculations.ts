@@ -80,7 +80,7 @@ export function useCajaCalculations({
       if (inm) {
         const codInmUpper = String(inm.inmueble || '').trim().toUpperCase();
         const totalMesesInmCheck = Math.max(1, parseInt(String(inm.meses_deuda || '1')));
-        if ((codInmUpper === 'URB014990' || codInmUpper === 'URB016990') && (totalMesesInmCheck === 15 || totalMesesInmCheck === 16)) {
+        if ((codInmUpper === 'URB014990' || codInmUpper === 'URB016990') && (totalMesesInmCheck === 15 || (totalMesesInmCheck === 16 && mNum <= 15))) {
           return mNum === 15 ? '68612.61' : '68612.56';
         }
         const esRes = isResidencialInm(inm);
