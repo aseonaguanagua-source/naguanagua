@@ -123,6 +123,29 @@ export function clasificarPago(recibos: string[], inmMap: Map<string, any>, det:
     else servicioComercial = true;
   }
 
+  // Fallback cuando `recibos` viene vacío (ej. pago de cuota de Convenio o cargo directo con codigo_inmueble / deuda_previa):
+  if (inmuebles.size === 0) {
+    const codsDirectos = new Set<string>();
+    const addCodDir = (v: any) => {
+      const c = String(v || '').trim().toUpperCase();
+      if (c && /^(?:URB|AURI|CONDO)/i.test(c)) codsDirectos.add(c);
+    };
+    addCodDir(det?.codigo_inmueble);
+    addCodDir(det?.cod_inmueble);
+    addCodDir(det?.inmueble);
+    if (Array.isArray(det?.deuda_previa)) {
+      det.deuda_previa.forEach((dp: any) => addCodDir(dp?.inmueble));
+    }
+    for (const cod of codsDirectos) {
+      inmuebles.add(cod);
+      const inm = inmMap.get(cod);
+      if (!inm) { desconocido = true; continue; }
+      if (isResidencialInm(inm)) residencial = true;
+      else if (esSoloMultas) multaComercial = true;
+      else servicioComercial = true;
+    }
+  }
+
   const valoresMeses = Object.values(mesesPorInmueble);
   if (valoresMeses.length > 0) {
     mesesServicio = Math.max(...valoresMeses);

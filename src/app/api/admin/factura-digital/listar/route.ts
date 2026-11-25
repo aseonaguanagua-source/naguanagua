@@ -790,6 +790,12 @@ export async function GET(request: Request) {
       (det.recibos || []).forEach((r: string) => { const c = extraerCodigoInmueble(r); if (c) codigos.add(c); });
       if (det.codigo_inmueble) codigos.add(String(det.codigo_inmueble).trim().toUpperCase());
       if (det.cod_inmueble) codigos.add(String(det.cod_inmueble).trim().toUpperCase());
+      if (det.inmueble) codigos.add(String(det.inmueble).trim().toUpperCase());
+      if (Array.isArray(det.deuda_previa)) {
+        det.deuda_previa.forEach((dp: any) => {
+          if (dp?.inmueble) codigos.add(String(dp.inmueble).trim().toUpperCase());
+        });
+      }
       if (Array.isArray(det.condominio?.lineas)) {
         det.condominio.lineas.forEach((l: any) => {
           if (l?.inmueble) codigos.add(String(l.inmueble).trim().toUpperCase());
