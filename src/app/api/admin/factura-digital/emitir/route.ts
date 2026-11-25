@@ -972,7 +972,23 @@ export async function POST(request: Request) {
       return abonoPrevioDescontado > 0 ? r2(mBase + abonoPrevioDescontado) : mBase;
     })();
 
-    const saldoFavorGeneradoRaw = parseFloat(String(detPago.saldo_a_favor_nuevo || detPago.monto_sobrante || detPago.saldo_favor || detPago.saldo_favor_generado || 0)) || 0;
+    const sfUsadoCheckRaw = parseFloat(String(detPago.saldo_usado ?? detPago.descuentoSaldoFavor ?? detPago.descuento_saldo_favor ?? detPago.saldo_favor_usado ?? detPago.nota_credito_usada ?? 0)) || 0;
+    const saldoFavorGeneradoRaw = (() => {
+      const explicitGen = parseFloat(String(detPago.saldo_a_favor_nuevo || detPago.monto_sobrante || detPago.saldo_favor_generado || 0)) || 0;
+      if (explicitGen > 0.05) {
+        // Salvaguarda: si saldo_favor_generado es idéntico a saldo_usado y el pago bancario + saldo_usado no excede la factura, era saldo_usado copiado por error
+        const netoEx = montoFacturaGuardadoRaw > 0 ? r2(montoFacturaGuardadoRaw - (conRetencion ? montoRetencionGuardada : 0) - sfUsadoCheckRaw) : 0;
+        if (sfUsadoCheckRaw > 0 && Math.abs(explicitGen - sfUsadoCheckRaw) <= 0.05 && totalEfectivoPagado <= netoEx + 1.00) {
+          return 0;
+        }
+        return explicitGen;
+      }
+      const sfLegacy = parseFloat(String(detPago.saldo_favor || 0)) || 0;
+      if (sfLegacy > 0.05 && !(sfUsadoCheckRaw > 0 && Math.abs(sfLegacy - sfUsadoCheckRaw) <= 0.05)) {
+        return sfLegacy;
+      }
+      return 0;
+    })();
     const saldoFavorGenerado = (() => {
       // Un redondeo de 1 a 5 céntimos (<= 0.05 Bs) por cambio de tasa BCV NUNCA es un saldo a favor ni Nota de Crédito
       if (saldoFavorGeneradoRaw > 0.05) return saldoFavorGeneradoRaw;
@@ -981,7 +997,7 @@ export async function POST(request: Request) {
         return 0;
       }
       if (montoFacturaGuardadoRaw > 0 && totalEfectivoPagado > 0) {
-        const netoExigido = r2(montoFacturaGuardadoRaw - (conRetencion ? montoRetencionGuardada : 0));
+        const netoExigido = r2(montoFacturaGuardadoRaw - (conRetencion ? montoRetencionGuardada : 0) - sfUsadoCheckRaw);
         if (totalEfectivoPagado > netoExigido + 0.50) {
           return r2(totalEfectivoPagado - netoExigido);
         }

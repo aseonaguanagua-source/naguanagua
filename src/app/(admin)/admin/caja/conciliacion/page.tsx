@@ -1119,15 +1119,20 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
     if (usaTotalGrupoRepartido) return totalGrupoRepartido;
     const targetRef = montoConciliadoNum > 0 ? montoConciliadoNum : montoReportadoNum;
     if (esAbonoOCompletado) return montoReportadoNum;
-    if (det.monto_neto_factura && Number(det.monto_neto_factura) > 0) {
-      const mn = Number(det.monto_neto_factura);
-      if (targetRef > 0 && Math.abs(targetRef - mn) <= 0.05) return targetRef;
-      return mn;
+    if (det.monto_factura && Number(det.monto_factura) > 0) {
+      const mfNeto = Math.max(0, Math.round((Number(det.monto_factura) - montoRetencionDoc) * 100) / 100);
+      if (targetRef > 0 && Math.abs(targetRef - mfNeto) <= 0.05) return targetRef;
+      return mfNeto;
     }
     if (det.total_seleccionado && Number(det.total_seleccionado) > 0) {
       const tsNeto = Math.max(0, Math.round((Number(det.total_seleccionado) - montoRetencionDoc) * 100) / 100);
       if (targetRef > 0 && Math.abs(targetRef - tsNeto) <= 0.05) return targetRef;
       return tsNeto;
+    }
+    if (det.monto_neto_factura && Number(det.monto_neto_factura) > 0) {
+      const mn = Number(det.monto_neto_factura);
+      if (targetRef > 0 && Math.abs(targetRef - mn) <= 0.05) return targetRef;
+      return mn;
     }
     return targetRef || montoReportadoNum;
   })();
