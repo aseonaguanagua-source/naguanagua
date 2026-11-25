@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { getIdentidadVariantsExact, formatActividad } from '@/lib/formatters';
 import { groupInmueblesByLocal, InmuebleBasic } from '@/lib/cajaHelpers';
+import DeudaCondominiosPortal from '@/components/DeudaCondominiosPortal';
 
 export default function DatosContribuyentePage() {
   const [userData, setUserData] = useState({
@@ -385,6 +386,11 @@ export default function DatosContribuyentePage() {
           </div>
         )}
       </div>
+
+      {/* Aviso de Verificación de Multas en Condominio (Pago por Abono / Individual y sus hijos) */}
+      {userData.docNum && (
+        <DeudaCondominiosPortal identidad={`${userData.docType}-${userData.docNum}`} />
+      )}
 
       {/* Acceso directo a Estado de Cuenta */}
       <div className="bg-gradient-to-r from-red-600 to-red-800 rounded-xl shadow-lg border border-red-900 overflow-hidden text-white flex flex-col md:flex-row items-center justify-between p-6 gap-4">

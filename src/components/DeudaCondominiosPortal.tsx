@@ -48,14 +48,31 @@ export default function DeudaCondominiosPortal({ identidad }: { identidad: strin
         const orCondoMatriz = [orFilter, ...(portalCodigo ? [`codigo.eq.${portalCodigo}`] : [])].filter(Boolean).join(',');
         const { data: ownCondoRows } = await supabase
           .from('condominios')
-          .select('codigo')
+          .select('codigo, nombre, modalidad, permite_abonos, permite_pago_por_unidad')
           .neq('estado', 'Eliminado')
           .or(orCondoMatriz);
         const ownCondoCodesSet = new Set(
           (ownCondoRows || []).map((c: any) => String(c?.codigo || '').trim().toUpperCase()).filter(Boolean)
         );
-        if (isCondoMasterSession && ownCondoCodesSet.size > 0) {
-          setCondoUnits([]);
+        if (isCondoMasterSession && ownCondoRows && ownCondoRows.length > 0) {
+          const ownMatch = ownCondoRows.find((r: any) => portalCodigo && String(r.codigo || '').toUpperCase() === portalCodigo.toUpperCase()) || ownCondoRows[0];
+          const esAbonoOIndiv = Boolean(
+            ownMatch?.permite_abonos !== false ||
+            ownMatch?.permite_pago_por_unidad ||
+            String(ownMatch?.modalidad || '').toUpperCase() === 'INDIVIDUAL' ||
+            String(ownMatch?.modalidad || '').toUpperCase() === 'MIXTO_COMERCIAL'
+          );
+          if (esAbonoOIndiv) {
+            setCondoUnits([{
+              inmueble: ownMatch.codigo,
+              condominioCodigo: ownMatch.codigo,
+              condominioNombre: ownMatch.nombre || ownMatch.codigo,
+              propietario: ownMatch.nombre || ownMatch.codigo,
+              actividad: `CONDOMINIO (${String(ownMatch.modalidad || 'CENTRALIZADO').replace('_', ' ')})`,
+            }]);
+          } else {
+            setCondoUnits([]);
+          }
           setLoading(false);
           return;
         }
@@ -81,7 +98,7 @@ export default function DeudaCondominiosPortal({ identidad }: { identidad: strin
         (inms || []).forEach((i: any) => {
           if (i.condominio_padre_id) {
             const pCodUpper = String(i.condominio_padre_id).trim().toUpperCase();
-            if (ownCondoCodesSet.has(pCodUpper) || isCondominioPagoIndividual(pCodUpper)) return;
+            if (ownCondoCodesSet.has(pCodUpper)) return;
             condoCodesToFetch.add(pCodUpper);
             items.push({
               inmueble: i.inmueble,
@@ -99,7 +116,7 @@ export default function DeudaCondominiosPortal({ identidad }: { identidad: strin
         (cUnits || []).forEach((u: any) => {
           const cCod = u.condominios?.codigo || '';
           const cCodUpper = String(cCod).trim().toUpperCase();
-          if (cCod && (ownCondoCodesSet.has(cCodUpper) || isCondominioPagoIndividual(cCodUpper))) return;
+          if (cCod && ownCondoCodesSet.has(cCodUpper)) return;
           const cNom = u.condominios?.nombre || cCod;
           const exist = items.find(it => it.inmueble === u.inmueble);
           if (!exist) {

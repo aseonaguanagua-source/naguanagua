@@ -122,9 +122,10 @@ export function calcularDeudaInmueble(inm: any, tasa: number, meses: MesDeuda[],
         bMes = jNotas.tarifa_activa_mmv * 57 * tasa * 0.128;
       }
     }
+    const esHijoCondoIndiv = Boolean(inm && isCondominioPagoIndividual(inm));
     let base2 = r2(bMes);
     let iva2 = esRes ? 0 : r2(base2 * 0.16);
-    const multa2 = tieneMoraMesActual ? r2(base2 * tasaMora) : 0;
+    const multa2 = (tieneMoraMesActual && !esHijoCondoIndiv) ? r2(base2 * tasaMora) : 0;
 
     if (esCondoIndivComercial) {
       const bEur = baseEurDefault > 0 ? r2(baseEurDefault) : r2(base2 / tasa);
@@ -140,7 +141,7 @@ export function calcularDeudaInmueble(inm: any, tasa: number, meses: MesDeuda[],
 
     const base4 = r4(bMes);
     const iva4 = esRes ? 0 : r4(bMes * 0.16);
-    const multa4 = tieneMoraMesActual ? r4(bMes * tasaMora) : 0;
+    const multa4 = (tieneMoraMesActual && !esHijoCondoIndiv) ? r4(bMes * tasaMora) : 0;
     return {
       base: base2,
       iva: iva2,

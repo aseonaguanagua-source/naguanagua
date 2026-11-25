@@ -897,7 +897,8 @@ export default function EstadoCuentaPage() {
 
         const esExoneradoTotal = isExoneradoTotalMultas(inm.notas);
         const totalExoneradosInm = getMesesExoneradosCount(inm.notas);
-        const esCasoSinMulta = (inm.inmueble === 'URB014954') || esExoneradoTotal;
+        const esHijoCondoIndiv = Boolean(inm.condominio_padre_id || isCondominioPagoIndividual(inm));
+        const esCasoSinMulta = (inm.inmueble === 'URB014954') || esExoneradoTotal || esHijoCondoIndiv;
 
         const baseTotal = Math.round((bMes * mDeuda) * 100) / 100;
         const ivaTotal = Math.round((iMes * mDeuda) * 100) / 100;
@@ -1595,7 +1596,7 @@ export default function EstadoCuentaPage() {
                 </div>
 
                 {/* Banner de Condominio Informativo (para condominios por abono o individual y sus hijos) */}
-                {(cluster.esCondominio || (condoMatrizFicha?.condo && (condoMatrizFicha.condo.permite_abonos !== false || condoMatrizFicha.condo.permite_pago_por_unidad || String(condoMatrizFicha.condo.modalidad || '').toUpperCase() === 'INDIVIDUAL' || String(condoMatrizFicha.condo.modalidad || '').toUpperCase() === 'MIXTO_COMERCIAL'))) && (
+                {(cluster.esCondominio || cluster.inms.some((i: any) => i.condominio_padre_id || isCondominioPagoIndividual(i)) || (condoMatrizFicha?.condo && (condoMatrizFicha.condo.permite_abonos !== false || condoMatrizFicha.condo.permite_pago_por_unidad || String(condoMatrizFicha.condo.modalidad || '').toUpperCase() === 'INDIVIDUAL' || String(condoMatrizFicha.condo.modalidad || '').toUpperCase() === 'MIXTO_COMERCIAL'))) && (
                   <div className="px-4 py-3 bg-amber-50 border-b border-amber-200 text-xs text-amber-950 flex items-start gap-2.5">
                     <Building className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
                     <div className="space-y-1.5 flex-1">

@@ -3,8 +3,9 @@ import { useState, useEffect, useMemo } from 'react';
 import { Building2, Search, MapPin, Store, AlertCircle, CheckCircle2, ChevronRight, ChevronDown, ChevronUp, Layers } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { getIdentidadVariantsExact } from '@/lib/formatters';
-import { isResidencialInm, cleanClasificacionActividad } from '@/lib/calculos';
+import { isResidencialInm, cleanClasificacionActividad, isCondominioPagoIndividual } from '@/lib/calculos';
 import { groupInmueblesByLocal, InmuebleClusterGroup, InmuebleBasic } from '@/lib/cajaHelpers';
+import DeudaCondominiosPortal from '@/components/DeudaCondominiosPortal';
 
 export default function InmueblesPage() {
   const [inmuebles, setInmuebles] = useState<InmuebleBasic[]>([]);
@@ -184,9 +185,11 @@ export default function InmueblesPage() {
 
   const countRes = useMemo(() => clusters.filter(c => c.tipo === 'RESIDENCIAL').length, [clusters]);
   const countCom = useMemo(() => clusters.filter(c => c.tipo === 'COMERCIAL').length, [clusters]);
+  const portalDoc = typeof window !== 'undefined' ? (localStorage.getItem('portal_doc') || '') : '';
 
   return (
     <div className="space-y-6">
+      {portalDoc && <DeudaCondominiosPortal identidad={portalDoc} />}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-slate-200">
         <div className="relative w-full sm:w-96">
           <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -319,21 +322,21 @@ export default function InmueblesPage() {
                   </div>
                 </div>
 
-                {/* Banner de Condominio Informativo */}
-                {cluster.esCondominio && (
+        {/* Banner de Condominio Informativo (para condominios por abono/individual y todos sus hijos) */}
+                {(cluster.esCondominio || cluster.inms.some((i: any) => i.condominio_padre_id || isCondominioPagoIndividual(i))) && (
                   <div className="px-4 py-3 bg-amber-50/90 border-b border-amber-200 text-xs text-amber-950 flex items-start gap-2.5">
                     <Building2 className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
                     <div className="space-y-1.5 flex-1">
                       <div>
                         <strong className="text-amber-900">Inmueble / Local dentro de Condominio:</strong> Este inmueble pertenece a{' '}
-                        <span className="font-bold text-amber-900 underline">{condoNames[cluster.condominioPadreId || ''] || cluster.condominioPadreId || 'su Condominio'}</span>.
+                        <span className="font-bold text-amber-900 underline">{condoNames[cluster.condominioPadreId || (cluster.inms.find((i: any) => i.condominio_padre_id) as any)?.condominio_padre_id || ''] || cluster.condominioPadreId || (cluster.inms.find((i: any) => i.condominio_padre_id) as any)?.condominio_padre_id || 'su Condominio'}</span>.
                       </div>
                       <p className="text-[11px] text-amber-900/90 leading-relaxed">
                         Para <strong>verificar posibles multas, consultar su estado de cuenta o realizar cualquier pago pendiente</strong> correspondiente a esta unidad, comuníquese directamente con nuestro <strong>Call Center de Atención al Contribuyente vía WhatsApp al +58 424-4282365</strong>.
                       </p>
                       <div>
                         <a
-                          href={`https://wa.me/584244282365?text=${encodeURIComponent(`Hola, deseo verificar multas o pagos pendientes de mi unidad ${cluster.localId} en ${condoNames[cluster.condominioPadreId || ''] || cluster.condominioPadreId || 'condominio'}.`)}`}
+                          href={`https://wa.me/584244282365?text=${encodeURIComponent(`Hola, deseo verificar multas o pagos pendientes de mi unidad ${cluster.localId} en ${condoNames[cluster.condominioPadreId || (cluster.inms.find((i: any) => i.condominio_padre_id) as any)?.condominio_padre_id || ''] || cluster.condominioPadreId || (cluster.inms.find((i: any) => i.condominio_padre_id) as any)?.condominio_padre_id || 'condominio'}.`)}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg text-[11px] shadow-2xs transition-colors"

@@ -114,9 +114,21 @@ export function construirRecibosContribuyente(params: {
     });
 
   // Solo incluir recibos formales del sistema actual (CM-, RECIB-, MULTA-) para no duplicar con facturas legacy (ej. O-003804)
+  // Para unidades hijas de condominios de pago individual, NO incluir recibos MULTA- en el portal (las multas se verifican vía WhatsApp Call Center)
+  const codigosCondoIndiv = new Set(
+    activos
+      .filter(i => isCondominioPagoIndividual(i) || (i.condominio_padre_id && isCondominioPagoIndividual(i.condominio_padre_id)))
+      .map(i => String(i.inmueble || '').toUpperCase())
+      .filter(Boolean)
+  );
   const recibos: any[] = (params.facturas || []).filter(f => {
     if (!ESTADOS_RECIBO_PENDIENTE.includes(f.estado)) return false;
     const ref = String(f.referencia || '').toUpperCase();
+    if (ref.startsWith('MULTA-')) {
+      for (const cod of codigosCondoIndiv) {
+        if (cod && (ref.includes(cod) || String(f.inmueble || '').toUpperCase() === cod)) return false;
+      }
+    }
     return ref.startsWith('CM-') || ref.startsWith('RECIB-') || ref.startsWith('MULTA-');
   });
 
@@ -127,12 +139,13 @@ export function construirRecibosContribuyente(params: {
       const formales = recibos.filter(r => String(r.referencia || '').includes(inm.inmueble) &&
         !String(r.referencia).startsWith('RECIB-HIST-') && !String(r.referencia).startsWith('MULTA-')).length;
       const n = Math.max(0, (meses > 0 ? meses : (num(inm.deuda_mmv) > 0 ? 1 : 0)) - formales);
+      const esCondoIndiv = isCondominioPagoIndividual(inm) || (inm.condominio_padre_id && isCondominioPagoIndividual(inm.condominio_padre_id));
       
-      // Si NO tiene meses históricos pendientes pero sí tiene una multa administrativa específica aislada (y NO está congelada en un convenio de pago), se emite MULTA-
+      // Si NO tiene meses históricos pendientes pero sí tiene una multa administrativa específica aislada (y NO está congelada en un convenio de pago ni es hijo de condominio), se emite MULTA-
       if (n === 0) {
         const multa = num(inm.multa_bs), congelada = num(inm.deuda_congelada_bs);
         const tieneConvenioNotas = /Convenio de Pago\s+CONV-/i.test(String(inm.notas || '')) && !/Anulado/i.test(String(inm.notas || ''));
-        if (multa > 0 && congelada <= 0 && !tieneConvenioNotas) {
+        if (!esCondoIndiv && multa > 0 && congelada <= 0 && !tieneConvenioNotas) {
           const f = new Date(hoy.getFullYear(), hoy.getMonth() - 2, 1, 12, 0, 0).toISOString();
           recibos.push({
             id: `multa-${inm.inmueble}`,
@@ -198,9 +211,10 @@ export function desgloseReciboCM(r: any, billables: any[], tasa: number, hoy: Da
   const md = mesesTranscurridos(emision, hoy);
   ti.forEach(i => {
     const es = isResidencialInm(i);
+    const esCondoIndiv = isCondominioPagoIndividual(i) || (i.condominio_padre_id && isCondominioPagoIndividual(i.condominio_padre_id));
     const bm = r2(calcularMensualidad(i, tasa));
     const ivaI = es ? 0 : r2(bm * 0.16);
-    const mora = md > 1 && !isMesExoneradoMulta(i.notas, emision);
+    const mora = !esCondoIndiv && md > 1 && !isMesExoneradoMulta(i.notas, emision);
     base += bm; iva += ivaI; multa += mora ? r2(bm * (es ? 0.10 : 0.12)) : 0;
     if (!es && i.agente_retencion === true) ivaRetenible += ivaI;
   });

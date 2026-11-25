@@ -764,9 +764,16 @@ export default function DondePagarPage() {
           const bloqueadoCondo = false;
 
           const esMulta = String(r.referencia || '').startsWith('MULTA-');
+          const esCondoIndivOPropio = Boolean(
+            r.esReciboCondominioMatriz ||
+            inmMatch?.condominio_padre_id ||
+            isCondominioPagoIndividual(inmMatch)
+          );
           const conceptoTexto = esMulta
             ? `Multa Municipal del Inmueble (${inmId})`
-            : `${getMonthLabel(r.emision)} • Aseo Urbano y Recargo de Ley`;
+            : esCondoIndivOPropio
+              ? `${getMonthLabel(r.emision)} • Servicio de Aseo Urbano`
+              : `${getMonthLabel(r.emision)} • Aseo Urbano y Recargo de Ley`;
 
           return {
             id: r.id || r.referencia,
@@ -1965,6 +1972,30 @@ export default function DondePagarPage() {
                           </div>
                         ) : (
                           <div className="p-2.5 space-y-2 bg-slate-50/40">
+                          {/* Banner de Verificación de Multas por WhatsApp para condominios por abono/individual y sus hijos */}
+                          {group.inms.some((i: any) => i.esSesionCondominioMatriz || i.condominio_padre_id || isCondominioPagoIndividual(i)) && (
+                            <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-950 flex items-start gap-2.5">
+                              <Building className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                              <div className="space-y-1.5 flex-1">
+                                <p className="font-bold text-amber-900">
+                                  Verificación de Multas en Régimen de Condominio (Pago por Abono / Individual):
+                                </p>
+                                <p className="text-[11px] text-amber-900/90 leading-relaxed">
+                                  Los montos mostrados a continuación corresponden únicamente al servicio ordinario de aseo urbano. Para <strong>verificar posibles multas o gestionar el pago de multas pendientes</strong> de este código ({group.localId}), comuníquese con nuestro <strong>Call Center vía WhatsApp al +58 424-4282365</strong>:
+                                </p>
+                                <div>
+                                  <a
+                                    href={`https://wa.me/584244282365?text=${encodeURIComponent(`Hola, deseo verificar multas pendientes del código ${group.localId} en condominio.`)}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg text-[11px] shadow-2xs transition-colors"
+                                  >
+                                    <span>💬 Verificar Multas por WhatsApp (+58 424-4282365)</span>
+                                  </a>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                           {/* Banner de Nota de Crédito / Saldo a Favor exclusivo de este Inmueble (idéntico a Caja) */}
                           {notasPorLocalMap[group.localId]?.totalBs > 0 && (
                             <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border-2 border-emerald-300 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-xs">
