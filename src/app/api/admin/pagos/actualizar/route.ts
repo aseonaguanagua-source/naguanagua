@@ -594,9 +594,15 @@ export async function POST(req: Request) {
       }
     }
 
-    // Si se aprueba un pago pendiente / por verificar (por ejemplo desde Estado de Cuenta o vía API)
-    // y el llamador no maneja la sincronización en cliente (skipServerDebtSync !== true):
-    if (upd.estado === 'Aprobado' && !cambios.skipServerDebtSync) {
+    // Si se aprueba un pago pendiente / por verificar (por ejemplo desde Estado de Cuenta, Conciliación o vía API):
+    // NOTA: Incluso si cambios.skipServerDebtSync === true (enviado por Conciliación Bancaria para recibos ordinarios),
+    // los pagos de Caja de Condominios que aún no tengan deuda_condo_aplicada SIEMPRE deben aplicar su descuento en el servidor.
+    const detPrevCheck = typeof actualP?.detalles === 'string' ? JSON.parse(actualP.detalles || '{}') : (actualP?.detalles || {});
+    const esCondoSinAplicar = Boolean(
+      (actualP?.modulo === 'condominios' || detPrevCheck.modulo === 'condominios' || detPrevCheck.es_condominio || detPrevCheck.isCondominio) &&
+      !detPrevCheck.deuda_condo_aplicada
+    );
+    if (upd.estado === 'Aprobado' && (!cambios.skipServerDebtSync || esCondoSinAplicar)) {
       if (actualP && actualP.estado !== 'Aprobado') {
         const detP = typeof actualP.detalles === 'string' ? JSON.parse(actualP.detalles || '{}') : (actualP.detalles || {});
         const d = typeof upd.detalles === 'object' ? { ...detP, ...upd.detalles } : { ...detP };
@@ -616,8 +622,10 @@ export async function POST(req: Request) {
           const condoInfo = d.condominio || {};
           const condoCod = String(condoInfo.codigo || d.codigo_condominio || d.cod_inmueble || '').trim().toUpperCase();
           const lineasCondo: any[] = Array.isArray(condoInfo.lineas) ? condoInfo.lineas : [];
-          const soloMultas = Boolean(condoInfo.soloMultas || d.solo_multas);
-          const incluirMultas = condoInfo.incluirMultas !== undefined ? Boolean(condoInfo.incluirMultas) : !Boolean(d.sin_multas);
+          const soloMultas = Boolean(condoInfo.soloMultas || condoInfo.solo_multas || d.solo_multas || d.soloMultas);
+          const incluirMultas = condoInfo.incluirMultas !== undefined
+            ? Boolean(condoInfo.incluirMultas)
+            : (d.incluir_multas !== undefined ? Boolean(d.incluir_multas) : !Boolean(d.sin_multas));
           const esModoCondo = (condoInfo.modo || d.modo) === 'CONDOMINIO';
 
           const { data: cRow } = condoCod
@@ -631,25 +639,38 @@ export async function POST(req: Request) {
               const { data: uRow } = await sb.from('condominio_unidades').select('*').eq('id', uId).maybeSingle();
               if (uRow) {
                 const updU: any = {};
+                const desdeActual = uRow.aseo_pendiente_desde || cRow?.aseo_pendiente_desde;
+                const mesesRealesHoy = desdeActual ? M.mesesPendientes(desdeActual, hoyMes) : mesesPagar;
+                const mesesRestantes = Math.max(0, mesesRealesHoy - mesesPagar);
                 if (mesesPagar > 0 && !soloMultas) {
-                  updU.aseo_pendiente_desde = M.avanzarPendiente(uRow.aseo_pendiente_desde || cRow?.aseo_pendiente_desde, mesesPagar, hoyMes);
+                  updU.aseo_pendiente_desde = M.avanzarPendiente(desdeActual, mesesPagar, hoyMes);
                 }
-                if (soloMultas || incluirMultas) {
-                  updU.multa_meses = 0;
+                const pagoIncluyeMultaLinea = soloMultas || incluirMultas || (Number(l.multaBs) || 0) > 0.01;
+                if (pagoIncluyeMultaLinea) {
+                  updU.multa_meses = soloMultas ? 0 : Math.max(0, mesesRestantes - 1);
+                  const periodosLinea: string[] = Array.isArray(l.periodos) ? l.periodos : [];
+                  if (periodosLinea.length > 0) {
+                    const ultPer = periodosLinea[periodosLinea.length - 1];
+                    const curExo = String(uRow.multa_exonerada_hasta || '').slice(0, 7);
+                    if (!curExo || ultPer > curExo) {
+                      updU.multa_exonerada_hasta = `${ultPer}-01`;
+                    }
+                  }
                 }
                 if (Object.keys(updU).length > 0) {
                   await sb.from('condominio_unidades').update(updU).eq('id', uRow.id);
                 }
                 const codU = String(uRow.inmueble || l.inmueble || '').trim().toUpperCase();
                 if (codU && mesesPagar > 0 && !soloMultas) {
-                  const { data: curInm } = await sb.from('inmuebles').select('id, meses_deuda, deuda_mmv, multa_bs').ilike('inmueble', codU).limit(1).maybeSingle();
+                  const { data: curInm } = await sb.from('inmuebles').select('id, meses_deuda, deuda_mmv, mmv_mes, multa_bs').ilike('inmueble', codU).limit(1).maybeSingle();
                   if (curInm) {
                     const nMesesRest = Math.max(0, (parseInt(String(curInm.meses_deuda || 0)) || 0) - mesesPagar);
+                    const tarifaMmvUnit = Number(uRow.tarifa_mmv || curInm.mmv_mes || 0) || 0;
                     await sb.from('inmuebles').update({
                       meses_deuda: nMesesRest,
-                      deuda_mmv: nMesesRest === 0 ? 0 : (curInm.deuda_mmv || 0),
+                      deuda_mmv: nMesesRest === 0 ? 0 : (tarifaMmvUnit > 0 ? Math.round(nMesesRest * tarifaMmvUnit * 100) / 100 : (curInm.deuda_mmv || 0)),
                       ...(nMesesRest === 0 ? { deuda_congelada_bs: 0 } : {}),
-                      multa_bs: incluirMultas ? 0 : (curInm.multa_bs || 0),
+                      multa_bs: (pagoIncluyeMultaLinea && nMesesRest <= 1) ? 0 : (curInm.multa_bs || 0),
                     }).eq('id', curInm.id);
                   }
                 }
@@ -732,8 +753,8 @@ export async function POST(req: Request) {
           d.deuda_condo_aplicada = true;
         }
 
-        // Snapshot de deuda previa antes de descontar en inmuebles (si no es de condominios)
-        if (!esCondo && idVars.length > 0) {
+        // Snapshot de deuda previa antes de descontar en inmuebles (si no es de condominios y no fue omitido por skipServerDebtSync)
+        if (!esCondo && !cambios.skipServerDebtSync && idVars.length > 0) {
           const { data: inmsPrev } = await sb
             .from('inmuebles')
             .select('id, inmueble, meses_deuda, deuda_mmv, multa_bs, deuda_congelada_bs, saldo_favor_bs')

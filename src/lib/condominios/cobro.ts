@@ -1126,8 +1126,25 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
                     : 0;
                 if (permitirMultas && liquidaHastaHoy) {
                     upd.multa_meses = 0;
+                    if (l.periodos && l.periodos.length > 0) {
+                        const ultPerPagado = l.periodos[l.periodos.length - 1];
+                        const curExo = String(u.multa_exonerada_hasta || '').slice(0, 7);
+                        if (!curExo || ultPerPagado > curExo) {
+                            upd.multa_exonerada_hasta = `${ultPerPagado}-01`;
+                        }
+                    }
                 } else if (permitirMultas && !liquidaHastaHoy) {
-                    upd.multa_meses = Math.max(0, (Number(u.multa_meses) || 0) - multasPagadasEnAseo - (sol.omitirMultaSeptiembre && l.periodos.includes('2026-09') ? 1 : 0));
+                    const mesesRestantes = Math.max(0, mesesRealesHoy - l.meses);
+                    const moraRestante = Math.max(0, mesesRestantes - 1);
+                    const multaPorResta = Math.max(0, (Number(u.multa_meses) || 0) - multasPagadasEnAseo - (sol.omitirMultaSeptiembre && l.periodos.includes('2026-09') ? 1 : 0));
+                    upd.multa_meses = Math.min(moraRestante, multaPorResta);
+                    if (l.periodos && l.periodos.length > 0) {
+                        const ultPerPagado = l.periodos[l.periodos.length - 1];
+                        const curExo = String(u.multa_exonerada_hasta || '').slice(0, 7);
+                        if (!curExo || ultPerPagado > curExo) {
+                            upd.multa_exonerada_hasta = `${ultPerPagado}-01`;
+                        }
+                    }
                 } else if (sol.omitirMultaSeptiembre && l.periodos.includes('2026-09') && l.multaMesesQueQuedan === 0 && liquidaHastaHoy) {
                     upd.multa_meses = 0;
                 } else if (!permitirMultas && l.multaMesesQueQuedan > 0) {
