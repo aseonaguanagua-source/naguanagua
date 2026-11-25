@@ -90,18 +90,12 @@ export function calcularDeudaInmueble(inm: any, tasa: number, meses: MesDeuda[],
   let jNotas: any = null;
   try { if (inm?.notas) jNotas = typeof inm.notas === 'string' ? JSON.parse(inm.notas) : inm.notas; } catch {}
 
-  const bMesDefault = calcularMensualidad(inm, tasa);
+  const tasaNorm = tasa > 0 ? r2(tasa) : 0;
+  const bMesDefault = calcularMensualidad(inm, tasaNorm);
   const tasaMora = esRes ? 0.10 : 0.12;
   const flags = meses.map(m => tieneMoraMes(inm, m.emision, m.esUltimo, hoy));
   const n = meses.length;
   const nMora = flags.filter(Boolean).length;
-
-  const esCondoIndivComercial = !esRes && tasa > 0 && isCondominioPagoIndividual(inm);
-  const baseEurDefault = esCondoIndivComercial && !jNotas?.periodos_custom && !jNotas?.desocupada_desde
-    ? calcularMensualidad(inm, 1)
-    : 0;
-  let acumBsPrev = 0;
-  let acumEur = 0;
 
   const porMes: DesgloseMes[] = meses.map((m, i) => {
     let bMes = bMesDefault;
@@ -110,34 +104,22 @@ export function calcularDeudaInmueble(inm: any, tasa: number, meses: MesDeuda[],
     const custom = jNotas?.periodos_custom?.[perStr];
     if (custom) {
       const mmv = custom.tarifa_mmv !== null && custom.tarifa_mmv !== undefined ? Number(custom.tarifa_mmv) : (jNotas.tarifa_activa_mmv || 3.77);
-      bMes = mmv * 57 * tasa * (esRes ? getFAR(custom.actividad || inm?.actividad_principal || inm?.actividad) : 0.128);
+      bMes = mmv * 57 * tasaNorm * (esRes ? getFAR(custom.actividad || inm?.actividad_principal || inm?.actividad) : 0.128);
       if (custom.lleva_multa === false) {
         tieneMoraMesActual = false;
       }
     } else if (jNotas?.desocupada_desde) {
       const esDesoc = perStr >= jNotas.desocupada_desde && (!jNotas.desocupada_hasta || perStr <= jNotas.desocupada_hasta);
       if (esDesoc) {
-        bMes = (jNotas.tarifa_desocupada_mmv || 1.98) * 57 * tasa * 0.128;
+        bMes = (jNotas.tarifa_desocupada_mmv || 1.98) * 57 * tasaNorm * 0.128;
       } else if (jNotas.tarifa_activa_mmv) {
-        bMes = jNotas.tarifa_activa_mmv * 57 * tasa * 0.128;
+        bMes = jNotas.tarifa_activa_mmv * 57 * tasaNorm * 0.128;
       }
     }
     const esHijoCondoIndiv = Boolean(inm && isCondominioPagoIndividual(inm));
-    let base2 = r2(bMes);
-    let iva2 = esRes ? 0 : r2(base2 * 0.16);
+    const base2 = r2(bMes);
+    const iva2 = esRes ? 0 : r2(base2 * 0.16);
     const multa2 = (tieneMoraMesActual && !esHijoCondoIndiv) ? r2(base2 * tasaMora) : 0;
-
-    if (esCondoIndivComercial) {
-      const bEur = baseEurDefault > 0 ? r2(baseEurDefault) : r2(base2 / tasa);
-      const iEur = r2(bEur * 0.16);
-      const totEurMes = r2(bEur + iEur);
-      acumEur = r2(acumEur + totEurMes);
-      const acumBsTarget = r2(acumEur * tasa);
-      const totSinMultaBs = r2(acumBsTarget - acumBsPrev);
-      acumBsPrev = acumBsTarget;
-      base2 = r2(totSinMultaBs / 1.16);
-      iva2 = r2(totSinMultaBs - base2);
-    }
 
     const base4 = r4(bMes);
     const iva4 = esRes ? 0 : r4(bMes * 0.16);

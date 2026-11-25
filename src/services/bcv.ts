@@ -7,6 +7,7 @@ import https from 'https';
  * cuando el BCV publica la tasa con fecha valor del día hábil siguiente a la 1:30 PM.
  */
 export async function getTasaBCV(sync: boolean = false) {
+  const r2 = (n: number) => Math.round(((Number(n) || 0) + Number.EPSILON) * 100) / 100;
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
@@ -23,7 +24,7 @@ export async function getTasaBCV(sync: boolean = false) {
       if (dbRes.ok) {
         const rows = await dbRes.json();
         if (rows && rows.length > 0 && rows[0].valor) {
-          const manualRate = parseFloat(rows[0].valor);
+          const manualRate = r2(parseFloat(rows[0].valor));
           if (!isNaN(manualRate) && manualRate > 0) {
             return {
               success: true,
@@ -64,9 +65,9 @@ export async function getTasaBCV(sync: boolean = false) {
       if (dbRes.ok) {
         const rows: Array<{ id: string; valor: string }> = await dbRes.json();
         rows.forEach(r => {
-          if (r.id === 'tasa_bcv_diaria' && r.valor) tasaDiariaGuardada = parseFloat(r.valor);
+          if (r.id === 'tasa_bcv_diaria' && r.valor) tasaDiariaGuardada = r2(parseFloat(r.valor));
           if (r.id === 'tasa_bcv_diaria_fecha' && r.valor) fechaDiariaGuardada = r.valor.trim();
-          if (r.id === 'tasa_bcv_semanal' && r.valor) tasaSemanalGuardada = parseFloat(r.valor);
+          if (r.id === 'tasa_bcv_semanal' && r.valor) tasaSemanalGuardada = r2(parseFloat(r.valor));
         });
       }
     }
@@ -234,7 +235,10 @@ export async function getTasaBCV(sync: boolean = false) {
     }
   }
 
-  // Por Ordenanza Municipal el TCMMV es estrictamente la tasa del Euro
+  // Por Ordenanza Municipal el TCMMV es estrictamente la tasa del Euro redondeada a 2 decimales
+  // para que todos los estados de cuenta, recibos y módulos de Caja cuadren exactamente al céntimo.
+  euroVal = r2(euroVal);
+  usdVal = r2(usdVal);
   const tcmmv = euroVal;
 
   // 7. Guardar en base de datos para congelar la tasa durante el día

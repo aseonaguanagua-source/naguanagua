@@ -395,8 +395,9 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
     const montoRecibidoTotal = r2(Number(pago.montoRecibido) || 0);
     const totalDeudaCobro = cobro.totales.totalBs;
 
-    // Ignorar diferencias de redondeo menores a Bs. 5,00 para no generar notas de crédito de céntimos
-    const tolSinNota = 5.00;
+    // Ignorar diferencias de redondeo (E/C en Bs vs E/C en Euros × Tasa) para no generar notas de crédito de pocos bolívares
+    const tolFaltante = cobro.modo === 'CONDOMINIO' ? Math.max(5.00, r2(cobro.lineas.length * 3.00)) : 5.00;
+    const tolSinNota = tolFaltante;
     if (pago.saldoFavorGenerado && pago.saldoFavorGenerado < tolSinNota) {
         pago.saldoFavorGenerado = 0;
     }
@@ -408,7 +409,6 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
     const montoAplicadoADeuda = r2(montoRecibidoTotal - (pago.saldoFavorGenerado || 0));
 
     // Si el monto destinado a cancelar la deuda es menor al total requerido (tolerancia de redondeo)
-    const tolFaltante = cobro.modo === 'CONDOMINIO' ? Math.max(5.00, r2(cobro.lineas.length * 0.50)) : 1.00;
     if (montoAplicadoADeuda < totalDeudaCobro - tolFaltante) {
         throw new Error(`El monto cambió (ahora Bs ${totalDeudaCobro.toFixed(2)}). Vuelva a calcular antes de cobrar.`);
     }

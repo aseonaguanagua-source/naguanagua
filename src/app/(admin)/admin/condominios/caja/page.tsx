@@ -150,7 +150,7 @@ function Caja() {
   const totalNetoAbonable = Math.max(0, Math.round((totalConImpuestos - descuentoSaldoFavor) * 100) / 100);
   const faltaPagar = useMemo(() => Math.round((totalNetoAbonable - sumaPagos) * 100) / 100, [totalNetoAbonable, sumaPagos]);
   const tolRedondeo = useMemo(
-    () => (modo === 'CONDOMINIO' ? Math.max(5.00, Math.round((cobro?.lineas?.length || 1) * 0.50 * 100) / 100) : 1.00),
+    () => (modo === 'CONDOMINIO' ? Math.max(5.00, Math.round((cobro?.lineas?.length || 1) * 3.00 * 100) / 100) : 5.00),
     [modo, cobro?.lineas?.length]
   );
   const faltaPagarReal = sumaPagos > 0 && faltaPagar > 0 && faltaPagar <= tolRedondeo ? 0 : faltaPagar;
@@ -2712,7 +2712,7 @@ function Caja() {
                     </div>
                   </div>
                 ))}
-                {faltaPagar <= -5.00 && (
+                {faltaPagar <= -tolRedondeo && (
                   <div className="bg-emerald-500/20 border border-emerald-500/50 rounded-xl p-3 text-center mb-2">
                     <p className="text-emerald-300 text-xs font-bold uppercase tracking-wide">Genera Saldo a Favor</p>
                     <p className="text-emerald-400 text-base font-black">Bs {fmtBs(Math.abs(faltaPagar))}</p>
@@ -2790,7 +2790,7 @@ function Caja() {
                 <div className="border-t border-white/10 pt-3 space-y-1.5">
                   <div className="text-[11px] font-black uppercase tracking-wider text-white/60 flex items-center gap-2"><FileText className="w-4 h-4" /> Factura(s) digital(es): {cobro.facturas.length}</div>
                   {cobro.facturas.slice(0, 8).map((f: any, i: number) => {
-                    const ajusteRedondeoUnica = cobro.facturas.length === 1 && sumaPagos > 0 && Math.abs(totalNetoAbonable - sumaPagos) <= tolRedondeo && faltaPagar > -5.00;
+                    const ajusteRedondeoUnica = cobro.facturas.length === 1 && sumaPagos > 0 && Math.abs(totalNetoAbonable - sumaPagos) <= tolRedondeo && faltaPagar > -tolRedondeo;
                     const netoFact = ajusteRedondeoUnica ? sumaPagos + descuentoSaldoFavor : f.totalBs;
                     const totalFacturaFiscal = ajusteRedondeoUnica ? netoFact + (f.retencionBs || 0) : (f.totalBrutoBs || (f.totalBs + (f.retencionBs || 0)));
                     const retencion = f.retencionBs || 0;
@@ -2828,7 +2828,7 @@ function Caja() {
                 const montoEnEdicion = parseLocalFloat(montoAct) || 0;
                 const totalPagadoProyectado = sumaPagos + montoEnEdicion;
                 const balanceProyectado = Math.round((totalNetoAbonable - totalPagadoProyectado) * 100) / 100;
-                const tieneExcedente = balanceProyectado <= -5.00 || faltaPagar <= -5.00;
+                const tieneExcedente = balanceProyectado <= -tolRedondeo || faltaPagar <= -tolRedondeo;
                 const excedenteMonto = Math.max(0, -balanceProyectado);
                 const saldoRestanteBase = Math.max(0, saldoFavorActivo - descuentoSaldoFavor);
 
@@ -2838,12 +2838,12 @@ function Caja() {
                       {tieneExcedente && (
                         <div className="flex justify-between gap-2">
                           <span className="font-bold">Nota de crédito por excedente</span>
-                          <b className="tabular-nums">Bs {fmtBs(excedenteMonto >= 5.00 ? excedenteMonto : Math.abs(faltaPagar))}</b>
+                          <b className="tabular-nums">Bs {fmtBs(excedenteMonto >= tolRedondeo ? excedenteMonto : Math.abs(faltaPagar))}</b>
                         </div>
                       )}
                       <div className="flex justify-between gap-2">
                         <span>Saldo a favor que le quedará</span>
-                        <b className="tabular-nums">Bs {fmtBs(saldoRestanteBase + (excedenteMonto >= 5.00 ? excedenteMonto : (faltaPagar <= -5.00 ? Math.abs(faltaPagar) : 0)))}</b>
+                        <b className="tabular-nums">Bs {fmtBs(saldoRestanteBase + (excedenteMonto >= tolRedondeo ? excedenteMonto : (faltaPagar <= -tolRedondeo ? Math.abs(faltaPagar) : 0)))}</b>
                       </div>
                     </div>
                   );

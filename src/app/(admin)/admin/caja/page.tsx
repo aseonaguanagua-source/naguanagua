@@ -5674,7 +5674,7 @@ export default function CajaPage() {
                           const far = getFAR(inm.actividad_principal || '');
                           const formulaUCD = esTerreno ? 0 : (esRes ? (mmv * 57 * far) : (mmv * 57 * 0.1280));
                           const totalUCD = cant * formulaUCD;
-                          const bsMensual = totalUCD * currentBcvRate;
+                          const bsMensual = Math.round((calcularMensualidad(inm, currentBcvRate) + Number.EPSILON) * 100) / 100;
 
                           totalClusterUCD += totalUCD;
                           totalClusterBs += bsMensual;
@@ -7555,7 +7555,7 @@ export default function CajaPage() {
                               </div>
                             );
                           }
-                          if (diff > 0.02) {
+                          if (diff > 0.05) {
                             return (
                               <p className="text-[10px] text-emerald-600 mt-1 font-bold">
                                 * Se generará un saldo a favor de Bs. {formatBs(diff)}
@@ -7710,7 +7710,7 @@ export default function CajaPage() {
                       const tVal = parseLocalFloat(montoTransferido);
                       if (tVal <= 0) return null;
                       const diff = Math.round((tVal - totalNetoAPagar) * 100) / 100;
-                      if (diff >= 0.01) {
+                      if (diff > 0.05) {
                         return (
                           <p className="text-[10px] text-emerald-600 mt-1 font-bold">
                             * Se generará un saldo a favor de Bs. {formatBs(diff)}
