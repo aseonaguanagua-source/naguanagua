@@ -433,10 +433,25 @@ export async function POST(request: Request) {
         // 1. MONTO BASE (Bolívares):
         // NUNCA usar inm?.deuda_mmv directamente como Bolívares (es MMV, no Bs).
         const montoCaja = montos && typeof montos === 'object' && montos[ref] ? parseFloat(String(montos[ref])) : 0;
+        // Detectar si `montos[RECIB-HIST-COD-M1]` viene del portal con la multa ya incluida (M1 > último mes sin multa)
+        const ultimoRefInm = `RECIB-HIST-${codInm}-M${countHistThisInm}`;
+        const montoUltimoMesInm = montos && typeof montos === 'object' && montos[ultimoRefInm]
+          ? parseFloat(String(montos[ultimoRefInm]))
+          : 0;
+        const multaImplicitaMontoCaja = (
+          !isUltimoMes &&
+          countHistThisInm >= 2 &&
+          montoCaja > 0 &&
+          montoUltimoMesInm > 0 &&
+          (montoCaja - montoUltimoMesInm) > montoUltimoMesInm * 0.05 &&
+          (montoCaja - montoUltimoMesInm) < montoUltimoMesInm * 0.5
+        )
+          ? parseFloat((montoCaja - montoUltimoMesInm).toFixed(2))
+          : 0;
         let montoBase = 0;
         let multaDeRc = 0;
         if (montoCaja > 0) {
-          montoBase = montoCaja;
+          montoBase = multaImplicitaMontoCaja > 0 ? montoUltimoMesInm : montoCaja;
         } else if (detPago?.recibo_caja) {
           try {
             const rc = typeof detPago.recibo_caja === 'string' ? JSON.parse(detPago.recibo_caja) : detPago.recibo_caja;
@@ -504,7 +519,11 @@ export async function POST(request: Request) {
           (Number(inm?.multa_bs || 0) <= 0 && String(inm?.notas || '').includes('EXONERACIÓN DE MULTAS'))
         );
         let montoMulta = 0;
-        if (sinMultaGlobal || isMesExoneradoMulta(inm?.notas, dPer, omitirSepPago)) {
+        if (llevaMulta === false || isMesExoneradoMulta(inm?.notas, dPer, omitirSepPago)) {
+          montoMulta = 0;
+        } else if (multaImplicitaMontoCaja > 0) {
+          montoMulta = multaImplicitaMontoCaja;
+        } else if (sinMultaGlobal) {
           montoMulta = 0;
         } else if (detPago?.recibo_caja) {
           montoMulta = multaDeRc > 0 ? parseFloat((multaDeRc / histRecibos.length).toFixed(2)) : 0;
@@ -1059,7 +1078,10 @@ export async function POST(request: Request) {
     const rcDiffMultaEmit = rc0CheckEmit && Number(rc0CheckEmit.baseImponible || 0) > 0 && Number(rc0CheckEmit.subTotal || 0) > Number(rc0CheckEmit.baseImponible || 0) + 0.05
       ? r2(Number(rc0CheckEmit.subTotal) - Number(rc0CheckEmit.baseImponible))
       : 0;
-    const tieneMultaCobradaReal = multaCondoDirecta > 0.05 || rcExento > 0.05 || rcDiffMultaEmit > 0.05;
+    const multaHistItemsEmit = itemsExentos.length > 0
+      ? r2(itemsExentos.reduce((s: number, it: any) => s + (parseFloat(it.PrecioUnitario) || 0), 0))
+      : 0;
+    const tieneMultaCobradaReal = multaCondoDirecta > 0.05 || rcExento > 0.05 || rcDiffMultaEmit > 0.05 || multaHistItemsEmit > 0.05;
 
     const inmActiveExonerado = !esPagoExclusivoMulta && !tieneMultaCobradaReal && activeProps.length > 0 && activeProps.every((p: any) =>
       isExoneradoTotalMultas(p?.notas) || (Number(p?.multa_bs || 0) <= 0 && String(p?.notas || '').includes('EXONERACIÓN DE MULTAS') && !String(p?.notas || '').includes('[EXONERADO:'))

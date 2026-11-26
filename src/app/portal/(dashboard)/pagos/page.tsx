@@ -1504,10 +1504,44 @@ export default function DondePagarPage() {
 
     const identidad = localStorage.getItem('portal_doc') || '';
     const montosPorRecibo: Record<string, number> = {};
+    let totalMultaSeleccionada = 0;
+    const multasPorInmueble: Record<string, number> = {};
     const mesesSeleccionadosLabels: string[] = [];
     const mesesNombresPortal = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    const currentRateSnap = effectiveTcmmv > 0 ? effectiveTcmmv : 1;
     rawRecibos.filter(r => selectedReceiptRefs.includes(r.referencia)).forEach(r => {
       montosPorRecibo[r.referencia] = getReciboMonto(r);
+      if (r.esReciboCondominioMatriz) {
+        const mCondo = Number(r.multa) || 0;
+        if (mCondo > 0) {
+          totalMultaSeleccionada = r2(totalMultaSeleccionada + mCondo);
+          const codC = String(r.inmueble || '').toUpperCase();
+          if (codC) multasPorInmueble[codC] = r2((multasPorInmueble[codC] || 0) + mCondo);
+        }
+      } else if (r.referencia?.startsWith('RECIB-HIST-')) {
+        const parts = r.referencia.split('-');
+        const codInm = parts[2];
+        const inm = userInms.find((i: any) => i.inmueble === codInm);
+        if (inm) {
+          const histRefs = rawRecibos.filter((x: any) => x.referencia?.startsWith(`RECIB-HIST-${codInm}-M`));
+          const meses = histRefs.map((x: any) => ({ emision: x.emision || new Date().toISOString(), esUltimo: esUltimoMesHist(x.referencia, inm, histRefs.length) }));
+          const d = calcularDeudaInmueble(inm, currentRateSnap, meses);
+          const idx = histRefs.findIndex((x: any) => x.referencia === r.referencia);
+          const multaMes = d.porMes[idx]?.multa || 0;
+          if (multaMes > 0) {
+            totalMultaSeleccionada = r2(totalMultaSeleccionada + multaMes);
+            multasPorInmueble[codInm] = r2((multasPorInmueble[codInm] || 0) + multaMes);
+          }
+        }
+      } else if (r.referencia?.startsWith('MULTA-')) {
+        const mMulta = getReciboMonto(r);
+        if (mMulta > 0) {
+          totalMultaSeleccionada = r2(totalMultaSeleccionada + mMulta);
+          const m = r.referencia.match(/^MULTA-(.+?)(?:-M\d+)?$/i);
+          const codInm = (m ? m[1] : r.referencia.slice('MULTA-'.length)).toUpperCase();
+          if (codInm) multasPorInmueble[codInm] = r2((multasPorInmueble[codInm] || 0) + mMulta);
+        }
+      }
       if (r.emision) {
         const dEmi = new Date(r.emision);
         if (!isNaN(dEmi.getTime())) {
@@ -1533,12 +1567,16 @@ export default function DondePagarPage() {
     ));
     const deudaPreviaSnapshot = userInms
       .filter((i: any) => codigosSeleccionados.length === 0 || codigosSeleccionados.includes(String(i.inmueble || '').toUpperCase()))
-      .map((i: any) => ({
-        inmueble: i.inmueble,
-        meses_deuda: Number(i.meses_deuda) || 0,
-        multa_bs: Number(i.multa_bs) || 0,
-        deuda_congelada_bs: Number(i.deuda_congelada_bs) || 0,
-      }));
+      .map((i: any) => {
+        const codU = String(i.inmueble || '').toUpperCase();
+        const multaCalc = multasPorInmueble[codU] || Number(i.multa_bs) || 0;
+        return {
+          inmueble: i.inmueble,
+          meses_deuda: Number(i.meses_deuda) || 0,
+          multa_bs: multaCalc,
+          deuda_congelada_bs: Number(i.deuda_congelada_bs) || 0,
+        };
+      });
 
     try {
       const res = await fetch('/api/contribuyente/pago', {
@@ -1551,6 +1589,7 @@ export default function DondePagarPage() {
           convenioIds: convenioDbIds,
           servicioRefs: selectedServicios,
           montoRetencionIva: r2(rawRecibos.filter(r => selectedReceiptRefs.includes(r.referencia)).reduce((t, r) => t + getReciboRetencion(r), 0)),
+          montoMulta: totalMultaSeleccionada,
           saldoFavorUsado: totalNotaCreditoAplicada,
           notasCreditoPorInmueble: descuentoNotaPorLocal,
           monto: montoTotal,

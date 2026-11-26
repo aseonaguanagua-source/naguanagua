@@ -19,6 +19,7 @@ export async function POST(request: Request) {
     // Servicios especiales / extraordinarios (referencias SRV-…) seleccionados en el portal
     // IVA retenido por agentes de retención (75%): activa el flujo de factura con comprobante de retención
     const montoRetencionIva = Math.max(0, Number(body.montoRetencionIva ?? body.monto_retencion_iva) || 0);
+    const montoMultaReportado = Math.max(0, Math.round((Number(body.montoMulta ?? body.monto_multa ?? body.multa_bs) || 0) * 100) / 100);
     // Nota de Crédito / Saldo a Favor aplicado por inmueble desde Soy Contribuyente
     const saldoFavorUsado = Math.max(
       0,
@@ -351,6 +352,14 @@ export async function POST(request: Request) {
           nota_credito_usada: saldoFavorUsado,
           saldo_favor_descontado_al_reportar: true,
           notas_credito_por_inmueble: notasCreditoPorInmueble,
+        } : {}),
+        ...(montoMultaReportado > 0 ? {
+          multa_bs: montoMultaReportado,
+          montoMulta: montoMultaReportado,
+          monto_multa: montoMultaReportado,
+          llevaMulta: true,
+          sin_multas: false,
+          incluir_multas: true,
         } : {}),
         ...(montoRetencionIva > 0 ? {
           monto_retencion_iva: montoRetencionIva,

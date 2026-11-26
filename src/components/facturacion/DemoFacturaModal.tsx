@@ -150,8 +150,36 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
   if (Array.isArray(det.condominio?.lineas)) {
     multaCondoDirecta = parseFloat(det.condominio.lineas.reduce((acc: number, l: any) => acc + (parseFloat(String(l?.multaBs || 0)) || 0), 0).toFixed(2));
   }
+  const multaEnMontosHistDemo = (() => {
+    const montosObj = det.montos;
+    if (!montosObj || typeof montosObj !== 'object') return 0;
+    const byCod = new Map<string, Array<{ idx: number; val: number }>>();
+    for (const [k, v] of Object.entries(montosObj)) {
+      const m = String(k).match(/^RECIB-HIST-([A-Z0-9]+)-M(\d+)$/i);
+      if (m) {
+        const cod = m[1].toUpperCase();
+        const idx = parseInt(m[2], 10);
+        if (!byCod.has(cod)) byCod.set(cod, []);
+        byCod.get(cod)!.push({ idx, val: parseFloat(String(v || 0)) || 0 });
+      }
+    }
+    let sumM = 0;
+    for (const arr of byCod.values()) {
+      if (arr.length < 2) continue;
+      arr.sort((a, b) => a.idx - b.idx);
+      const lastVal = arr[arr.length - 1].val;
+      if (lastVal <= 0) continue;
+      for (let i = 0; i < arr.length - 1; i++) {
+        const diff = Math.round((arr[i].val - lastVal) * 100) / 100;
+        if (diff > lastVal * 0.05 && diff < lastVal * 0.5) {
+          sumM = Math.round((sumM + diff) * 100) / 100;
+        }
+      }
+    }
+    return sumM;
+  })();
 
-  const sinMultaActiva = Boolean(
+  const sinMultaActiva = multaEnMontosHistDemo <= 0.05 && Boolean(
     pago?.llevaMulta === false ||
     pago?.tieneMulta === false ||
     det?.llevaMulta === false ||
@@ -183,6 +211,9 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
         : det.deuda_previa;
 
       exento = dpFiltrada.reduce((acc: number, dp: any) => acc + (parseFloat(String(dp?.multa_bs || 0)) || 0), 0);
+    }
+    if (exento === 0 && multaEnMontosHistDemo > 0) {
+      exento = multaEnMontosHistDemo;
     }
   }
 

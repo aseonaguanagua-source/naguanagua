@@ -923,7 +923,37 @@ export default function FacturacionElectronicaPage() {
       (/multa/i.test(String(pago.detalles?.concepto || pago.concepto || '')) && !/aseo|servicio|recolecci[oó]n/i.test(String(pago.detalles?.concepto || pago.concepto || '').replace(/multa[^-–·]*[-–·]?\s*aseo\s*urbano/gi, 'multa')))
     );
 
-    const sinMultaEliminada = !esExclusivoMulta && multaCondo <= 0.05 && Boolean(
+    // Helper para extraer multas implícitas dentro de `detalles.montos` (RECIB-HIST-COD-M1 vs último mes sin multa)
+    const calcularMultaEnMontosHist = (montosObj: any): number => {
+      if (!montosObj || typeof montosObj !== 'object') return 0;
+      const byCod = new Map<string, Array<{ idx: number; val: number }>>();
+      for (const [k, v] of Object.entries(montosObj)) {
+        const m = String(k).match(/^RECIB-HIST-([A-Z0-9]+)-M(\d+)$/i);
+        if (m) {
+          const cod = m[1].toUpperCase();
+          const idx = parseInt(m[2], 10);
+          if (!byCod.has(cod)) byCod.set(cod, []);
+          byCod.get(cod)!.push({ idx, val: parseFloat(String(v || 0)) || 0 });
+        }
+      }
+      let sumMulta = 0;
+      for (const arr of byCod.values()) {
+        if (arr.length < 2) continue;
+        arr.sort((a, b) => a.idx - b.idx);
+        const lastVal = arr[arr.length - 1].val;
+        if (lastVal <= 0) continue;
+        for (let i = 0; i < arr.length - 1; i++) {
+          const diff = Math.round((arr[i].val - lastVal) * 100) / 100;
+          if (diff > lastVal * 0.05 && diff < lastVal * 0.5) {
+            sumMulta = Math.round((sumMulta + diff) * 100) / 100;
+          }
+        }
+      }
+      return sumMulta;
+    };
+    const multaEnMontosHist = calcularMultaEnMontosHist(pago.detalles?.montos);
+
+    const sinMultaEliminada = !esExclusivoMulta && multaCondo <= 0.05 && multaEnMontosHist <= 0.05 && Boolean(
       pago.tieneMulta === false ||
       pago.llevaMulta === false ||
       pago.detalles?.llevaMulta === false ||
@@ -932,7 +962,7 @@ export default function FacturacionElectronicaPage() {
       pago.detalles?.incluir_multas === false ||
       (pago.detalles?.montoMulta !== undefined && pago.detalles?.montoMulta !== null && String(pago.detalles.montoMulta).trim() !== '' && parseFloat(String(pago.detalles.montoMulta)) <= 0)
     );
-    const esSoloAseo = sinMultaEliminada || Boolean(pago.detalles?.solo_aseo || pago.detalles?.sin_multas || pago.detalles?.incluir_multas === false);
+    const esSoloAseo = sinMultaEliminada || (multaEnMontosHist <= 0.05 && Boolean(pago.detalles?.solo_aseo || pago.detalles?.sin_multas || pago.detalles?.incluir_multas === false));
     if (sinMultaEliminada) {
       multaCondo = 0;
       exentoRecibo = 0;
@@ -1002,16 +1032,19 @@ export default function FacturacionElectronicaPage() {
           exentoRecibo = dpFiltrada.reduce((acc: number, dp: any) => acc + (parseFloat(String(dp?.multa_bs || 0)) || 0), 0);
         }
 
-        // 2c. Revisar multa_bs / monto_multa directo
+        // 2c. Revisar multa_bs / monto_multa directo o multa implícita en RECIB-HIST-*-M1
         if (exentoRecibo === 0) {
           exentoRecibo = parseFloat(String(pago.detalles?.multa_bs || pago.detalles?.montos?.multa || pago.detalles?.monto_multa || 0)) || 0;
+        }
+        if (exentoRecibo === 0 && multaEnMontosHist > 0) {
+          exentoRecibo = multaEnMontosHist;
         }
       }
     }
 
     // Salvaguarda: si no hay multa comprobada en lineas de condominio o conceptos,
     // y exentoRecibo es igual o mayor a montoTotal y el pago liquida servicio ordinario, evitar falso positivo de abono provisional.
-    const tieneMultaComprobada = multaCondo > 0 || (Array.isArray(pago.detalles?.condominio?.lineas) && pago.detalles.condominio.lineas.some((l: any) => (parseFloat(String(l?.multaBs || 0)) || 0) > 0));
+    const tieneMultaComprobada = multaCondo > 0 || multaEnMontosHist > 0 || (Array.isArray(pago.detalles?.condominio?.lineas) && pago.detalles.condominio.lineas.some((l: any) => (parseFloat(String(l?.multaBs || 0)) || 0) > 0));
     if (!tieneMultaComprobada && exentoRecibo >= montoTotal && ((pago.mesesServicio && pago.mesesServicio > 0) || (Array.isArray(pago.detalles?.recibos) && pago.detalles.recibos.some((r: string) => !/^MULTA-/i.test(r))))) {
       exentoRecibo = 0;
     }

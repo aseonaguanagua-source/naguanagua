@@ -933,7 +933,38 @@ export async function GET(request: Request) {
       const lineasCondoDet = Array.isArray(det.condominio?.lineas) ? det.condominio.lineas : [];
       const aseoLineasTotal = lineasCondoDet.reduce((s: number, l: any) => s + (Number(l?.aseoBs) || 0), 0);
       const multaLineasTotal = lineasCondoDet.reduce((s: number, l: any) => s + (Number(l?.multaBs) || 0), 0);
-      const tieneMultaCobradaEnRecibo = multaLineasTotal > 0.05 || rcConceptoMulta > 0.05 || rcDiffMulta > 0.05;
+      const multaEnMontosHist = (() => {
+        const montosObj = det.montos;
+        if (!montosObj || typeof montosObj !== 'object') return 0;
+        const byCod = new Map<string, Array<{ idx: number; val: number }>>();
+        for (const [k, v] of Object.entries(montosObj)) {
+          const m = String(k).match(/^RECIB-HIST-([A-Z0-9]+)-M(\d+)$/i);
+          if (m) {
+            const cod = m[1].toUpperCase();
+            const idx = parseInt(m[2], 10);
+            if (!byCod.has(cod)) byCod.set(cod, []);
+            byCod.get(cod)!.push({ idx, val: parseFloat(String(v || 0)) || 0 });
+          }
+        }
+        let sumM = 0;
+        for (const arr of byCod.values()) {
+          if (arr.length < 2) continue;
+          arr.sort((a, b) => a.idx - b.idx);
+          const lastVal = arr[arr.length - 1].val;
+          if (lastVal <= 0) continue;
+          for (let i = 0; i < arr.length - 1; i++) {
+            const diff = Math.round((arr[i].val - lastVal) * 100) / 100;
+            if (diff > lastVal * 0.05 && diff < lastVal * 0.5) {
+              sumM = Math.round((sumM + diff) * 100) / 100;
+            }
+          }
+        }
+        return sumM;
+      })();
+      const tieneMultaCobradaEnRecibo = multaLineasTotal > 0.05 || rcConceptoMulta > 0.05 || rcDiffMulta > 0.05 || multaEnMontosHist > 0.05;
+      if (multaEnMontosHist > 0.05) {
+        clasif.tieneMulta = true;
+      }
 
       const inmExoneradoTotal = !tieneMultaCobradaEnRecibo && inmsDelPago.length > 0 && inmsDelPago.every((i: any) => {
         const notasStr = String(i.notas || '');
