@@ -1998,7 +1998,7 @@ export default function FacturacionElectronicaPage() {
                         </div>
                         {pago.conRetencion && (
                           <div className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
-                            Retención IVA (75%): Bs {fmtBs(pago.montoRetencion || pago.detalles?.monto_retencion_iva || 0)}
+                            Retención IVA ({pago.porcentajeRetencion || 75}%): Bs {fmtBs(pago.facturaEmitida && pago.detalles?.factura_digital?.retencion?.retenido ? pago.detalles.factura_digital.retencion.retenido : (pago.montoRetencion || pago.detalles?.monto_retencion_iva || 0))}
                           </div>
                         )}
                         {/* Desglose de múltiples pagos (ej: anticipo + diferencia o Saldo a Favor + Débito) */}

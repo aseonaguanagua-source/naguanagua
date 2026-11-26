@@ -12,6 +12,7 @@
 
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
+// @ts-ignore
 import bcrypt from 'bcryptjs';
 import { signSession, SESSION_COOKIE, SESSION_DURATION } from '@/lib/adminSession';
 

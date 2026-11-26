@@ -67,8 +67,10 @@ export async function generarReporteServiciosExcel(opts: GenerarReporteServicios
     listaServicios = data || [];
   }
 
-  // 2. Filtrar por rango de fechas, tipo y estado
-  const filtrados = listaServicios.filter((s: any) => {
+  // 2. Si ya vienen servicios pre-filtrados desde la pantalla (ej. filtro de mes actual), respetarlos directamente
+  const filtrados = (Array.isArray(opts.servicios) && opts.servicios.length > 0)
+    ? [...opts.servicios]
+    : listaServicios.filter((s: any) => {
     const fCreacion = s.created_at ? fechaVE(s.created_at) : '';
     const fBase = (s.fecha && s.fecha_evento && s.fecha === s.fecha_evento && fCreacion)
       ? fCreacion
@@ -347,8 +349,10 @@ export async function generarReporteServiciosExcel(opts: GenerarReporteServicios
       }
     }
 
-    // Monto a Pagar
-    const montoNum = r2(Number(s.monto ?? s.monto_bs ?? 0));
+    // Monto a Pagar (incluyendo el 16% de IVA oficial facturado para servicios comerciales / extraordinarios / especiales)
+    const montoBase = r2(Number(s.monto ?? s.monto_bs ?? 0));
+    const llevaIva = (tipoKey === 'especial' || tipoKey === 'extraordinario' || tipoKey === 'inspeccion') && !Boolean(s.exento);
+    const montoNum = llevaIva ? r2(montoBase * 1.16) : montoBase;
     sumaMonto = r2(sumaMonto + montoNum);
 
     // Pagado (fecha de pago si está pagado, o estado actual)
@@ -359,7 +363,8 @@ export async function generarReporteServiciosExcel(opts: GenerarReporteServicios
 
     let pagadoTexto = '';
     if (String(s.estado || '') === 'Pagado' || fPagoDetectada) {
-      const fPagISO = fPagoDetectada || fechaVE(s.updated_at) || fEmisionISO;
+      // Priorizar fecha de pago real vinculada, o fecha de emisión/solicitud del servicio (nunca updated_at que es un timestamp técnico)
+      const fPagISO = fPagoDetectada || fEmisionISO || fechaVE(s.fecha);
       pagadoTexto = fPagISO ? dmy(fPagISO) : 'Pagado';
     } else if (String(s.estado || '') === 'Por Verificar' || String(s.estado || '') === 'En Revisión') {
       pagadoTexto = 'Por Verificar';

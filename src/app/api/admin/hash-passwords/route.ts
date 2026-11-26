@@ -17,6 +17,7 @@
 
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
+// @ts-ignore
 import bcrypt from 'bcryptjs';
 
 const INTERNAL_API_SECRET = process.env.INTERNAL_API_SECRET;

@@ -172,6 +172,33 @@ export function cargosPorUnidad(c: Condominio, unidades: Unidad[], tasa: number)
   const clave = (u: Unidad, i: number) => u.id || u.inmueble || `U${i}`;
 
   if (c.modalidad === 'TARIFA_FIJA') {
+    // Si tiene unidades registradas, desglosar por unidad para que el Excel de Detalle por Unidad y las consultas muestren todas las casas/locales
+    if (vivas.length > 0) {
+      const mmvCondo = Number(c.tarifa_mmv) || 0;
+      const tarifaUnitBs = (c.tarifa_fija_bs || 0) > 0
+        ? r2(c.tarifa_fija_bs! / declarada)
+        : (mmvCondo > 0
+          ? r2(calcularMensualidad({ tipo: c.tipo === 'RESIDENCIAL' ? 'RESIDENCIAL' : 'COMERCIAL', actividad_principal: c.actividad || '', mmv_mes: mmvCondo, cant_inmuebles: 1, es_condominio: false }, tasa))
+          : r2(tUnit));
+
+      const cargos: CargoUnidad[] = vivas.map((u, i) => ({
+        clave: clave(u, i),
+        inmueble: u.inmueble,
+        cantidad: 1,
+        montoBs: unidadNoCobra(c, u) ? 0 : (Number(u.tarifa_mmv) > 0 ? r2(tarifaUnidadBs(c, tasa, u)) : tarifaUnitBs),
+      }));
+
+      const faltan = Math.max(0, declarada - vivas.length);
+      if (faltan > 0) {
+        cargos.push({
+          clave: '__SIN_REGISTRAR__',
+          cantidad: faltan,
+          montoBs: r2(tarifaUnitBs * faltan),
+        });
+      }
+      return cargos;
+    }
+
     if ((c.tarifa_fija_bs || 0) > 0) {
       return [{ clave: '__CONDOMINIO__', cantidad: declarada, montoBs: r2(c.tarifa_fija_bs!) }];
     } else {

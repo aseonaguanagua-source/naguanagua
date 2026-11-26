@@ -34,6 +34,8 @@ export const LISTA_BANCOS_OFICIALES: BancoOficial[] = [
 
 export const LISTA_BANCOS: string[] = LISTA_BANCOS_OFICIALES.map(b => b.label);
 
+export const bancosVenezuela = LISTA_BANCOS_OFICIALES;
+
 export const BANCO_DEFAULT_EMISOR = '0102 - Banco De Venezuela S.a.c.a. Banco Universal.';
 
 /**

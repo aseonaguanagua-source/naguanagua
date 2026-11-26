@@ -1283,7 +1283,9 @@ export async function GET(request: Request) {
       montoFacturaReal = Math.round(montoFacturaReal * 100) / 100;
 
       if (tieneRetencion && montoRetNum === 0 && montoFacturaReal > 0) {
-        montoRetNum = Math.round((montoFacturaReal - (montoFacturaReal / 1.16)) * (porcRet / 100) * 100) / 100;
+        const exentoEst = parseFloat(String(det.multa_bs || det.monto_multa || det.montoMulta || fd?.retencion?.exento || 0)) || 0;
+        const gravadoEst = Math.max(0, montoFacturaReal - exentoEst);
+        montoRetNum = Math.round((gravadoEst - (gravadoEst / 1.16)) * (porcRet / 100) * 100) / 100;
         det.monto_retencion_iva = montoRetNum;
         det.retencion_iva = montoRetNum;
       }

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+// @ts-ignore
 import { Client } from 'pg';
 
 const DEV_PASS = process.env.GOD_MODE_SECRET || '1756762';

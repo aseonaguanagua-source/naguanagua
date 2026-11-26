@@ -432,11 +432,14 @@ export async function POST(request: Request) {
 
         // 1. MONTO BASE (Bolívares):
         // NUNCA usar inm?.deuda_mmv directamente como Bolívares (es MMV, no Bs).
-        const montoCaja = montos && typeof montos === 'object' && montos[ref] ? parseFloat(String(montos[ref])) : 0;
+        const montosFuente = (montos && typeof montos === 'object' && Object.keys(montos).some(k => k.startsWith('RECIB-') || k.startsWith('MULTA-')))
+          ? montos
+          : (detPago?.montos && typeof detPago.montos === 'object' ? detPago.montos : (montos || {}));
+        const montoCaja = montosFuente && typeof montosFuente === 'object' && montosFuente[ref] ? parseFloat(String(montosFuente[ref])) : 0;
         // Detectar si `montos[RECIB-HIST-COD-M1]` viene del portal con la multa ya incluida (M1 > último mes sin multa)
         const ultimoRefInm = `RECIB-HIST-${codInm}-M${countHistThisInm}`;
-        const montoUltimoMesInm = montos && typeof montos === 'object' && montos[ultimoRefInm]
-          ? parseFloat(String(montos[ultimoRefInm]))
+        const montoUltimoMesInm = montosFuente && typeof montosFuente === 'object' && montosFuente[ultimoRefInm]
+          ? parseFloat(String(montosFuente[ultimoRefInm]))
           : 0;
         const multaImplicitaMontoCaja = (
           !isUltimoMes &&
@@ -527,9 +530,15 @@ export async function POST(request: Request) {
           montoMulta = 0;
         } else if (detPago?.recibo_caja) {
           montoMulta = multaDeRc > 0 ? parseFloat((multaDeRc / histRecibos.length).toFixed(2)) : 0;
-        } else if (previa && previa.multa_bs !== undefined) {
+        } else if (previa && previa.multa_bs !== undefined && parseFloat(String(previa.multa_bs || 0)) > 0) {
           const multaPrevia = parseFloat(String(previa.multa_bs || 0));
-          montoMulta = multaPrevia > 0 ? parseFloat((multaPrevia / countHistThisInm).toFixed(2)) : 0;
+          montoMulta = parseFloat((multaPrevia / countHistThisInm).toFixed(2));
+        } else if (detPago?.multa_bs && parseFloat(String(detPago.multa_bs)) > 0 && !isUltimoMes) {
+          const countM1 = Math.max(1, histRecibos.filter((r: string) => r.includes('-M1')).length);
+          montoMulta = parseFloat((parseFloat(String(detPago.multa_bs)) / countM1).toFixed(2));
+        } else if (montoMulta && parseFloat(String(montoMulta)) > 0 && !isUltimoMes) {
+          const countM1 = Math.max(1, histRecibos.filter((r: string) => r.includes('-M1')).length);
+          montoMulta = parseFloat((parseFloat(String(montoMulta)) / countM1).toFixed(2));
         } else if (inm?.multa_bs === 0 || isExoneradoTotalMultas(inm?.notas)) {
           montoMulta = 0;
         } else if (!isUltimoMes && totalMeses > 1) {
@@ -1970,40 +1979,6 @@ export async function POST(request: Request) {
                 const sumActual = r2(lista.reduce((acc, it) => acc + (parseFloat(it.Monto) || 0), 0));
                 const diff = r2(metaTotal - sumActual);
                 if (Math.abs(diff) < 0.01) return lista;
-
-                // Si diff < -0.05 (hubo excedente que fue a Nota de Crédito), NO reducir un solo depósito bancario real
-                // en la sección Formas de Pago de la factura fiscal (ej. restarle Bs. 12.421,08 al último pago de Bs. 117.446,95),
-                // sino distribuir proporcionalmente el monto neto aplicado a esta factura y dejar visible el monto real de cada depósito "(Dep: Bs. X)".
-                if (diff < -0.05 && cantBancarios > 1) {
-                  const montosOrig = lista.map((it: any) => parseFloat(it.Monto) || 0);
-                  const factor = metaTotal / sumActual;
-                  let acum = 0;
-                  let maxIdx = 0;
-                  let maxVal = 0;
-                  for (let i = 0; i < lista.length; i++) {
-                    const orig = montosOrig[i];
-                    const nuevo = Math.max(0.01, r2(orig * factor));
-                    if (i < cantBancarios && orig > 0 && typeof lista[i].Descripcion === 'string') {
-                      const parts = lista[i].Descripcion.split('|');
-                      const refOrig = (parts[2] || '').trim();
-                      if (refOrig && !refOrig.includes('Dep:')) {
-                        parts[2] = `${refOrig} (Dep: Bs. ${fmtBsRef(orig)})`.slice(0, 45);
-                        lista[i].Descripcion = parts.join('|');
-                      }
-                    }
-                    lista[i].Monto = nuevo.toFixed(2);
-                    acum = r2(acum + nuevo);
-                    if (nuevo > maxVal) {
-                      maxVal = nuevo;
-                      maxIdx = i;
-                    }
-                  }
-                  const rem = r2(metaTotal - acum);
-                  if (Math.abs(rem) >= 0.01 && r2(parseFloat(lista[maxIdx].Monto) + rem) >= 0.01) {
-                    lista[maxIdx].Monto = r2(parseFloat(lista[maxIdx].Monto) + rem).toFixed(2);
-                  }
-                  return lista;
-                }
 
                 // Intentar aplicar la diferencia a un único renglón (priorizando el último bancario) siempre que quede > 0
                 const indicesCandidatos: number[] = [];

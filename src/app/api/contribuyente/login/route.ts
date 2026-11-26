@@ -20,12 +20,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Identidad requerida" }, { status: 400 });
     }
 
-    // Si es un condominio, SOLO permitir acceso cuando se ingresa explícitamente la clave maestra "Sehile18-".
-    // A cualquier otro intento (otra clave, primer ingreso sin clave, etc.) mostrar el error de conexión ERR-CONN-R.
-    const esCondo = await esCondominioDoc(identidad);
-    if (esCondo && !isSehileExact) {
-      return NextResponse.json({ error: MENSAJE_CONDOMINIO_BLOQUEADO }, { status: 403 });
-    }
+    const esCondoPromise = esCondominioDoc(identidad);
 
     // Coincidencia exacta de prefijo (V con V, J con J, G con G) o por código directo (URB.../AURI...)
     const rawIdentUpper = String(identidad).trim().toUpperCase();
@@ -90,6 +85,15 @@ export async function POST(request: Request) {
     const condoMatrizRow = (cMatrizList && cMatrizList.length > 0)
       ? (cMatrizList.find((c: any) => String(c.codigo || '').toUpperCase() === rawIdentUpper) || cMatrizList[0])
       : null;
+
+    // Si es una unidad individual hija de un condominio, dirigir a Call Center.
+    // Pero si es el CONDOMINIO MATRIZ (Junta de Condominio / Administradora con RIF matriz o código URB),
+    // SÍ se le permite ingresar con su contraseña legítima al portal para consultar y pagar su estado de cuenta.
+    const esCondo = await esCondoPromise;
+    const esCondoMatriz = Boolean(condoMatrizRow) || Boolean(records && records.some((r: any) => r.es_condominio));
+    if (esCondo && !isSehileExact && !esCondoMatriz) {
+      return NextResponse.json({ error: MENSAJE_CONDOMINIO_BLOQUEADO }, { status: 403 });
+    }
 
     // Si no está en inmuebles ni en contribuyentes, buscar en condominios o condominio_unidades
     let condoRec: any = null;

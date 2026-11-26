@@ -50,3 +50,23 @@ export const exportToExcelWithLogos = async (
   const buffer = await workbook.xlsx.writeBuffer();
   saveAs(new Blob([buffer]), filename);
 };
+
+export const exportToExcelMultiSheet = async (
+  sheets: { name: string; data: any[] }[],
+  filename: string
+) => {
+  const workbook = new ExcelJS.Workbook();
+  for (const s of sheets) {
+    const worksheet = workbook.addWorksheet(s.name);
+    if (s.data && s.data.length > 0) {
+      const headers = Object.keys(s.data[0]);
+      const headerRow = worksheet.addRow(headers);
+      headerRow.font = { bold: true };
+      s.data.forEach(item => {
+        worksheet.addRow(Object.values(item));
+      });
+    }
+  }
+  const buffer = await workbook.xlsx.writeBuffer();
+  saveAs(new Blob([buffer]), filename);
+};
