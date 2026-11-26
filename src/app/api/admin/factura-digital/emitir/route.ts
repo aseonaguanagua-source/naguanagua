@@ -2447,14 +2447,17 @@ export async function POST(request: Request) {
     // ── Agente de retención: estado del flujo (la factura queda retenida hasta aprobar la planilla, salvo si fue liberada sin planilla) ──
     if (conRetencion && nuevosDetalles.factura_digital?.emitida) {
       const porcRet = resolverPorcRetencion(detPago, totalIVA);
+      const retCalc = calcularRetencion(totalGravado, totalIVA, totalExento, porcRet);
       nuevosDetalles.porcentaje_retencion = porcRet;
       nuevosDetalles.porcentaje_retencion_iva = porcRet;
+      nuevosDetalles.monto_retencion_iva = retCalc.retenido;
+      nuevosDetalles.retencion_iva = retCalc.retenido;
       nuevosDetalles.factura_digital.retencion = {
         ...(nuevosDetalles.factura_digital.retencion || {}),
         estado: esLiberadoSinPlanilla ? 'aprobada' : (nuevosDetalles.factura_digital.retencion?.estado || 'esperando_planilla'),
         liberado_sin_planilla: esLiberadoSinPlanilla ? true : nuevosDetalles.factura_digital.retencion?.liberado_sin_planilla,
         porcentaje_retencion: porcRet,
-        ...calcularRetencion(totalGravado, totalIVA, totalExento, porcRet),
+        ...retCalc,
       };
     }
 

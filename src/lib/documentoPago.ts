@@ -124,7 +124,24 @@ export function clasificarPago(recibos: string[], inmMap: Map<string, any>, det:
   }
 
   // Fallback cuando `recibos` viene vacío (ej. pago de cuota de Convenio o cargo directo con codigo_inmueble / deuda_previa):
-  if (inmuebles.size === 0) {
+  // Si el pago es de Servicios Especiales / Extraordinarios / Inspecciones / Visto Bueno / Tala y Poda y ya tiene un Recibo Digital enviado
+  // (sin Factura Digital emitida), se respeta como RECIBO para no reclasificar retroactivamente recibos ya emitidos como facturas pendientes.
+  const tieneServiciosOTalaPoda =
+    (Array.isArray(det?.servicios) && det.servicios.length > 0) ||
+    (Array.isArray(det?.tala_poda) && det.tala_poda.length > 0);
+  const tieneFacturaEmitida = Boolean(
+    det?.factura_digital?.emitida ||
+    det?.factura_digital?.numero_control ||
+    det?.factura_digital?.numero_documento
+  );
+  const tieneReciboEnviadoSinFactura = Boolean(
+    !tieneFacturaEmitida &&
+    det?.recibo_digital &&
+    (det.recibo_digital.enviado || det.recibo_digital.numero)
+  );
+  const esServicioConReciboYaEmitido = tieneServiciosOTalaPoda && tieneReciboEnviadoSinFactura;
+
+  if (inmuebles.size === 0 && !esServicioConReciboYaEmitido) {
     const codsDirectos = new Set<string>();
     const addCodDir = (v: any) => {
       const c = String(v || '').trim().toUpperCase();
@@ -144,6 +161,18 @@ export function clasificarPago(recibos: string[], inmMap: Map<string, any>, det:
       else if (esSoloMultas) multaComercial = true;
       else servicioComercial = true;
     }
+  } else if (inmuebles.size === 0 && esServicioConReciboYaEmitido) {
+    const addCodOnly = (v: any) => {
+      const c = String(v || '').trim().toUpperCase();
+      if (c && /^(?:URB|AURI|CONDO)/i.test(c)) inmuebles.add(c);
+    };
+    addCodOnly(det?.codigo_inmueble);
+    addCodOnly(det?.cod_inmueble);
+    addCodOnly(det?.inmueble);
+    if (Array.isArray(det?.deuda_previa)) {
+      det.deuda_previa.forEach((dp: any) => addCodOnly(dp?.inmueble));
+    }
+    residencial = true;
   }
 
   const valoresMeses = Object.values(mesesPorInmueble);
@@ -151,8 +180,8 @@ export function clasificarPago(recibos: string[], inmMap: Map<string, any>, det:
     mesesServicio = Math.max(...valoresMeses);
   }
 
-  // Referencias sin inmueble identificable: si caja cobró IVA, es servicio comercial.
-  if (!servicioComercial && desconocido && (parseFloat(String(det?.iva_percent || 0)) || 0) > 0) {
+  // Referencias sin inmueble identificable: si caja cobró IVA, es servicio comercial (salvo si es servicio especial con recibo ya emitido).
+  if (!servicioComercial && !esServicioConReciboYaEmitido && desconocido && (parseFloat(String(det?.iva_percent || 0)) || 0) > 0) {
     servicioComercial = true;
   }
 

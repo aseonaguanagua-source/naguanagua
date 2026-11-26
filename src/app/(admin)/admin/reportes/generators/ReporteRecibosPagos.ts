@@ -230,11 +230,17 @@ export async function obtenerRecibosPagosUnificados(
   if (itemsApi) {
     recibosList = itemsApi.filter((p) => {
       const det = parseDet(p);
-      const cod = resolverCodigo(p, det);
-      const inm = (cod !== '-' ? inmMap.get(cod) : null) || inmByIdentidad.get(cleanId(p.identidad)) || null;
-      if (inm && !isResidencialInm(inm)) return false;
       const clasif = clasificarPago(det.recibos || [], inmMap, det);
-      return clasif.documento === 'recibo';
+      if (clasif.documento !== 'recibo') return false;
+      const tieneSrvConRecibo =
+        ((Array.isArray(det.servicios) && det.servicios.length > 0) || (Array.isArray(det.tala_poda) && det.tala_poda.length > 0)) &&
+        Boolean(det.recibo_digital?.enviado || det.recibo_digital?.numero);
+      if (!tieneSrvConRecibo) {
+        const cod = resolverCodigo(p, det);
+        const inm = (cod !== '-' ? inmMap.get(cod) : null) || inmByIdentidad.get(cleanId(p.identidad)) || null;
+        if (inm && !isResidencialInm(inm)) return false;
+      }
+      return true;
     });
   } else {
     const candidatosRecibos = pagos
@@ -258,11 +264,17 @@ export async function obtenerRecibosPagosUnificados(
         if (esHijoSecundario) return false;
         if (fd.emitida || fd.numero_documento || fd.numero_control || fd.anulada) return false;
 
-        const cod = resolverCodigo(p, det);
-        const inm = (cod !== '-' ? inmMap.get(cod) : null) || inmByIdentidad.get(cleanId(p.identidad)) || null;
-        if (inm && !isResidencialInm(inm)) return false;
         const clasif = clasificarPago(det.recibos || [], inmMap, det);
-        return clasif.documento === 'recibo';
+        if (clasif.documento !== 'recibo') return false;
+        const tieneSrvConRecibo =
+          ((Array.isArray(det.servicios) && det.servicios.length > 0) || (Array.isArray(det.tala_poda) && det.tala_poda.length > 0)) &&
+          Boolean(rd.enviado || rd.numero);
+        if (!tieneSrvConRecibo) {
+          const cod = resolverCodigo(p, det);
+          const inm = (cod !== '-' ? inmMap.get(cod) : null) || inmByIdentidad.get(cleanId(p.identidad)) || null;
+          if (inm && !isResidencialInm(inm)) return false;
+        }
+        return true;
       })
       .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
 

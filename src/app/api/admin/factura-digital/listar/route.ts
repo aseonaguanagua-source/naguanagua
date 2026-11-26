@@ -1076,8 +1076,11 @@ export async function GET(request: Request) {
       }
 
       const vincRet = retencionPorPagoVinculado.get(String(pago.id));
+      const retEmitidaNum = parseFloat(String(fd?.retencion?.retenido || 0)) || 0;
       const montoRetGuardada = parseFloat(String(det.monto_retencion_iva || det.retencion_iva || 0)) || 0;
-      let montoRetNum = montoRetGuardada > 0 ? montoRetGuardada : (vincRet ? vincRet.monto : 0);
+      let montoRetNum = retEmitidaNum > 0
+        ? retEmitidaNum
+        : (montoRetGuardada > 0 ? montoRetGuardada : (vincRet ? vincRet.monto : 0));
 
       // Detección de Agente de Retención por catálogo de inmuebles / condominios
       let esAgenteEnCatalogo = false;
