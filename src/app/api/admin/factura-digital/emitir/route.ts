@@ -1971,6 +1971,40 @@ export async function POST(request: Request) {
                 const diff = r2(metaTotal - sumActual);
                 if (Math.abs(diff) < 0.01) return lista;
 
+                // Si diff < -0.05 (hubo excedente que fue a Nota de Crédito), NO reducir un solo depósito bancario real
+                // en la sección Formas de Pago de la factura fiscal (ej. restarle Bs. 12.421,08 al último pago de Bs. 117.446,95),
+                // sino distribuir proporcionalmente el monto neto aplicado a esta factura y dejar visible el monto real de cada depósito "(Dep: Bs. X)".
+                if (diff < -0.05 && cantBancarios > 1) {
+                  const montosOrig = lista.map((it: any) => parseFloat(it.Monto) || 0);
+                  const factor = metaTotal / sumActual;
+                  let acum = 0;
+                  let maxIdx = 0;
+                  let maxVal = 0;
+                  for (let i = 0; i < lista.length; i++) {
+                    const orig = montosOrig[i];
+                    const nuevo = Math.max(0.01, r2(orig * factor));
+                    if (i < cantBancarios && orig > 0 && typeof lista[i].Descripcion === 'string') {
+                      const parts = lista[i].Descripcion.split('|');
+                      const refOrig = (parts[2] || '').trim();
+                      if (refOrig && !refOrig.includes('Dep:')) {
+                        parts[2] = `${refOrig} (Dep: Bs. ${fmtBsRef(orig)})`.slice(0, 45);
+                        lista[i].Descripcion = parts.join('|');
+                      }
+                    }
+                    lista[i].Monto = nuevo.toFixed(2);
+                    acum = r2(acum + nuevo);
+                    if (nuevo > maxVal) {
+                      maxVal = nuevo;
+                      maxIdx = i;
+                    }
+                  }
+                  const rem = r2(metaTotal - acum);
+                  if (Math.abs(rem) >= 0.01 && r2(parseFloat(lista[maxIdx].Monto) + rem) >= 0.01) {
+                    lista[maxIdx].Monto = r2(parseFloat(lista[maxIdx].Monto) + rem).toFixed(2);
+                  }
+                  return lista;
+                }
+
                 // Intentar aplicar la diferencia a un único renglón (priorizando el último bancario) siempre que quede > 0
                 const indicesCandidatos: number[] = [];
                 for (let i = Math.min(cantBancarios, lista.length) - 1; i >= 0; i--) indicesCandidatos.push(i);

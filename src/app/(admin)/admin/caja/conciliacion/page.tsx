@@ -698,7 +698,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
   // Monto conciliado: auto-fill segun estatus
   const montoConciliadoInicialNum = (() => {
     const mc = det.monto_conciliado ? parseLocalFloat(det.monto_conciliado) : 0;
-    if (mc > 0 && mc >= montoReportadoNum) return mc;
+    if (mc > 0) return mc;
     return montoReportadoNum;
   })();
   const [montoConciliado, setMontoConciliado] = useState<string>(

@@ -602,6 +602,79 @@ export async function POST(req: Request) {
       (actualP?.modulo === 'condominios' || detPrevCheck.modulo === 'condominios' || detPrevCheck.es_condominio || detPrevCheck.isCondominio) &&
       !detPrevCheck.deuda_condo_aplicada
     );
+    if (actualP && actualP.estado === 'Aprobado' && (upd.estado === 'Aprobado' || !upd.estado)) {
+      const detP = typeof actualP.detalles === 'string' ? JSON.parse(actualP.detalles || '{}') : (actualP.detalles || {});
+      const d = typeof upd.detalles === 'object' ? { ...detP, ...upd.detalles } : { ...detP };
+      const montoNuevoEdicion = parseFloat(String(upd.monto ?? actualP.monto ?? d.monto_conciliado ?? 0)) || 0;
+      const montoDocEdicion = parseFloat(String(d.monto_factura || d.total_seleccionado || d.montoTotal || 0)) || 0;
+      const montoRetEdicion = parseFloat(String(d.monto_retencion_iva || d.retencion_iva || 0)) || 0;
+      const abonoPrevEdicion = parseFloat(String(d.abono_previo_descontado || 0)) || 0;
+      let sfUsadoEdicion = parseFloat(String(d.saldo_usado || d.descuento_saldo_favor || d.saldo_favor_usado || 0)) || 0;
+      if (sfUsadoEdicion <= 0 && Array.isArray(d.pagos_agregados)) {
+        sfUsadoEdicion = d.pagos_agregados
+          .filter((pa: any) => /saldo|nota de cr[eé]dito/i.test(String(pa?.metodo || pa?.tipo || pa?.referencia || '')))
+          .reduce((acc: number, pa: any) => acc + (parseFloat(String(pa?.monto || 0)) || 0), 0);
+      }
+      if (sfUsadoEdicion <= 0 && Array.isArray(d.formasPago)) {
+        sfUsadoEdicion = d.formasPago
+          .filter((fp: any) => /saldo|nota de cr[eé]dito/i.test(String(fp?.descripcion || fp?.metodo || fp?.referencia || '')))
+          .reduce((acc: number, fp: any) => acc + (parseFloat(String(fp?.monto || 0)) || 0), 0);
+      }
+      const deudaNetaEdicion = Math.max(0, Math.round((montoDocEdicion - montoRetEdicion - sfUsadoEdicion - abonoPrevEdicion) * 100) / 100);
+      if (
+        montoDocEdicion > 0 &&
+        montoNuevoEdicion >= deudaNetaEdicion + 5.00 &&
+        !detP.saldo_favor_acreditado &&
+        !d.es_abono &&
+        !d.es_pago_adicional &&
+        !d.pago_vinculado &&
+        actualP.tipo !== 'Retencion de IVA'
+      ) {
+        const excedenteEdicion = Math.round((montoNuevoEdicion - deudaNetaEdicion) * 100) / 100;
+        const rawIdEd = String(actualP.identidad || '').trim().toUpperCase();
+        const sinGEd = rawIdEd.replace(/-/g, '');
+        const conGEd = /^[VEJPG]\d/.test(sinGEd) ? `${sinGEd[0]}-${sinGEd.slice(1)}` : rawIdEd;
+        const codTargetEd = String(d.condominio?.codigo || d.codigo_condominio || d.codigo_inmueble || d.cod_inmueble || '').trim().toUpperCase() || undefined;
+        const esCondoEd = actualP.modulo === 'condominios' || d.modulo === 'condominios' || d.es_condominio || d.isCondominio;
+        const esModoCondoEd = esCondoEd && (d.condominio?.modo || d.modo) === 'CONDOMINIO';
+        try {
+          const { data: existNcEd } = await sb
+            .from('documentos')
+            .select('id')
+            .eq('tipo', 'Nota de Credito')
+            .eq('estado', 'Vigente')
+            .ilike('detalles', `%${pagoId}%`)
+            .limit(1);
+          if (!existNcEd || existNcEd.length === 0) {
+            await acreditarSaldoFavor(conGEd || rawIdEd, excedenteEdicion, codTargetEd, sb);
+            await sb.from('documentos').insert([{
+              identidad: conGEd || rawIdEd,
+              contribuyente: d.contribuyente || d.contribuyente_nombre || conGEd || rawIdEd,
+              tipo: 'Nota de Credito',
+              estado: 'Vigente',
+              detalles: JSON.stringify({
+                monto: excedenteEdicion.toFixed(2),
+                monto_bs: excedenteEdicion,
+                ambito: esModoCondoEd ? 'CONDOMINIO' : (esCondoEd ? 'LOCAL' : 'CONTRIBUYENTE'),
+                codigo_inmueble: codTargetEd,
+                origen_referencia: `Excedente Pago Conciliado${codTargetEd ? ' ' + codTargetEd : ''}. Ref: ${upd.referencia || actualP.referencia || ''}`,
+                motivo: `Nota de crédito automática por excedente de pago conciliado`,
+                fecha_emision: new Date().toISOString(),
+                pago_id: pagoId,
+              }),
+            }]);
+            d.saldo_favor = excedenteEdicion;
+            d.saldo_favor_generado = excedenteEdicion;
+            d.saldo_a_favor_nuevo = excedenteEdicion;
+            d.saldo_favor_acreditado = true;
+            upd.detalles = d;
+          }
+        } catch (eEdNc) {
+          console.warn('Error acreditando saldo a favor al editar monto conciliado:', eEdNc);
+        }
+      }
+    }
+
     if (upd.estado === 'Aprobado' && (!cambios.skipServerDebtSync || esCondoSinAplicar)) {
       if (actualP && actualP.estado !== 'Aprobado') {
         const detP = typeof actualP.detalles === 'string' ? JSON.parse(actualP.detalles || '{}') : (actualP.detalles || {});
