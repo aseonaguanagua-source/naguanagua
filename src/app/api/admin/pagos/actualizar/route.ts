@@ -717,7 +717,25 @@ export async function POST(req: Request) {
           }
 
           // Acreditar saldo a favor si la transferencia de condominio tenía excedente pendiente
-          const sfCondo = parseFloat(String(d.saldo_favor || d.saldo_a_favor_nuevo || d.saldo_favor_generado || 0)) || 0;
+          let sfCondo = parseFloat(String(d.saldo_favor || d.saldo_a_favor_nuevo || d.saldo_favor_generado || 0)) || 0;
+          if (sfCondo <= 0) {
+            const mTransf = parseFloat(String(cambios.monto ?? actualP.monto ?? d.monto_conciliado ?? 0)) || 0;
+            const mDoc = parseFloat(String(d.monto_factura || d.total_seleccionado || d.montoTotal || 0)) || 0;
+            const mRet = parseFloat(String(d.monto_retencion_iva || d.retencion_iva || 0)) || 0;
+            let mSfUsado = parseFloat(String(d.saldo_usado || d.saldo_favor_usado || d.descuento_saldo_favor || 0)) || 0;
+            if (mSfUsado <= 0 && Array.isArray(d.pagos_agregados)) {
+              mSfUsado = d.pagos_agregados
+                .filter((pa: any) => /saldo|nota de cr[eé]dito/i.test(String(pa?.metodo || pa?.tipo || pa?.referencia || '')))
+                .reduce((acc: number, pa: any) => acc + (parseFloat(String(pa?.monto || 0)) || 0), 0);
+            }
+            const deudaNetaReq = Math.max(0, Math.round((mDoc - mRet - mSfUsado) * 100) / 100);
+            if (mDoc > 0 && mTransf >= deudaNetaReq + 5.00) {
+              sfCondo = Math.round((mTransf - deudaNetaReq) * 100) / 100;
+              d.saldo_favor = sfCondo;
+              d.saldo_favor_generado = sfCondo;
+              d.saldo_a_favor_nuevo = sfCondo;
+            }
+          }
           if (sfCondo > 0 && sfCondo < 5.00) {
             d.saldo_favor = 0;
             d.saldo_favor_generado = 0;

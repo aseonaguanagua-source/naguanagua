@@ -2567,9 +2567,9 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
                   type="text"
                   inputMode="decimal"
                 />
-                {estatus === 'Aprobado' && montoConciliadoNum > totalAPagarCalc + 0.05 && (
+                {estatus === 'Aprobado' && montoConciliadoNum >= totalBancosRequerido + 5.00 && (
                   <p className="text-[11px] text-emerald-600 mt-1 font-bold">
-                    ✓ Excedente de Bs. {fmt(montoConciliadoNum - totalAPagarCalc)} se acreditará como Saldo a Favor con Nota de Crédito.
+                    ✓ Excedente de Bs. {fmt(montoConciliadoNum - totalBancosRequerido)} {det.saldo_favor_acreditado ? 'acreditado' : 'se acreditará'} como Saldo a Favor con Nota de Crédito.
                   </p>
                 )}
               </div>
@@ -2663,10 +2663,10 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
                   <span className="font-bold font-mono">Bs. {fmt(montoReportadoNum)}</span>
                 </div>
               )}
-              {estatus === 'Aprobado' && montoConciliadoNum > totalAPagarCalc + 0.05 && (
+              {estatus === 'Aprobado' && montoConciliadoNum >= totalBancosRequerido + 5.00 && (
                 <div className="flex justify-between text-sm border-t pt-1 mt-1 text-emerald-700 font-bold bg-emerald-50/70 p-2 rounded">
                   <span>Saldo a Favor Generado (Nota de Crédito)</span>
-                  <span>+ {fmt(montoConciliadoNum - totalAPagarCalc)}</span>
+                  <span>+ {fmt(montoConciliadoNum - totalBancosRequerido)}</span>
                 </div>
               )}
               {/* Alerta de monto insuficiente */}
