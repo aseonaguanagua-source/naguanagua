@@ -619,7 +619,17 @@ export async function GET(request: Request) {
       // NUNCA deben salir como facturables por el mes completo (ni siquiera si abono_completado quedó en true por error cuando falta diferencia)
       const infoAbPrev = abonosInfoPorPagoPrincipal.get(p.id);
       const abonoPrevDesc = parseFloat(String(d?.abono_previo_descontado || 0)) || 0;
-      const sfAplicadoP = parseFloat(String(d?.saldo_usado ?? d?.descuentoSaldoFavor ?? d?.descuento_saldo_favor ?? d?.saldo_favor_usado ?? d?.nota_credito_usada ?? d?.monto_saldo_favor ?? 0)) || 0;
+      let sfAplicadoP = parseFloat(String(d?.saldo_usado ?? d?.descuentoSaldoFavor ?? d?.descuento_saldo_favor ?? d?.saldo_favor_usado ?? d?.nota_credito_usada ?? d?.monto_saldo_favor ?? 0)) || 0;
+      if (sfAplicadoP === 0 && Array.isArray(d?.pagos_agregados)) {
+        sfAplicadoP = d.pagos_agregados
+          .filter((pa: any) => /saldo\s*a\s*favor|nota\s*de\s*cr[eé]dito/i.test(String(pa?.metodo || pa?.tipo || pa?.descripcion || pa?.referencia || '')))
+          .reduce((s: number, pa: any) => s + (parseFloat(String(pa?.monto || 0)) || 0), 0);
+      }
+      if (sfAplicadoP === 0 && Array.isArray(d?.formasPago)) {
+        sfAplicadoP = d.formasPago
+          .filter((fp: any) => /saldo\s*a\s*favor|nota\s*de\s*cr[eé]dito/i.test(String(fp?.descripcion || fp?.tipo || fp?.metodo || fp?.referencia || '')))
+          .reduce((s: number, fp: any) => s + (parseFloat(String(fp?.monto || 0)) || 0), 0);
+      }
       const retGuardadaP = parseFloat(String(d?.monto_retencion_iva || d?.retencion_iva || d?.factura_digital?.retencion?.retenido || 0)) || 0;
       const montoPagoBaseP = parseFloat(String(p.monto || 0)) || 0;
       const sumPaGuardP = Array.isArray(d?.pagos_agregados) && d.pagos_agregados.length > 1
@@ -639,7 +649,20 @@ export async function GET(request: Request) {
       const retEstimadaCheckP = esRetCheckP && retGuardadaP === 0 && montoFacObjetivoP > 0
         ? Math.round((montoFacObjetivoP - (montoFacObjetivoP / 1.16)) * 0.75 * 100) / 100
         : 0;
-      const faltaDiferenciaReal = !yaEmitidaOAnulada && montoFacObjetivoP > 0 && (totalCubiertoPreCheck + retEstimadaCheckP) < (montoFacObjetivoP - 1.00);
+      const tieneReciboDigitalEnviado = Boolean(d?.recibo_digital && (d.recibo_digital.enviado || d.recibo_digital.numero));
+      const esAbonoExplicito = Boolean(
+        d?.es_abono === true ||
+        d?.abono === true ||
+        p.tipo === 'Abono' ||
+        d?.pago_parcial === true ||
+        (d?.monto_pendiente !== undefined && parseFloat(String(d.monto_pendiente)) > 0.05) ||
+        (Boolean(d?.recibo_caja?.[0]?.esAbono) && parseFloat(String(d?.recibo_caja?.[0]?.montoPendiente || 0)) > 1.00)
+      );
+      const faltaDiferenciaReal =
+        !yaEmitidaOAnulada &&
+        !(tieneReciboDigitalEnviado && !esAbonoExplicito) &&
+        montoFacObjetivoP > 0 &&
+        (totalCubiertoPreCheck + retEstimadaCheckP) < (montoFacObjetivoP - 1.00);
 
       const yaEmitidaOCompletada = (Boolean(d?.factura_digital?.emitida) || d?.abono_completado === true) && !faltaDiferenciaReal;
       if (
