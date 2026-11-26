@@ -36,6 +36,8 @@ export default function ServiciosEspecialesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [search, setSearch] = useState('');
+  const [mesFiltro, setMesFiltro] = useState<string>('todos');
+  const [estadoFiltro, setEstadoFiltro] = useState<string>('todos');
   const [msg, setMsg] = useState<{type: 'ok'|'error', text: string}|null>(null);
 
   // BCV rate
@@ -497,20 +499,64 @@ export default function ServiciosEspecialesPage() {
     });
   };
 
-  const serviciosFiltrados = servicios.filter(s =>
-    s.tipo === tab && (
-      search === '' ||
-      s.contribuyente.toLowerCase().includes(search.toLowerCase()) ||
-      s.identidad.toLowerCase().includes(search.toLowerCase()) ||
-      s.descripcion.toLowerCase().includes(search.toLowerCase())
-    )
-  );
+  const mesActualYMD = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' }).format(new Date()).slice(0, 7);
+
+  const obtenerMesServicio = (s: any): string => {
+    const raw = String(s.fecha || s.fecha_evento || s.created_at || '').trim();
+    if (!raw) return '';
+    // Formato YYYY-MM-DD o ISO
+    const isoMatch = raw.match(/^(\d{4})-(\d{2})/);
+    if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}`;
+    // Formato DD/MM/YYYY
+    const latamMatch = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (latamMatch) return `${latamMatch[3]}-${latamMatch[2].padStart(2, '0')}`;
+    return '';
+  };
+
+  const formatearMesLabel = (ym: string): string => {
+    const [y, m] = ym.split('-');
+    const mesesNombres = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    const idx = parseInt(m, 10) - 1;
+    if (idx >= 0 && idx < 12) return `${mesesNombres[idx]} ${y}`;
+    return ym;
+  };
+
+  const mesesDisponibles = Array.from(
+    new Set([
+      mesActualYMD,
+      ...servicios.map(s => obtenerMesServicio(s)).filter(Boolean)
+    ])
+  ).sort((a, b) => b.localeCompare(a));
+
+  const cumpleFiltrosComunes = (s: Servicio) => {
+    if (mesFiltro !== 'todos') {
+      const mesSrv = obtenerMesServicio(s);
+      if (mesSrv !== mesFiltro) return false;
+    }
+    if (estadoFiltro !== 'todos') {
+      if ((s.estado || 'Pendiente') !== estadoFiltro) return false;
+    }
+    if (search.trim() !== '') {
+      const q = search.toLowerCase().trim();
+      const matchContrib = (s.contribuyente || '').toLowerCase().includes(q);
+      const matchId = (s.identidad || '').toLowerCase().includes(q);
+      const matchDesc = (s.descripcion || '').toLowerCase().includes(q);
+      const matchRef = (s.referencia || '').toLowerCase().includes(q);
+      const matchInm = String((s as any).inmueble || '').toLowerCase().includes(q);
+      if (!matchContrib && !matchId && !matchDesc && !matchRef && !matchInm) return false;
+    }
+    return true;
+  };
+
+  const serviciosFiltrados = servicios.filter(s => s.tipo === tab && cumpleFiltrosComunes(s));
 
   const iconMap: Record<TipoServicio, any> = { especial: Wrench, extraordinario: FlaskConical, inspeccion: ClipboardCheck, visto_bueno: ShieldCheck, tala_poda: TreePine };
 
   const exportarServicios = (todosLosTipos = false) => {
-    const lista = todosLosTipos ? servicios : serviciosFiltrados;
-    if (lista.length === 0) return alert('No hay registros para exportar.');
+    const lista = todosLosTipos
+      ? servicios.filter(s => cumpleFiltrosComunes(s))
+      : serviciosFiltrados;
+    if (lista.length === 0) return alert('No hay registros para exportar con los filtros seleccionados.');
     generarReporteServiciosExcel({
       servicios: lista,
       contribuyentes,
@@ -580,7 +626,7 @@ export default function ServiciosEspecialesPage() {
           {(Object.keys(TIPO_INFO) as TipoServicio[]).map(t => {
             const info = TIPO_INFO[t];
             const Icon = info.icon;
-            const count = servicios.filter(s => s.tipo === t).length;
+            const count = servicios.filter(s => s.tipo === t && cumpleFiltrosComunes(s)).length;
             return (
               <button
                 key={t}
@@ -595,17 +641,85 @@ export default function ServiciosEspecialesPage() {
           })}
         </div>
 
-        {/* Search + Table */}
+        {/* Search + Filters + Table */}
         <div className="p-4">
-          <div className="relative mb-4 max-w-sm">
-            <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Buscar por contribuyente, RIF..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-purple-500"
-            />
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <div className="flex flex-wrap items-center gap-2 flex-1">
+              <div className="relative w-full sm:w-72">
+                <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Buscar por contribuyente, RIF, ref..."
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-purple-500"
+                />
+              </div>
+
+              {/* Botón rápido "Este mes" */}
+              <button
+                type="button"
+                onClick={() => setMesFiltro(prev => prev === mesActualYMD ? 'todos' : mesActualYMD)}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold border transition-colors ${
+                  mesFiltro === mesActualYMD
+                    ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
+                    : 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100'
+                }`}
+                title="Filtrar rápidamente los servicios registrados en el mes actual"
+              >
+                <Calendar className="w-3.5 h-3.5" />
+                Este mes ({formatearMesLabel(mesActualYMD)})
+              </button>
+
+              {/* Selector de Mes */}
+              <div className="flex items-center gap-1.5">
+                <select
+                  value={mesFiltro}
+                  onChange={e => setMesFiltro(e.target.value)}
+                  className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white text-slate-700 font-medium outline-none focus:border-purple-500"
+                >
+                  <option value="todos">📅 Todos los meses</option>
+                  {mesesDisponibles.map(ym => (
+                    <option key={ym} value={ym}>
+                      {ym === mesActualYMD ? `Mes actual (${formatearMesLabel(ym)})` : formatearMesLabel(ym)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Selector de Estado */}
+              <select
+                value={estadoFiltro}
+                onChange={e => setEstadoFiltro(e.target.value)}
+                className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white text-slate-700 font-medium outline-none focus:border-purple-500"
+              >
+                <option value="todos">Todos los estados</option>
+                <option value="Pendiente">⏳ Pendiente</option>
+                <option value="En Revisión">🔍 En Revisión</option>
+                <option value="Pagado">✅ Pagado</option>
+              </select>
+
+              {(mesFiltro !== 'todos' || estadoFiltro !== 'todos' || search !== '') && (
+                <button
+                  type="button"
+                  onClick={() => { setMesFiltro('todos'); setEstadoFiltro('todos'); setSearch(''); }}
+                  className="flex items-center gap-1 px-2.5 py-2 text-xs font-semibold text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                >
+                  <X className="w-3.5 h-3.5" /> Limpiar filtros
+                </button>
+              )}
+            </div>
+
+            {/* Resumen del filtro activo */}
+            <div className="flex items-center gap-2 text-xs bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg">
+              <span className="text-slate-500 font-medium">
+                Mostrando <strong className="text-slate-800">{serviciosFiltrados.length}</strong> registro(s)
+              </span>
+              <span className="text-slate-300">|</span>
+              <span className="text-slate-600 font-semibold">
+                Total: <strong className="text-purple-700 font-mono">Bs. {serviciosFiltrados.reduce((acc, s) => acc + (Number(s.monto) || 0), 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+              </span>
+            </div>
           </div>
 
           {isLoading ? (
