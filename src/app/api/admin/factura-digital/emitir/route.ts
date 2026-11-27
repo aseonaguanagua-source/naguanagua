@@ -1097,7 +1097,16 @@ export async function POST(request: Request) {
       detPago?.solo_aseo === true ||
       detPago?.incluir_multas === false
     );
+    const multaGuardadaDetEmit = Number(
+      detPago?.multa_bs ||
+      detPago?.monto_multa ||
+      detPago?.montoMulta ||
+      detPago?.factura_digital?.retencion?.exento ||
+      0
+    ) || 0;
     const tieneMultaCobradaReal =
+      explicitMulta > 0.05 ||
+      multaGuardadaDetEmit > 0.05 ||
       multaCondoDirecta > 0.05 ||
       rcExento > 0.05 ||
       rcDiffMultaEmit > 0.05 ||
@@ -1177,6 +1186,8 @@ export async function POST(request: Request) {
       }
     } else if (itemsExentos.length > 0) {
       baseExenta = r2(itemsExentos.reduce((s: number, it: any) => s + (parseFloat(it.PrecioUnitario) || 0), 0));
+    } else if (!tieneBanderaSinMultaEmit && multaGuardadaDetEmit > 0.05) {
+      baseExenta = r2(multaGuardadaDetEmit);
     }
 
     const esRcNeto = conRetencion && montoRetencionGuardada > 0 && rcTotal > 0 && (

@@ -2309,7 +2309,15 @@ export default function FacturacionElectronicaPage() {
                                   .filter((fp: any) => !/saldo\s*a\s*favor|nota\s*de\s*cr[eé]dito|nc-saldo-favor/i.test(`${fp?.descripcion || ''} ${fp?.metodo || ''} ${fp?.tipo || ''} ${fp?.referencia || ''}`))
                                   .reduce((acc: number, fp: any) => acc + (parseFloat(String(fp?.monto || 0)) || 0), 0);
                                 const tieneExcedenteMultiPago = fpsCheck.length > 1 && Math.abs(sumFpsBancarios - (Number(pago.monto) || 0)) > 0.05;
-                                return realFacturaUrl && !String(realFacturaUrl).includes('democonsulta.thefactoryhka.com.ve') && !tieneExcedenteMultiPago ? (
+                                const exentoCorregido = Number(pago.detalles?.multa_bs || pago.detalles?.monto_multa || pago.detalles?.factura_digital?.retencion?.exento || 0) || 0;
+                                const rawValStr = JSON.stringify(pago.detalles?.factura_digital?.raw_response?.validaciones || '');
+                                const retActual = Number(pago.montoRetencion || pago.detalles?.monto_retencion_iva || pago.detalles?.factura_digital?.retencion?.retenido || 0) || 0;
+                                const retFmt = retActual > 0 ? retActual.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '';
+                                const urlDesactualizadaMulta = Boolean(
+                                  pago.detalles?.usar_formato_sistema_pdf ||
+                                  (exentoCorregido > 0.05 && rawValStr.includes('Retención') && retFmt && !rawValStr.includes(retFmt))
+                                );
+                                return realFacturaUrl && !String(realFacturaUrl).includes('democonsulta.thefactoryhka.com.ve') && !tieneExcedenteMultiPago && !urlDesactualizadaMulta ? (
                                   <a
                                     href={realFacturaUrl}
                                     target="_blank"
@@ -4501,6 +4509,27 @@ export default function FacturacionElectronicaPage() {
                   <span className="font-mono text-slate-500 block">Ctrl: {modalRetencion.numeroControl || '—'}</span>
                   {(() => {
                     const realUrl = modalRetencion.facturaUrl || modalRetencion.detalles?.factura_digital?.url || modalRetencion.detalles?.factura_digital?.raw_response?.resultado?.urlConsulta;
+                    const exentoCorregido = Number(modalRetencion.detalles?.multa_bs || modalRetencion.detalles?.monto_multa || modalRetencion.detalles?.factura_digital?.retencion?.exento || 0) || 0;
+                    const rawValStr = JSON.stringify(modalRetencion.detalles?.factura_digital?.raw_response?.validaciones || '');
+                    const retActual = Number(modalRetencion.montoRetencion || modalRetencion.detalles?.monto_retencion_iva || modalRetencion.detalles?.factura_digital?.retencion?.retenido || 0) || 0;
+                    const retFmt = retActual > 0 ? retActual.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '';
+                    const urlDesactualizadaMulta = Boolean(
+                      modalRetencion.detalles?.usar_formato_sistema_pdf ||
+                      (exentoCorregido > 0.05 && rawValStr.includes('Retención') && retFmt && !rawValStr.includes(retFmt))
+                    );
+                    if (urlDesactualizadaMulta) {
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedPagoForDemo(modalRetencion)}
+                          className="mt-1.5 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] shadow-xs transition-colors cursor-pointer"
+                          title="Abrir Factura Oficial en formato PDF con desglose de multa exenta"
+                        >
+                          <Eye className="w-3 h-3" />
+                          <span>Ver Factura Oficial PDF</span>
+                        </button>
+                      );
+                    }
                     return realUrl ? (
                       <a
                         href={realUrl}

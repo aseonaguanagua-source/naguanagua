@@ -210,11 +210,26 @@ export async function GET(request: Request) {
       const recibosSeparados = codigos.map((cod, idx) => {
         const inm = inmMap.get(cod);
         const esRes = isResidencialInm(inm);
+        const lineasDesgInm = desglose.cuadra ? desglose.lineas.filter(l => l.codigo === cod) : [];
         const conceptosInm = conceptos.filter(c => c.descripcion.includes(`(${cod})`));
-        const subMonto = r2(conceptosInm.reduce((s, c) => s + c.total, 0)) || r2(monto / codigos.length);
-        const lineasInm = conceptosInm.length > 0 ? conceptosInm : [{ descripcion: `Servicio de Aseo Urbano (${cod})`, precioUnit: subMonto, total: subMonto }];
-        const subTot = esRes ? subMonto : r2(subMonto / 1.16);
-        const ivaTot = esRes ? 0 : r2(subMonto - subTot);
+        const usarDesgloseInm = conceptosInm.length === 0 && lineasDesgInm.length > 0;
+        const subMonto = usarDesgloseInm
+          ? r2(lineasDesgInm.reduce((s, l) => s + l.total, 0))
+          : (r2(conceptosInm.reduce((s, c) => s + c.total, 0)) || r2(monto / codigos.length));
+        const lineasInm = conceptosInm.length > 0
+          ? conceptosInm
+          : usarDesgloseInm
+            ? conceptosDeDesglose(lineasDesgInm)
+            : [{ descripcion: `Servicio de Aseo Urbano (${cod})`, precioUnit: subMonto, total: subMonto }];
+        const subTot = usarDesgloseInm
+          ? r2(lineasDesgInm.reduce((s, l) => s + l.base, 0))
+          : (esRes ? subMonto : r2(subMonto / 1.16));
+        const exentoInm = usarDesgloseInm
+          ? r2(lineasDesgInm.reduce((s, l) => s + l.multa + (l.esResidencial ? l.base : 0), 0))
+          : (esRes ? subMonto : 0);
+        const ivaTot = usarDesgloseInm
+          ? r2(lineasDesgInm.reduce((s, l) => s + l.iva, 0))
+          : (esRes ? 0 : r2(subMonto - subTot));
         return {
           reciboNo: `${refNum}-${idx + 1}`,
           controlWeb: generarCodigoControlWeb(`${refNum}-${idx + 1}`, String(pago.id || cod || '')),
@@ -224,10 +239,10 @@ export async function GET(request: Request) {
           domicilioFiscal: String(inm?.direccion || cont?.direccion || 'NAGUANAGUA, CARABOBO').toUpperCase(),
           rifCi: pago.identidad,
           caja: det.cajero || '',
-          periodo: periodo,
+          periodo: periodo || desglose.periodoTexto,
           conceptos: lineasInm,
           subTotal: subTot,
-          exento: esRes ? subMonto : 0,
+          exento: exentoInm,
           iva: ivaTot,
           total: subMonto,
           formaPago: formaPagoTexto(pago.tipo),
@@ -243,9 +258,16 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: true, original: false, recibos: recibosSeparados });
     }
 
-    const subTotalSingle = esComercial ? r2(monto / 1.16) : monto;
-    const ivaSingle = esComercial ? r2(monto - subTotalSingle) : 0;
-    const exentoSingle = esComercial ? 0 : monto;
+    const usarDesgloseSingle = desglose.cuadra && desglose.lineas.length > 0;
+    const subTotalSingle = usarDesgloseSingle
+      ? r2(desglose.lineas.reduce((s, l) => s + l.base, 0))
+      : (esComercial ? r2(monto / 1.16) : monto);
+    const ivaSingle = usarDesgloseSingle
+      ? r2(desglose.lineas.reduce((s, l) => s + l.iva, 0))
+      : (esComercial ? r2(monto - subTotalSingle) : 0);
+    const exentoSingle = usarDesgloseSingle
+      ? r2(desglose.lineas.reduce((s, l) => s + l.multa + (l.esResidencial ? l.base : 0), 0))
+      : (esComercial ? 0 : monto);
 
     const recibo = {
       reciboNo: refNum,

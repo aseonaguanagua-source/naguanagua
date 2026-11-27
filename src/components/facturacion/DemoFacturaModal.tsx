@@ -415,8 +415,8 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
     ? new Date(pago.fechaEmision).toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })
     : horaActual;
 
-  const numeroDoc = pago?.numeroDocumento || det.numero_documento || '00000XXX';
-  const numeroCtrl = pago?.numeroControl || det.numero_control || '00-00000XXX';
+  const numeroDoc = pago?.numeroDocumento || pago?.numeroFactura || det?.factura_digital?.numero_documento || det.numero_documento || '00000XXX';
+  const numeroCtrl = pago?.numeroControl || det?.factura_digital?.numero_control || det.numero_control || '00-00000XXX';
 
   const condoModoDemo = String(det.condominio_modo || det.modalidad_cobro || '').toLowerCase();
   const esCondoGlobal = (
@@ -935,7 +935,9 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
-                  {Array.isArray(simulacionTFHKA?.DetallesItems) && simulacionTFHKA.DetallesItems.length > 0 ? (
+                  {Array.isArray(simulacionTFHKA?.DetallesItems) &&
+                   simulacionTFHKA.DetallesItems.length > 0 &&
+                   !(exentoFinal > 0.05 && !simulacionTFHKA.DetallesItems.some((it: any) => it.CodigoImpuesto === 'E')) ? (
                     simulacionTFHKA.DetallesItems.map((item: any, idx: number) => {
                       const esEx = item.CodigoImpuesto === 'E';
                       const pu = parseFloat(item.PrecioUnitario || '0') || 0;

@@ -195,6 +195,75 @@ export function desglosarPago(pago: any, inmMap: Map<string, any>): DesglosePago
     }
   }
 
+  const multaExplicitaPago = r2(parseFloat(String(det.multa_bs || det.monto_multa || det.montoMulta || det.factura_digital?.retencion?.exento || 0)));
+  const baseExplicitaPago = r2(parseFloat(String(det.base_imponible || det.monto_servicio || det.factura_digital?.retencion?.base_imponible || 0)));
+  const ivaExplicitoPago = r2(parseFloat(String(det.iva_monto || det.factura_digital?.retencion?.iva_total || 0)));
+  const sumMultaInicial = r2(lineas.reduce((s, l) => s + l.multa, 0));
+
+  if (!esAbono && multaExplicitaPago > 0.05 && sumMultaInicial <= 0.05 && lineas.length > 0) {
+    // El pago incluye una multa por mora cobrada explícitamente, pero los inmuebles fueron exonerados o marcados con multa 0 posteriormente.
+    // Reconstruimos la multa en el primer mes (mora) de cada inmueble y ajustamos base/IVA/retención al desglose real de la factura.
+    const sumBaseIni = r2(lineas.reduce((s, l) => s + l.base, 0));
+    const targetBase = baseExplicitaPago > 0 ? baseExplicitaPago : r2(Math.max(0, (montoFac || totalSel || (monto + retencionIva)) - multaExplicitaPago) / 1.16);
+    const targetIva = ivaExplicitoPago > 0 ? ivaExplicitoPago : r2(targetBase * 0.16);
+    const factorBase = sumBaseIni > 0 && targetBase > 0 ? (targetBase / sumBaseIni) : 1;
+
+    // Identificar las líneas candidatas a llevar la multa (primer mes de cada inmueble con >1 mes, o todas las líneas de mes si solo hay 1 mes)
+    const porInmMes = new Map<string, LineaDesglose[]>();
+    lineas.filter(l => l.tipo === 'mes').forEach(l => {
+      if (!porInmMes.has(l.codigo)) porInmMes.set(l.codigo, []);
+      porInmMes.get(l.codigo)!.push(l);
+    });
+    const lineasConMora: LineaDesglose[] = [];
+    for (const [, ls] of porInmMes) {
+      if (ls.length > 1) {
+        for (let i = 0; i < ls.length - 1; i++) lineasConMora.push(ls[i]);
+      } else if (ls.length === 1) {
+        lineasConMora.push(ls[0]);
+      }
+    }
+    const candidatasMora = lineasConMora.length > 0 ? lineasConMora : lineas;
+
+    lineas.forEach(l => {
+      l.base = r2(l.base * factorBase);
+      l.iva = l.esResidencial ? 0 : r2(l.base * 0.16);
+    });
+    // Ajustar redondeo de base e IVA
+    const diffBase = r2(targetBase - lineas.reduce((s, l) => s + l.base, 0));
+    if (Math.abs(diffBase) > 0 && lineas.length > 0) {
+      lineas[lineas.length - 1].base = r2(lineas[lineas.length - 1].base + diffBase);
+    }
+    const diffIva = r2(targetIva - lineas.reduce((s, l) => s + l.iva, 0));
+    if (Math.abs(diffIva) > 0 && lineas.length > 0 && !lineas[lineas.length - 1].esResidencial) {
+      lineas[lineas.length - 1].iva = r2(lineas[lineas.length - 1].iva + diffIva);
+    }
+
+    const sumBaseMora = r2(candidatasMora.reduce((s, l) => s + l.base, 0));
+    if (sumBaseMora > 0) {
+      candidatasMora.forEach(l => {
+        l.multa = r2(multaExplicitaPago * (l.base / sumBaseMora));
+      });
+      const diffMulta = r2(multaExplicitaPago - candidatasMora.reduce((s, l) => s + l.multa, 0));
+      if (Math.abs(diffMulta) > 0) {
+        candidatasMora[candidatasMora.length - 1].multa = r2(candidatasMora[candidatasMora.length - 1].multa + diffMulta);
+      }
+    }
+
+    if (retencionIva > 0) {
+      lineas.forEach(l => {
+        l.retencion = l.iva > 0 ? r2(l.iva * PORCENTAJE_RETENCION_AGENTE) : 0;
+      });
+      const diffRet = r2(retencionIva - lineas.reduce((s, l) => s + l.retencion, 0));
+      if (Math.abs(diffRet) > 0 && lineas.length > 0) {
+        lineas[lineas.length - 1].retencion = r2(lineas[lineas.length - 1].retencion + diffRet);
+      }
+    }
+
+    lineas.forEach(l => {
+      l.total = r2(l.base + l.iva + l.multa - l.retencion);
+    });
+  }
+
   const totalCalculado = r2(lineas.reduce((s, l) => s + l.total, 0));
   const montoObjetivo = montoNeto > 0 ? montoNeto : monto;
   // Tolerancia: diferencias de redondeo/tasa (≤ 1% o Bs 1)
