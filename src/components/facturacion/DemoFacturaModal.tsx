@@ -796,7 +796,7 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
               />
               {guardandoFecha && <span className="text-[10px] text-amber-300 animate-pulse">Guardando...</span>}
             </div>
-            {(pago?.facturaUrl || det?.factura_digital?.url || det?.factura_digital?.raw_response?.resultado?.urlConsulta) && (
+            {(pago?.facturaUrl || det?.factura_digital?.url || det?.factura_digital?.raw_response?.resultado?.urlConsulta) && !det?.usar_formato_sistema_pdf && (
               <a
                 href={pago?.facturaUrl || det?.factura_digital?.url || det?.factura_digital?.raw_response?.resultado?.urlConsulta}
                 target="_blank"
@@ -935,76 +935,95 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
-                  {Array.isArray(simulacionTFHKA?.DetallesItems) &&
-                   simulacionTFHKA.DetallesItems.length > 0 &&
-                   !(exentoFinal > 0.05 && !simulacionTFHKA.DetallesItems.some((it: any) => it.CodigoImpuesto === 'E')) ? (
-                    simulacionTFHKA.DetallesItems.map((item: any, idx: number) => {
-                      const esEx = item.CodigoImpuesto === 'E';
-                      const pu = parseFloat(item.PrecioUnitario || '0') || 0;
-                      const tot = parseFloat(item.ValorTotalItem || item.PrecioItem || '0') || 0;
-                      return (
-                        <tr key={idx} className={esEx ? 'align-top bg-slate-50/60' : 'align-top'}>
-                          <td className="py-2.5 px-2 text-center font-mono font-bold text-slate-700">
-                            {item.Cantidad || '1'}
-                          </td>
-                          <td className="py-2.5 px-3 text-slate-900 font-semibold leading-relaxed">
-                            {item.Descripcion}
-                          </td>
-                          <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-800">
-                            {formatBs(pu)}
-                          </td>
-                          <td className="py-2.5 px-2 text-center font-mono font-black text-slate-800">
-                            {esEx ? '(E)' : 'G'}
-                          </td>
-                          <td className="py-2.5 px-3 text-right font-mono font-black text-slate-900">
-                            {formatBs(tot)}
-                          </td>
-                        </tr>
-                      );
-                    })
-                  ) : (
-                    <>
-                      {baseImponibleFinal > 0 && (
-                        <tr className="align-top">
-                          <td className="py-2.5 px-2 text-center font-mono font-bold text-slate-700">1</td>
-                          <td className="py-2.5 px-3 text-slate-900 font-semibold leading-relaxed">
-                            {conceptoGeneralFinal}
-                          </td>
-                          <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-800">
-                            {formatBs(baseImponibleFinal)}
-                          </td>
-                          <td className="py-2.5 px-2 text-center font-mono font-black text-slate-800">
-                            G
-                          </td>
-                          <td className="py-2.5 px-3 text-right font-mono font-black text-slate-900">
-                            {formatBs(baseImponibleFinal)}
-                          </td>
-                        </tr>
-                      )}
+                  {(() => {
+                    // Si la simulación TFHKA devolvió ítems, los usamos como base
+                    const hasItemsSim = Array.isArray(simulacionTFHKA?.DetallesItems) && simulacionTFHKA.DetallesItems.length > 0;
+                    if (hasItemsSim) {
+                      const items = [...simulacionTFHKA.DetallesItems];
+                      const tieneExentoEnSim = items.some((it: any) => it.CodigoImpuesto === 'E');
+                      // Si hay multa / exento y no está presente en los ítems de la simulación, agregarlo siempre
+                      if (exentoFinal > 0.05 && !tieneExentoEnSim) {
+                        items.push({
+                          Cantidad: '1',
+                          Descripcion: conceptoGeneralFinal.toLowerCase().includes('multa')
+                            ? conceptoGeneralFinal
+                            : `Multa por Mora - Aseo Urbano ${inmuebleCod}`.trim(),
+                          PrecioUnitario: exentoFinal.toFixed(2),
+                          CodigoImpuesto: 'E',
+                          ValorTotalItem: exentoFinal.toFixed(2)
+                        });
+                      }
+                      return items.map((item: any, idx: number) => {
+                        const esEx = item.CodigoImpuesto === 'E';
+                        const pu = parseFloat(item.PrecioUnitario || '0') || 0;
+                        const tot = parseFloat(item.ValorTotalItem || item.PrecioItem || '0') || 0;
+                        return (
+                          <tr key={idx} className={esEx ? 'align-top bg-slate-50/60' : 'align-top'}>
+                            <td className="py-2.5 px-2 text-center font-mono font-bold text-slate-700">
+                              {item.Cantidad || '1'}
+                            </td>
+                            <td className="py-2.5 px-3 text-slate-900 font-semibold leading-relaxed">
+                              {item.Descripcion}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-800">
+                              {formatBs(pu)}
+                            </td>
+                            <td className="py-2.5 px-2 text-center font-mono font-black text-slate-800">
+                              {esEx ? '(E)' : 'G'}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono font-black text-slate-900">
+                              {formatBs(tot)}
+                            </td>
+                          </tr>
+                        );
+                      });
+                    }
 
-                      {exentoFinal > 0 && (
-                        <tr className="align-top bg-slate-50/60">
-                          <td className="py-2.5 px-2 text-center font-mono font-bold text-slate-700">1</td>
-                          <td className="py-2.5 px-3 text-slate-900 font-semibold leading-relaxed">
-                            {baseImponibleFinal <= 0 && (det.concepto || pago?.concepto)
-                              ? (det.concepto || pago?.concepto)
-                              : conceptoGeneralFinal.toLowerCase().includes('multa')
-                                ? conceptoGeneralFinal
-                                : `Multa por Mora - Aseo Urbano ${inmuebleCod}`}
-                          </td>
-                          <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-800">
-                            {formatBs(exentoFinal)}
-                          </td>
-                          <td className="py-2.5 px-2 text-center font-mono font-black text-slate-800">
-                            (E)
-                          </td>
-                          <td className="py-2.5 px-3 text-right font-mono font-black text-slate-900">
-                            {formatBs(exentoFinal)}
-                          </td>
-                        </tr>
-                      )}
-                    </>
-                  )}
+                    // Fallback directo de renglones gravado y exento
+                    return (
+                      <>
+                        {baseImponibleFinal > 0 && (
+                          <tr className="align-top">
+                            <td className="py-2.5 px-2 text-center font-mono font-bold text-slate-700">1</td>
+                            <td className="py-2.5 px-3 text-slate-900 font-semibold leading-relaxed">
+                              {conceptoGeneralFinal}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-800">
+                              {formatBs(baseImponibleFinal)}
+                            </td>
+                            <td className="py-2.5 px-2 text-center font-mono font-black text-slate-800">
+                              G
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono font-black text-slate-900">
+                              {formatBs(baseImponibleFinal)}
+                            </td>
+                          </tr>
+                        )}
+
+                        {exentoFinal > 0 && (
+                          <tr className="align-top bg-slate-50/60">
+                            <td className="py-2.5 px-2 text-center font-mono font-bold text-slate-700">1</td>
+                            <td className="py-2.5 px-3 text-slate-900 font-semibold leading-relaxed">
+                              {baseImponibleFinal <= 0 && (det.concepto || pago?.concepto)
+                                ? (det.concepto || pago?.concepto)
+                                : conceptoGeneralFinal.toLowerCase().includes('multa')
+                                  ? conceptoGeneralFinal
+                                  : `Multa por Mora - Aseo Urbano ${inmuebleCod}`}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-800">
+                              {formatBs(exentoFinal)}
+                            </td>
+                            <td className="py-2.5 px-2 text-center font-mono font-black text-slate-800">
+                              (E)
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono font-black text-slate-900">
+                              {formatBs(exentoFinal)}
+                            </td>
+                          </tr>
+                        )}
+                      </>
+                    );
+                  })()}
                 </tbody>
               </table>
             </div>

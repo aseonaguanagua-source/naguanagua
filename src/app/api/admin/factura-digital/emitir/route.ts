@@ -2424,6 +2424,7 @@ export async function POST(request: Request) {
         if (tfhkaResponse?.resultado) {
           tfhkaResponse.resultado.fechaEmision = fechaEmisionDDMMYYYY;
         }
+        nuevosDetalles.usar_formato_sistema_pdf = false;
         nuevosDetalles.fecha_emision_override = fechaEmisionYMD;
         if (
           fechaPagoOverride &&
