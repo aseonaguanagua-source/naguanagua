@@ -181,7 +181,6 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
 
   const sinMultaActiva = multaEnMontosHistDemo <= 0.05 && Boolean(
     pago?.llevaMulta === false ||
-    pago?.tieneMulta === false ||
     det?.llevaMulta === false ||
     det?.sin_multas === true ||
     det?.solo_aseo === true ||
@@ -195,10 +194,12 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
     exento = 0;
   } else if (multaCondoDirecta > 0) {
     exento = multaCondoDirecta;
+  } else if (parseFloat(String(det.multa_bs || det.monto_multa || det.montoMulta || pago?.montoMulta || 0)) > 0) {
+    exento = parseFloat(String(det.multa_bs || det.monto_multa || det.montoMulta || pago?.montoMulta || 0));
   } else if (tieneReciboCaja) {
     exento = rcExento;
   } else {
-    exento = parseFloat(String(det.multa_bs || 0)) || 0;
+    exento = 0;
     if (exento === 0 && Array.isArray(det.deuda_previa)) {
       const inmsPagados = [...new Set([
         ...(Array.isArray(det?.recibos) ? det.recibos : []).map((r: string) => extraerCodigoInmueble(r)).filter(Boolean),

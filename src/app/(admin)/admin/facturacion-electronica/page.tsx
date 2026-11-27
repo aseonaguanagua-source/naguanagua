@@ -954,7 +954,6 @@ export default function FacturacionElectronicaPage() {
     const multaEnMontosHist = calcularMultaEnMontosHist(pago.detalles?.montos);
 
     const sinMultaEliminada = !esExclusivoMulta && multaCondo <= 0.05 && multaEnMontosHist <= 0.05 && Boolean(
-      pago.tieneMulta === false ||
       pago.llevaMulta === false ||
       pago.detalles?.llevaMulta === false ||
       pago.detalles?.sin_multas === true ||
@@ -1008,8 +1007,11 @@ export default function FacturacionElectronicaPage() {
       if (multaCondo > 0) {
         exentoRecibo = multaCondo;
       } else {
-        // 2a. Revisar montos de recibos MULTA-
-        if (pago.detalles?.montos && typeof pago.detalles.montos === 'object') {
+        // 2a. Revisar multa_bs / monto_multa explícito en el pago o montos de recibos MULTA-
+        const multaDirectaPago = parseFloat(String(pago.detalles?.multa_bs || pago.detalles?.monto_multa || pago.detalles?.montoMulta || pago.detalles?.montos?.multa || pago.montoMulta || 0)) || 0;
+        if (multaDirectaPago > 0) {
+          exentoRecibo = multaDirectaPago;
+        } else if (pago.detalles?.montos && typeof pago.detalles.montos === 'object') {
           for (const [k, v] of Object.entries(pago.detalles.montos)) {
             if (/^MULTA-/i.test(k)) {
               exentoRecibo += parseFloat(String(v || 0)) || 0;
@@ -1032,10 +1034,7 @@ export default function FacturacionElectronicaPage() {
           exentoRecibo = dpFiltrada.reduce((acc: number, dp: any) => acc + (parseFloat(String(dp?.multa_bs || 0)) || 0), 0);
         }
 
-        // 2c. Revisar multa_bs / monto_multa directo o multa implícita en RECIB-HIST-*-M1
-        if (exentoRecibo === 0) {
-          exentoRecibo = parseFloat(String(pago.detalles?.multa_bs || pago.detalles?.montos?.multa || pago.detalles?.monto_multa || 0)) || 0;
-        }
+        // 2c. Multa implícita en RECIB-HIST-*-M1
         if (exentoRecibo === 0 && multaEnMontosHist > 0) {
           exentoRecibo = multaEnMontosHist;
         }
