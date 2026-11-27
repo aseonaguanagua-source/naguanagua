@@ -73,13 +73,21 @@ export function clasificarBancoDestino(p: any): BancoDestinoTipo {
     ''
   ).toUpperCase();
   
-  if (strDest.includes('BANESCO') || strDest.includes('0134') || strDest.includes('8636') || strDest.includes('1715')) return 'Banesco';
   if (strDest.includes('BANCAMIGA') || strDest.includes('0172') || strDest.includes('0717')) return 'Bancamiga';
+  if (strDest.includes('BANESCO') || strDest.includes('0134') || strDest.includes('8636') || strDest.includes('1715')) return 'Banesco';
 
-  // 2. Fallback si no tiene banco destino explícito: revisar banco / formaPago
-  const strFallback = String(p?.banco || det?.banco || det?.formaPago || '').toUpperCase();
-  if (strFallback.includes('BANESCO') || strFallback.includes('0134')) return 'Banesco';
-  if (strFallback.includes('BANCAMIGA') || strFallback.includes('0172')) return 'Bancamiga';
+  // 2. Si es Punto de Venta (Débito, TMD, TVD, Tarjeta, Crédito en taquillas), los POS oficiales de IAMEC liquidan en BANCAMIGA
+  const tipoStr = String(p?.tipo || det?.tipo || '').toUpperCase().trim();
+  const bancoStr = String(p?.banco || det?.banco || det?.formaPago || '').toUpperCase().trim();
+  const esPos = /^(d[eé]bito|cr[eé]dito|tmd|tvd)\b|punto|tarjeta/i.test(tipoStr) ||
+                /^(d[eé]bito|cr[eé]dito|tmd|tvd)\b|punto|tarjeta/i.test(bancoStr);
+  if (esPos) {
+    return 'Bancamiga';
+  }
+
+  // 3. Fallback si no tiene banco destino explícito: revisar banco / formaPago
+  if (bancoStr.includes('BANCAMIGA') || bancoStr.includes('0172')) return 'Bancamiga';
+  if (bancoStr.includes('BANESCO') || bancoStr.includes('0134')) return 'Banesco';
 
   return 'Otros';
 }

@@ -526,12 +526,12 @@ export async function generarMontoDiarioRecaudado({
     const pEur = tasaBcvDia > 0 ? r2(pBs / tasaBcvDia) : 0;
     const tBs = r2(dData.transfBs);
     const tEur = tasaBcvDia > 0 ? r2(tBs / tasaBcvDia) : 0;
-    // Estado de Cuenta Banesco y Bancamiga solo muestran los montos cargados manualmente por las analistas (en 0,00 / "-" hasta que se carguen manualmente)
+    // Estado de Cuenta Banesco y Bancamiga: si las analistas cargaron un monto manual se respeta; si no, se usa el monto automático calculado de los pagos
     const hasBanescoManual = ov.banescoBs !== undefined && ov.banescoBs !== null && String(ov.banescoBs).trim() !== '';
     const hasBancamigaManual = ov.bancamigaBs !== undefined && ov.bancamigaBs !== null && String(ov.bancamigaBs).trim() !== '';
-    const banBs = hasBanescoManual ? r2(Number(ov.banescoBs)) : 0;
+    const banBs = hasBanescoManual ? r2(Number(ov.banescoBs)) : r2(dData.banescoBs);
     const banEur = tasaBcvDia > 0 ? r2(banBs / tasaBcvDia) : 0;
-    const bgaBs = hasBancamigaManual ? r2(Number(ov.bancamigaBs)) : 0;
+    const bgaBs = hasBancamigaManual ? r2(Number(ov.bancamigaBs)) : r2(dData.bancamigaBs);
     const bgaEur = tasaBcvDia > 0 ? r2(bgaBs / tasaBcvDia) : 0;
 
     sumPuntoBs += pBs;

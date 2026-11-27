@@ -201,6 +201,13 @@ export async function generarMontoDiarioRecaudadoPDF({
       row.transfBs += montoBs;
       row.transfEur += montoEur;
     }
+
+    const bDest = clasificarBancoDestino(p);
+    if (bDest === 'Bancamiga') {
+      row.bancamigaBs += montoBs;
+    } else {
+      row.banescoBs += montoBs;
+    }
   });
 
   try {
@@ -213,8 +220,8 @@ export async function generarMontoDiarioRecaudadoPDF({
       const ajustes = typeof cfgMd.valor === 'string' ? JSON.parse(cfgMd.valor) : cfgMd.valor;
       agrupado.forEach((row, diaKey) => {
         const ov = ajustes?.[diaKey];
-        row.banescoBs = ov?.banescoBs !== undefined && ov?.banescoBs !== null && String(ov.banescoBs).trim() !== '' ? r2(Number(ov.banescoBs)) : 0;
-        row.bancamigaBs = ov?.bancamigaBs !== undefined && ov?.bancamigaBs !== null && String(ov.bancamigaBs).trim() !== '' ? r2(Number(ov.bancamigaBs)) : 0;
+        row.banescoBs = ov?.banescoBs !== undefined && ov?.banescoBs !== null && String(ov.banescoBs).trim() !== '' ? r2(Number(ov.banescoBs)) : r2(row.banescoBs);
+        row.bancamigaBs = ov?.bancamigaBs !== undefined && ov?.bancamigaBs !== null && String(ov.bancamigaBs).trim() !== '' ? r2(Number(ov.bancamigaBs)) : r2(row.bancamigaBs);
       });
     }
   } catch {}

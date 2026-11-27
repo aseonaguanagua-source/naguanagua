@@ -673,8 +673,8 @@ export default function ConciliacionDiariaPanel({
         autoUcd: r2(autoTasa),
         autoPuntoBs: r2(dData.puntoBs),
         autoTransfBs: r2(dData.transfBs),
-        autoBanescoBs: 0,
-        autoBancamigaBs: 0,
+        autoBanescoBs: r2(dData.banescoBs),
+        autoBancamigaBs: r2(dData.bancamigaBs),
       };
     });
   }, [rawPagos, fechaInicio, fechaFin, tcmmv, consolidadoOverrides]);
@@ -690,8 +690,8 @@ export default function ConciliacionDiariaPanel({
         ucd: String(ov?.ucd !== undefined && ov?.ucd !== null ? r2(Number(ov.ucd)).toFixed(2) : f.autoUcd.toFixed(2)),
         puntoBs: f.autoPuntoBs.toFixed(2),
         transfBs: f.autoTransfBs.toFixed(2),
-        banescoBs: hasBanOv ? r2(Number(ov!.banescoBs)).toFixed(2) : '',
-        bancamigaBs: hasBgaOv ? r2(Number(ov!.bancamigaBs)).toFixed(2) : '',
+        banescoBs: hasBanOv ? r2(Number(ov!.banescoBs)).toFixed(2) : (f.autoBanescoBs > 0 ? f.autoBanescoBs.toFixed(2) : ''),
+        bancamigaBs: hasBgaOv ? r2(Number(ov!.bancamigaBs)).toFixed(2) : (f.autoBancamigaBs > 0 ? f.autoBancamigaBs.toFixed(2) : ''),
       };
     });
     setConsInputs(next);
@@ -720,8 +720,8 @@ export default function ConciliacionDiariaPanel({
         ucd: String(f.autoUcd),
         puntoBs: String(f.autoPuntoBs),
         transfBs: String(f.autoTransfBs),
-        banescoBs: '',
-        bancamigaBs: '',
+        banescoBs: f.autoBanescoBs > 0 ? f.autoBanescoBs.toFixed(2) : '',
+        bancamigaBs: f.autoBancamigaBs > 0 ? f.autoBancamigaBs.toFixed(2) : '',
       },
     }));
   };
@@ -789,8 +789,10 @@ export default function ConciliacionDiariaPanel({
       const tasa = r2(parseMontoNumero(inp?.euro ?? f.autoEuro)) || f.autoEuro || 1;
       const pBs = r2(parseMontoNumero(inp?.puntoBs ?? f.autoPuntoBs));
       const tBs = r2(parseMontoNumero(inp?.transfBs ?? f.autoTransfBs));
-      const banBs = r2(parseMontoNumero(inp?.banescoBs ?? f.autoBanescoBs));
-      const bgaBs = r2(parseMontoNumero(inp?.bancamigaBs ?? f.autoBancamigaBs));
+      const hasBanInput = String(inp?.banescoBs ?? '').trim() !== '';
+      const hasBgaInput = String(inp?.bancamigaBs ?? '').trim() !== '';
+      const banBs = hasBanInput ? r2(parseMontoNumero(inp!.banescoBs)) : r2(f.autoBanescoBs);
+      const bgaBs = hasBgaInput ? r2(parseMontoNumero(inp!.bancamigaBs)) : r2(f.autoBancamigaBs);
 
       const pEur = tasa > 0 ? r2(pBs / tasa) : 0;
       const tEur = tasa > 0 ? r2(tBs / tasa) : 0;
@@ -1281,8 +1283,10 @@ export default function ConciliacionDiariaPanel({
                   const tasa = r2(parseMontoNumero(inp.euro)) || f.autoEuro || 1;
                   const pBs = r2(parseMontoNumero(inp.puntoBs));
                   const tBs = r2(parseMontoNumero(inp.transfBs));
-                  const banBs = r2(parseMontoNumero(inp.banescoBs));
-                  const bgaBs = r2(parseMontoNumero(inp.bancamigaBs));
+                  const hasBanInp = String(inp.banescoBs ?? '').trim() !== '';
+                  const hasBgaInp = String(inp.bancamigaBs ?? '').trim() !== '';
+                  const banBs = hasBanInp ? r2(parseMontoNumero(inp.banescoBs)) : r2(f.autoBanescoBs);
+                  const bgaBs = hasBgaInp ? r2(parseMontoNumero(inp.bancamigaBs)) : r2(f.autoBancamigaBs);
 
                   const pEur = tasa > 0 ? r2(pBs / tasa) : 0;
                   const tEur = tasa > 0 ? r2(tBs / tasa) : 0;
