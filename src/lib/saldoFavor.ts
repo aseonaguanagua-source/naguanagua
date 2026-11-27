@@ -399,7 +399,8 @@ export async function restaurarSaldoFavorAplicado(
   const sinGuion = id.replace(/-/g, '');
   const conGuion = /^[VEJPG]\d/.test(sinGuion) ? `${sinGuion[0]}-${sinGuion.slice(1)}` : id;
   const codTargetUpper = codigoInmueble ? String(codigoInmueble).trim().toUpperCase() : '';
-  const docIdents = [...new Set([id, sinGuion, conGuion, ...(codTargetUpper ? [codTargetUpper] : [])].filter(Boolean))];
+  const targetTokens = codTargetUpper ? codTargetUpper.split(/[,;\s]+/).map(t => t.trim()).filter(Boolean) : [];
+  const docIdents = [...new Set([id, sinGuion, conGuion, ...targetTokens].filter(Boolean))];
 
   try {
     if (docIdents.length > 0) {
@@ -419,7 +420,12 @@ export async function restaurarSaldoFavorAplicado(
         } catch {}
 
         const docInmRaw = String(det.codigo_inmueble || det.cod_inmueble || '').trim().toUpperCase();
-        if (codTargetUpper && docInmRaw && !docInmRaw.includes(codTargetUpper)) continue;
+        const docInmList = Array.isArray(det.codigos_inmuebles) ? det.codigos_inmuebles.map((c: any) => String(c).trim().toUpperCase()) : [];
+        const docTokens = [...new Set([...(docInmRaw ? docInmRaw.split(/[,;\s]+/).map(t => t.trim()).filter(Boolean) : []), ...docInmList])];
+        if (targetTokens.length > 0 && docTokens.length > 0) {
+          const matches = targetTokens.some(t => docTokens.includes(t)) || docTokens.some(t => targetTokens.includes(t));
+          if (!matches) continue;
+        }
         // NUNCA restaurar una Nota de Crédito cuyo origen sea una Retención de IVA (solo se restauran notas de crédito reales por excedente/pago)
         if (String(det.modalidad_origen || '').toLowerCase() === 'retencion_iva') continue;
 
