@@ -438,7 +438,13 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
   // Inicializar fecha editable al abrir el modal
   useEffect(() => {
     if (!isOpen || !pago) return;
-    const raw = pago?.fechaEmisionOverride || det?.fecha_emision_override || (yaEmitidaVigente ? (pago?.fechaEmision || det?.factura_digital?.fecha_emision) : '') || '';
+    const fTxP = String(det?.fecha_transaccion || '').slice(0, 10);
+    const fBancoP = String(det?.fecha_banco || '').slice(0, 10);
+    const fIngP = String(det?.fecha_ingreso_caja || pago?.created_at || '').slice(0, 10);
+    const fTxPreferida = (fBancoP && fTxP && fBancoP < fTxP && fTxP === fIngP) ? fBancoP : (fTxP || fBancoP);
+    const rawPago = pago?.fechaPagoOverride || det?.fecha_pago_override || fTxPreferida || det?.formasPago?.[0]?.fecha || pago?.fecha || pago?.created_at || '';
+
+    const raw = pago?.fechaEmisionOverride || det?.fecha_emision_override || (yaEmitidaVigente ? (pago?.fechaEmision || det?.factura_digital?.fecha_emision) : '') || fTxPreferida || rawPago || '';
     const s = String(raw).trim();
     if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
       setFechaEditable(s.slice(0, 10));
@@ -451,12 +457,6 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
     } else {
       setFechaEditable(new Date().toLocaleDateString('en-CA', { timeZone: 'America/Caracas' }));
     }
-
-    const fTxP = String(det?.fecha_transaccion || '').slice(0, 10);
-    const fBancoP = String(det?.fecha_banco || '').slice(0, 10);
-    const fIngP = String(det?.fecha_ingreso_caja || pago?.created_at || '').slice(0, 10);
-    const fTxPreferida = (fBancoP && fTxP && fBancoP < fTxP && fTxP === fIngP) ? fBancoP : (fTxP || fBancoP);
-    const rawPago = pago?.fechaPagoOverride || det?.fecha_pago_override || fTxPreferida || det?.formasPago?.[0]?.fecha || pago?.fecha || pago?.created_at || '';
     const sp = String(rawPago).trim();
     if (/^\d{4}-\d{2}-\d{2}/.test(sp)) {
       setFechaPagoEditable(sp.slice(0, 10));

@@ -134,6 +134,13 @@ export function clasificarPago(recibos: string[], inmMap: Map<string, any>, det:
   }
 
   // Fallback cuando `recibos` viene vacío (ej. pago de cuota de Convenio o cargo directo con codigo_inmueble / deuda_previa):
+  // IMPORTANTE: si el pago sin `recibos` ya fue emitido como Recibo Digital (ej. servicios especiales de octubre WEB-0472419)
+  // y NO tiene factura fiscal emitida, conservar su clasificación como 'recibo' para no alterar el Reporte de Recibos de Octubre ni pasarlo a facturas pendientes.
+  const yaEmitidoComoReciboSinFactura =
+    (!Array.isArray(recibos) || recibos.length === 0) &&
+    Boolean(det?.recibo_digital?.enviado || det?.recibo_digital?.numero) &&
+    !Boolean(det?.factura_digital?.emitida || det?.factura_digital?.numero_control || det?.factura_digital?.numero_documento || det?.factura_digital?.url);
+
   if (inmuebles.size === 0) {
     const codsDirectos = new Set<string>();
     const addCodDir = (v: any) => {
@@ -148,6 +155,10 @@ export function clasificarPago(recibos: string[], inmMap: Map<string, any>, det:
     }
     for (const cod of codsDirectos) {
       inmuebles.add(cod);
+      if (yaEmitidoComoReciboSinFactura) {
+        residencial = true;
+        continue;
+      }
       const inm = inmMap.get(cod);
       if (!inm) { desconocido = true; continue; }
       if (isResidencialInm(inm)) residencial = true;
@@ -161,8 +172,8 @@ export function clasificarPago(recibos: string[], inmMap: Map<string, any>, det:
     mesesServicio = Math.max(...valoresMeses);
   }
 
-  // Referencias sin inmueble identificable: si caja cobró IVA, es servicio comercial.
-  if (!servicioComercial && desconocido && (parseFloat(String(det?.iva_percent || 0)) || 0) > 0) {
+  // Referencias sin inmueble identificable: si caja cobró IVA, es servicio comercial (salvo que ya haya sido emitido y cerrado como recibo digital sin factura).
+  if (!yaEmitidoComoReciboSinFactura && !servicioComercial && desconocido && (parseFloat(String(det?.iva_percent || 0)) || 0) > 0) {
     servicioComercial = true;
   }
 

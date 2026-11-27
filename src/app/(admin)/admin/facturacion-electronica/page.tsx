@@ -1174,6 +1174,7 @@ export default function FacturacionElectronicaPage() {
       pago.fechaEmisionOverride ||
       pago.detalles?.fecha_emision_override ||
       (yaEmitidaVigente ? (pago.fechaEmision || pago.detalles?.factura_digital?.fecha_emision) : '') ||
+      fechaPagoOrig ||
       ''
     ) || hoyYMD;
     if (!yaEmitidaVigente && fechaEmisionGuardada) {
