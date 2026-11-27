@@ -1126,8 +1126,44 @@ export async function POST(request: Request) {
         ? detPago.deuda_previa.filter((dp: any) => inmsPagados.includes(String(dp.inmueble || '').trim().toUpperCase()))
         : detPago.deuda_previa;
 
-      const dpMulta = dpFiltrada.reduce((acc: number, dp: any) => acc + (parseFloat(String(dp.multa_bs || 0)) || 0), 0);
-      baseExenta = dpMulta > 0 ? r2(dpMulta) : 0;
+      const rawDpMulta = dpFiltrada.reduce((acc: number, dp: any) => acc + (parseFloat(String(dp.multa_bs || 0)) || 0), 0);
+      const tieneMultiMesesDp = dpFiltrada.some((dp: any) => parseInt(String(dp?.meses_deuda || 1), 10) > 1);
+      const multaDirectaDet = [detPago.monto_multa, detPago.multa_bs, detPago.montoMulta]
+        .map(v => parseFloat(String(v || 0)) || 0)
+        .find(v => v > 0 && !(tieneMultiMesesDp && rawDpMulta > 0 && Math.abs(v - rawDpMulta) < 0.05)) || 0;
+
+      if (multaDirectaDet > 0) {
+        baseExenta = r2(multaDirectaDet);
+      } else {
+        const recsUpper = (recibos || []).map((r: string) => String(r || '').trim().toUpperCase());
+        const tieneHistRecs = recsUpper.some((r: string) => /^RECIB-HIST-.+-M\d+$/i.test(r));
+        const refTotEmit = parseFloat(String(detPago.monto_factura || detPago.total_seleccionado || montoTotal || 0)) || 0;
+        let multaProporcional = 0;
+        if (tieneHistRecs && refTotEmit > 0) {
+          let pesoGravado = 0;
+          let pesoMulta = 0;
+          let algunMesMultado = false;
+          for (const dp of dpFiltrada) {
+            const cod = String(dp?.inmueble || '').trim().toUpperCase();
+            const mInm = recsUpper
+              .map((r: string) => r.match(/^RECIB-HIST-(.+)-M(\d+)$/i))
+              .filter((m: RegExpMatchArray | null): m is RegExpMatchArray => Boolean(m && m[1].toUpperCase() === cod))
+              .map((m: RegExpMatchArray) => parseInt(m[2], 10));
+            if (mInm.length === 0) continue;
+            const mesesDeudaInm = Math.max(1, parseInt(String(dp?.meses_deuda || 1), 10));
+            const multaInmPrevia = parseFloat(String(dp?.multa_bs || 0)) || 0;
+            const mesesConMora = multaInmPrevia > 0.05 ? mInm.filter((n: number) => n < mesesDeudaInm).length : 0;
+            if (mesesConMora > 0) algunMesMultado = true;
+            const pesoInm = ((parseFloat(String(dp?.deuda_mmv || 0)) || 0) / mesesDeudaInm) || 1;
+            pesoGravado += pesoInm * mInm.length * 1.16;
+            pesoMulta += pesoInm * mesesConMora * 0.12;
+          }
+          if (algunMesMultado && pesoMulta > 0 && pesoGravado > 0) {
+            multaProporcional = r2(refTotEmit * (pesoMulta / (pesoGravado + pesoMulta)));
+          }
+        }
+        baseExenta = multaProporcional > 0 ? multaProporcional : (rawDpMulta > 0 ? r2(rawDpMulta) : 0);
+      }
     } else if (itemsExentos.length > 0) {
       baseExenta = r2(itemsExentos.reduce((s: number, it: any) => s + (parseFloat(it.PrecioUnitario) || 0), 0));
     }
@@ -2719,14 +2755,25 @@ export async function POST(request: Request) {
           );
           if (yaEmitidoCand) continue;
           const refCandClean = String(cand.referencia || '').replace(/\s*\(\+.*$/, '').trim();
-          const esExplicito = Boolean(refCandClean && refsAbsorbidas.includes(refCandClean)) || dCand?.completado_con_pago_id === pagoId || dCand?.pago_principal_id === pagoId;
+          const enPagosAgregadosPrin = Array.isArray(detPago?.pagos_agregados) && detPago.pagos_agregados.some((pa: any) =>
+            pa?.id === cand.id || (refCandClean && String(pa?.referencia || '').trim() === refCandClean)
+          );
+          const esExplicito = Boolean(refCandClean && refsAbsorbidas.includes(refCandClean)) || enPagosAgregadosPrin || dCand?.completado_con_pago_id === pagoId || dCand?.pago_principal_id === pagoId;
           const esAbonoCand = dCand?.es_abono === true || dCand?.abono === true || dCand?.pago_parcial === true;
           const recibosCand = Array.isArray(dCand?.recibos) ? dCand.recibos.map((r: any) => String(r).toUpperCase()) : [];
           const mismosRecibos = recibosCand.length > 0 && recibosCand.every((r: string) => recibosPrin.includes(r));
           const montoCandNum = parseFloat(String(cand.monto || 0)) || 0;
+          const montoFacCand = parseFloat(String(dCand?.monto_factura || dCand?.total_seleccionado || dCand?.monto_neto_factura || 0)) || 0;
+          const candCubreSuPropiaFactura = dCand?.es_abono === false || (montoFacCand > 0 && montoCandNum >= montoFacCand - 1.00);
           const montoPrinNum = parseFloat(String(pagoRow?.monto || 0)) || 0;
-          const esComplementoParcial = mismosRecibos && recibosCand.length === recibosPrin.length && montoCandNum > 0 && montoPrinNum > 0 && (montoCandNum + montoPrinNum) <= totalAPagar * 1.15 && Math.abs(new Date(cand.created_at).getTime() - new Date(pagoRow?.created_at || new Date()).getTime()) <= 15 * 86400 * 1000;
-          const comparteRecibos = (esAbonoCand && mismosRecibos && new Date(cand.created_at) <= new Date(pagoRow?.created_at || new Date())) || esComplementoParcial;
+          const abonoPrevioPrin = parseFloat(String(detPago?.abono_previo_descontado || 0)) || 0;
+          const sumPaPrin = Array.isArray(detPago?.pagos_agregados) && detPago.pagos_agregados.length > 1
+            ? detPago.pagos_agregados.reduce((s: number, pa: any) => s + (parseFloat(String(pa?.monto || 0)) || 0), 0)
+            : 0;
+          const prinYaCubiertoSinCand = !enPagosAgregadosPrin && ((montoPrinNum + abonoPrevioPrin >= totalAPagar - 1.00) || (sumPaPrin >= totalAPagar - 1.00));
+          const mismaFacturaObjetivo = montoFacCand <= 0 || totalAPagar <= 0 || Math.abs(montoFacCand - totalAPagar) <= 1.00;
+          const esComplementoParcial = !candCubreSuPropiaFactura && !prinYaCubiertoSinCand && mismaFacturaObjetivo && mismosRecibos && recibosCand.length === recibosPrin.length && montoCandNum > 0 && montoPrinNum > 0 && (montoCandNum + montoPrinNum) <= totalAPagar * 1.15 && Math.abs(new Date(cand.created_at).getTime() - new Date(pagoRow?.created_at || new Date()).getTime()) <= 15 * 86400 * 1000;
+          const comparteRecibos = (!candCubreSuPropiaFactura && !prinYaCubiertoSinCand && mismaFacturaObjetivo && esAbonoCand && mismosRecibos && new Date(cand.created_at) <= new Date(pagoRow?.created_at || new Date())) || esComplementoParcial;
 
           if (esExplicito || comparteRecibos) {
             dCand.pago_principal_id = pagoId;

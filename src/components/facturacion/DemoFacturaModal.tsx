@@ -189,29 +189,67 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
     (det?.montoMulta !== undefined && det?.montoMulta !== null && String(det.montoMulta).trim() !== '' && parseFloat(String(det.montoMulta)) <= 0)
   );
 
+  const inmsPagadosDemo = [...new Set([
+    ...(Array.isArray(det?.recibos) ? det.recibos : []).map((r: string) => extraerCodigoInmueble(r)).filter(Boolean),
+    det.codigo_inmueble,
+    det.cod_inmueble
+  ].filter(Boolean).map(x => String(x).trim().toUpperCase()))];
+  const dpFiltradaDemo = Array.isArray(det?.deuda_previa)
+    ? (inmsPagadosDemo.length > 0
+        ? det.deuda_previa.filter((dp: any) => inmsPagadosDemo.includes(String(dp.inmueble || '').trim().toUpperCase()))
+        : det.deuda_previa)
+    : [];
+  const rawSumaDpDemo = dpFiltradaDemo.reduce((acc: number, dp: any) => acc + (parseFloat(String(dp?.multa_bs || 0)) || 0), 0);
+  const tieneMultiMesesDpDemo = dpFiltradaDemo.some((dp: any) => parseInt(String(dp?.meses_deuda || 1), 10) > 1);
+  const candMultasDemo = [
+    det?.monto_multa,
+    det?.multa_bs,
+    det?.montoMulta,
+    pago?.montoMulta
+  ].map(v => parseFloat(String(v || 0)) || 0).filter(v => v > 0);
+  const multaDirectaDemo = candMultasDemo.find(v => !(tieneMultiMesesDpDemo && rawSumaDpDemo > 0 && Math.abs(v - rawSumaDpDemo) < 0.05)) || 0;
+
   if (sinMultaActiva) {
     rcExento = 0;
     exento = 0;
   } else if (multaCondoDirecta > 0) {
     exento = multaCondoDirecta;
-  } else if (parseFloat(String(det.multa_bs || det.monto_multa || det.montoMulta || pago?.montoMulta || 0)) > 0) {
-    exento = parseFloat(String(det.multa_bs || det.monto_multa || det.montoMulta || pago?.montoMulta || 0));
+  } else if (multaDirectaDemo > 0) {
+    exento = multaDirectaDemo;
   } else if (tieneReciboCaja) {
     exento = rcExento;
   } else {
     exento = 0;
-    if (exento === 0 && Array.isArray(det.deuda_previa)) {
-      const inmsPagados = [...new Set([
-        ...(Array.isArray(det?.recibos) ? det.recibos : []).map((r: string) => extraerCodigoInmueble(r)).filter(Boolean),
-        det.codigo_inmueble,
-        det.cod_inmueble
-      ].filter(Boolean).map(x => String(x).trim().toUpperCase()))];
-
-      const dpFiltrada = inmsPagados.length > 0
-        ? det.deuda_previa.filter((dp: any) => inmsPagados.includes(String(dp.inmueble || '').trim().toUpperCase()))
-        : det.deuda_previa;
-
-      exento = dpFiltrada.reduce((acc: number, dp: any) => acc + (parseFloat(String(dp?.multa_bs || 0)) || 0), 0);
+    if (exento === 0 && dpFiltradaDemo.length > 0) {
+      const recsUpper = (Array.isArray(det?.recibos) ? det.recibos : []).map((r: string) => String(r || '').trim().toUpperCase());
+      const tieneHistRecs = recsUpper.some((r: string) => /^RECIB-HIST-.+-M\d+$/i.test(r));
+      const refTotalDemo = parseFloat(String(det?.monto_factura || det?.total_seleccionado || pago?.monto || 0)) || 0;
+      if (tieneHistRecs && refTotalDemo > 0) {
+        let pesoGravado = 0;
+        let pesoMulta = 0;
+        let algunMesMultado = false;
+        for (const dp of dpFiltradaDemo) {
+          const cod = String(dp?.inmueble || '').trim().toUpperCase();
+          const mInm = recsUpper
+            .map((r: string) => r.match(/^RECIB-HIST-(.+)-M(\d+)$/i))
+            .filter((m: RegExpMatchArray | null): m is RegExpMatchArray => Boolean(m && m[1].toUpperCase() === cod))
+            .map((m: RegExpMatchArray) => parseInt(m[2], 10));
+          if (mInm.length === 0) continue;
+          const mesesDeudaInm = Math.max(1, parseInt(String(dp?.meses_deuda || 1), 10));
+          const multaInmPrevia = parseFloat(String(dp?.multa_bs || 0)) || 0;
+          const mesesConMora = multaInmPrevia > 0.05 ? mInm.filter((n: number) => n < mesesDeudaInm).length : 0;
+          if (mesesConMora > 0) algunMesMultado = true;
+          const pesoInm = ((parseFloat(String(dp?.deuda_mmv || 0)) || 0) / mesesDeudaInm) || 1;
+          pesoGravado += pesoInm * mInm.length * 1.16;
+          pesoMulta += pesoInm * mesesConMora * 0.12;
+        }
+        if (algunMesMultado && pesoMulta > 0 && pesoGravado > 0) {
+          exento = Math.round((refTotalDemo * (pesoMulta / (pesoGravado + pesoMulta))) * 100) / 100;
+        }
+      }
+      if (exento === 0) {
+        exento = rawSumaDpDemo;
+      }
     }
     if (exento === 0 && multaEnMontosHistDemo > 0) {
       exento = multaEnMontosHistDemo;

@@ -1007,8 +1007,60 @@ export default function FacturacionElectronicaPage() {
       if (multaCondo > 0) {
         exentoRecibo = multaCondo;
       } else {
-        // 2a. Revisar multa_bs / monto_multa explícito en el pago o montos de recibos MULTA-
-        const multaDirectaPago = parseFloat(String(pago.detalles?.multa_bs || pago.detalles?.monto_multa || pago.detalles?.montoMulta || pago.detalles?.montos?.multa || pago.montoMulta || 0)) || 0;
+        // Helper para calcular la multa real de los meses pagados cuando `deuda_previa` guarda el acumulado de todos los meses de deuda
+        const calcularMultaDesdeDeudaPrevia = (dpList: any[], recsList: string[], totalDoc: number): number => {
+          if (!Array.isArray(dpList) || dpList.length === 0) return 0;
+          const recsUpper = (recsList || []).map(r => String(r || '').trim().toUpperCase());
+          const tieneHistRecs = recsUpper.some(r => /^RECIB-HIST-.+-M\d+$/i.test(r));
+          if (tieneHistRecs && totalDoc > 0) {
+            let pesoGravado = 0;
+            let pesoMulta = 0;
+            let algunMesMultado = false;
+            for (const dp of dpList) {
+              const cod = String(dp?.inmueble || '').trim().toUpperCase();
+              const mInm = recsUpper
+                .map(r => r.match(/^RECIB-HIST-(.+)-M(\d+)$/i))
+                .filter((m): m is RegExpMatchArray => Boolean(m && m[1].toUpperCase() === cod))
+                .map(m => parseInt(m[2], 10));
+              if (mInm.length === 0) continue;
+              const mesesDeudaInm = Math.max(1, parseInt(String(dp?.meses_deuda || 1), 10));
+              const multaInmPrevia = parseFloat(String(dp?.multa_bs || 0)) || 0;
+              const mesesConMora = multaInmPrevia > 0.05 ? mInm.filter(n => n < mesesDeudaInm).length : 0;
+              if (mesesConMora > 0) algunMesMultado = true;
+              const pesoInm = ((parseFloat(String(dp?.deuda_mmv || 0)) || 0) / mesesDeudaInm) || 1;
+              pesoGravado += pesoInm * mInm.length * 1.16;
+              pesoMulta += pesoInm * mesesConMora * 0.12;
+            }
+            if (algunMesMultado && pesoMulta > 0 && pesoGravado > 0) {
+              return Math.round((totalDoc * (pesoMulta / (pesoGravado + pesoMulta))) * 100) / 100;
+            }
+          }
+          return dpList.reduce((acc: number, dp: any) => acc + (parseFloat(String(dp?.multa_bs || 0)) || 0), 0);
+        };
+
+        const inmsPagados = [...new Set([
+          ...(Array.isArray(pago.detalles?.recibos) ? pago.detalles.recibos : []).map((r: string) => extraerCodigoInmueble(r)).filter(Boolean),
+          pago.detalles?.codigo_inmueble,
+          pago.detalles?.cod_inmueble
+        ].filter(Boolean).map(x => String(x).trim().toUpperCase()))];
+        const dpFiltrada = Array.isArray(pago.detalles?.deuda_previa)
+          ? (inmsPagados.length > 0
+              ? pago.detalles.deuda_previa.filter((dp: any) => inmsPagados.includes(String(dp.inmueble || '').trim().toUpperCase()))
+              : pago.detalles.deuda_previa)
+          : [];
+        const rawSumaDeudaPrevia = dpFiltrada.reduce((acc: number, dp: any) => acc + (parseFloat(String(dp?.multa_bs || 0)) || 0), 0);
+        const tieneMultiMesesDeudaPrevia = dpFiltrada.some((dp: any) => parseInt(String(dp?.meses_deuda || 1), 10) > 1);
+
+        // 2a. Revisar multa_bs / monto_multa explícito en el pago (descartando si es copia bruta del acumulado multi-mes de deuda_previa)
+        const candMultasDirectas = [
+          pago.detalles?.monto_multa,
+          pago.detalles?.multa_bs,
+          pago.detalles?.montoMulta,
+          pago.detalles?.montos?.multa,
+          pago.montoMulta
+        ].map(v => parseFloat(String(v || 0)) || 0).filter(v => v > 0);
+        const multaDirectaPago = candMultasDirectas.find(v => !(tieneMultiMesesDeudaPrevia && rawSumaDeudaPrevia > 0 && Math.abs(v - rawSumaDeudaPrevia) < 0.05)) || 0;
+
         if (multaDirectaPago > 0) {
           exentoRecibo = multaDirectaPago;
         } else if (pago.detalles?.montos && typeof pago.detalles.montos === 'object') {
@@ -1019,19 +1071,9 @@ export default function FacturacionElectronicaPage() {
           }
         }
 
-        // 2b. Revisar deuda_previa (filtrada por los inmuebles que realmente se están pagando)
-        if (exentoRecibo === 0 && Array.isArray(pago.detalles?.deuda_previa)) {
-          const inmsPagados = [...new Set([
-            ...(Array.isArray(pago.detalles?.recibos) ? pago.detalles.recibos : []).map((r: string) => extraerCodigoInmueble(r)).filter(Boolean),
-            pago.detalles?.codigo_inmueble,
-            pago.detalles?.cod_inmueble
-          ].filter(Boolean).map(x => String(x).trim().toUpperCase()))];
-
-          const dpFiltrada = inmsPagados.length > 0
-            ? pago.detalles.deuda_previa.filter((dp: any) => inmsPagados.includes(String(dp.inmueble || '').trim().toUpperCase()))
-            : pago.detalles.deuda_previa;
-
-          exentoRecibo = dpFiltrada.reduce((acc: number, dp: any) => acc + (parseFloat(String(dp?.multa_bs || 0)) || 0), 0);
+        // 2b. Revisar deuda_previa (calculando la porción exacta de los meses pagados)
+        if (exentoRecibo === 0 && dpFiltrada.length > 0) {
+          exentoRecibo = calcularMultaDesdeDeudaPrevia(dpFiltrada, Array.isArray(pago.detalles?.recibos) ? pago.detalles.recibos : [], montoTotal);
         }
 
         // 2c. Multa implícita en RECIB-HIST-*-M1
