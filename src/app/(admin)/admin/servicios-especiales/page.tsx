@@ -502,7 +502,14 @@ export default function ServiciosEspecialesPage() {
   const mesActualYMD = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' }).format(new Date()).slice(0, 7);
 
   const obtenerMesServicio = (s: any): string => {
-    const raw = String(s.fecha || s.fecha_evento || s.created_at || '').trim();
+    const rawCreacion = String(s.created_at || '').trim();
+    const rawFecha = String(s.fecha || '').trim();
+    const rawEvento = String(s.fecha_evento || '').trim();
+    // Si `fecha` es igual a `fecha_evento` (ej. un servicio solicitado en noviembre para un evento en diciembre)
+    // y tiene `created_at`, usar el mes de solicitud/registro (`created_at`) para que salga en el mes en que se solicitó/cobró.
+    const raw = (rawFecha && rawEvento && rawFecha === rawEvento && rawCreacion)
+      ? rawCreacion
+      : (rawFecha || rawCreacion || rawEvento);
     if (!raw) return '';
     // Formato YYYY-MM-DD o ISO
     const isoMatch = raw.match(/^(\d{4})-(\d{2})/);
@@ -511,6 +518,18 @@ export default function ServiciosEspecialesPage() {
     const latamMatch = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
     if (latamMatch) return `${latamMatch[3]}-${latamMatch[2].padStart(2, '0')}`;
     return '';
+  };
+
+  const obtenerRangoMesFiltro = (ym: string): { fechaInicio: string; fechaFin: string } => {
+    if (!ym || ym === 'todos' || !/^\d{4}-\d{2}$/.test(ym)) return { fechaInicio: '', fechaFin: '' };
+    const [yStr, mStr] = ym.split('-');
+    const y = parseInt(yStr, 10);
+    const m = parseInt(mStr, 10);
+    const lastDay = new Date(y, m, 0).getDate();
+    return {
+      fechaInicio: `${ym}-01`,
+      fechaFin: `${ym}-${String(lastDay).padStart(2, '0')}`,
+    };
   };
 
   const formatearMesLabel = (ym: string): string => {
@@ -557,10 +576,14 @@ export default function ServiciosEspecialesPage() {
       ? servicios.filter(s => cumpleFiltrosComunes(s))
       : serviciosFiltrados;
     if (lista.length === 0) return alert('No hay registros para exportar con los filtros seleccionados.');
+    const { fechaInicio, fechaFin } = obtenerRangoMesFiltro(mesFiltro);
     generarReporteServiciosExcel({
       servicios: lista,
       contribuyentes,
+      fechaInicio,
+      fechaFin,
       tipoFiltro: todosLosTipos ? 'Todos' : tab,
+      estadoFiltro: estadoFiltro === 'todos' ? 'Todos' : estadoFiltro,
     });
   };
 

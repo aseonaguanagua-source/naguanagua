@@ -164,7 +164,12 @@ async function verificarEstadoLiberacionSolvencia(
       );
       const aprobadaRegular =
         tienePlanillaEnTablaAprobada ||
-        (!det.liberado_sin_planilla && !det.exonerado_planilla_retencion && (det.retencion_aprobada === true || r.estado === 'aprobada'));
+        det.liberado_sin_planilla === true ||
+        det.exonerado_planilla_retencion === true ||
+        r.liberado_sin_planilla === true ||
+        r.exonerado_planilla_retencion === true ||
+        det.retencion_aprobada === true ||
+        r.estado === 'aprobada';
       if (aprobadaRegular) continue;
 
       if (!bloqueado) {

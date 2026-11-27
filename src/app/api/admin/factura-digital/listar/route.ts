@@ -961,7 +961,19 @@ export async function GET(request: Request) {
         }
         return sumM;
       })();
-      const tieneMultaCobradaEnRecibo = multaLineasTotal > 0.05 || rcConceptoMulta > 0.05 || rcDiffMulta > 0.05 || multaEnMontosHist > 0.05 || Number(det.multa_bs || det.monto_multa || det.montoMulta || 0) > 0.05 || (Array.isArray(det.deuda_previa) && det.deuda_previa.some((dp: any) => Number(dp?.multa_bs || 0) > 0.05));
+      const tieneMultaExplicitaDet = Number(det.multa_bs || det.monto_multa || det.montoMulta || 0) > 0.05;
+      const tieneBanderaSinMulta = Boolean(
+        det.llevaMulta === false ||
+        det.sin_multas === true ||
+        det.solo_aseo === true ||
+        det.incluir_multas === false
+      );
+      const tieneMultaCobradaEnRecibo =
+        multaLineasTotal > 0.05 ||
+        rcConceptoMulta > 0.05 ||
+        rcDiffMulta > 0.05 ||
+        tieneMultaExplicitaDet ||
+        (!tieneBanderaSinMulta && (multaEnMontosHist > 0.05 || (Array.isArray(det.deuda_previa) && det.deuda_previa.some((dp: any) => Number(dp?.multa_bs || 0) > 0.05))));
       if (tieneMultaCobradaEnRecibo) {
         clasif.tieneMulta = true;
       }

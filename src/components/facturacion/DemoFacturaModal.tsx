@@ -179,15 +179,33 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
     return sumM;
   })();
 
-  const sinMultaActiva = multaEnMontosHistDemo <= 0.05 && Boolean(
-    pago?.llevaMulta === false ||
-    det?.llevaMulta === false ||
-    det?.sin_multas === true ||
-    det?.solo_aseo === true ||
-    det?.incluir_multas === false ||
-    (pago?.montoMulta !== undefined && parseFloat(String(pago.montoMulta)) <= 0) ||
-    (det?.montoMulta !== undefined && det?.montoMulta !== null && String(det.montoMulta).trim() !== '' && parseFloat(String(det.montoMulta)) <= 0)
-  );
+  const multaExplicitaDemo = parseFloat(String(det?.multa_bs || det?.monto_multa || det?.montoMulta || pago?.montoMulta || 0)) || 0;
+  const exentoPorRetencionDemo = (() => {
+    if (!esRetencion || retGuardada <= 0) return null;
+    const porcRetCalc = Number(pago?.porcentajeRetencion || det?.porcentaje_retencion || det?.porcentaje_retencion_iva || det?.factura_digital?.retencion?.porcentaje_retencion || 75) === 100 ? 100 : 75;
+    const ivaReal = Math.round((retGuardada / (porcRetCalc / 100)) * 100) / 100;
+    const baseReal = Math.round((ivaReal / 0.16) * 100) / 100;
+    const gravadoReal = Math.round((baseReal + ivaReal) * 100) / 100;
+    const totCand = parseFloat(String(det?.monto_factura || det?.total_seleccionado || pago?.monto || 0)) || 0;
+    const totBruto = totCand >= gravadoReal - 1 ? totCand : Math.round(((montoPagado || 0) + retGuardada) * 100) / 100;
+    if (totBruto <= 0) return null;
+    const diffEx = Math.round((totBruto - gravadoReal) * 100) / 100;
+    if (Math.abs(diffEx) <= 1.00) return 0;
+    if (diffEx > 1.00 && diffEx < totBruto * 0.35) return diffEx;
+    return null;
+  })();
+
+  const sinMultaActiva = exentoPorRetencionDemo !== null
+    ? exentoPorRetencionDemo === 0
+    : (multaExplicitaDemo <= 0.05 && Boolean(
+        pago?.llevaMulta === false ||
+        det?.llevaMulta === false ||
+        det?.sin_multas === true ||
+        det?.solo_aseo === true ||
+        det?.incluir_multas === false ||
+        (pago?.montoMulta !== undefined && parseFloat(String(pago.montoMulta)) <= 0) ||
+        (det?.montoMulta !== undefined && det?.montoMulta !== null && String(det.montoMulta).trim() !== '' && parseFloat(String(det.montoMulta)) <= 0)
+      ));
 
   const inmsPagadosDemo = [...new Set([
     ...(Array.isArray(det?.recibos) ? det.recibos : []).map((r: string) => extraerCodigoInmueble(r)).filter(Boolean),
@@ -212,6 +230,8 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
   if (sinMultaActiva) {
     rcExento = 0;
     exento = 0;
+  } else if (exentoPorRetencionDemo !== null && exentoPorRetencionDemo > 0) {
+    exento = exentoPorRetencionDemo;
   } else if (multaCondoDirecta > 0) {
     exento = multaCondoDirecta;
   } else if (multaDirectaDemo > 0) {
@@ -1075,6 +1095,10 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
                                 </div>
                               );
                             })}
+                            <div className="pt-1.5 flex items-center justify-between font-black text-slate-900 bg-slate-50 px-1.5 py-1 rounded">
+                              <span>Total Cancelado Factura</span>
+                              <span className="font-mono">Bs. {formatBs(totalFactura)}</span>
+                            </div>
                           </div>
                         );
                       }

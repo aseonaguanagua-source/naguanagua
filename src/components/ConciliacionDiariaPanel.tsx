@@ -712,18 +712,28 @@ export default function ConciliacionDiariaPanel({
     });
   };
 
-  const restaurarDiaAutomatico = (f: typeof filasConsolidadoDiario[number]) => {
+  const restaurarDiaAutomatico = async (f: typeof filasConsolidadoDiario[number]) => {
     setConsInputs((prev) => ({
       ...prev,
       [f.dia]: {
-        euro: String(f.autoEuro),
-        ucd: String(f.autoUcd),
-        puntoBs: String(f.autoPuntoBs),
-        transfBs: String(f.autoTransfBs),
+        euro: f.autoEuro.toFixed(2),
+        ucd: f.autoUcd.toFixed(2),
+        puntoBs: f.autoPuntoBs.toFixed(2),
+        transfBs: f.autoTransfBs.toFixed(2),
         banescoBs: f.autoBanescoBs > 0 ? f.autoBanescoBs.toFixed(2) : '',
         bancamigaBs: f.autoBancamigaBs > 0 ? f.autoBancamigaBs.toFixed(2) : '',
       },
     }));
+    if (consolidadoOverrides[f.dia]) {
+      const nextOv = { ...consolidadoOverrides };
+      delete nextOv[f.dia];
+      setConsolidadoOverrides(nextOv);
+      try {
+        await supabase
+          .from('sistema_config')
+          .upsert({ id: 'monto_diario_recaudado_diario', valor: JSON.stringify(nextOv) }, { onConflict: 'id' });
+      } catch {}
+    }
   };
 
   const guardarConsolidadoDiario = async () => {
@@ -740,8 +750,11 @@ export default function ConciliacionDiariaPanel({
         const ucdVal = r2(parseMontoNumero(inp.ucd) || euroVal);
         const hasBanInput = String(inp.banescoBs ?? '').trim() !== '';
         const hasBgaInput = String(inp.bancamigaBs ?? '').trim() !== '';
-        const banescoVal = hasBanInput ? r2(parseMontoNumero(inp.banescoBs)) : null;
-        const bancamigaVal = hasBgaInput ? r2(parseMontoNumero(inp.bancamigaBs)) : null;
+        const rawBanVal = hasBanInput ? r2(parseMontoNumero(inp.banescoBs)) : null;
+        const rawBgaVal = hasBgaInput ? r2(parseMontoNumero(inp.bancamigaBs)) : null;
+        // Solo guardar override manual si el monto ingresado difiere del cálculo automático del sistema
+        const banescoVal = rawBanVal !== null && Math.abs(rawBanVal - f.autoBanescoBs) >= 0.01 ? rawBanVal : null;
+        const bancamigaVal = rawBgaVal !== null && Math.abs(rawBgaVal - f.autoBancamigaBs) >= 0.01 ? rawBgaVal : null;
 
         const isSameAsAuto =
           Math.abs(euroVal - f.autoEuro) < 0.01 &&

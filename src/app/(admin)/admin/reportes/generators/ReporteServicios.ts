@@ -349,10 +349,8 @@ export async function generarReporteServiciosExcel(opts: GenerarReporteServicios
       }
     }
 
-    // Monto a Pagar (incluyendo el 16% de IVA oficial facturado para servicios comerciales / extraordinarios / especiales)
-    const montoBase = r2(Number(s.monto ?? s.monto_bs ?? 0));
-    const llevaIva = (tipoKey === 'especial' || tipoKey === 'extraordinario' || tipoKey === 'inspeccion') && !Boolean(s.exento);
-    const montoNum = llevaIva ? r2(montoBase * 1.16) : montoBase;
+    // Monto a Pagar (monto oficial de la planilla/servicio registrado en el sistema, sin sumarle 16% adicional encima)
+    const montoNum = r2(Number(s.monto ?? s.monto_bs ?? 0));
     sumaMonto = r2(sumaMonto + montoNum);
 
     // Pagado (fecha de pago si está pagado, o estado actual)

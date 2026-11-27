@@ -1090,7 +1090,18 @@ export async function POST(request: Request) {
     const multaHistItemsEmit = itemsExentos.length > 0
       ? r2(itemsExentos.reduce((s: number, it: any) => s + (parseFloat(it.PrecioUnitario) || 0), 0))
       : 0;
-    const tieneMultaCobradaReal = multaCondoDirecta > 0.05 || rcExento > 0.05 || rcDiffMultaEmit > 0.05 || multaHistItemsEmit > 0.05;
+    const tieneBanderaSinMultaEmit = Boolean(
+      llevaMulta === false ||
+      detPago?.llevaMulta === false ||
+      detPago?.sin_multas === true ||
+      detPago?.solo_aseo === true ||
+      detPago?.incluir_multas === false
+    );
+    const tieneMultaCobradaReal =
+      multaCondoDirecta > 0.05 ||
+      rcExento > 0.05 ||
+      rcDiffMultaEmit > 0.05 ||
+      (!tieneBanderaSinMultaEmit && multaHistItemsEmit > 0.05);
 
     const inmActiveExonerado = !esPagoExclusivoMulta && !tieneMultaCobradaReal && activeProps.length > 0 && activeProps.every((p: any) =>
       isExoneradoTotalMultas(p?.notas) || (Number(p?.multa_bs || 0) <= 0 && String(p?.notas || '').includes('EXONERACIÓN DE MULTAS') && !String(p?.notas || '').includes('[EXONERADO:'))

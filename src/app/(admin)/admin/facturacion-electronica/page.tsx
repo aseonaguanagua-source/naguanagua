@@ -952,19 +952,42 @@ export default function FacturacionElectronicaPage() {
       return sumMulta;
     };
     const multaEnMontosHist = calcularMultaEnMontosHist(pago.detalles?.montos);
+    const multaExplicitaPago = parseFloat(String(pago.detalles?.multa_bs || pago.detalles?.monto_multa || pago.detalles?.montoMulta || pago.montoMulta || 0)) || 0;
 
-    const sinMultaEliminada = !esExclusivoMulta && multaCondo <= 0.05 && multaEnMontosHist <= 0.05 && Boolean(
-      pago.llevaMulta === false ||
-      pago.detalles?.llevaMulta === false ||
-      pago.detalles?.sin_multas === true ||
-      pago.detalles?.solo_aseo === true ||
-      pago.detalles?.incluir_multas === false ||
-      (pago.detalles?.montoMulta !== undefined && pago.detalles?.montoMulta !== null && String(pago.detalles.montoMulta).trim() !== '' && parseFloat(String(pago.detalles.montoMulta)) <= 0)
-    );
-    const esSoloAseo = sinMultaEliminada || (multaEnMontosHist <= 0.05 && Boolean(pago.detalles?.solo_aseo || pago.detalles?.sin_multas || pago.detalles?.incluir_multas === false));
+    // Si es un pago con retención de IVA (75% o 100%), la retención determina matemáticamente cuánto del total fue gravado y cuánto fue multa exenta:
+    const exentoPorRetencion = (() => {
+      const mRet = parseFloat(String(pago.montoRetencion || pago.detalles?.monto_retencion_iva || pago.detalles?.retencion_iva || pago.detalles?.factura_digital?.retencion?.retenido || 0)) || 0;
+      const esRet = Boolean(pago.conRetencion || pago.detalles?.conRetencion || pago.detalles?.es_retencion || pago.detalles?.agente_retencion || mRet > 0);
+      if (!esRet || mRet <= 0) return null;
+      const porc = Number(pago.porcentajeRetencion || pago.detalles?.porcentaje_retencion || pago.detalles?.porcentaje_retencion_iva || 75) === 100 ? 100 : 75;
+      const ivaReal = Math.round((mRet / (porc / 100)) * 100) / 100;
+      const baseReal = Math.round((ivaReal / 0.16) * 100) / 100;
+      const gravadoReal = Math.round((baseReal + ivaReal) * 100) / 100;
+      const totCand = parseFloat(String(pago.detalles?.monto_factura || pago.detalles?.total_seleccionado || pago.monto || 0)) || 0;
+      const totBruto = totCand >= gravadoReal - 1 ? totCand : Math.round(((parseFloat(String(pago.montoPagado || pago.monto || 0)) || 0) + mRet) * 100) / 100;
+      if (totBruto <= 0) return null;
+      const diffEx = Math.round((totBruto - gravadoReal) * 100) / 100;
+      if (Math.abs(diffEx) <= 1.00) return 0;
+      if (diffEx > 1.00 && diffEx < totBruto * 0.35) return diffEx;
+      return null;
+    })();
+
+    const sinMultaEliminada = !esExclusivoMulta && multaCondo <= 0.05 && multaExplicitaPago <= 0.05 && exentoPorRetencion !== null
+      ? exentoPorRetencion === 0
+      : (!esExclusivoMulta && multaCondo <= 0.05 && multaExplicitaPago <= 0.05 && Boolean(
+          pago.llevaMulta === false ||
+          pago.detalles?.llevaMulta === false ||
+          pago.detalles?.sin_multas === true ||
+          pago.detalles?.solo_aseo === true ||
+          pago.detalles?.incluir_multas === false ||
+          (pago.detalles?.montoMulta !== undefined && pago.detalles?.montoMulta !== null && String(pago.detalles.montoMulta).trim() !== '' && parseFloat(String(pago.detalles.montoMulta)) <= 0)
+        ));
+    const esSoloAseo = sinMultaEliminada || (multaExplicitaPago <= 0.05 && exentoPorRetencion === null && Boolean(pago.detalles?.solo_aseo || pago.detalles?.sin_multas || pago.detalles?.incluir_multas === false));
     if (sinMultaEliminada) {
       multaCondo = 0;
       exentoRecibo = 0;
+    } else if (exentoPorRetencion !== null && exentoPorRetencion > 0) {
+      exentoRecibo = exentoPorRetencion;
     } else if (esSoloAseo && multaCondo === 0) {
       exentoRecibo = 0;
     } else if (pago.detalles?.recibo_caja) {
@@ -2279,7 +2302,14 @@ export default function FacturacionElectronicaPage() {
                             <>
                               {(() => {
                                 const realFacturaUrl = pago.facturaUrl || pago.detalles?.factura_digital?.url || pago.detalles?.factura_digital?.raw_response?.resultado?.urlConsulta;
-                                return realFacturaUrl && !String(realFacturaUrl).includes('democonsulta.thefactoryhka.com.ve') ? (
+                                const fpsCheck = Array.isArray(pago.detalles?.formasPago) && pago.detalles.formasPago.length > 1
+                                  ? pago.detalles.formasPago
+                                  : (Array.isArray(pago.detalles?.pagos_agregados) && pago.detalles.pagos_agregados.length > 1 ? pago.detalles.pagos_agregados : []);
+                                const sumFpsBancarios = fpsCheck
+                                  .filter((fp: any) => !/saldo\s*a\s*favor|nota\s*de\s*cr[eé]dito|nc-saldo-favor/i.test(`${fp?.descripcion || ''} ${fp?.metodo || ''} ${fp?.tipo || ''} ${fp?.referencia || ''}`))
+                                  .reduce((acc: number, fp: any) => acc + (parseFloat(String(fp?.monto || 0)) || 0), 0);
+                                const tieneExcedenteMultiPago = fpsCheck.length > 1 && Math.abs(sumFpsBancarios - (Number(pago.monto) || 0)) > 0.05;
+                                return realFacturaUrl && !String(realFacturaUrl).includes('democonsulta.thefactoryhka.com.ve') && !tieneExcedenteMultiPago ? (
                                   <a
                                     href={realFacturaUrl}
                                     target="_blank"
@@ -2294,7 +2324,7 @@ export default function FacturacionElectronicaPage() {
                                   <button
                                     onClick={() => setSelectedPagoForDemo(pago)}
                                     className="text-[11px] bg-blue-600 hover:bg-blue-700 text-white font-extrabold px-3 py-1.5 rounded-lg flex items-center gap-1 shadow-xs transition-colors cursor-pointer"
-                                    title="Ver e imprimir Factura Digital en formato PDF"
+                                    title="Ver e imprimir Factura Digital Oficial en formato PDF"
                                   >
                                     <Eye className="w-3.5 h-3.5" />
                                     <span>{pago.facturaAnulada ? 'Factura PDF' : 'PDF'}</span>

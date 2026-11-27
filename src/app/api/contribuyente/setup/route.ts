@@ -86,7 +86,7 @@ export async function POST(request: Request) {
         telefono: cleanPhone
       })
       .or(orFilter)
-      .select('contribuyente, cod_cont, identidad');
+      .select('contribuyente, inmueble, cod_cont, identidad');
 
     if (error) {
       console.error("Supabase Error en setup inmuebles:", error);
@@ -116,7 +116,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ 
         status: 'success',
         nombre: data[0].contribuyente, 
-        codigo: data[0].cod_cont,
+        codigo: (data[0] as any).inmueble || data[0].cod_cont || data[0].identidad,
         identidad: data[0].identidad
       });
     } else {

@@ -386,6 +386,31 @@ export default function ReportesPage() {
           </p>
           <div className="flex gap-3">
             <div className="flex flex-col flex-1">
+              <label className="text-xs text-slate-500 mb-1">Mes rápido</label>
+              <select
+                value={
+                  fechaInicio && fechaFin && fechaInicio.slice(0, 7) === fechaFin.slice(0, 7) && fechaInicio.endsWith('-01')
+                    ? fechaInicio.slice(0, 7)
+                    : ''
+                }
+                onChange={e => {
+                  const ym = e.target.value;
+                  if (!ym) return;
+                  const [yS, mS] = ym.split('-');
+                  const lastD = new Date(parseInt(yS, 10), parseInt(mS, 10), 0).getDate();
+                  setFechaInicio(`${ym}-01`);
+                  setFechaFin(`${ym}-${String(lastD).padStart(2, '0')}`);
+                }}
+                className="border rounded-lg px-3 py-2 text-sm bg-white font-semibold text-purple-800"
+              >
+                <option value="">Personalizado</option>
+                <option value={hoyStr.slice(0, 7)}>Mes actual ({hoyStr.slice(0, 7)})</option>
+                <option value="2026-11">Noviembre 2026</option>
+                <option value="2026-10">Octubre 2026</option>
+                <option value="2026-09">Septiembre 2026</option>
+              </select>
+            </div>
+            <div className="flex flex-col flex-1">
               <label className="text-xs text-slate-500 mb-1">Desde</label>
               <input type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)} className="border rounded-lg px-3 py-2 text-sm" />
             </div>
@@ -418,6 +443,31 @@ export default function ReportesPage() {
             Genera la planilla oficial en Excel de <b>SERVICIOS ESPECIALES Y EXTRAORDINARIOS</b> con columnas de Tipo de Servicio, Fecha, Código, Nombre, Dirección, Fecha a Realizar, Monto a Pagar, Pagado, totalización y logos oficiales del IAMEC.
           </p>
           <div className="flex gap-3">
+            <div className="flex flex-col flex-1">
+              <label className="text-xs text-slate-500 mb-1">Mes rápido</label>
+              <select
+                value={
+                  fechaInicio && fechaFin && fechaInicio.slice(0, 7) === fechaFin.slice(0, 7) && fechaInicio.endsWith('-01')
+                    ? fechaInicio.slice(0, 7)
+                    : ''
+                }
+                onChange={e => {
+                  const ym = e.target.value;
+                  if (!ym) return;
+                  const [yS, mS] = ym.split('-');
+                  const lastD = new Date(parseInt(yS, 10), parseInt(mS, 10), 0).getDate();
+                  setFechaInicio(`${ym}-01`);
+                  setFechaFin(`${ym}-${String(lastD).padStart(2, '0')}`);
+                }}
+                className="border rounded-lg px-3 py-2 text-sm bg-white font-semibold text-purple-800"
+              >
+                <option value="">Personalizado</option>
+                <option value={hoyStr.slice(0, 7)}>Mes actual ({hoyStr.slice(0, 7)})</option>
+                <option value="2026-11">Noviembre 2026</option>
+                <option value="2026-10">Octubre 2026</option>
+                <option value="2026-09">Septiembre 2026</option>
+              </select>
+            </div>
             <div className="flex flex-col flex-1">
               <label className="text-xs text-slate-500 mb-1">Desde</label>
               <input type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)} className="border rounded-lg px-3 py-2 text-sm" />

@@ -123,6 +123,15 @@ export async function esCondominioDoc(doc: string): Promise<boolean> {
       return est !== 'eliminado' && est !== 'inactivo' && est !== 'desactivado';
     });
 
+    // Si el documento pertenece a un CONDOMINIO MATRIZ activo (Junta de Condominio / Administradora registrada en `condominios` o `es_condominio: true` sin padre),
+    // SÍ tiene permitido ingresar y configurar su cuenta en el Portal para consultar y pagar su estado de cuenta.
+    const esCondominioMatrizActivo =
+      condominiosActivosReales.length > 0 ||
+      activos.some(i => i.es_condominio === true && !i.condominio_padre_id);
+    if (esCondominioMatrizActivo) {
+      return false;
+    }
+
     // Mapa de unidades de condominio -> código del condominio padre
     const unitParentMap = new Map<string, string>();
     let tieneMultaEnUnidadCondo = false;
